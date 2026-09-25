@@ -1,8 +1,11 @@
 import './globals.css';
 
 export const metadata = {
-  title: 'DrugTime | Bảng điều phối chăm sóc',
-  description: 'Theo dõi người bệnh, lịch thuốc và cảnh báo chăm sóc.',
+import './globals.css';
+
+export const metadata = {
+  title: 'DrugTime — Quản lý thuốc an toàn & đúng giờ',
+  description: 'Theo dõi lịch uống thuốc, nhận cảnh báo tương tác và kết nối người thân chăm sóc.',
 };
 
 export default function RootLayout({ children }) {
@@ -11,4 +14,6 @@ export default function RootLayout({ children }) {
       <body>{children}</body>
     </html>
   );
+}
+
 }
