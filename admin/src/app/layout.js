@@ -1,7 +1,4 @@
-import './globals.css';
-
-export const metadata = {
-import './globals.css';
+﻿import './globals.css';
 
 export const metadata = {
   title: 'DrugTime — Quản lý thuốc an toàn & đúng giờ',
@@ -14,6 +11,4 @@ export default function RootLayout({ children }) {
       <body>{children}</body>
     </html>
   );
-}
-
 }
