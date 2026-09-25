@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { AlertTriangle, ChartNoAxesColumnIncreasing, Check, ChevronRight, Clock3, Heart, LayoutDashboard, Pill, RefreshCw, Search, Settings, ShieldAlert, Users, Wifi } from 'lucide-react';
+import { AlertTriangle, BarChart3, Check, ChevronRight, Clock3, Heart, LayoutDashboard, Pill, RefreshCw, Search, Settings, ShieldAlert, Users, Wifi } from 'lucide-react';
 
 const patients = [
   { name: 'Nguyễn Thị Mai', id: 'HS 01298', medicine: 'Metformin, Amlodipine', state: 'Đang theo dõi', tone: 'red', risk: 'Cao', update: '14:34' },
@@ -29,7 +29,7 @@ export default function AdminDashboard() {
     <aside className="sidebar">
       <div className="brand"><span className="brand-mark">DT</span><span><span className="brand-name">DrugTime</span><span className="brand-sub">Điều phối chăm sóc</span></span></div>
       <nav className="nav" aria-label="Điều hướng chính">
-        <button className="active"><LayoutDashboard/>Tổng quan</button><button><Users/>Người bệnh</button><button><Pill/>Lịch thuốc</button><button><AlertTriangle/>Cảnh báo</button><button><Heart/>Gia đình</button><button><ChartNoAxesColumnIncreasing/>Báo cáo</button><button><Settings/>Cài đặt</button>
+        <button className="active"><LayoutDashboard/>Tổng quan</button><button><Users/>Người bệnh</button><button><Pill/>Lịch thuốc</button><button><AlertTriangle/>Cảnh báo</button><button><Heart/>Gia đình</button><button><BarChart3/>Báo cáo</button><button><Settings/>Cài đặt</button>
       </nav>
       <div className="sync"><div className="sync-label">Đồng bộ dữ liệu</div><div className="sync-card"><RefreshCw size={14}/><span>2 phút trước<small>28 thiết bị hoạt động</small></span></div></div>
     </aside>
@@ -40,7 +40,7 @@ export default function AdminDashboard() {
       <div className="mobile-heading heading"><h1>Điều phối hôm nay</h1><p>Ưu tiên người bệnh cần nhắc thuốc và cảnh báo tương tác.</p></div>
       <div className="chip-row">{['Hôm nay', 'Rủi ro cao', 'Có người nhà', 'Cần xử lý'].map((item, index) => <button key={item} className={`chip ${index === 1 ? 'red' : index === 2 ? 'green' : index === 3 ? 'amber' : ''}`} onClick={() => { setFilter(index === 1 ? 'Cao' : 'Tất cả'); }}>{item}</button>)}<span className="spacer"/><button className="chip">Thêm người bệnh</button></div>
       <section className="dashboard">
-        <div className="metrics"><Metric icon={Users} value="284" label="Người bệnh" tag="+12"/><Metric icon={ChartNoAxesColumnIncreasing} value="87.4%" label="Liều đúng giờ" tag="7 ngày" tone="green"/><Metric icon={Clock3} value="36" label="Liều bỏ lỡ" tag="Hôm nay" tone="amber"/><Metric icon={AlertTriangle} value="9" label="Cảnh báo cao" tag="Ưu tiên" tone="red"/></div>
+        <div className="metrics"><Metric icon={Users} value="284" label="Người bệnh" tag="+12"/><Metric icon={BarChart3} value="87.4%" label="Liều đúng giờ" tag="7 ngày" tone="green"/><Metric icon={Clock3} value="36" label="Liều bỏ lỡ" tag="Hôm nay" tone="amber"/><Metric icon={AlertTriangle} value="9" label="Cảnh báo cao" tag="Ưu tiên" tone="red"/></div>
         <section className="card chart-card"><div className="section-head"><div><h2>Tuân thủ uống thuốc 7 ngày</h2><div className="section-sub">Tỷ lệ xác nhận đúng giờ theo từng ngày</div></div><Badge tone="green">Dữ liệu gần realtime</Badge></div><div className="chart"><div className="bars">{bars.map((height, index) => <span key={index} className="bar" style={{height: `${height}%`, background: ['#2674bc','#16845f','#a87a10','#16845f','#2674bc','#bc3431','#16845f'][index]}}/>)}</div><div className="chart-days">{['T2','T3','T4','T5','T6','T7','CN'].map(day => <span key={day}>{day}</span>)}</div></div><div className="chip-row" style={{margin:'8px 0 0'}}><Badge tone="green">Đúng giờ</Badge><Badge tone="amber">Trễ liều</Badge><Badge tone="red">Bỏ lỡ</Badge></div></section>
         <section className="card alerts-card"><div className="section-head"><h2>Cảnh báo cần xử lý</h2><Badge tone="red">9 mục</Badge></div><div className="alert-list">{alerts.map(({title,note,tone,level,icon:Icon}) => <article className="alert" key={title}><span className={`alert-symbol ${tone === 'amber' ? 'amber' : ''}`}><Icon size={13}/></span><span><strong>{title}</strong><small>{note}</small></span><Badge tone={tone}>{level}</Badge></article>)}</div></section>
         <section className="card patients"><div className="section-head"><div><h2>Người bệnh ưu tiên</h2><div className="section-sub">Sắp xếp theo mức rủi ro và thời điểm cập nhật</div></div><div className="chip-row" style={{margin:0}}>{['Tất cả','Cao','Vừa'].map(item => <button key={item} className={`chip ${item === 'Cao' ? 'red' : item === 'Vừa' ? 'amber' : ''}`} onClick={() => setFilter(item)}>{item}</button>)}</div></div><table className="table"><thead><tr><th>Người bệnh</th><th>Thuốc chính</th><th>Trạng thái</th><th>Rủi ro</th><th>Cập nhật</th><th>Tác vụ</th></tr></thead><tbody>{visiblePatients.map((patient) => <tr key={patient.id}><td><Person patient={patient}/></td><td>{patient.medicine}</td><td><Badge tone={patient.tone}>{patient.state}</Badge></td><td><Badge tone={patient.tone}>{patient.risk}</Badge></td><td>{patient.update}</td><td><button className="detail">Mở</button></td></tr>)}</tbody></table></section>
