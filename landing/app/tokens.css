@@ -1,0 +1,109 @@
+/* DrugTime — design tokens
+ * Source of truth: Figma "Landing Page" › Foundation Sheet (DrugTime — Design Foundation).
+ * Clinical-status colours are fixed: use them ONLY for their clinical meaning.
+ */
+:root {
+  /* Neutral */
+  --color-canvas: #FCFCFC;
+  --color-surface: #FFFFFF;
+  --color-surface-2: #F2F1ED;
+  --color-ink: #211D1D;
+  --color-ink-muted: #5B6169;
+  --color-ink-subtle: #A6A6A6;
+  --color-border: #E4E4E1;
+
+  /* Brand — header / primary actions, never clinical status */
+  --color-brand: #01554F;
+  --color-brand-strong: #013D39;
+  --color-brand-tint: #E7F3F1;
+  --color-brand-line: #8FBDB8;
+  --color-brand-glow: #0B7A70;
+  --color-on-brand: #FFFFFF;
+
+  /* Accent */
+  --color-accent: #ED871F;
+  --color-accent-bg: #FDF0E1;
+
+  /* Clinical status (fixed) */
+  --color-safe: #16A34A;
+  --color-safe-strong: #15803D;
+  --color-safe-bg: #E8F7EE;
+  --color-caution: #D97706;
+  --color-caution-strong: #B45309;
+  --color-caution-bg: #FEF3E2;
+  --color-danger: #DC2626;
+  --color-danger-strong: #B91C1C;
+  --color-danger-bg: #FDECEC;
+  --color-danger-line: #F4C7C7;
+  --color-info: #2563EB;
+  --color-info-bg: #EAF1FD;
+  --color-inactive: #9CA3AF;
+
+  /* Translucent helpers (on brand surfaces) */
+  --color-white-12: rgb(255 255 255 / 0.12);
+  --color-white-25: rgb(255 255 255 / 0.25);
+  --color-white-70: rgb(255 255 255 / 0.7);
+  --color-ink-shadow: rgb(33 29 29 / 0.08);
+  --color-ink-shadow-strong: rgb(33 29 29 / 0.14);
+  --color-brand-shadow: rgb(1 85 79 / 0.16);
+  --color-focus: #ED871F;
+
+  /* Brand logo colours (third-party marks — not part of the palette) */
+  --logo-gp-blue: #4285F4;
+  --logo-gp-green: #34A853;
+  --logo-gp-yellow: #FBBC04;
+  --logo-gp-red: #EA4335;
+
+  /* Type — Inter, Foundation "Standard Mode" (body floor 17px for older users) */
+  /* --font-inter is set by next/font in app/layout.tsx */
+  --font-display: var(--font-inter), "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-body: var(--font-inter), "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+
+  --text-display-xl: clamp(2.25rem, 1.35rem + 3.6vw, 3.5rem);   /* 36 → 56 */
+  --text-display-lg: clamp(1.75rem, 1.3rem + 1.8vw, 2.5rem);     /* 28 → 40 */
+  --text-display-md: clamp(1.375rem, 1.2rem + 0.7vw, 1.75rem);   /* 22 → 28 */
+  --text-title: 1.375rem;      /* 22 */
+  --text-body-lg: clamp(1.0625rem, 1rem + 0.25vw, 1.1875rem);    /* 17 → 19 */
+  --text-body: 1.0625rem;      /* 17 */
+  --text-label: 0.875rem;      /* 14 bold */
+  --text-button: 0.9375rem;    /* 15 semibold */
+
+  --leading-tight: 1.15;
+  --leading-snug: 1.25;
+  --leading-body: 1.55;
+
+  /* Space — 4pt scale */
+  --space-3xs: 0.25rem;
+  --space-2xs: 0.5rem;
+  --space-xs: 0.75rem;
+  --space-sm: 1rem;
+  --space-md: 1.5rem;
+  --space-lg: 2rem;
+  --space-xl: 3rem;
+  --space-2xl: 4.5rem;
+  --space-3xl: 7rem;
+
+  /* Radius — proportional to element size */
+  --radius-container: 5px;
+  --radius-control: 8px;   /* buttons, inputs, chips, small tiles */
+  --radius-card-md: 12px;
+  --radius-card-lg: 16px;
+  --radius-pill: 9999px;
+
+  /* Elevation */
+  --shadow-soft: 0 1px 2px var(--color-ink-shadow), 0 8px 24px -6px var(--color-ink-shadow);
+  --shadow-float: 0 2px 6px var(--color-ink-shadow-strong), 0 24px 48px -12px var(--color-brand-shadow);
+
+  /* Motion */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in: cubic-bezier(0.7, 0, 0.84, 0);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --dur-fast: 140ms;
+  --dur-base: 220ms;
+  --dur-slow: 420ms;
+  --dur-loop: 4.4s;
+
+  --rule-hair: 1px;
+  --page-gutter: clamp(1.25rem, 0.5rem + 3.5vw, 4rem);
+  --page-max: 72rem; /* 1152px */
+}
