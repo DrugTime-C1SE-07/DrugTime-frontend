@@ -1,0 +1,116 @@
+"use client";
+
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import {
+  ClipboardCheck,
+  Database,
+  LayoutDashboard,
+  LogOut,
+  Notebook,
+  PillIcon,
+  ScanText,
+  UserRound,
+  type LucideIcon,
+} from "lucide-react";
+
+type SidebarItem = {
+  label: string;
+  href: string;
+  icon: LucideIcon;
+  badge?: number;
+};
+
+const sidebarItems: SidebarItem[] = [
+  {
+    label: "Tổng quan dữ liệu",
+    href: "/dashboard",
+    icon: LayoutDashboard,
+  },
+  {
+    label: "Danh mục thuốc",
+    href: "/dashboard/medications",
+    icon: PillIcon,
+  },
+  {
+    label: "Quy tắc tương tác",
+    href: "/dashboard/interactions",
+    icon: ClipboardCheck,
+  },
+  {
+    label: "Nhật ký",
+    href: "/dashboard/scraper-logs",
+    icon: Notebook,
+  },
+  {
+    label: "Đối soát OCR",
+    href: "/dashboard/ocr-review",
+    icon: ScanText,
+  },
+];
+
+function isActivePath(pathname: string, href: string) {
+  if (href === "/dashboard") {
+    return pathname === href;
+  }
+
+  return pathname === href || pathname.startsWith(`${href}/`);
+}
+
+export default function Sidebar() {
+  const pathname = usePathname();
+
+  return (
+    <aside className="admin-sidebar" aria-label="Menu quản trị">
+      <div className="admin-sidebar__brand">
+        <div className="admin-sidebar__brand-icon" aria-hidden="true">
+          <Database size={20} strokeWidth={2.4} />
+        </div>
+        <div className="admin-sidebar__brand-text">
+          <div className="admin-sidebar__brand-row">
+            <span className="admin-sidebar__brand-name">DrugTime</span>
+            <span className="admin-sidebar__brand-badge">ADMIN</span>
+          </div>
+          <span className="admin-sidebar__subtitle">Hệ thống nhắc uống thuốc</span>
+        </div>
+      </div>
+
+      <nav className="admin-sidebar__nav">
+        {sidebarItems.map((item) => {
+          const Icon = item.icon;
+          const active = isActivePath(pathname, item.href);
+
+          return (
+            <Link
+              key={item.href}
+              className={`admin-sidebar__link${active ? " admin-sidebar__link--active" : ""}`}
+              href={item.href}
+              aria-current={active ? "page" : undefined}
+            >
+              <Icon size={20} strokeWidth={2.4} />
+              <span>{item.label}</span>
+              {item.badge ? (
+                <span className="admin-sidebar__badge" aria-label={`${item.badge} mục cần xử lý`}>
+                  {item.badge}
+                </span>
+              ) : null}
+            </Link>
+          );
+        })}
+      </nav>
+
+      <div className="admin-sidebar__account">
+        <div className="admin-sidebar__avatar" aria-hidden="true">
+          <UserRound size={18} strokeWidth={2.4} />
+        </div>
+        <div className="admin-sidebar__account-text">
+          <strong>DS. Lê Minh Trí</strong>
+          <span>Quản trị Dữ liệu Dược</span>
+        </div>
+        <button className="admin-sidebar__logout" type="button" aria-label="Đăng xuất">
+          <LogOut size={18} strokeWidth={2.3} />
+        </button>
+      </div>
+    </aside>
+  );
+}
