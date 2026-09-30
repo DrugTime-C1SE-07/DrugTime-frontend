@@ -12,9 +12,14 @@ dependencies:
   flutter_localizations:
     sdk: flutter
   cupertino_icons: ^1.0.6
+  flutter_secure_storage: ^10.3.4
+  path: ^1.9.0
+  sqflite_sqlcipher: ^3.2.1
 
 dev_dependencies:
   flutter_test:
+    sdk: flutter
+  integration_test:
     sdk: flutter
   flutter_lints: ^3.0.0
 
