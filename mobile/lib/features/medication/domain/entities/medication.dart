@@ -116,4 +116,36 @@ class Medication {
     final stock = stockRemaining;
     return isActive && stock != null && stock <= lowStockThreshold;
   }
+
+  Medication copyWith({
+    String? id,
+    String? catalogId,
+    String? name,
+    String? activeIngredient,
+    String? strength,
+    String? unit,
+    int? dosePerIntake,
+    DoseFrequency? frequency,
+    IntakeTiming? timing,
+    List<DoseTime>? times,
+    MedicationStatus? status,
+    int? stockRemaining,
+    DateTime? endedOn,
+  }) {
+    return Medication(
+      id: id ?? this.id,
+      catalogId: catalogId ?? this.catalogId,
+      name: name ?? this.name,
+      activeIngredient: activeIngredient ?? this.activeIngredient,
+      strength: strength ?? this.strength,
+      unit: unit ?? this.unit,
+      dosePerIntake: dosePerIntake ?? this.dosePerIntake,
+      frequency: frequency ?? this.frequency,
+      timing: timing ?? this.timing,
+      times: times ?? this.times,
+      status: status ?? this.status,
+      stockRemaining: stockRemaining ?? this.stockRemaining,
+      endedOn: endedOn ?? this.endedOn,
+    );
+  }
 }

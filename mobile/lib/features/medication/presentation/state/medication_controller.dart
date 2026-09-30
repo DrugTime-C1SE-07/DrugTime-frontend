@@ -28,8 +28,31 @@ class MedicationController extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> update(Medication medication) async {
+    await _repository.update(medication);
+    _medications = await _repository.fetchAll();
+    notifyListeners();
+  }
+
+  Future<void> delete(String id) async {
+    await _repository.delete(id);
+    _medications = await _repository.fetchAll();
+    notifyListeners();
+  }
+
   Future<List<DrugCatalogItem>> searchCatalog(String query) =>
       _repository.searchCatalog(query);
+
+  Future<DrugCatalogItem?> findCatalogItem(String catalogId) =>
+      _repository.findCatalogItem(catalogId);
+
+  Medication? getMedicationById(String id) {
+    try {
+      return _medications.firstWhere((m) => m.id == id);
+    } catch (_) {
+      return null;
+    }
+  }
 
   /// Thuốc này đã nằm trong danh sách đang dùng chưa (tránh nhập trùng).
   bool isInUse(String catalogId) =>
