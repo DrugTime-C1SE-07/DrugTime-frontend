@@ -4,10 +4,12 @@ publish_to: 'none'
 version: 1.0.0+1
 
 environment:
-  sdk: '>=3.0.0 <4.0.0'
+  sdk: '>=3.5.0 <4.0.0'
 
 dependencies:
   flutter:
+    sdk: flutter
+  flutter_localizations:
     sdk: flutter
   cupertino_icons: ^1.0.6
 
@@ -18,3 +20,8 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+
+  # Khai báo theo thư mục: thêm ảnh mới vào đây là dùng được, không cần sửa lại.
+  assets:
+    - assets/icons/
+    - assets/images/
