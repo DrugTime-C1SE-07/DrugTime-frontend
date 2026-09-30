@@ -36,7 +36,6 @@ class OtpVerificationScreen extends StatefulWidget {
 
   /// Khởi tạo tiện lợi cho màn hình xác thực OTP qua Số điện thoại (S00c-otp)
   const OtpVerificationScreen.phone({
-    super.key,
     String? phoneNumber,
     bool enableFramePreview = false,
     VoidCallback? onVerifySuccess,
@@ -49,7 +48,6 @@ class OtpVerificationScreen extends StatefulWidget {
 
   /// Khởi tạo tiện lợi cho màn hình xác thực OTP qua Email (S00c-otp-2)
   const OtpVerificationScreen.email({
-    super.key,
     String? email,
     bool enableFramePreview = false,
     VoidCallback? onVerifySuccess,
@@ -106,7 +104,8 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
       } else {
         setState(() {
           _localHasError = true;
-          _localErrorMessage = controller.errorMessage ?? 'Mã xác thực không đúng';
+          _localErrorMessage =
+              controller.errorMessage ?? 'Mã xác thực không đúng';
         });
       }
       return;
@@ -143,7 +142,8 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
       ..hideCurrentSnackBar()
       ..showSnackBar(
         const SnackBar(
-          content: Text('Xác thực OTP thành công! Đang chuyển đến Trang chủ...'),
+          content:
+              Text('Xác thực OTP thành công! Đang chuyển đến Trang chủ...'),
           backgroundColor: AppColors.brand,
         ),
       );
@@ -277,7 +277,8 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
             onTap: () => FocusScope.of(context).unfocus(),
             child: SingleChildScrollView(
               physics: const ClampingScrollPhysics(),
-              padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
               child: Center(
                 child: ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 327.0),
@@ -395,9 +396,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
       width: 327.0,
       height: 48.0,
       child: Material(
-        color: isLoading
-            ? AppColors.brand.withOpacity(0.7)
-            : AppColors.brand,
+        color: isLoading ? AppColors.brand.withOpacity(0.7) : AppColors.brand,
         borderRadius: BorderRadius.circular(8.0),
         child: InkWell(
           onTap: isLoading ? null : () => _handleVerify(controller),

@@ -36,7 +36,8 @@ class LoginMobileScreen extends StatefulWidget {
     this.enableFramePreview = false,
   });
 
-  final Future<void> Function(String identifier, LoginMethod method)? onSubmitOtp;
+  final Future<void> Function(String identifier, LoginMethod method)?
+      onSubmitOtp;
   final VoidCallback? onTermsTapped;
   final VoidCallback? onPrivacyTapped;
   final bool enableFramePreview;
@@ -81,9 +82,8 @@ class _LoginMobileScreenState extends State<LoginMobileScreen> {
     FocusScope.of(context).unfocus();
 
     final isPhone = activeMethod == LoginMethod.phone;
-    final rawIdentifier = isPhone
-        ? _phoneController.text.trim()
-        : _emailController.text.trim();
+    final rawIdentifier =
+        isPhone ? _phoneController.text.trim() : _emailController.text.trim();
 
     // Nếu có AuthController trong cây Widget (chuẩn Clean Architecture)
     if (controller != null) {
@@ -133,7 +133,8 @@ class _LoginMobileScreenState extends State<LoginMobileScreen> {
         return;
       }
       if (!AuthValidator.isValidPhone(clean)) {
-        setState(() => _localPhoneError = 'Số điện thoại không hợp lệ (9-11 chữ số)');
+        setState(() =>
+            _localPhoneError = 'Số điện thoại không hợp lệ (9-11 chữ số)');
         return;
       }
     } else {
@@ -276,73 +277,75 @@ class _LoginMobileScreenState extends State<LoginMobileScreen> {
               physics: const ClampingScrollPhysics(),
               padding: const EdgeInsets.fromLTRB(24.0, 28.0, 24.0, 24.0),
               child: Center(
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 327.0),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    // header (order: 0)
-                    const LoginHeader(
-                      heading: 'Đăng nhập',
-                      subheading:
-                          'Nhập số điện thoại hoặc email để quản lý lịch uống thuốc và chăm sóc sức khỏe an toàn.',
-                    ),
-                    const SizedBox(height: 20.0),
-
-                    // SegmentedPicker/login-method (order: 1)
-                    LoginSegmentedPicker(
-                      selectedMethod: activeMethod,
-                      onMethodChanged: (m) => _onMethodChanged(m, controller),
-                    ),
-                    const SizedBox(height: 20.0),
-
-                    // field/phone or field/email (order: 2)
-                    AnimatedCrossFade(
-                      duration: const Duration(milliseconds: 200),
-                      crossFadeState: activeMethod == LoginMethod.phone
-                          ? CrossFadeState.showFirst
-                          : CrossFadeState.showSecond,
-                      firstChild: PhoneInputField(
-                        controller: _phoneController,
-                        errorMessage: phoneError,
-                        enabled: !isLoading,
-                        onChanged: (_) {
-                          if (controller != null) controller.clearMessages();
-                          if (_localPhoneError != null) {
-                            setState(() => _localPhoneError = null);
-                          }
-                        },
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 327.0),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      // header (order: 0)
+                      const LoginHeader(
+                        heading: 'Đăng nhập',
+                        subheading:
+                            'Nhập số điện thoại hoặc email để quản lý lịch uống thuốc và chăm sóc sức khỏe an toàn.',
                       ),
-                      secondChild: EmailInputField(
-                        controller: _emailController,
-                        errorMessage: emailError,
-                        enabled: !isLoading,
-                        onChanged: (_) {
-                          if (controller != null) controller.clearMessages();
-                          if (_localEmailError != null) {
-                            setState(() => _localEmailError = null);
-                          }
-                        },
+                      const SizedBox(height: 20.0),
+
+                      // SegmentedPicker/login-method (order: 1)
+                      LoginSegmentedPicker(
+                        selectedMethod: activeMethod,
+                        onMethodChanged: (m) => _onMethodChanged(m, controller),
                       ),
-                    ),
-                    const SizedBox(height: AppSpacing.md),
+                      const SizedBox(height: 20.0),
 
-                    // helper-row (order: 3)
-                    _buildHelperRow(activeMethod),
-                    const SizedBox(height: 20.0),
+                      // field/phone or field/email (order: 2)
+                      AnimatedCrossFade(
+                        duration: const Duration(milliseconds: 200),
+                        crossFadeState: activeMethod == LoginMethod.phone
+                            ? CrossFadeState.showFirst
+                            : CrossFadeState.showSecond,
+                        firstChild: PhoneInputField(
+                          controller: _phoneController,
+                          errorMessage: phoneError,
+                          enabled: !isLoading,
+                          onChanged: (_) {
+                            if (controller != null) controller.clearMessages();
+                            if (_localPhoneError != null) {
+                              setState(() => _localPhoneError = null);
+                            }
+                          },
+                        ),
+                        secondChild: EmailInputField(
+                          controller: _emailController,
+                          errorMessage: emailError,
+                          enabled: !isLoading,
+                          onChanged: (_) {
+                            if (controller != null) controller.clearMessages();
+                            if (_localEmailError != null) {
+                              setState(() => _localEmailError = null);
+                            }
+                          },
+                        ),
+                      ),
+                      const SizedBox(height: AppSpacing.md),
 
-                    // btn/send-otp (order: 4)
-                    _buildSendOtpButton(context, activeMethod, isLoading, controller),
-                    const SizedBox(height: 20.0),
+                      // helper-row (order: 3)
+                      _buildHelperRow(activeMethod),
+                      const SizedBox(height: 20.0),
 
-                    // trust-card (order: 5)
-                    const TrustCard(),
-                    const SizedBox(height: 20.0),
+                      // btn/send-otp (order: 4)
+                      _buildSendOtpButton(
+                          context, activeMethod, isLoading, controller),
+                      const SizedBox(height: 20.0),
 
-                    // legal (order: 6)
-                    _buildLegalText(),
-                  ],
+                      // trust-card (order: 5)
+                      const TrustCard(),
+                      const SizedBox(height: 20.0),
+
+                      // legal (order: 6)
+                      _buildLegalText(),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -395,12 +398,12 @@ class _LoginMobileScreenState extends State<LoginMobileScreen> {
       width: 327.0,
       height: 48.0,
       child: Material(
-        color: isLoading
-            ? AppColors.brand.withOpacity(0.7)
-            : AppColors.brand,
+        color: isLoading ? AppColors.brand.withOpacity(0.7) : AppColors.brand,
         borderRadius: BorderRadius.circular(8.0),
         child: InkWell(
-          onTap: isLoading ? null : () => _handleSendOtp(context, activeMethod, controller),
+          onTap: isLoading
+              ? null
+              : () => _handleSendOtp(context, activeMethod, controller),
           borderRadius: BorderRadius.circular(8.0),
           child: Center(
             child: isLoading
