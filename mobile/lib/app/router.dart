@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 
 import '../features/medication/data/repositories/in_memory_medication_repository.dart';
 import '../features/medication/domain/entities/medication.dart';
-import '../features/medication/domain/entities/medication.dart';
 import '../features/medication/presentation/screens/edit_medication_screen.dart';
 import '../features/medication/presentation/screens/medication_detail_screen.dart';
 import '../features/medication/presentation/screens/add_medication_screen.dart';
@@ -87,7 +86,8 @@ class DevUiCatalogScreen extends StatelessWidget {
     final screens = <_UiItem>[
       _UiItem(
         title: 'S00c · Đăng nhập (OTP / Email)',
-        description: 'Màn hình đăng nhập di động, chọn số điện thoại hoặc email',
+        description:
+            'Màn hình đăng nhập di động, chọn số điện thoại hoặc email',
         badge: 'Auth',
         route: AppRoutes.login,
       ),
@@ -113,7 +113,8 @@ class DevUiCatalogScreen extends StatelessWidget {
         title: 'S06 · Thuốc của tôi',
         description: 'Danh sách thuốc đang dùng, cảnh báo sắp hết, bộ lọc',
         badge: 'Medication',
-        builder: (_) => const Scaffold(body: SafeArea(child: MyMedicationsScreen())),
+        builder: (_) =>
+            const Scaffold(body: SafeArea(child: MyMedicationsScreen())),
       ),
       _UiItem(
         title: 'S07 · Thêm thuốc mới',
