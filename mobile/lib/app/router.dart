@@ -1,17 +1,23 @@
 import 'package:flutter/material.dart';
 
+import '../features/medication/data/repositories/in_memory_medication_repository.dart';
+import '../features/medication/domain/entities/medication.dart';
+import '../features/medication/domain/entities/medication.dart';
+import '../features/medication/presentation/screens/edit_medication_screen.dart';
+import '../features/medication/presentation/screens/medication_detail_screen.dart';
+import '../features/medication/presentation/screens/add_medication_screen.dart';
+import '../features/medication/presentation/screens/my_medications_screen.dart';
 import '../features/auth/presentation/screens/email_otp_screen.dart';
 import '../features/auth/presentation/screens/login_mobile_screen.dart';
 import '../features/auth/presentation/screens/phone_otp_screen.dart';
-import '../features/medication/domain/entities/medication.dart';
-import '../features/medication/presentation/screens/add_medication_screen.dart';
-import '../features/medication/presentation/screens/my_medications_screen.dart';
 import 'app_shell.dart';
 import 'theme/app_theme.dart';
 
 abstract final class AppRoutes {
   static const home = '/';
   static const addMedication = '/medications/add';
+  static const medicationDetail = '/medications/detail';
+  static const editMedication = '/medications/edit';
   static const login = '/login';
   static const otpPhone = '/login/otp/phone';
   static const otpEmail = '/login/otp/email';
@@ -27,6 +33,24 @@ Route<dynamic>? onGenerateRoute(RouteSettings settings) {
     AppRoutes.addMedication => MaterialPageRoute<Medication>(
         settings: settings,
         builder: (_) => const AddMedicationScreen(),
+      ),
+    AppRoutes.medicationDetail => MaterialPageRoute<void>(
+        settings: settings,
+        builder: (_) {
+          final medication = settings.arguments as Medication?;
+          return MedicationDetailScreen(
+            medication: medication ?? sampleMedications.first,
+          );
+        },
+      ),
+    AppRoutes.editMedication => MaterialPageRoute<dynamic>(
+        settings: settings,
+        builder: (_) {
+          final medication = settings.arguments as Medication?;
+          return EditMedicationScreen(
+            medication: medication ?? sampleMedications[1],
+          );
+        },
       ),
     AppRoutes.login => MaterialPageRoute<void>(
         settings: settings,
