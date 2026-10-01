@@ -67,6 +67,13 @@ class _MyMedicationsScreenState extends State<MyMedicationsScreen> {
       ..showSnackBar(SnackBar(content: Text('$feature đang được phát triển')));
   }
 
+  Future<void> _openMedicationDetail(Medication medication) async {
+    await Navigator.of(context).pushNamed(
+      AppRoutes.medicationDetail,
+      arguments: medication,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final controller = MedicationScope.of(context);
@@ -166,7 +173,7 @@ class _MyMedicationsScreenState extends State<MyMedicationsScreen> {
       for (final m in meds) ...[
         MedicationCard(
           medication: m,
-          onTap: () => _showNotBuilt('Chi tiết ${m.name}'),
+          onTap: () => _openMedicationDetail(m),
         ),
         const SizedBox(height: AppSpacing.md),
       ],

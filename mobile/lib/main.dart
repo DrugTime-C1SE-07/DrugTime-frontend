@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-
 import 'app/app.dart';
 import 'core/api/api_client.dart';
 import 'core/storage/local_db/local_db.dart';
@@ -28,3 +27,6 @@ DoseOutboxSyncEngine? _buildDoseOutboxSyncEngine() {
     connectivityMonitor: PollingConnectivityMonitor(),
   );
 }
+import 'app/router.dart';
+
+void main() => runApp(const DrugTimeApp(initialRoute: AppRoutes.login));

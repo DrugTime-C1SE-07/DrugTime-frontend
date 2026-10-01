@@ -7,6 +7,12 @@ abstract interface class MedicationRepository {
 
   Future<void> add(Medication medication);
 
+  Future<void> update(Medication medication);
+
+  Future<void> delete(String id);
+
   /// Tìm theo tên thuốc hoặc hoạt chất; chuỗi rỗng trả về toàn bộ danh mục.
   Future<List<DrugCatalogItem>> searchCatalog(String query);
+
+  Future<DrugCatalogItem?> findCatalogItem(String catalogId);
 }

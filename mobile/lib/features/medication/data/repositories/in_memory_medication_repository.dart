@@ -17,6 +17,19 @@ class InMemoryMedicationRepository implements MedicationRepository {
   }
 
   @override
+  Future<void> update(Medication medication) async {
+    final index = _medications.indexWhere((m) => m.id == medication.id);
+    if (index != -1) {
+      _medications[index] = medication;
+    }
+  }
+
+  @override
+  Future<void> delete(String id) async {
+    _medications.removeWhere((m) => m.id == id);
+  }
+
+  @override
   Future<List<DrugCatalogItem>> searchCatalog(String query) async {
     final q = query.trim().toLowerCase();
     if (q.isEmpty) return sampleCatalog;
@@ -25,6 +38,15 @@ class InMemoryMedicationRepository implements MedicationRepository {
             d.name.toLowerCase().contains(q) ||
             d.activeIngredient.toLowerCase().contains(q))
         .toList();
+  }
+
+  @override
+  Future<DrugCatalogItem?> findCatalogItem(String catalogId) async {
+    try {
+      return sampleCatalog.firstWhere((d) => d.id == catalogId);
+    } catch (_) {
+      return null;
+    }
   }
 }
 
