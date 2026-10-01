@@ -32,6 +32,31 @@ abstract final class AppColors {
   static const infoBg = Color(0xFFEAF1FD);
 }
 
+/// Hiệu ứng đổ bóng chuẩn thiết kế Figma.
+abstract final class AppShadows {
+  static const cardElevation = [
+    BoxShadow(
+      color: Color.fromRGBO(28, 32, 36, 0.0588235),
+      offset: Offset(0, 4),
+      blurRadius: 12,
+      spreadRadius: -2,
+    ),
+    BoxShadow(
+      color: Color.fromRGBO(28, 32, 36, 0.0705882),
+      offset: Offset(0, 1),
+      blurRadius: 2,
+    ),
+  ];
+
+  static const frameElevation = [
+    BoxShadow(
+      color: Color.fromRGBO(0, 0, 0, 0.04),
+      offset: Offset(0, 8),
+      blurRadius: 24,
+    ),
+  ];
+}
+
 /// Lưới 4/8pt.
 abstract final class AppSpacing {
   static const xs = 4.0;

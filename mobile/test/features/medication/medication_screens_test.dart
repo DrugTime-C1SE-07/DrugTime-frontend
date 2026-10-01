@@ -4,14 +4,20 @@ import 'package:drugtime_mobile/features/medication/presentation/screens/add_med
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-Future<void> pumpApp(WidgetTester tester, {double textScale = 1}) async {
+Future<void> pumpApp(
+  WidgetTester tester, {
+  double textScale = 1,
+  InMemoryMedicationRepository? repository,
+}) async {
   tester.view.physicalSize = const Size(375, 812);
   tester.view.devicePixelRatio = 1;
   tester.platformDispatcher.textScaleFactorTestValue = textScale;
   addTearDown(tester.view.reset);
   addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
 
-  await tester.pumpWidget(DrugTimeApp(medicationRepository: InMemoryMedicationRepository()));
+  await tester.pumpWidget(
+    DrugTimeApp(medicationRepository: repository ?? InMemoryMedicationRepository()),
+  );
   await tester.pumpAndSettle();
 }
 
@@ -129,6 +135,34 @@ void main() {
       expect(find.textContaining('đã có trong danh sách đang dùng'), findsOneWidget);
     });
 
+    testWidgets('nhấn Lưu hai lần liên tiếp chỉ thêm một thuốc', (tester) async {
+      final repository = InMemoryMedicationRepository();
+      final before = (await repository.fetchAll()).length;
+      await pumpApp(tester, repository: repository);
+      await openAddScreen(tester);
+
+      await tester.tap(find.text('Tìm tên thuốc, hoạt chất…'));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField).last, 'amlo');
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Amlodipin 5mg'));
+      await tester.pumpAndSettle();
+
+      // Hai lần nhấn trước khi frame kế tiếp kịp vô hiệu nút. Gọi thẳng onPressed
+      // vì tap() thứ hai sẽ trượt: repo trong bộ nhớ lưu xong và đóng màn ngay.
+      final save = tester
+          .widget<FilledButton>(find.widgetWithText(FilledButton, 'Lưu thuốc'))
+          .onPressed!;
+      save();
+      save();
+      await tester.pumpAndSettle();
+
+      final saved = await repository.fetchAll();
+      expect(saved, hasLength(before + 1));
+      expect(saved.where((m) => m.catalogId == 'amlodipin-5'), hasLength(1));
+      expect(find.text('Thuốc của tôi'), findsOneWidget);
+    });
+
     testWidgets('hỏi xác nhận trước khi bỏ thông tin đã nhập', (tester) async {
       await pumpApp(tester);
       await openAddScreen(tester);
@@ -148,6 +182,17 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Thuốc của tôi'), findsOneWidget);
     });
+  });
+
+  testWidgets('hàng chip S06 không rớt dòng khi phóng chữ 1.5x', (tester) async {
+    await pumpApp(tester, textScale: 1.5);
+
+    final tops = [
+      for (final label in ['Tất cả · 5', 'Đang dùng · 4', 'Đã ngừng · 1'])
+        tester.getRect(find.ancestor(of: find.text(label), matching: find.byType(InkWell)).first).top,
+    ];
+    expect(tops.toSet(), hasLength(1), reason: 'chip rớt xuống dòng khác: $tops');
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('bố cục không vỡ khi phóng to chữ 1.5x', (tester) async {

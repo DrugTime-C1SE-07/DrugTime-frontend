@@ -1,0 +1,35 @@
+import 'package:flutter/material.dart';
+import 'otp_verification_screen.dart';
+
+/// S00c-otp · Xác thực OTP (Số điện thoại)
+///
+/// Tuân thủ quy cách thiết kế CSS từ Figma:
+/// - Kích thước: 375x812, nền trắng #FFFFFF, bo góc 16px
+/// - Status row 40px (#FCFCFC)
+/// - Back arrow (24x24)
+/// - MascotSlot 96x88 + Heading "Xác thực OTP" (20px bold) + Subheading số điện thoại
+/// - 6 ô nhập OTP (47x56px, bo góc 8px, viền 2px #01554F khi trỏ)
+/// - Clock icon (14x14) + Đếm ngược gửi lại mã
+/// - Nút Xác nhận (327x48px, nền #01554F)
+/// - Sửa thông tin: "Sai số điện thoại? Đổi số"
+class PhoneOtpScreen extends StatelessWidget {
+  const PhoneOtpScreen({
+    super.key,
+    this.phoneNumber,
+    this.enableFramePreview = false,
+    this.onVerifySuccess,
+  });
+
+  final String? phoneNumber;
+  final bool enableFramePreview;
+  final VoidCallback? onVerifySuccess;
+
+  @override
+  Widget build(BuildContext context) {
+    return OtpVerificationScreen.phone(
+      phoneNumber: phoneNumber,
+      enableFramePreview: enableFramePreview,
+      onVerifySuccess: onVerifySuccess,
+    );
+  }
+}

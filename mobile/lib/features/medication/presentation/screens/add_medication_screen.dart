@@ -94,6 +94,8 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
   }
 
   Future<void> _save() async {
+    // Nút chỉ bị vô hiệu ở frame sau; chặn lần nhấn thứ hai trong lúc đang lưu.
+    if (_saving) return;
     final drug = _drug;
     if (drug == null) {
       setState(() => _showDrugError = true);
