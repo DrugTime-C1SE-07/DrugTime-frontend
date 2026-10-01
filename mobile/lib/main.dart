@@ -5,9 +5,11 @@ import 'core/storage/local_db/local_db.dart';
 import 'core/storage/local_db/local_medication_store.dart';
 import 'core/storage/secure_storage.dart';
 import 'core/sync/sync_engine.dart';
+import 'app/router.dart';
 
 void main() {
   runApp(DrugTimeApp(doseOutboxSyncEngine: _buildDoseOutboxSyncEngine()));
+  runApp(const DrugTimeApp(initialRoute: AppRoutes.login));
 }
 
 DoseOutboxSyncEngine? _buildDoseOutboxSyncEngine() {
@@ -27,6 +29,3 @@ DoseOutboxSyncEngine? _buildDoseOutboxSyncEngine() {
     connectivityMonitor: PollingConnectivityMonitor(),
   );
 }
-import 'app/router.dart';
-
-void main() => runApp(const DrugTimeApp(initialRoute: AppRoutes.login));
