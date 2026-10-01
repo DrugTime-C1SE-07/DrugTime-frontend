@@ -1,6 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
+import '../core/sync/sync_engine.dart';
 import '../features/medication/data/repositories/in_memory_medication_repository.dart';
 import '../features/medication/domain/repositories/medication_repository.dart';
 import '../features/medication/presentation/state/medication_controller.dart';
@@ -8,10 +11,15 @@ import 'router.dart';
 import 'theme/app_theme.dart';
 
 class DrugTimeApp extends StatefulWidget {
-  const DrugTimeApp({super.key, this.medicationRepository});
+  const DrugTimeApp({
+    super.key,
+    this.medicationRepository,
+    this.doseOutboxSyncEngine,
+  });
 
   /// Cho phép test/bản build khác thay nguồn dữ liệu.
   final MedicationRepository? medicationRepository;
+  final DoseOutboxSyncEngine? doseOutboxSyncEngine;
 
   @override
   State<DrugTimeApp> createState() => _DrugTimeAppState();
@@ -23,7 +31,20 @@ class _DrugTimeAppState extends State<DrugTimeApp> {
   )..load();
 
   @override
+  void initState() {
+    super.initState();
+    final syncEngine = widget.doseOutboxSyncEngine;
+    if (syncEngine != null) {
+      unawaited(syncEngine.start());
+    }
+  }
+
+  @override
   void dispose() {
+    final syncEngine = widget.doseOutboxSyncEngine;
+    if (syncEngine != null) {
+      unawaited(syncEngine.dispose());
+    }
     _medications.dispose();
     super.dispose();
   }
