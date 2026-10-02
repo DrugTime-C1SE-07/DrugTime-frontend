@@ -86,7 +86,8 @@ class DevUiCatalogScreen extends StatelessWidget {
     final screens = <_UiItem>[
       const _UiItem(
         title: 'S00c · Đăng nhập (OTP / Email)',
-        description: 'Màn hình đăng nhập di động, chọn số điện thoại hoặc email',
+        description:
+            'Màn hình đăng nhập di động, chọn số điện thoại hoặc email',
         badge: 'Auth',
         route: AppRoutes.login,
       ),
@@ -112,7 +113,8 @@ class DevUiCatalogScreen extends StatelessWidget {
         title: 'S06 · Thuốc của tôi',
         description: 'Danh sách thuốc đang dùng, cảnh báo sắp hết, bộ lọc',
         badge: 'Medication',
-        builder: (_) => const Scaffold(body: SafeArea(child: MyMedicationsScreen())),
+        builder: (_) =>
+            const Scaffold(body: SafeArea(child: MyMedicationsScreen())),
       ),
       const _UiItem(
         title: 'S07 · Thêm thuốc mới',
