@@ -77,13 +77,27 @@ abstract class DoseRemoteDataSource {
 class DoseUploadResult {
   const DoseUploadResult({
     required this.clientUuid,
+    this.status = DoseUploadResultStatus.synced,
     this.serverId,
     this.syncedAt,
+    this.errorCode,
+    this.errorMessage,
   });
 
   final String clientUuid;
+  final DoseUploadResultStatus status;
   final int? serverId;
   final DateTime? syncedAt;
+  final String? errorCode;
+  final String? errorMessage;
+
+  bool get isSynced => status == DoseUploadResultStatus.synced;
+  bool get isFailed => status == DoseUploadResultStatus.failed;
+}
+
+enum DoseUploadResultStatus {
+  synced,
+  failed,
 }
 
 class DoseApiRemoteDataSource implements DoseRemoteDataSource {
@@ -128,6 +142,7 @@ class DoseApiRemoteDataSource implements DoseRemoteDataSource {
           .whereType<Map>()
           .map((item) => Map<String, Object?>.from(item))
           .map(_resultFromMap)
+          .whereType<DoseUploadResult>()
           .toList(growable: false);
     }
 
@@ -139,26 +154,66 @@ class DoseApiRemoteDataSource implements DoseRemoteDataSource {
             .whereType<Map>()
             .map((item) => Map<String, Object?>.from(item))
             .map(_resultFromMap)
+            .whereType<DoseUploadResult>()
             .toList(growable: false);
       }
 
       if (response.containsKey('client_uuid')) {
-        return [_resultFromMap(response)];
+        final result = _resultFromMap(response);
+        return result == null ? const [] : [result];
       }
     }
 
-    return doseLogs
-        .map((doseLog) => DoseUploadResult(clientUuid: doseLog.clientUuid))
-        .toList(growable: false);
+    return const [];
   }
 
-  DoseUploadResult _resultFromMap(Map<String, Object?> map) {
+  DoseUploadResult? _resultFromMap(Map<String, Object?> map) {
+    final clientUuid = map['client_uuid'];
+    if (clientUuid is! String || clientUuid.isEmpty) {
+      return null;
+    }
+
+    final result = map['result'] as String?;
+    if (result == 'failed') {
+      final error = map['error'];
+      final errorMap = error is Map
+          ? Map<String, Object?>.from(error)
+          : const <String, Object?>{};
+      final code = errorMap['code'] as String?;
+      final detail = errorMap['detail'] as String?;
+      return DoseUploadResult(
+        clientUuid: clientUuid,
+        status: DoseUploadResultStatus.failed,
+        errorCode: code,
+        errorMessage: _formatItemError(code: code, detail: detail),
+      );
+    }
+
+    if (result != null && result != 'synced') {
+      return null;
+    }
+
     return DoseUploadResult(
-      clientUuid: map['client_uuid'] as String,
-      serverId: _tryParseInt(map['id'] ?? map['server_id']),
+      clientUuid: clientUuid,
+      serverId: _tryParseInt(
+        map['dose_log_id'] ?? map['id'] ?? map['server_id'],
+      ),
       syncedAt: _tryParseDateTime(map['synced_at'] as String?) ??
           _tryParseDateTime(map['created_at'] as String?),
     );
+  }
+
+  String _formatItemError({String? code, String? detail}) {
+    if (code != null && detail != null && detail.isNotEmpty) {
+      return '$code: $detail';
+    }
+    if (detail != null && detail.isNotEmpty) {
+      return detail;
+    }
+    if (code != null && code.isNotEmpty) {
+      return code;
+    }
+    return 'Dose upload failed';
   }
 
   int? _tryParseInt(Object? value) {
@@ -275,22 +330,45 @@ class DoseOutboxSyncEngine {
     for (var attempt = 1; attempt <= _maxAttempts; attempt++) {
       try {
         final results = await _remoteDataSource.uploadDoses(doseLogs);
+        final requestedClientUuids = doseLogs.map((doseLog) => doseLog.clientUuid).toSet();
         final resultByClientUuid = {
-          for (final result in results) result.clientUuid: result,
+          for (final result in results)
+            if (requestedClientUuids.contains(result.clientUuid))
+              result.clientUuid: result,
         };
+        var hasMissingResult = false;
 
         for (final doseLog in doseLogs) {
           final result = resultByClientUuid[doseLog.clientUuid];
-          await _localStore.markDoseLogSynced(
-            clientUuid: doseLog.clientUuid,
-            serverId: result?.serverId ?? doseLog.id,
-            syncedAt: result?.syncedAt ?? _clock(),
-          );
+          if (result == null) {
+            hasMissingResult = true;
+            continue;
+          }
+
+          if (result.isSynced) {
+            await _localStore.markDoseLogSynced(
+              clientUuid: doseLog.clientUuid,
+              serverId: result.serverId ?? doseLog.id,
+              syncedAt: result.syncedAt ?? _clock(),
+            );
+            continue;
+          }
+
+          if (result.isFailed) {
+            await _localStore.markDoseLogFailed(
+              clientUuid: doseLog.clientUuid,
+              errorMessage: result.errorMessage ?? 'Dose upload failed',
+            );
+          }
         }
-        return true;
+        return !hasMissingResult;
       } on ApiException catch (error) {
         lastError = error;
         if (!error.isTransient) {
+          if (_shouldKeepPending(error)) {
+            return false;
+          }
+
           for (final doseLog in doseLogs) {
             await _localStore.markDoseLogFailed(
               clientUuid: doseLog.clientUuid,
@@ -319,6 +397,11 @@ class DoseOutboxSyncEngine {
       }
     }
     return false;
+  }
+
+  bool _shouldKeepPending(ApiException error) {
+    return error.statusCode == HttpStatus.unauthorized ||
+        error.statusCode == HttpStatus.forbidden;
   }
 
   Duration _backoffForAttempt(int attempt) {

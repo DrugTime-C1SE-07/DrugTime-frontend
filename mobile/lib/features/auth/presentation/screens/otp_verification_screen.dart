@@ -36,10 +36,12 @@ class OtpVerificationScreen extends StatefulWidget {
 
   /// Khởi tạo tiện lợi cho màn hình xác thực OTP qua Số điện thoại (S00c-otp)
   const OtpVerificationScreen.phone({
+    Key? key,
     String? phoneNumber,
     bool enableFramePreview = false,
     VoidCallback? onVerifySuccess,
   }) : this(
+          key: key,
           method: LoginMethod.phone,
           targetIdentifier: phoneNumber ?? '904****87',
           enableFramePreview: enableFramePreview,
@@ -48,10 +50,12 @@ class OtpVerificationScreen extends StatefulWidget {
 
   /// Khởi tạo tiện lợi cho màn hình xác thực OTP qua Email (S00c-otp-2)
   const OtpVerificationScreen.email({
+    Key? key,
     String? email,
     bool enableFramePreview = false,
     VoidCallback? onVerifySuccess,
   }) : this(
+          key: key,
           method: LoginMethod.email,
           targetIdentifier: email ?? 'viet****@gmail.com',
           enableFramePreview: enableFramePreview,
@@ -396,7 +400,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
       width: 327.0,
       height: 48.0,
       child: Material(
-        color: isLoading ? AppColors.brand.withOpacity(0.7) : AppColors.brand,
+        color: isLoading ? AppColors.brand.withValues(alpha: 0.7) : AppColors.brand,
         borderRadius: BorderRadius.circular(8.0),
         child: InkWell(
           onTap: isLoading ? null : () => _handleVerify(controller),

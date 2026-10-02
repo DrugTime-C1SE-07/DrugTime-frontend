@@ -117,7 +117,7 @@ class _MascotProtectPainter extends CustomPainter {
 
     // Má hồng baby
     final blushPaint = Paint()
-      ..color = const Color(0xFFF87171).withOpacity(0.5)
+      ..color = const Color(0xFFF87171).withValues(alpha: 0.5)
       ..style = PaintingStyle.fill;
     canvas.drawCircle(Offset(w * 0.34, h * 0.56), 3.0, blushPaint);
     canvas.drawCircle(Offset(w * 0.66, h * 0.56), 3.0, blushPaint);

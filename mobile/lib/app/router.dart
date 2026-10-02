@@ -84,26 +84,26 @@ class DevUiCatalogScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final screens = <_UiItem>[
-      _UiItem(
+      const _UiItem(
         title: 'S00c · Đăng nhập (OTP / Email)',
         description:
             'Màn hình đăng nhập di động, chọn số điện thoại hoặc email',
         badge: 'Auth',
         route: AppRoutes.login,
       ),
-      _UiItem(
+      const _UiItem(
         title: 'S00c-otp · Xác thực OTP (Số điện thoại)',
         description: 'Màn hình nhập mã OTP 6 số gửi qua tin nhắn SMS',
         badge: 'Auth',
         route: AppRoutes.otpPhone,
       ),
-      _UiItem(
+      const _UiItem(
         title: 'S00c-otp-2 · Xác thực OTP (Email)',
         description: 'Màn hình nhập mã OTP 6 số gửi qua hòm thư điện tử',
         badge: 'Auth',
         route: AppRoutes.otpEmail,
       ),
-      _UiItem(
+      const _UiItem(
         title: 'App Shell (Chính 5 tabs)',
         description: 'Khung điều hướng đáy (Thuốc, Trang chủ, Lịch nhắc...)',
         badge: 'Core',
@@ -116,7 +116,7 @@ class DevUiCatalogScreen extends StatelessWidget {
         builder: (_) =>
             const Scaffold(body: SafeArea(child: MyMedicationsScreen())),
       ),
-      _UiItem(
+      const _UiItem(
         title: 'S07 · Thêm thuốc mới',
         description: 'Form tìm dược thư, liều lượng, lịch nhắc, lưu trữ',
         badge: 'Medication',
