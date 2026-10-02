@@ -1,16 +1,21 @@
-import Link from "next/link";
+import { Suspense } from "react";
+import LoginForm from "../../../components/auth/LoginForm";
+import { ToastProvider } from "../../../components/ui/Toast";
 
 export default function LoginPage() {
   return (
-    <main className="auth-page">
-      <section className="auth-card">
-        <span className="auth-card__eyebrow">DrugTime Admin</span>
-        <h1>Đăng nhập quản trị</h1>
-        <p>Trang đăng nhập sẽ được nối với hệ thống xác thực ở bước tiếp theo.</p>
-        <Link className="auth-card__link" href="/dashboard">
-          Vào dashboard mẫu
-        </Link>
-      </section>
-    </main>
+    <ToastProvider>
+      <main className="admin-login-page">
+        <Suspense
+          fallback={
+            <div className="admin-login-loading">
+              <span>Đang chuẩn bị môi trường bảo mật...</span>
+            </div>
+          }
+        >
+          <LoginForm />
+        </Suspense>
+      </main>
+    </ToastProvider>
   );
 }
