@@ -22,6 +22,16 @@ class AuthSession {
 
   bool get isExpired => DateTime.now().isAfter(expiresAt);
 
+  AuthSession copyWith({bool? profileComplete}) => AuthSession(
+        userId: userId,
+        accessToken: accessToken,
+        tokenType: tokenType,
+        sessionType: sessionType,
+        expiresAt: expiresAt,
+        expiresInSeconds: expiresInSeconds,
+        profileComplete: profileComplete ?? this.profileComplete,
+      );
+
   Map<String, dynamic> toJson() => {
         'user_id': userId,
         'access_token': accessToken,

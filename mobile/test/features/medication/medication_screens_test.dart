@@ -1,8 +1,25 @@
 import 'package:drugtime_mobile/app/app.dart';
+import 'package:drugtime_mobile/features/auth/data/repositories/in_memory_auth_repository.dart';
+import 'package:drugtime_mobile/features/auth/domain/entities/auth_session.dart';
+import 'package:drugtime_mobile/features/auth/presentation/state/auth_controller.dart';
 import 'package:drugtime_mobile/features/medication/data/repositories/in_memory_medication_repository.dart';
 import 'package:drugtime_mobile/features/medication/presentation/screens/add_medication_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+
+/// Người dùng đã đăng nhập và có hồ sơ: app mở thẳng Trang chủ như trước khi có màn đăng nhập.
+AuthController signedInAuth() => AuthController(
+      InMemoryAuthRepository(
+        simulatedDelay: Duration.zero,
+        initialSession: AuthSession(
+          userId: 'test-user',
+          accessToken: 'test-token',
+          expiresAt: DateTime.now().add(const Duration(days: 10)),
+          profileComplete: true,
+        ),
+      ),
+    );
 
 Future<void> pumpApp(
   WidgetTester tester, {
@@ -16,7 +33,10 @@ Future<void> pumpApp(
   addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
 
   await tester.pumpWidget(
-    DrugTimeApp(medicationRepository: repository ?? InMemoryMedicationRepository()),
+    DrugTimeApp(
+      authController: signedInAuth(),
+      medicationRepository: repository ?? InMemoryMedicationRepository(),
+    ),
   );
   await tester.pumpAndSettle();
 }

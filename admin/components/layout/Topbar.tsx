@@ -1,5 +1,7 @@
 import { Bell, CircleHelp, UserRound } from "lucide-react";
 
+import LogoutButton from "../auth/LogoutButton";
+
 type TopbarProps = {
   syncLabel?: string;
   notificationCount?: number;
@@ -31,6 +33,8 @@ export default function Topbar({
         <button className="admin-topbar__profile" type="button" aria-label="Tài khoản quản trị">
           <UserRound size={23} strokeWidth={2.4} />
         </button>
+
+        <LogoutButton />
       </div>
     </header>
   );

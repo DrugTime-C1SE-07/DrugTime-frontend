@@ -139,9 +139,30 @@ flutter pub get
 # Run all unit and widget tests:
 flutter test
 
-# Run the app on Chrome (preview with 375x812 frame):
-flutter run -d chrome
-
-# Run the app on connected Mobile device:
-flutter run
 ```
+
+### Cấu hình địa chỉ Backend API (`.env`)
+
+App không có địa chỉ backend mặc định: chạy thiếu cấu hình sẽ hiện màn "Thiếu cấu hình máy chủ".
+Địa chỉ được đóng vào app lúc build qua `--dart-define-from-file` (Flutter không tự đọc `.env`).
+
+1. Copy file mẫu (các file `.env.*` khác đã có trong `.gitignore`, không commit):
+   ```bash
+   cp .env.example .env.android   # DRUGTIME_API_BASE_URL=http://10.0.2.2:8000
+   cp .env.example .env.web       # sửa thành DRUGTIME_API_BASE_URL=http://127.0.0.1:8001
+   ```
+2. Chạy:
+
+   | Thiết bị | File | Lệnh |
+   |---|---|---|
+   | Android emulator | `.env.android` = `http://10.0.2.2:8000` | `flutter run -d emulator-5554 --dart-define-from-file=.env.android` |
+   | Chrome | `.env.web` = địa chỉ backend có CORS cho `http://localhost:5000` | `flutter run -d chrome --web-port 5000 --dart-define-from-file=.env.web` |
+   | Điện thoại thật (USB) | `http://127.0.0.1:8000` | `adb reverse tcp:8000 tcp:8000` rồi `flutter run --dart-define-from-file=<file>` |
+
+   - Emulator: `10.0.2.2` là máy tính chạy backend (`127.0.0.1` là chính emulator).
+   - Chrome: backend phải có `CORS_ALLOWED_ORIGINS=http://localhost:5000,http://127.0.0.1:5000`, và phải giữ `--web-port 5000`.
+3. Nút Run của IDE: thêm `--dart-define-from-file=.env.android` vào *Additional run args* (Android Studio)
+   hoặc `"args": ["--dart-define-from-file=.env.android"]` trong `.vscode/launch.json` (VS Code).
+
+File `.env.*` chỉ được chứa địa chỉ Backend API. Không ghi key hay secret: giá trị bị đóng vào app và đọc được từ file cài đặt.
+

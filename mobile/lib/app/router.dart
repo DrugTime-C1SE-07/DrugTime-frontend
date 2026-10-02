@@ -6,6 +6,7 @@ import '../features/medication/presentation/screens/edit_medication_screen.dart'
 import '../features/medication/presentation/screens/medication_detail_screen.dart';
 import '../features/medication/presentation/screens/add_medication_screen.dart';
 import '../features/medication/presentation/screens/my_medications_screen.dart';
+import '../features/auth/presentation/screens/complete_profile_screen.dart';
 import '../features/auth/presentation/screens/email_otp_screen.dart';
 import '../features/auth/presentation/screens/login_mobile_screen.dart';
 import '../features/auth/presentation/screens/phone_otp_screen.dart';
@@ -20,6 +21,7 @@ abstract final class AppRoutes {
   static const login = '/login';
   static const otpPhone = '/login/otp/phone';
   static const otpEmail = '/login/otp/email';
+  static const completeProfile = '/onboarding/profile';
   static const devCatalog = '/dev-catalog';
 }
 
@@ -68,6 +70,10 @@ Route<dynamic>? onGenerateRoute(RouteSettings settings) {
           final target = settings.arguments as String?;
           return EmailOtpScreen(email: target);
         },
+      ),
+    AppRoutes.completeProfile => MaterialPageRoute<void>(
+        settings: settings,
+        builder: (_) => const CompleteProfileScreen(),
       ),
     AppRoutes.devCatalog => MaterialPageRoute<void>(
         settings: settings,

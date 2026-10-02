@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../../../app/router.dart';
 import '../../../../app/theme/app_theme.dart';
-import '../../../../core/widgets/home_indicator.dart';
-import '../../../../core/widgets/status_bar_compact.dart';
 import '../../../../core/widgets/vector_icons.dart';
 import '../../domain/entities/login_method.dart';
 import '../state/auth_controller.dart';
@@ -17,14 +16,13 @@ import '../widgets/otp_resend_row.dart';
 ///
 /// Tuân thủ quy cách thiết kế CSS từ Figma:
 /// - Kích thước: 375x812, nền [AppColors.surface] (#FFFFFF), viền 1px [AppColors.border], bo góc 16px
-/// - Status bar: 40px, [AppColors.canvas] (#FCFCFC)
 /// - Content: padding 24px, gap 20px, nền #FCFCFC
 /// - Header: Mascot (96x88) + Heading (20px bold) + Subheading (13px)
 /// - OTP Row: 6 ô (47x56px, bo góc 8px, viền 2px #01554F khi active)
 /// - Resend Row: Icon Clock (14x14) + Đếm ngược / Gửi lại mã
 /// - Nút Xác nhận: 327x48px (#01554F, bo góc 8px)
 /// - Dòng sửa thông tin: "Sai số điện thoại? Đổi số" hoặc "Sai email? Đổi email"
-/// - Home indicator: 21px
+/// Status bar và thanh điều hướng là của hệ điều hành (nội dung nằm trong [SafeArea]).
 class OtpVerificationScreen extends StatefulWidget {
   const OtpVerificationScreen({
     super.key,
@@ -71,7 +69,6 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
   final TextEditingController _pinController = TextEditingController();
   final FocusNode _pinFocusNode = FocusNode();
 
-  bool _localIsLoading = false;
   bool _localHasError = false;
   String? _localErrorMessage;
 
@@ -94,56 +91,34 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
 
     FocusScope.of(context).unfocus();
 
-    // Nếu có AuthController trong cây Widget (chuẩn Clean Architecture)
-    if (controller != null) {
-      final success = await controller.verifyOtp(token: pin);
-      if (!mounted) return;
-
-      if (success) {
-        _showSuccessAndNavigate();
-      } else {
-        setState(() {
-          _localHasError = true;
-          _localErrorMessage =
-              controller.errorMessage ?? 'Mã xác thực không đúng';
-        });
-      }
+    if (controller == null) {
+      // Không có AuthScope phía trên (chỉ xảy ra khi dựng màn hình lẻ): không giả lập đăng nhập.
+      setState(() {
+        _localHasError = true;
+        _localErrorMessage = 'Chưa kết nối được dịch vụ đăng nhập';
+      });
       return;
     }
 
-    // Chế độ chạy cục bộ độc lập (khi test widget hoặc preview đơn lẻ)
-    setState(() {
-      _localIsLoading = true;
-      _localHasError = false;
-      _localErrorMessage = null;
-    });
+    final success = await controller.verifyOtp(token: pin);
+    if (!mounted) return;
 
-    try {
-      await Future.delayed(const Duration(milliseconds: 500));
-      if (!mounted) return;
-
-      if (pin == '000000') {
-        setState(() {
-          _localHasError = true;
-          _localErrorMessage = 'Mã xác thực không chính xác';
-        });
-      } else {
-        _showSuccessAndNavigate();
-      }
-    } finally {
-      if (mounted) {
-        setState(() => _localIsLoading = false);
-      }
+    if (success) {
+      _showSuccessAndNavigate(needsProfile: controller.needsProfile);
+    } else {
+      setState(() {
+        _localHasError = true;
+        _localErrorMessage = controller.errorMessage ?? 'Mã xác thực không đúng';
+      });
     }
   }
 
-  void _showSuccessAndNavigate() {
+  void _showSuccessAndNavigate({required bool needsProfile}) {
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(
         const SnackBar(
-          content:
-              Text('Xác thực OTP thành công! Đang chuyển đến Trang chủ...'),
+          content: Text('Xác thực OTP thành công!'),
           backgroundColor: AppColors.brand,
         ),
       );
@@ -151,9 +126,9 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
     if (widget.onVerifySuccess case final callback?) {
       callback();
     } else {
-      // Chuyển hướng về trang chủ ứng dụng
+      // Người mới (chưa có hồ sơ) đi qua màn hoàn thiện hồ sơ trước khi vào Trang chủ.
       Navigator.of(context).pushNamedAndRemoveUntil(
-        AppRoutes.home,
+        needsProfile ? AppRoutes.completeProfile : AppRoutes.home,
         (route) => false,
       );
     }
@@ -173,31 +148,31 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
         : AuthValidator.maskEmail(widget.targetIdentifier);
     final targetLabel = isPhone ? 'số $maskedTarget' : maskedTarget;
 
-    if (controller != null) {
-      await controller.requestOtp(widget.targetIdentifier);
-      if (mounted) {
-        ScaffoldMessenger.of(context)
-          ..hideCurrentSnackBar()
-          ..showSnackBar(
-            SnackBar(
-              content: Text('Đã gửi lại mã OTP đến $targetLabel'),
-              backgroundColor: AppColors.brand,
-            ),
-          );
-      }
-    } else {
-      await Future.delayed(const Duration(milliseconds: 400));
-      if (mounted) {
-        ScaffoldMessenger.of(context)
-          ..hideCurrentSnackBar()
-          ..showSnackBar(
-            SnackBar(
-              content: Text('Đã gửi lại mã OTP đến $targetLabel'),
-              backgroundColor: AppColors.brand,
-            ),
-          );
-      }
+    if (controller == null) {
+      setState(() {
+        _localHasError = true;
+        _localErrorMessage = 'Chưa kết nối được dịch vụ đăng nhập';
+      });
+      return;
     }
+
+    final sent = await controller.resendOtp();
+    if (!mounted) return;
+    if (!sent) {
+      setState(() {
+        _localHasError = true;
+        _localErrorMessage = controller.errorMessage;
+      });
+      return;
+    }
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text('Đã gửi lại mã OTP đến $targetLabel'),
+          backgroundColor: AppColors.brand,
+        ),
+      );
   }
 
   void _handleChangeIdentifier() {
@@ -207,15 +182,12 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
   @override
   Widget build(BuildContext context) {
     final authController = AuthScope.maybeOf(context);
-    final isLoading = authController?.isLoading ?? _localIsLoading;
+    final isLoading = authController?.isLoading ?? false;
     final errorMessage = _localErrorMessage ?? authController?.errorMessage;
     final isPhone = widget.method == LoginMethod.phone;
 
-    final mediaQuery = MediaQuery.of(context);
-    final isDesktopWidth = mediaQuery.size.width > 500;
-
-    // Xem trước giao diện khung 375x812 trên Desktop/Web
-    if (widget.enableFramePreview || isDesktopWidth) {
+    // Xem trước giao diện khung 375x812 (chỉ khi bật cờ, ví dụ trên Desktop/Web)
+    if (widget.enableFramePreview) {
       return Scaffold(
         backgroundColor: const Color(0xFFEFEFEF),
         body: Center(
@@ -242,17 +214,18 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
     }
 
     // Hiển thị gốc trên điện thoại di động
-    return Scaffold(
-      backgroundColor: AppColors.canvas,
-      body: SafeArea(
-        top: false,
-        bottom: true,
-        child: _buildContent(
-          context: context,
-          controller: authController,
-          isLoading: isLoading,
-          errorMessage: errorMessage,
-          isPhone: isPhone,
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle.dark,
+      child: Scaffold(
+        backgroundColor: AppColors.canvas,
+        body: SafeArea(
+          child: _buildContent(
+            context: context,
+            controller: authController,
+            isLoading: isLoading,
+            errorMessage: errorMessage,
+            isPhone: isPhone,
+          ),
         ),
       ),
     );
@@ -267,10 +240,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
   }) {
     return Column(
       children: [
-        // order: 0 -> statusrow-slot (40px)
-        const ExcludeSemantics(child: StatusBarCompact()),
-
-        // order: 1 -> content (751px, padding 24px, gap 20px)
+        // content (padding 24px, gap 20px)
         Expanded(
           child: GestureDetector(
             behavior: HitTestBehavior.opaque,
@@ -348,9 +318,6 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
             ),
           ),
         ),
-
-        // order: 2 -> homeindicator-slot (21px)
-        const ExcludeSemantics(child: HomeIndicator()),
       ],
     );
   }

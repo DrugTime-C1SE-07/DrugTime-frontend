@@ -6,13 +6,14 @@ import {
   ClipboardCheck,
   Database,
   LayoutDashboard,
-  LogOut,
   Notebook,
   PillIcon,
   ScanText,
   UserRound,
   type LucideIcon,
 } from "lucide-react";
+
+import LogoutButton from "../auth/LogoutButton";
 
 type SidebarItem = {
   label: string;
@@ -107,9 +108,7 @@ export default function Sidebar() {
           <strong>DS. Lê Minh Trí</strong>
           <span>Quản trị Dữ liệu Dược</span>
         </div>
-        <button className="admin-sidebar__logout" type="button" aria-label="Đăng xuất">
-          <LogOut size={18} strokeWidth={2.3} />
-        </button>
+        <LogoutButton className="admin-sidebar__logout" iconSize={18} />
       </div>
     </aside>
   );
