@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../../../app/router.dart';
 import '../../../../app/theme/app_theme.dart';
-import '../../../../core/widgets/home_indicator.dart';
-import '../../../../core/widgets/status_bar_compact.dart';
 import '../../../../core/widgets/vector_icons.dart';
 import '../../domain/entities/login_method.dart';
 import '../state/auth_controller.dart';
@@ -17,16 +16,15 @@ import '../widgets/trust_card.dart';
 ///
 /// Tuân thủ quy cách thiết kế CSS từ Figma:
 /// - Khung chứa: 375x812, nền [AppColors.surface] (#FFFFFF), viền 1px [AppColors.border], bo góc 16px
-/// - Status bar: 40px, [AppColors.canvas] (#FCFCFC)
 /// - Nội dung: padding 28px 24px 24px, gap 20px
-/// - Header: 60x60 logo y tế, heading 22px bold, subheading 13px
+/// - Header: ảnh mascot DrugTime cao 150px, heading 22px bold, subheading 13px
 /// - Segmented Picker: 331x42px ([AppColors.surfaceMuted])
 /// - Ô nhập dữ liệu: 327x48px (viền 1px [AppColors.border])
 /// - Dòng phụ trợ: Icon 13x13 message-circle + chữ 11.5px
 /// - Nút bấm: 327x48px (nền thương hiệu [AppColors.brand] #01554F)
 /// - Trust Card: 327x118px (nền [AppColors.brandTint] #E7F3F1)
 /// - Chân trang pháp lý: 11.5px [AppColors.inkMuted]
-/// - Home indicator: 21px
+/// Status bar và thanh điều hướng là của hệ điều hành (nội dung nằm trong [SafeArea]).
 class LoginMobileScreen extends StatefulWidget {
   const LoginMobileScreen({
     super.key,
@@ -208,11 +206,8 @@ class _LoginMobileScreenState extends State<LoginMobileScreen> {
         ? (authController?.errorMessage ?? _localEmailError)
         : null;
 
-    final mediaQuery = MediaQuery.of(context);
-    final isDesktopWidth = mediaQuery.size.width > 500;
-
-    // Xem trước giao diện khung 375x812 trên Desktop/Web
-    if (widget.enableFramePreview || isDesktopWidth) {
+    // Xem trước giao diện khung 375x812 (chỉ khi bật cờ, ví dụ trên Desktop/Web)
+    if (widget.enableFramePreview) {
       return Scaffold(
         backgroundColor: const Color(0xFFEFEFEF),
         body: Center(
@@ -240,18 +235,19 @@ class _LoginMobileScreenState extends State<LoginMobileScreen> {
     }
 
     // Hiển thị gốc trên điện thoại
-    return Scaffold(
-      backgroundColor: AppColors.canvas,
-      body: SafeArea(
-        top: false,
-        bottom: true,
-        child: _buildContent(
-          context: context,
-          activeMethod: activeMethod,
-          isLoading: isLoading,
-          phoneError: phoneError,
-          emailError: emailError,
-          controller: authController,
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle.dark,
+      child: Scaffold(
+        backgroundColor: AppColors.canvas,
+        body: SafeArea(
+          child: _buildContent(
+            context: context,
+            activeMethod: activeMethod,
+            isLoading: isLoading,
+            phoneError: phoneError,
+            emailError: emailError,
+            controller: authController,
+          ),
         ),
       ),
     );
@@ -267,10 +263,7 @@ class _LoginMobileScreenState extends State<LoginMobileScreen> {
   }) {
     return Column(
       children: [
-        // order: 0 -> statusrow-slot (40px)
-        const ExcludeSemantics(child: StatusBarCompact()),
-
-        // order: 1 -> content (cuộn chống tràn khi mở bàn phím & chạm ngoài để ẩn phím)
+        // content (cuộn chống tràn khi mở bàn phím & chạm ngoài để ẩn phím)
         Expanded(
           child: GestureDetector(
             behavior: HitTestBehavior.opaque,
@@ -353,9 +346,6 @@ class _LoginMobileScreenState extends State<LoginMobileScreen> {
             ),
           ),
         ),
-
-        // order: 2 -> homeindicator-slot (21px)
-        const ExcludeSemantics(child: HomeIndicator()),
       ],
     );
   }

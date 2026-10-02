@@ -1,5 +1,7 @@
+import 'package:flutter/material.dart' show DateUtils;
 import 'package:flutter/widgets.dart';
 
+import '../../data/sources/auth_api_exception.dart';
 import '../../domain/entities/auth_session.dart';
 import '../../domain/entities/login_method.dart';
 import '../../domain/repositories/auth_repository.dart';
@@ -24,6 +26,12 @@ class AuthController extends ChangeNotifier {
   String? get lastSentIdentifier => _lastSentIdentifier;
   AuthSession? get currentSession => _currentSession;
   bool get isAuthenticated => _currentSession?.isExpired == false;
+
+  /// Đã đăng nhập nhưng chưa có hồ sơ (người mới): phải qua màn hoàn thiện hồ sơ.
+  bool get needsProfile => isAuthenticated && _currentSession?.profileComplete == false;
+
+  /// Giới tính màn hồ sơ gửi lên API.
+  static const genders = {'nam': 'Nam', 'nu': 'Nữ', 'khac': 'Khác'};
 
   /// Đổi phương thức đăng nhập giữa Số điện thoại và Email.
   void setMethod(LoginMethod newMethod) {
@@ -89,6 +97,23 @@ class AuthController extends ChangeNotifier {
     }
   }
 
+  /// Gửi lại mã tới đúng số/email đã chuẩn hóa ở lần gửi trước.
+  Future<bool> resendOtp() async {
+    final target = _lastSentIdentifier;
+    if (target == null) {
+      _errorMessage = 'Vui lòng nhập lại số điện thoại hoặc email';
+      notifyListeners();
+      return false;
+    }
+    clearMessages();
+    final isPhone = _method == LoginMethod.phone;
+    return _executeRequestOtp(
+      phone: isPhone ? target : null,
+      email: isPhone ? null : target,
+      displayTarget: target,
+    );
+  }
+
   Future<bool> _executeRequestOtp({
     String? phone,
     String? email,
@@ -106,7 +131,7 @@ class AuthController extends ChangeNotifier {
       notifyListeners();
       return true;
     } catch (e) {
-      _errorMessage = e.toString().replaceFirst(RegExp(r'^Exception:\s*'), '');
+      _errorMessage = _messageFor(e, _AuthStep.requestOtp);
       _isLoading = false;
       notifyListeners();
       return false;
@@ -138,11 +163,70 @@ class AuthController extends ChangeNotifier {
       notifyListeners();
       return true;
     } catch (e) {
-      _errorMessage = e.toString().replaceFirst(RegExp(r'^Exception:\s*'), '');
+      _errorMessage = _messageFor(e, _AuthStep.verifyOtp);
       _isLoading = false;
       notifyListeners();
       return false;
     }
+  }
+
+  /// Lưu hồ sơ cơ bản. Kiểm dữ liệu tại chỗ trước, chỉ gọi API khi hợp lệ.
+  Future<bool> completeProfile({
+    required String fullName,
+    required DateTime? dateOfBirth,
+    required String? gender,
+  }) async {
+    clearMessages();
+    final name = fullName.trim();
+    final today = DateUtils.dateOnly(DateTime.now());
+    final String? invalid;
+    if (name.isEmpty) {
+      invalid = 'Vui lòng nhập họ tên';
+    } else if (dateOfBirth == null) {
+      invalid = 'Vui lòng chọn ngày sinh';
+    } else if (DateUtils.dateOnly(dateOfBirth).isAfter(today)) {
+      invalid = 'Ngày sinh không được sau hôm nay';
+    } else if (gender == null || !genders.containsKey(gender)) {
+      invalid = 'Vui lòng chọn giới tính';
+    } else {
+      invalid = null;
+    }
+    if (invalid != null) {
+      _errorMessage = invalid;
+      notifyListeners();
+      return false;
+    }
+
+    _isLoading = true;
+    notifyListeners();
+    try {
+      _currentSession = await _repository.completeProfile(
+        fullName: name,
+        dateOfBirth: dateOfBirth!,
+        gender: gender!,
+      );
+      _isLoading = false;
+      notifyListeners();
+      return true;
+    } catch (e) {
+      _isLoading = false;
+      _errorMessage = _messageFor(e, _AuthStep.completeProfile);
+      if (e is AuthApiException && e.kind == AuthErrorKind.invalidCredentials) {
+        await handleUnauthorized();
+        _errorMessage = _messageFor(e, _AuthStep.completeProfile);
+      }
+      notifyListeners();
+      return false;
+    }
+  }
+
+  /// API báo phiên không còn hiệu lực (401): xóa phiên để app quay về màn Đăng nhập.
+  Future<void> handleUnauthorized() async {
+    if (_currentSession == null) return;
+    await _repository.signOut();
+    _currentSession = null;
+    _lastSentIdentifier = null;
+    notifyListeners();
   }
 
   /// Đăng xuất khỏi tài khoản.
@@ -152,6 +236,33 @@ class AuthController extends ChangeNotifier {
     _lastSentIdentifier = null;
     notifyListeners();
   }
+}
+
+enum _AuthStep { requestOtp, verifyOtp, completeProfile }
+
+/// Thông điệp tiếng Việt theo loại lỗi; không hiển thị nguyên `detail` của backend.
+String _messageFor(Object error, _AuthStep step) {
+  if (error is! AuthApiException) {
+    return 'Đã có lỗi xảy ra, vui lòng thử lại';
+  }
+  return switch (error.kind) {
+    AuthErrorKind.invalidCredentials => step == _AuthStep.completeProfile
+        ? 'Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại'
+        : 'Mã OTP không đúng hoặc đã hết hạn',
+    AuthErrorKind.adminMustUseWeb =>
+      'Tài khoản quản trị vui lòng đăng nhập trên trang quản trị',
+    AuthErrorKind.invalidInput => switch (error.code) {
+        'invalid_phone' => 'Số điện thoại không hợp lệ',
+        'invalid_email' => 'Địa chỉ email không đúng định dạng',
+        'invalid_date_of_birth' => 'Ngày sinh không được sau hôm nay',
+        'invalid_full_name' => 'Vui lòng nhập họ tên',
+        _ => 'Thông tin chưa hợp lệ, vui lòng kiểm tra lại',
+      },
+    AuthErrorKind.rateLimited => 'Bạn thao tác quá nhanh, vui lòng thử lại sau ít phút',
+    AuthErrorKind.unavailable => 'Hệ thống đang bận, vui lòng thử lại sau',
+    AuthErrorKind.network => 'Không kết nối được máy chủ, vui lòng kiểm tra mạng',
+    AuthErrorKind.unexpected => 'Đã có lỗi xảy ra, vui lòng thử lại',
+  };
 }
 
 /// Đưa [AuthController] xuống cây widget, rebuild khi trạng thái xác thực đổi.

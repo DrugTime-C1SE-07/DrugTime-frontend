@@ -1,6 +1,6 @@
 {
-    "name": "drugtime_mobile",
-    "short_name": "drugtime_mobile",
+    "name": "DrugTime",
+    "short_name": "DrugTime",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",

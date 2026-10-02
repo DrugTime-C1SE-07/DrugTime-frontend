@@ -5,18 +5,24 @@ import 'api_exception.dart';
 
 typedef AuthTokenProvider = Future<String?> Function();
 
+/// Gọi khi API trả 401: phiên không còn hiệu lực, app đưa người dùng về màn Đăng nhập.
+typedef UnauthorizedHandler = Future<void> Function();
+
 class ApiClient {
   ApiClient({
     required Uri baseUrl,
     HttpClient? httpClient,
     AuthTokenProvider? authTokenProvider,
+    UnauthorizedHandler? onUnauthorized,
   })  : _baseUrl = baseUrl,
         _httpClient = httpClient ?? HttpClient(),
-        _authTokenProvider = authTokenProvider;
+        _authTokenProvider = authTokenProvider,
+        _onUnauthorized = onUnauthorized;
 
   final Uri _baseUrl;
   final HttpClient _httpClient;
   final AuthTokenProvider? _authTokenProvider;
+  final UnauthorizedHandler? _onUnauthorized;
 
   Future<Object?> postJson(
     String path, {
@@ -50,6 +56,9 @@ class ApiClient {
     }
 
     final responseBody = await utf8.decodeStream(response);
+    if (response.statusCode == HttpStatus.unauthorized) {
+      await _onUnauthorized?.call();
+    }
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw ApiException(
         responseBody.isEmpty ? response.reasonPhrase : responseBody,

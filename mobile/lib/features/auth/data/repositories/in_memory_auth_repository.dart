@@ -1,8 +1,8 @@
 import '../../domain/entities/auth_session.dart';
 import '../../domain/repositories/auth_repository.dart';
+import '../sources/auth_api_exception.dart';
 
-/// Dữ liệu xác thực giả lập trong bộ nhớ, dùng cho test và dựng UI
-/// mà không bắt buộc phải có backend đang chạy (tương đồng với InMemoryMedicationRepository).
+/// Dữ liệu xác thực giả lập trong bộ nhớ, CHỈ dùng cho test (app chạy thật dùng RemoteAuthRepository).
 class InMemoryAuthRepository implements AuthRepository {
   InMemoryAuthRepository({
     AuthSession? initialSession,
@@ -50,21 +50,49 @@ class InMemoryAuthRepository implements AuthRepository {
     }
 
     if (token == '000000') {
-      throw Exception('Mã xác thực không chính xác');
+      throw const AuthApiException(AuthErrorKind.invalidCredentials, statusCode: 401);
     }
 
     final session = AuthSession(
       userId: 'test-user-${phone ?? email ?? "anonymous"}',
       accessToken: 'mock-jwt-token-12345',
       expiresAt: DateTime.now().add(const Duration(days: 30)),
-      profileComplete: true,
+      profileComplete: verifiedProfileComplete,
     );
     _currentSession = session;
     return session;
   }
 
+  /// Cờ `profileComplete` trả về sau khi verify (mô phỏng người mới / người cũ).
+  bool verifiedProfileComplete = true;
+
+  final List<(String, DateTime, String)> completedProfiles = [];
+
   @override
-  Future<AuthSession?> getCurrentSession() async => _currentSession;
+  Future<AuthSession> completeProfile({
+    required String fullName,
+    required DateTime dateOfBirth,
+    required String gender,
+  }) async {
+    if (shouldFail) {
+      throw Exception(failureMessage);
+    }
+    final session = _currentSession;
+    if (session == null) {
+      throw StateError('Chưa đăng nhập');
+    }
+    completedProfiles.add((fullName, dateOfBirth, gender));
+    return _currentSession = session.copyWith(profileComplete: true);
+  }
+
+  @override
+  Future<AuthSession?> getCurrentSession() async {
+    final session = _currentSession;
+    if (session != null && session.isExpired) {
+      return _currentSession = null;
+    }
+    return session;
+  }
 
   @override
   Future<void> signOut() async {

@@ -1568,15 +1568,51 @@ button {
   line-height: 1.5;
 }
 
-.auth-card__link {
-  display: inline-flex;
-  align-items: center;
-  min-height: 42px;
-  padding: 0 16px;
+.auth-form {
+  display: grid;
+  gap: 16px;
+}
+
+.auth-form__field {
+  display: grid;
+  gap: 6px;
+  font-weight: 650;
+}
+
+.auth-form__field input {
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  font: inherit;
+  font-weight: 400;
+}
+
+.auth-form__field input:focus {
+  border-color: var(--color-primary);
+  outline: 2px solid var(--color-primary-soft);
+}
+
+.auth-card .auth-form__error {
+  margin: 0;
+  color: var(--color-danger);
+  font-weight: 600;
+}
+
+.auth-form__submit {
+  min-height: 44px;
+  border: 0;
   border-radius: 8px;
   background: var(--color-primary);
   color: #ffffff;
+  font: inherit;
   font-weight: 700;
+  cursor: pointer;
+}
+
+.auth-form__submit:disabled {
+  opacity: 0.7;
+  cursor: progress;
 }
 
 @media (max-width: 900px) {
