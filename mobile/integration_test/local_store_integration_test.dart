@@ -30,7 +30,7 @@ void main() {
   testWidgets('manual local store flow works on real encrypted database', (
     tester,
   ) async {
-    final patientId = 'patient-manual-test';
+    const patientId = 'patient-manual-test';
     final schedule = LocalMedicationSchedule(
       id: 1001,
       patientUserId: patientId,

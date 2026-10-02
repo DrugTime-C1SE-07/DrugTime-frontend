@@ -78,6 +78,8 @@ class _LoginMobileScreenState extends State<LoginMobileScreen> {
     AuthController? controller,
   ) async {
     FocusScope.of(context).unfocus();
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
 
     final isPhone = activeMethod == LoginMethod.phone;
     final rawIdentifier =
@@ -90,7 +92,7 @@ class _LoginMobileScreenState extends State<LoginMobileScreen> {
 
       if (success) {
         final infoMsg = controller.infoMessage ?? 'Đã gửi mã OTP thành công';
-        ScaffoldMessenger.of(context)
+        messenger
           ..hideCurrentSnackBar()
           ..showSnackBar(
             SnackBar(
@@ -103,7 +105,7 @@ class _LoginMobileScreenState extends State<LoginMobileScreen> {
         final targetIdentifier = isPhone
             ? '+84 ${AuthValidator.cleanDigits(rawIdentifier)}'
             : rawIdentifier;
-        Navigator.of(context).pushNamed(
+        navigator.pushNamed(
           targetRoute,
           arguments: targetIdentifier,
         );
@@ -158,7 +160,7 @@ class _LoginMobileScreenState extends State<LoginMobileScreen> {
               ? '+84 ${AuthValidator.cleanDigits(rawIdentifier)}'
               : rawIdentifier;
 
-          ScaffoldMessenger.of(context)
+          messenger
             ..hideCurrentSnackBar()
             ..showSnackBar(
               SnackBar(
@@ -168,7 +170,7 @@ class _LoginMobileScreenState extends State<LoginMobileScreen> {
             );
 
           final targetRoute = isPhone ? AppRoutes.otpPhone : AppRoutes.otpEmail;
-          Navigator.of(context).pushNamed(
+          navigator.pushNamed(
             targetRoute,
             arguments: displayTarget,
           );
@@ -176,7 +178,7 @@ class _LoginMobileScreenState extends State<LoginMobileScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
+        messenger
           ..hideCurrentSnackBar()
           ..showSnackBar(
             SnackBar(
@@ -388,7 +390,7 @@ class _LoginMobileScreenState extends State<LoginMobileScreen> {
       width: 327.0,
       height: 48.0,
       child: Material(
-        color: isLoading ? AppColors.brand.withOpacity(0.7) : AppColors.brand,
+        color: isLoading ? AppColors.brand.withValues(alpha: 0.7) : AppColors.brand,
         borderRadius: BorderRadius.circular(8.0),
         child: InkWell(
           onTap: isLoading
