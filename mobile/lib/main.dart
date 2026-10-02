@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 
 import 'app/app.dart';
 import 'app/missing_config_app.dart';
-import 'app/router.dart';
 import 'core/api/api_client.dart';
 import 'core/config/app_config.dart';
 import 'core/storage/local_db/local_db.dart';
@@ -20,18 +19,6 @@ void main() {
   if (!AppConfig.isConfigured) {
     runApp(const MissingConfigApp());
     return;
-  runApp(
-    DrugTimeApp(
-      doseOutboxSyncEngine: _buildDoseOutboxSyncEngine(),
-      initialRoute: AppRoutes.login,
-    ),
-  );
-}
-
-DoseOutboxSyncEngine? _buildDoseOutboxSyncEngine() {
-  const apiBaseUrl = String.fromEnvironment('DRUGTIME_API_BASE_URL');
-  if (apiBaseUrl.isEmpty) {
-    return null;
   }
 
   final authRepository = RemoteAuthRepository(
