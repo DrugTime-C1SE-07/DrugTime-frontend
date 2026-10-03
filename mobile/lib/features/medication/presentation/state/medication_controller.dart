@@ -1,6 +1,7 @@
 import 'package:flutter/widgets.dart';
 
 import '../../domain/entities/medication.dart';
+import '../../domain/entities/medication_failure.dart';
 import '../../domain/repositories/medication_repository.dart';
 
 class MedicationController extends ChangeNotifier {
@@ -10,48 +11,63 @@ class MedicationController extends ChangeNotifier {
 
   List<Medication> _medications = const [];
   bool _isLoading = false;
+  MedicationFailure? _loadError;
 
   List<Medication> get medications => _medications;
   bool get isLoading => _isLoading;
 
+  /// Lỗi của lần tải gần nhất; danh sách cũ (nếu có) vẫn giữ để hiển thị.
+  MedicationFailure? get loadError => _loadError;
+
   Future<void> load() async {
     _isLoading = true;
+    _loadError = null;
     notifyListeners();
-    _medications = await _repository.fetchAll();
+    try {
+      _medications = await _repository.fetchAll();
+    } on MedicationFailure catch (failure) {
+      _loadError = failure;
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  /// Đăng xuất: bỏ dữ liệu của người dùng trước.
+  void clear() {
+    _medications = const [];
+    _loadError = null;
     _isLoading = false;
     notifyListeners();
   }
 
-  Future<void> add(Medication medication) async {
-    await _repository.add(medication);
-    _medications = await _repository.fetchAll();
-    notifyListeners();
-  }
+  /// Ném [MedicationFailure] khi lỗi; danh sách giữ nguyên.
+  Future<Medication> add(Medication draft, {required String clientUuid}) =>
+      _mutate(() => _repository.add(draft, clientUuid: clientUuid));
 
-  Future<void> update(Medication medication) async {
-    await _repository.update(medication);
-    _medications = await _repository.fetchAll();
-    notifyListeners();
-  }
+  Future<Medication> update(Medication before, Medication after) =>
+      _mutate(() => _repository.update(before, after));
 
-  Future<void> delete(String id) async {
-    await _repository.delete(id);
-    _medications = await _repository.fetchAll();
-    notifyListeners();
-  }
+  Future<Medication> setStopped(String id, bool stopped) =>
+      _mutate(() => _repository.setStopped(id, stopped));
+
+  Future<void> delete(String id) => _mutate(() => _repository.delete(id));
 
   Future<List<DrugCatalogItem>> searchCatalog(String query) =>
       _repository.searchCatalog(query);
 
-  Future<DrugCatalogItem?> findCatalogItem(String catalogId) =>
-      _repository.findCatalogItem(catalogId);
+  /// Ghi xong thì tải lại từ server, không tự sửa danh sách tại chỗ.
+  Future<T> _mutate<T>(Future<T> Function() write) async {
+    final result = await write();
+    await load();
+    return result;
+  }
 
   Medication? getMedicationById(String id) {
-    try {
-      return _medications.firstWhere((m) => m.id == id);
-    } catch (_) {
-      return null;
+    for (final m in _medications) {
+      if (m.id == id) return m;
     }
+    return null;
   }
 
   /// Thuốc này đã nằm trong danh sách đang dùng chưa (tránh nhập trùng).

@@ -5,6 +5,7 @@ import '../../../../app/theme/app_theme.dart';
 import '../../domain/entities/medication.dart';
 import '../state/medication_controller.dart';
 import '../widgets/medication_card.dart';
+import '../widgets/medication_error_messages.dart';
 import '../widgets/medication_filter_bar.dart';
 import '../widgets/medication_notices.dart';
 
@@ -116,11 +117,23 @@ class _MyMedicationsScreenState extends State<MyMedicationsScreen> {
       ),
     ];
 
+    final loadError = controller.loadError;
+    if (loadError != null) {
+      children
+        ..add(const SizedBox(height: AppSpacing.lg))
+        ..add(_LoadErrorCard(
+          message: medicationErrorMessage(loadError),
+          onRetry: controller.load,
+        ));
+    }
+
     if (controller.isLoading && all.isEmpty) {
       children.add(const Padding(
         padding: EdgeInsets.all(AppSpacing.xxl),
         child: Center(child: CircularProgressIndicator()),
       ));
+    } else if (all.isEmpty && loadError != null) {
+      // Đã hiện thẻ lỗi ở trên; không báo "Chưa có thuốc nào" khi thực ra chưa tải được.
     } else if (all.isEmpty) {
       children.add(MedicationEmptyState(
         title: 'Chưa có thuốc nào',
@@ -250,6 +263,33 @@ class _SearchField extends StatelessWidget {
                   icon: const Icon(Icons.close, color: AppColors.inkMuted),
                 ),
         ),
+      ),
+    );
+  }
+}
+
+/// Không tải được danh sách: báo lỗi và cho thử lại. Danh sách cũ (nếu có) vẫn hiện bên dưới.
+class _LoadErrorCard extends StatelessWidget {
+  const _LoadErrorCard({required this.message, required this.onRetry});
+
+  final String message;
+  final Future<void> Function() onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: AppColors.dangerBg,
+        borderRadius: BorderRadius.circular(AppRadius.field),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.cloud_off_outlined, color: AppColors.danger),
+          const SizedBox(width: AppSpacing.md),
+          Expanded(child: Text(message, style: AppTextStyles.body)),
+          TextButton(onPressed: onRetry, child: const Text('Thử lại')),
+        ],
       ),
     );
   }

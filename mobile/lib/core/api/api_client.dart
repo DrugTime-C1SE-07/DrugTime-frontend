@@ -24,38 +24,61 @@ class ApiClient {
   final AuthTokenProvider? _authTokenProvider;
   final UnauthorizedHandler? _onUnauthorized;
 
-  Future<Object?> postJson(
+  Future<Object?> getJson(String path, {Map<String, String>? query}) =>
+      _send('GET', path, query: query);
+
+  Future<Object?> postJson(String path, {required Object? body}) =>
+      _send('POST', path, body: body, hasBody: true);
+
+  Future<Object?> patchJson(String path, {required Object? body}) =>
+      _send('PATCH', path, body: body, hasBody: true);
+
+  /// Trả `null` với 204 (không có body).
+  Future<Object?> delete(String path) => _send('DELETE', path);
+
+  /// Trả body JSON đã giải mã, hoặc `null` khi body rỗng (ví dụ 204).
+  Future<Object?> _send(
+    String method,
     String path, {
-    required Object? body,
+    Map<String, String>? query,
+    Object? body,
+    bool hasBody = false,
   }) async {
+    var uri = _baseUrl.resolve(path);
+    if (query != null && query.isNotEmpty) {
+      uri = uri.replace(queryParameters: {...uri.queryParameters, ...query});
+    }
+
     HttpClientRequest request;
     try {
-      request = await _httpClient.postUrl(_baseUrl.resolve(path));
+      request = await _httpClient.openUrl(method, uri);
     } on SocketException catch (error) {
       throw ApiException(error.message, isTransient: true);
     } on HttpException catch (error) {
       throw ApiException(error.message, isTransient: true);
     }
-
-    request.headers.contentType = ContentType.json;
 
     final token = await _authTokenProvider?.call();
     if (token != null && token.isNotEmpty) {
       request.headers.set(HttpHeaders.authorizationHeader, 'Bearer $token');
     }
 
-    request.write(jsonEncode(body));
+    if (hasBody) {
+      request.headers.contentType = ContentType.json;
+      request.write(jsonEncode(body));
+    }
 
     final HttpClientResponse response;
+    final String responseBody;
     try {
       response = await request.close();
+      responseBody = await utf8.decodeStream(response);
     } on SocketException catch (error) {
       throw ApiException(error.message, isTransient: true);
     } on HttpException catch (error) {
       throw ApiException(error.message, isTransient: true);
     }
 
-    final responseBody = await utf8.decodeStream(response);
     if (response.statusCode == HttpStatus.unauthorized) {
       await _onUnauthorized?.call();
     }

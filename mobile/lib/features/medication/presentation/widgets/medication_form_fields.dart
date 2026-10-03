@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../../app/theme/app_theme.dart';
 import '../../../../shared/widgets/pill_icon.dart';
 import '../../domain/entities/medication.dart';
+import 'medication_labels.dart';
 
 /// Nhãn một trường nhập, kèm dòng gợi ý phía dưới nếu có.
 class FormFieldLabel extends StatelessWidget {
@@ -229,7 +230,7 @@ class _PickedDrug extends StatelessWidget {
             children: [
               Text(drug.name, style: AppTextStyles.bodyStrong),
               Text(
-                '${drug.activeIngredient} · ${drug.dosageForm}',
+                drugSubtitle(drug.activeIngredient, drug.dosageForm),
                 style: AppTextStyles.caption,
               ),
             ],
@@ -277,7 +278,8 @@ class ReadOnlyField extends StatelessWidget {
   }
 }
 
-/// Bộ tăng/giảm liều. Dùng stepper thay cho ô gõ chữ để tránh nhập sai số.
+/// Bộ tăng/giảm theo bước 1 (liều mỗi lần, số lần tối đa mỗi ngày). Dùng stepper thay cho
+/// ô gõ chữ để tránh nhập sai số. Giá trị có thể lẻ (liều 0,5 viên do server trả về).
 class DoseStepper extends StatelessWidget {
   const DoseStepper({
     super.key,
@@ -286,13 +288,17 @@ class DoseStepper extends StatelessWidget {
     required this.onChanged,
     this.min = 1,
     this.max = 10,
+    this.decreaseTooltip = 'Giảm liều',
+    this.increaseTooltip = 'Tăng liều',
   });
 
-  final int value;
+  final double value;
   final String unit;
-  final ValueChanged<int> onChanged;
-  final int min;
-  final int max;
+  final ValueChanged<double> onChanged;
+  final double min;
+  final double max;
+  final String decreaseTooltip;
+  final String increaseTooltip;
 
   @override
   Widget build(BuildContext context) {
@@ -307,14 +313,14 @@ class DoseStepper extends StatelessWidget {
         children: [
           _StepButton(
             icon: Icons.remove,
-            tooltip: 'Giảm liều',
-            onPressed: value > min ? () => onChanged(value - 1) : null,
+            tooltip: decreaseTooltip,
+            onPressed: value - 1 >= min ? () => onChanged(value - 1) : null,
           ),
           Expanded(
             child: Semantics(
               liveRegion: true,
               child: Text(
-                '$value $unit',
+                '${formatQuantity(value)} $unit',
                 textAlign: TextAlign.center,
                 style: AppTextStyles.figure,
               ),
@@ -322,8 +328,8 @@ class DoseStepper extends StatelessWidget {
           ),
           _StepButton(
             icon: Icons.add,
-            tooltip: 'Tăng liều',
-            onPressed: value < max ? () => onChanged(value + 1) : null,
+            tooltip: increaseTooltip,
+            onPressed: value + 1 <= max ? () => onChanged(value + 1) : null,
           ),
         ],
       ),
