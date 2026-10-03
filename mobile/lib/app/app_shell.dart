@@ -134,6 +134,26 @@ class _AppShellState extends State<AppShell> {
             ),
             color: AppColors.surface,
             child: ListTile(
+              key: const Key('privacy-settings-tile'),
+              leading: const Icon(Icons.privacy_tip_outlined, color: AppColors.ink),
+              title: const Text('Quyền riêng tư', style: AppTextStyles.bodyStrong),
+              subtitle: const Text(
+                'Xem và thay đổi đồng ý xử lý dữ liệu theo từng mục đích',
+                style: AppTextStyles.caption,
+              ),
+              trailing: const Icon(Icons.chevron_right, color: AppColors.inkMuted),
+              onTap: () => Navigator.of(context).pushNamed(AppRoutes.privacySettings),
+            ),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          Card(
+            elevation: 0,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(AppRadius.card),
+              side: const BorderSide(color: AppColors.border),
+            ),
+            color: AppColors.surface,
+            child: ListTile(
               key: const Key('logout-tile'),
               leading: const Icon(Icons.logout, color: AppColors.danger),
               title: const Text('Đăng xuất', style: AppTextStyles.bodyStrong),

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../../app/router.dart';
 import '../../../../app/theme/app_theme.dart';
 import '../../domain/entities/medication.dart';
+import '../../domain/entities/medication_failure.dart';
 import '../state/medication_controller.dart';
 import '../widgets/medication_card.dart';
 import '../widgets/medication_error_messages.dart';
@@ -85,7 +86,7 @@ class _MyMedicationsScreenState extends State<MyMedicationsScreen> {
     final lowStock = all.where((m) => m.isLowStock).toList();
 
     final children = <Widget>[
-      _Header(activeCount: all.where((m) => m.isActive).length, onAdd: _openAddMedication),
+      _Header(onAdd: _openAddMedication),
       if (lowStock.isNotEmpty) ...[
         const SizedBox(height: AppSpacing.lg),
         LowStockBanner(medications: lowStock),
@@ -124,6 +125,9 @@ class _MyMedicationsScreenState extends State<MyMedicationsScreen> {
         ..add(_LoadErrorCard(
           message: medicationErrorMessage(loadError),
           onRetry: controller.load,
+          onConsent: loadError.kind == MedicationFailureKind.consentRevoked
+              ? () => openConsentScreen(context)
+              : null,
         ));
     }
 
@@ -195,9 +199,8 @@ class _MyMedicationsScreenState extends State<MyMedicationsScreen> {
 }
 
 class _Header extends StatelessWidget {
-  const _Header({required this.activeCount, required this.onAdd});
+  const _Header({required this.onAdd});
 
-  final int activeCount;
   final VoidCallback onAdd;
 
   @override
@@ -213,10 +216,6 @@ class _Header extends StatelessWidget {
                 child: const Text('Thuốc của tôi', style: AppTextStyles.title),
               ),
               const SizedBox(height: AppSpacing.xs),
-              Text(
-                activeCount == 0 ? 'Chưa có thuốc đang dùng' : '$activeCount thuốc đang dùng',
-                style: AppTextStyles.caption,
-              ),
             ],
           ),
         ),
@@ -270,10 +269,13 @@ class _SearchField extends StatelessWidget {
 
 /// Không tải được danh sách: báo lỗi và cho thử lại. Danh sách cũ (nếu có) vẫn hiện bên dưới.
 class _LoadErrorCard extends StatelessWidget {
-  const _LoadErrorCard({required this.message, required this.onRetry});
+  const _LoadErrorCard({required this.message, required this.onRetry, this.onConsent});
 
   final String message;
   final Future<void> Function() onRetry;
+
+  /// Có khi lỗi là `consent_revoked`: nút mở màn đồng ý thay cho "Thử lại".
+  final VoidCallback? onConsent;
 
   @override
   Widget build(BuildContext context) {
@@ -288,7 +290,14 @@ class _LoadErrorCard extends StatelessWidget {
           const Icon(Icons.cloud_off_outlined, color: AppColors.danger),
           const SizedBox(width: AppSpacing.md),
           Expanded(child: Text(message, style: AppTextStyles.body)),
-          TextButton(onPressed: onRetry, child: const Text('Thử lại')),
+          if (onConsent case final onConsent?)
+            TextButton(
+              key: const Key('consent-revoked-card-action'),
+              onPressed: onConsent,
+              child: const Text(consentActionLabel),
+            )
+          else
+            TextButton(onPressed: onRetry, child: const Text('Thử lại')),
         ],
       ),
     );

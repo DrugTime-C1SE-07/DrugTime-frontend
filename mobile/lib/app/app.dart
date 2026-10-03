@@ -5,6 +5,9 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 
 import '../core/sync/sync_engine.dart';
 import '../features/auth/presentation/state/auth_controller.dart';
+import '../features/consent/data/repositories/in_memory_consent_repository.dart';
+import '../features/consent/domain/repositories/consent_repository.dart';
+import '../features/consent/presentation/state/consent_controller.dart';
 import '../features/medication/data/repositories/in_memory_medication_repository.dart';
 import '../features/medication/domain/repositories/medication_repository.dart';
 import '../features/medication/presentation/state/medication_controller.dart';
@@ -17,6 +20,7 @@ class DrugTimeApp extends StatefulWidget {
     super.key,
     required this.authController,
     this.medicationRepository,
+    this.consentRepository,
     this.doseOutboxSyncEngine,
     this.initialRoute,
   });
@@ -26,6 +30,9 @@ class DrugTimeApp extends StatefulWidget {
 
   /// Cho phép test/bản build khác thay nguồn dữ liệu thuốc.
   final MedicationRepository? medicationRepository;
+
+  /// Không truyền thì dùng consent trong bộ nhớ đã đồng ý `health_data` (vào thẳng Trang chủ).
+  final ConsentRepository? consentRepository;
   final DoseOutboxSyncEngine? doseOutboxSyncEngine;
 
   /// Ép route đầu (test, dev catalog). Không truyền thì chọn theo phiên đăng nhập.
@@ -42,6 +49,11 @@ class _DrugTimeAppState extends State<DrugTimeApp> {
   /// màn Đăng nhập.
   late final MedicationController _medications = MedicationController(
     widget.medicationRepository ?? InMemoryMedicationRepository(),
+  );
+
+  /// Cổng ở Trang chủ tự tải khi được dựng; ở đây chỉ giữ và xóa khi đăng xuất.
+  late final ConsentController _consents = ConsentController(
+    widget.consentRepository ?? InMemoryConsentRepository(),
   );
 
   AuthController get _auth => widget.authController;
@@ -76,6 +88,7 @@ class _DrugTimeAppState extends State<DrugTimeApp> {
     final authenticated = _auth.isAuthenticated;
     if (_wasAuthenticated && !authenticated) {
       _medications.clear();
+      _consents.clear();
       _navigatorKey.currentState?.pushNamedAndRemoveUntil(AppRoutes.login, (_) => false);
     } else if (!_wasAuthenticated && authenticated) {
       unawaited(_medications.load());
@@ -97,6 +110,7 @@ class _DrugTimeAppState extends State<DrugTimeApp> {
       unawaited(syncEngine.dispose());
     }
     _medications.dispose();
+    _consents.dispose();
     super.dispose();
   }
 
@@ -107,7 +121,10 @@ class _DrugTimeAppState extends State<DrugTimeApp> {
       controller: _auth,
       child: MedicationScope(
         controller: _medications,
-        child: _sessionLoaded ? _buildApp() : const _SessionLoadingApp(),
+        child: ConsentScope(
+          controller: _consents,
+          child: _sessionLoaded ? _buildApp() : const _SessionLoadingApp(),
+        ),
       ),
     );
   }
