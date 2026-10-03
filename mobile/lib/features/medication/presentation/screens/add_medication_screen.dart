@@ -2,12 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../../../app/theme/app_theme.dart';
+import '../../../../core/storage/local_db/client_uuid.dart';
 import '../../../../shared/widgets/selectable_pill.dart';
 import '../../../../shared/widgets/two_column_grid.dart';
 import '../../domain/entities/medication.dart';
+import '../../domain/entities/medication_failure.dart';
 import '../state/medication_controller.dart';
 import '../widgets/drug_catalog_sheet.dart';
+import '../widgets/medication_error_messages.dart';
 import '../widgets/medication_form_fields.dart';
+import '../widgets/medication_labels.dart';
 
 /// S07 · Thêm thuốc mới (Figma node 33:4419).
 ///
@@ -23,8 +27,13 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
   final _drugFieldKey = GlobalKey();
   final _stockController = TextEditingController();
 
+  /// Sinh một lần cho form này: bấm lưu lại sau lỗi mạng gửi cùng giá trị nên server
+  /// không tạo thuốc trùng.
+  final String _clientUuid = createClientUuid();
+
   DrugCatalogItem? _drug;
-  int _dose = 1;
+  double _dose = 1;
+  int _maxDoses = defaultMaxDosesPerDay;
   DoseFrequency _frequency = DoseFrequency.twice;
   List<DoseTime> _times = DoseFrequency.twice.defaultTimes;
   IntakeTiming _timing = IntakeTiming.afterMeal;
@@ -110,8 +119,8 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
     final navigator = Navigator.of(context);
     setState(() => _saving = true);
 
-    final medication = Medication(
-      id: 'local-${DateTime.now().microsecondsSinceEpoch}',
+    final draft = Medication(
+      id: '',
       catalogId: drug.id,
       name: drug.name,
       activeIngredient: drug.activeIngredient,
@@ -122,9 +131,20 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
       timing: _timing,
       times: _frequency.isAsNeeded ? const [] : _times,
       stockRemaining: int.tryParse(_stockController.text),
+      dosageForm: drug.dosageForm.isEmpty ? null : drug.dosageForm,
+      maxDosesPerDay: _frequency.isAsNeeded ? _maxDoses : null,
     );
-    await controller.add(medication);
-    navigator.pop(medication);
+    final Medication created;
+    try {
+      created = await controller.add(draft, clientUuid: _clientUuid);
+    } on MedicationFailure catch (failure) {
+      // Giữ nguyên form để người dùng lưu lại; lần sau dùng cùng _clientUuid.
+      if (!mounted) return;
+      setState(() => _saving = false);
+      _toast(medicationErrorMessage(failure));
+      return;
+    }
+    navigator.pop(created);
   }
 
   Future<bool> _confirmDiscard() async {
@@ -209,6 +229,7 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
             DoseStepper(
               value: _dose,
               unit: drug?.unit ?? 'viên',
+              min: _dose < 1 ? _dose : 1,
               onChanged: (v) => _update(() => _dose = v),
             ),
             const SizedBox(height: AppSpacing.xl),
@@ -217,7 +238,7 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
             const FormFieldLabel('Tần suất'),
             TwoColumnGrid(
               children: [
-                for (final f in DoseFrequency.values)
+                for (final f in DoseFrequency.selectable)
                   SelectablePill(
                     label: f.label,
                     selected: f == _frequency,
@@ -229,13 +250,26 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
 
             // 5. Giờ uống
             const FormFieldLabel('Giờ uống'),
-            if (_frequency.isAsNeeded)
+            if (_frequency.isAsNeeded) ...[
               const InfoNote(
                 icon: Icons.notifications_off_outlined,
                 text: 'Thuốc dùng khi cần sẽ không có lịch nhắc. '
                     'Bạn tự ghi lại mỗi lần uống.',
-              )
-            else ...[
+              ),
+              const SizedBox(height: AppSpacing.xl),
+              const FormFieldLabel('Tối đa mỗi ngày'),
+              DoseStepper(
+                key: const ValueKey('max-doses-stepper'),
+                value: _maxDoses.toDouble(),
+                unit: 'lần/ngày',
+                min: minMaxDosesPerDay.toDouble(),
+                max: maxMaxDosesPerDay.toDouble(),
+                decreaseTooltip: 'Giảm số lần tối đa',
+                increaseTooltip: 'Tăng số lần tối đa',
+                onChanged: (v) => _update(() => _maxDoses = v.round()),
+              ),
+              const FormHelperText('Không dùng quá số lần này trong một ngày.'),
+            ] else ...[
               TwoColumnGrid(
                 children: [
                   for (final (i, t) in _times.indexed)
@@ -287,8 +321,8 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
   String? _summary() {
     final drug = _drug;
     if (drug == null) return null;
-    final dose = '$_dose ${drug.unit}';
-    if (_frequency.isAsNeeded) return '$dose mỗi lần · Khi cần';
+    final dose = '${formatQuantity(_dose)} ${drug.unit}';
+    if (_frequency.isAsNeeded) return '$dose mỗi lần · Khi cần · tối đa $_maxDoses lần/ngày';
     return '$dose · ${_times.map((t) => t.format()).join(', ')} · ${_timing.label}';
   }
 }

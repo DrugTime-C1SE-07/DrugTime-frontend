@@ -3,7 +3,11 @@ import 'package:flutter/material.dart';
 import '../../../../app/theme/app_theme.dart';
 import '../../../../shared/widgets/pill_icon.dart';
 import '../../domain/entities/medication.dart';
+import '../../domain/entities/medication_failure.dart';
 import '../state/medication_controller.dart';
+import '../widgets/medication_error_messages.dart';
+import '../widgets/medication_form_fields.dart';
+import '../widgets/medication_labels.dart';
 
 /// S06b · Sửa thông tin thuốc (Figma prototype).
 ///
@@ -17,6 +21,8 @@ class EditMedicationScreen extends StatefulWidget {
   });
 
   final Medication medication;
+
+  /// Dạng bào chế hiển thị; mặc định lấy từ [medication].
   final String? dosageForm;
 
   @override
@@ -24,11 +30,11 @@ class EditMedicationScreen extends StatefulWidget {
 }
 
 class _EditMedicationScreenState extends State<EditMedicationScreen> {
-  late int _dose;
+  late double _dose;
+  late int _maxDoses;
   late DoseFrequency _frequency;
   late List<DoseTime> _times;
   late IntakeTiming _timing;
-  String? _dosageForm;
 
   bool _dirty = false;
   bool _saving = false;
@@ -37,24 +43,10 @@ class _EditMedicationScreenState extends State<EditMedicationScreen> {
   void initState() {
     super.initState();
     _dose = widget.medication.dosePerIntake;
+    _maxDoses = widget.medication.maxDosesPerDay ?? defaultMaxDosesPerDay;
     _frequency = widget.medication.frequency;
     _times = List<DoseTime>.from(widget.medication.times);
     _timing = widget.medication.timing;
-    _dosageForm = widget.dosageForm;
-
-    // Tự động tìm dạng bào chế từ catalog nếu chưa có
-    WidgetsBinding.instance.addPostFrameCallback((_) => _loadCatalogDetails());
-  }
-
-  Future<void> _loadCatalogDetails() async {
-    if (_dosageForm != null) return;
-    final controller = MedicationScope.read(context);
-    final catalogItem = await controller.findCatalogItem(widget.medication.catalogId);
-    if (catalogItem != null && mounted) {
-      setState(() {
-        _dosageForm = catalogItem.dosageForm;
-      });
-    }
   }
 
   void _markDirty() {
@@ -70,7 +62,7 @@ class _EditMedicationScreenState extends State<EditMedicationScreen> {
   }
 
   Future<void> _pickDose() async {
-    final selected = await showModalBottomSheet<int>(
+    final selected = await showModalBottomSheet<double>(
       context: context,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadius.card)),
@@ -92,10 +84,10 @@ class _EditMedicationScreenState extends State<EditMedicationScreen> {
                   spacing: AppSpacing.sm,
                   runSpacing: AppSpacing.sm,
                   children: List.generate(8, (i) {
-                    final value = i + 1;
+                    final value = (i + 1).toDouble();
                     final isCurrent = value == _dose;
                     return ChoiceChip(
-                      label: Text('$value ${widget.medication.unit}'),
+                      label: Text('${formatQuantity(value)} ${widget.medication.unit}'),
                       selected: isCurrent,
                       selectedColor: AppColors.brandTint,
                       labelStyle: TextStyle(
@@ -141,7 +133,7 @@ class _EditMedicationScreenState extends State<EditMedicationScreen> {
               children: [
                 const Text('Chọn tần suất uống thuốc', style: AppTextStyles.heading),
                 const SizedBox(height: AppSpacing.md),
-                for (final freq in DoseFrequency.values)
+                for (final freq in DoseFrequency.selectable)
                   ListTile(
                     title: Text(freq.label, style: AppTextStyles.bodyStrong),
                     trailing: freq == _frequency
@@ -236,17 +228,28 @@ class _EditMedicationScreenState extends State<EditMedicationScreen> {
   }
 
   Future<void> _saveMedication() async {
+    if (_saving) return;
     setState(() => _saving = true);
     final controller = MedicationScope.read(context);
 
-    final updated = widget.medication.copyWith(
+    final edited = widget.medication.copyWith(
       dosePerIntake: _dose,
       frequency: _frequency,
       timing: _timing,
       times: _frequency.isAsNeeded ? const [] : _times,
+      maxDosesPerDay: _frequency.isAsNeeded ? _maxDoses : null,
     );
 
-    await controller.update(updated);
+    final Medication updated;
+    try {
+      // Chỉ phần khác bản gốc được gửi lên (PATCH).
+      updated = await controller.update(widget.medication, edited);
+    } on MedicationFailure catch (failure) {
+      if (!mounted) return;
+      setState(() => _saving = false);
+      _toast(medicationErrorMessage(failure));
+      return;
+    }
 
     if (!mounted) return;
     ScaffoldMessenger.of(context)
@@ -292,7 +295,15 @@ class _EditMedicationScreenState extends State<EditMedicationScreen> {
     if (confirm != true || !mounted) return;
 
     final controller = MedicationScope.read(context);
-    await controller.delete(widget.medication.id);
+    setState(() => _saving = true);
+    try {
+      await controller.delete(widget.medication.id);
+    } on MedicationFailure catch (failure) {
+      if (!mounted) return;
+      setState(() => _saving = false);
+      _toast(medicationErrorMessage(failure));
+      return;
+    }
 
     if (!mounted) return;
     ScaffoldMessenger.of(context)
@@ -338,8 +349,10 @@ class _EditMedicationScreenState extends State<EditMedicationScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final formDesc = _dosageForm ?? 'Viên nén bao phim';
-    final subtitle = '${widget.medication.activeIngredient} · $formDesc';
+    final subtitle = drugSubtitle(
+      widget.medication.activeIngredient,
+      widget.dosageForm ?? widget.medication.dosageForm,
+    );
 
     return PopScope(
       canPop: !_dirty || _saving,
@@ -394,7 +407,7 @@ class _EditMedicationScreenState extends State<EditMedicationScreen> {
                       const Text('Số lượng/lần', style: AppTextStyles.bodyStrong),
                       const SizedBox(height: AppSpacing.sm),
                       _SelectBox(
-                        label: '$_dose ${widget.medication.unit}',
+                        label: '${formatQuantity(_dose)} ${widget.medication.unit}',
                         onTap: _pickDose,
                       ),
                     ],
@@ -408,7 +421,9 @@ class _EditMedicationScreenState extends State<EditMedicationScreen> {
                       const Text('Tần suất', style: AppTextStyles.bodyStrong),
                       const SizedBox(height: AppSpacing.sm),
                       _SelectBox(
-                        label: _frequency.label,
+                        label: _frequency == DoseFrequency.custom
+                            ? '${_times.length} lần/ngày'
+                            : _frequency.label,
                         hasDropdownIcon: true,
                         onTap: _pickFrequency,
                       ),
@@ -422,15 +437,31 @@ class _EditMedicationScreenState extends State<EditMedicationScreen> {
             // 3. Giờ uống
             const Text('Giờ uống', style: AppTextStyles.bodyStrong),
             const SizedBox(height: AppSpacing.sm),
-            if (_frequency.isAsNeeded)
+            if (_frequency.isAsNeeded) ...[
               const Padding(
                 padding: EdgeInsets.symmetric(vertical: AppSpacing.sm),
                 child: Text(
                   'Thuốc dùng khi cần, không có lịch nhắc cố định.',
                   style: AppTextStyles.caption,
                 ),
-              )
-            else
+              ),
+              const SizedBox(height: AppSpacing.md),
+              const Text('Tối đa mỗi ngày', style: AppTextStyles.bodyStrong),
+              const SizedBox(height: AppSpacing.sm),
+              DoseStepper(
+                key: const ValueKey('max-doses-stepper'),
+                value: _maxDoses.toDouble(),
+                unit: 'lần/ngày',
+                min: minMaxDosesPerDay.toDouble(),
+                max: maxMaxDosesPerDay.toDouble(),
+                decreaseTooltip: 'Giảm số lần tối đa',
+                increaseTooltip: 'Tăng số lần tối đa',
+                onChanged: (v) => setState(() {
+                  _maxDoses = v.round();
+                  _markDirty();
+                }),
+              ),
+            ] else
               Wrap(
                 spacing: AppSpacing.sm,
                 runSpacing: AppSpacing.sm,

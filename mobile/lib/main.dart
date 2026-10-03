@@ -13,6 +13,7 @@ import 'features/auth/data/repositories/remote_auth_repository.dart';
 import 'features/auth/data/sources/auth_api_service.dart';
 import 'features/auth/data/sources/auth_session_store.dart';
 import 'features/auth/presentation/state/auth_controller.dart';
+import 'features/medication/data/repositories/remote_medication_repository.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -27,25 +28,29 @@ void main() {
   );
   final authController = AuthController(authRepository);
 
+  // ApiClient dùng `dart:io` (`HttpClient`), không chạy được trên web: bản web (chỉ để xem thử
+  // giao diện) dùng thuốc mẫu trong bộ nhớ và bỏ qua đồng bộ liều ngoại tuyến.
+  final apiClient = kIsWeb ? null : _buildApiClient(authController);
+
   runApp(DrugTimeApp(
     authController: authController,
-    doseOutboxSyncEngine: _buildDoseOutboxSyncEngine(authController),
+    medicationRepository: apiClient == null ? null : RemoteMedicationRepository(apiClient),
+    doseOutboxSyncEngine: apiClient == null ? null : _buildDoseOutboxSyncEngine(apiClient),
   ));
 }
 
-/// Bộ đồng bộ liều dùng SQLite và `dart:io` (`HttpClient`), không chạy được trên web:
-/// bản web (dùng để xem thử giao diện) bỏ qua đồng bộ liều ngoại tuyến.
-DoseOutboxSyncEngine? _buildDoseOutboxSyncEngine(AuthController auth) {
-  if (kIsWeb) return null;
+ApiClient _buildApiClient(AuthController auth) => ApiClient(
+      baseUrl: Uri.parse(AppConfig.apiBaseUrl),
+      // Đọc phiên ở mỗi request: đăng xuất là token không còn được gửi.
+      authTokenProvider: () async => auth.isAuthenticated ? auth.currentSession?.accessToken : null,
+      onUnauthorized: auth.handleUnauthorized,
+    );
+
+/// Bộ đồng bộ liều dùng SQLite, không chạy được trên web.
+DoseOutboxSyncEngine _buildDoseOutboxSyncEngine(ApiClient apiClient) {
   final secureStorage = SecureStorage();
   final localDb = LocalDb(secureStorage);
   final localStore = SqliteLocalMedicationStore(localDb);
-  final apiClient = ApiClient(
-    baseUrl: Uri.parse(AppConfig.apiBaseUrl),
-    // Đọc phiên ở mỗi request: đăng xuất là token không còn được gửi.
-    authTokenProvider: () async => auth.isAuthenticated ? auth.currentSession?.accessToken : null,
-    onUnauthorized: auth.handleUnauthorized,
-  );
 
   return DoseOutboxSyncEngine(
     localStore: localStore,

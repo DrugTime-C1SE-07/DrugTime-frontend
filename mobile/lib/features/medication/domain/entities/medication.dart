@@ -17,7 +17,11 @@ enum DoseFrequency {
   once('1 lần/ngày', [DoseTime(8, 0)]),
   twice('2 lần/ngày', [DoseTime(8, 0), DoseTime(20, 0)]),
   thrice('3 lần/ngày', [DoseTime(7, 0), DoseTime(12, 0), DoseTime(19, 0)]),
-  asNeeded('Khi cần', []);
+  asNeeded('Khi cần', []),
+
+  /// Thuốc theo giờ có 4–6 lần/ngày (server cho tối đa 6). Không có trong danh sách để
+  /// người dùng chọn; nhãn hiển thị lấy theo số giờ (`frequencyLabel`).
+  custom('Nhiều lần/ngày', []);
 
   const DoseFrequency(this.label, this.defaultTimes);
 
@@ -27,7 +31,23 @@ enum DoseFrequency {
   final List<DoseTime> defaultTimes;
 
   bool get isAsNeeded => this == DoseFrequency.asNeeded;
+
+  /// Các tần suất hiện trên form thêm/sửa.
+  static const selectable = [once, twice, thrice, asNeeded];
+
+  /// Tần suất của thuốc theo giờ có [count] giờ uống.
+  static DoseFrequency forTimeCount(int count) => switch (count) {
+        1 => once,
+        2 => twice,
+        3 => thrice,
+        _ => custom,
+      };
 }
+
+/// Số lần dùng tối đa mỗi ngày của thuốc "Khi cần" (khớp contract: 1–6).
+const minMaxDosesPerDay = 1;
+const maxMaxDosesPerDay = 6;
+const defaultMaxDosesPerDay = 3;
 
 /// Giờ trong ngày, không phụ thuộc Flutter để domain thuần Dart.
 class DoseTime implements Comparable<DoseTime> {
@@ -68,11 +88,13 @@ class DrugCatalogItem {
 
   final String id;
   final String name;
+
+  /// Rỗng khi danh mục chưa có thông tin hoạt chất.
   final String activeIngredient;
   final String strength;
   final String dosageForm;
 
-  /// Đơn vị đếm liều: viên, gói, ml…
+  /// Đơn vị đếm liều: viên, gói, ml… suy ra từ [dosageForm] (xem `doseUnitFor`).
   final String unit;
 }
 
@@ -91,6 +113,8 @@ class Medication {
     this.status = MedicationStatus.active,
     this.stockRemaining,
     this.endedOn,
+    this.dosageForm,
+    this.maxDosesPerDay,
   });
 
   /// Còn từ ngần này đơn vị trở xuống thì coi là sắp hết.
@@ -99,16 +123,26 @@ class Medication {
   final String id;
   final String catalogId;
   final String name;
+
+  /// Rỗng khi danh mục chưa có thông tin hoạt chất.
   final String activeIngredient;
   final String strength;
   final String unit;
-  final int dosePerIntake;
+
+  /// Số đơn vị mỗi lần dùng; server cho phép số lẻ (0 < liều ≤ 10), ví dụ 0.5 viên.
+  final double dosePerIntake;
   final DoseFrequency frequency;
   final IntakeTiming timing;
   final List<DoseTime> times;
   final MedicationStatus status;
   final int? stockRemaining;
   final DateTime? endedOn;
+
+  /// Dạng bào chế theo danh mục, ví dụ "Viên nén"; `null` khi danh mục không ghi.
+  final String? dosageForm;
+
+  /// Chỉ có với thuốc "Khi cần": số lần dùng tối đa mỗi ngày.
+  final int? maxDosesPerDay;
 
   bool get isActive => status == MedicationStatus.active;
 
@@ -124,13 +158,15 @@ class Medication {
     String? activeIngredient,
     String? strength,
     String? unit,
-    int? dosePerIntake,
+    double? dosePerIntake,
     DoseFrequency? frequency,
     IntakeTiming? timing,
     List<DoseTime>? times,
     MedicationStatus? status,
     int? stockRemaining,
     DateTime? endedOn,
+    String? dosageForm,
+    int? maxDosesPerDay,
   }) {
     return Medication(
       id: id ?? this.id,
@@ -146,6 +182,8 @@ class Medication {
       status: status ?? this.status,
       stockRemaining: stockRemaining ?? this.stockRemaining,
       endedOn: endedOn ?? this.endedOn,
+      dosageForm: dosageForm ?? this.dosageForm,
+      maxDosesPerDay: maxDosesPerDay ?? this.maxDosesPerDay,
     );
   }
 }

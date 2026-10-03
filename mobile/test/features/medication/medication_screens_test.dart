@@ -3,10 +3,74 @@ import 'package:drugtime_mobile/features/auth/data/repositories/in_memory_auth_r
 import 'package:drugtime_mobile/features/auth/domain/entities/auth_session.dart';
 import 'package:drugtime_mobile/features/auth/presentation/state/auth_controller.dart';
 import 'package:drugtime_mobile/features/medication/data/repositories/in_memory_medication_repository.dart';
+import 'package:drugtime_mobile/features/medication/domain/entities/medication.dart';
+import 'package:drugtime_mobile/features/medication/domain/entities/medication_failure.dart';
 import 'package:drugtime_mobile/features/medication/presentation/screens/add_medication_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+
+/// Repository mẫu ghi lại lời gọi và cho phép giả lỗi cho lần gọi kế tiếp của từng thao tác.
+class RecordingRepository extends InMemoryMedicationRepository {
+  RecordingRepository({super.seed});
+
+  final addCalls = <(Medication, String)>[];
+  final updateCalls = <(Medication, Medication)>[];
+  final stopCalls = <(String, bool)>[];
+  final deleteCalls = <String>[];
+
+  /// Lỗi ném ở lần gọi kế tiếp (rồi tự xoá).
+  MedicationFailure? failNextAdd;
+  MedicationFailure? failNextDelete;
+  MedicationFailure? failNextFetch;
+
+  @override
+  Future<List<Medication>> fetchAll() {
+    final failure = failNextFetch;
+    failNextFetch = null;
+    if (failure != null) throw failure;
+    return super.fetchAll();
+  }
+
+  @override
+  Future<Medication> add(Medication draft, {required String clientUuid}) {
+    addCalls.add((draft, clientUuid));
+    final failure = failNextAdd;
+    failNextAdd = null;
+    if (failure != null) throw failure;
+    return super.add(draft, clientUuid: clientUuid);
+  }
+
+  @override
+  Future<Medication> update(Medication before, Medication after) {
+    updateCalls.add((before, after));
+    return super.update(before, after);
+  }
+
+  @override
+  Future<Medication> setStopped(String id, bool stopped) {
+    stopCalls.add((id, stopped));
+    return super.setStopped(id, stopped);
+  }
+
+  @override
+  Future<void> delete(String id) {
+    deleteCalls.add(id);
+    final failure = failNextDelete;
+    failNextDelete = null;
+    if (failure != null) throw failure;
+    return super.delete(id);
+  }
+}
+
+Future<void> pickDrug(WidgetTester tester, String query, String name) async {
+  await tester.tap(find.text('Tìm tên thuốc, hoạt chất…'));
+  await tester.pumpAndSettle();
+  await tester.enterText(find.byType(TextField).last, query);
+  await tester.pumpAndSettle();
+  await tester.tap(find.text(name));
+  await tester.pumpAndSettle();
+}
 
 /// Người dùng đã đăng nhập và có hồ sơ: app mở thẳng Trang chủ như trước khi có màn đăng nhập.
 AuthController signedInAuth() => AuthController(
@@ -201,6 +265,122 @@ void main() {
       await tester.tap(find.text('Bỏ'));
       await tester.pumpAndSettle();
       expect(find.text('Thuốc của tôi'), findsOneWidget);
+    });
+  });
+
+  group('Nối API: lỗi, client_uuid, tối đa lần/ngày', () {
+    testWidgets('lưu lỗi mạng: báo lỗi, giữ form; lưu lại dùng cùng client_uuid (AC9, AC10)',
+        (tester) async {
+      final repository = RecordingRepository();
+      final before = (await repository.fetchAll()).length;
+      await pumpApp(tester, repository: repository);
+      await openAddScreen(tester);
+      await pickDrug(tester, 'amlo', 'Amlodipin 5mg');
+
+      repository.failNextAdd = const MedicationFailure(MedicationFailureKind.network);
+      await tester.tap(find.text('Lưu thuốc'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Thêm thuốc mới'), findsOneWidget);
+      expect(find.text('Không kết nối được máy chủ. Kiểm tra mạng rồi thử lại.'), findsOneWidget);
+      expect(find.text('Amlodipin 5mg'), findsOneWidget); // thuốc đã chọn vẫn còn
+
+      await tester.tap(find.text('Lưu thuốc'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Thuốc của tôi'), findsOneWidget);
+      expect(repository.addCalls, hasLength(2));
+      expect(repository.addCalls[0].$2, repository.addCalls[1].$2);
+      expect(await repository.fetchAll(), hasLength(before + 1));
+    });
+
+    testWidgets('lỗi danh mục 422 hiện câu tiếng Việt tương ứng (AC10)', (tester) async {
+      final repository = RecordingRepository();
+      await pumpApp(tester, repository: repository);
+      await openAddScreen(tester);
+      await pickDrug(tester, 'amlo', 'Amlodipin 5mg');
+
+      repository.failNextAdd = const MedicationFailure(MedicationFailureKind.catalogNotFound);
+      await tester.tap(find.text('Lưu thuốc'));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text('Thuốc này không còn trong danh mục. Vui lòng chọn thuốc khác.'),
+        findsOneWidget,
+      );
+      expect(find.text('Thêm thuốc mới'), findsOneWidget);
+    });
+
+    testWidgets('"Khi cần" hiện ô tối đa lần/ngày 1–6, mặc định 3; đổi về theo giờ thì ẩn (AC14f)',
+        (tester) async {
+      final repository = RecordingRepository();
+      await pumpApp(tester, repository: repository);
+      await openAddScreen(tester);
+      await pickDrug(tester, 'para', 'Paracetamol 500mg');
+
+      expect(find.text('Tối đa mỗi ngày'), findsNothing);
+      await tapVisible(tester, find.text('Khi cần'));
+      expect(find.text('Tối đa mỗi ngày'), findsOneWidget);
+      final stepper = find.byKey(const ValueKey('max-doses-stepper'));
+      expect(find.descendant(of: stepper, matching: find.text('3 lần/ngày')), findsOneWidget);
+
+      for (var i = 0; i < 5; i++) {
+        await tapVisible(tester, find.byTooltip('Tăng số lần tối đa'));
+      }
+      expect(find.descendant(of: stepper, matching: find.text('6 lần/ngày')), findsOneWidget);
+      final increase = tester.widget<IconButton>(
+        find.ancestor(
+          of: find.byTooltip('Tăng số lần tối đa'),
+          matching: find.byType(IconButton),
+        ),
+      );
+      expect(increase.onPressed, isNull, reason: 'không vượt quá 6');
+
+      await tester.tap(find.text('Lưu thuốc'));
+      await tester.pumpAndSettle();
+      final draft = repository.addCalls.single.$1;
+      expect(draft.frequency, DoseFrequency.asNeeded);
+      expect(draft.maxDosesPerDay, 6);
+    });
+
+    testWidgets('chọn lại tần suất theo giờ thì ẩn ô và không gửi số lần tối đa', (tester) async {
+      final repository = RecordingRepository();
+      await pumpApp(tester, repository: repository);
+      await openAddScreen(tester);
+      await pickDrug(tester, 'para', 'Paracetamol 500mg');
+
+      await tapVisible(tester, find.text('Khi cần'));
+      await tapVisible(tester, find.text('2 lần/ngày'));
+      expect(find.text('Tối đa mỗi ngày'), findsNothing);
+
+      await tester.tap(find.text('Lưu thuốc'));
+      await tester.pumpAndSettle();
+      expect(repository.addCalls.single.$1.maxDosesPerDay, isNull);
+    });
+
+    testWidgets('S06 không tải được: thẻ lỗi + Thử lại, không báo "Chưa có thuốc nào"',
+        (tester) async {
+      final repository = RecordingRepository()
+        ..failNextFetch = const MedicationFailure(MedicationFailureKind.network);
+      await pumpApp(tester, repository: repository);
+
+      expect(find.text('Không kết nối được máy chủ. Kiểm tra mạng rồi thử lại.'), findsOneWidget);
+      expect(find.text('Chưa có thuốc nào'), findsNothing);
+
+      await tester.tap(find.text('Thử lại'));
+      await tester.pumpAndSettle();
+      expect(find.text('Thử lại'), findsNothing);
+      expect(find.text('4 thuốc đang dùng'), findsOneWidget);
+    });
+
+    testWidgets('sheet danh mục: chưa gõ thì gợi ý, không tìm', (tester) async {
+      await pumpApp(tester);
+      await openAddScreen(tester);
+      await tester.tap(find.text('Tìm tên thuốc, hoạt chất…'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Gõ có dấu hay không dấu đều được, ví dụ: thuoc ho.'), findsOneWidget);
+      expect(find.text('Metformin 500mg'), findsNothing);
     });
   });
 

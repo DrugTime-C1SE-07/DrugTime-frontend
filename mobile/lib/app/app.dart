@@ -38,9 +38,11 @@ class DrugTimeApp extends StatefulWidget {
 class _DrugTimeAppState extends State<DrugTimeApp> {
   final _navigatorKey = GlobalKey<NavigatorState>();
 
+  /// Chỉ tải khi đã có phiên: gọi API trước khi đăng nhập sẽ nhận 401 và đá người dùng về
+  /// màn Đăng nhập.
   late final MedicationController _medications = MedicationController(
     widget.medicationRepository ?? InMemoryMedicationRepository(),
-  )..load();
+  );
 
   AuthController get _auth => widget.authController;
 
@@ -65,6 +67,7 @@ class _DrugTimeAppState extends State<DrugTimeApp> {
       _sessionLoaded = true;
       _wasAuthenticated = _auth.isAuthenticated;
     });
+    if (_auth.isAuthenticated) unawaited(_medications.load());
   }
 
   /// Mất phiên (đăng xuất hoặc API trả 401) thì đưa người dùng về màn Đăng nhập.
@@ -72,7 +75,10 @@ class _DrugTimeAppState extends State<DrugTimeApp> {
     if (!_sessionLoaded) return;
     final authenticated = _auth.isAuthenticated;
     if (_wasAuthenticated && !authenticated) {
+      _medications.clear();
       _navigatorKey.currentState?.pushNamedAndRemoveUntil(AppRoutes.login, (_) => false);
+    } else if (!_wasAuthenticated && authenticated) {
+      unawaited(_medications.load());
     }
     _wasAuthenticated = authenticated;
   }

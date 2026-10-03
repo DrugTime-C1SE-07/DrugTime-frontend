@@ -2,12 +2,16 @@ import 'package:drugtime_mobile/app/app.dart';
 import 'package:drugtime_mobile/features/auth/data/repositories/in_memory_auth_repository.dart';
 import 'package:drugtime_mobile/features/auth/domain/entities/auth_session.dart';
 import 'package:drugtime_mobile/features/auth/presentation/state/auth_controller.dart';
+import 'package:drugtime_mobile/features/medication/data/models/medication_api_mapper.dart';
 import 'package:drugtime_mobile/features/medication/data/repositories/in_memory_medication_repository.dart';
+import 'package:drugtime_mobile/features/medication/domain/entities/medication_failure.dart';
 import 'package:drugtime_mobile/features/medication/presentation/screens/edit_medication_screen.dart';
 import 'package:drugtime_mobile/features/medication/presentation/screens/medication_detail_screen.dart';
 import 'package:drugtime_mobile/features/medication/presentation/screens/my_medications_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+import 'medication_screens_test.dart' show RecordingRepository;
 
 
 /// Người dùng đã đăng nhập và có hồ sơ: app mở thẳng Trang chủ như trước khi có màn đăng nhập.
@@ -23,14 +27,14 @@ AuthController signedInAuth() => AuthController(
       ),
     );
 
-Future<void> pumpApp(WidgetTester tester) async {
+Future<void> pumpApp(WidgetTester tester, {InMemoryMedicationRepository? repository}) async {
   tester.view.physicalSize = const Size(375, 812);
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.reset);
 
   await tester.pumpWidget(DrugTimeApp(
     authController: signedInAuth(),
-    medicationRepository: InMemoryMedicationRepository(),
+    medicationRepository: repository ?? InMemoryMedicationRepository(),
   ));
   await tester.pumpAndSettle();
 }
@@ -167,6 +171,86 @@ void main() {
       // Thoát về danh sách Thuốc của tôi
       expect(find.byType(MyMedicationsScreen), findsOneWidget);
       expect(find.text('Losartan 50mg'), findsNothing);
+    });
+  });
+
+  group('Nối API: ngừng, dùng lại, xoá, sửa', () {
+    Future<void> openEdit(WidgetTester tester) async {
+      await tester.tap(find.widgetWithText(FilledButton, 'Sửa thông tin thuốc'));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('Ngừng rồi Tiếp tục dùng gọi setStopped(true/false) (AC12, AC14e)', (tester) async {
+      final repository = RecordingRepository();
+      await pumpApp(tester, repository: repository);
+      await openDetail(tester, 'Losartan 50mg');
+
+      await tester.tap(find.text('Tạm ngừng thuốc này'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Xác nhận ngừng'));
+      await tester.pumpAndSettle();
+
+      expect(repository.stopCalls, [('m2', true)]);
+      expect(find.text('Tiếp tục dùng thuốc này'), findsOneWidget);
+      expect((await repository.fetchAll()).firstWhere((m) => m.id == 'm2').isActive, isFalse);
+
+      await tester.tap(find.text('Tiếp tục dùng thuốc này'));
+      await tester.pumpAndSettle();
+
+      expect(repository.stopCalls.last, ('m2', false));
+      expect(find.text('Tạm ngừng thuốc này'), findsOneWidget);
+    });
+
+    testWidgets('Xoá: gọi delete; lỗi 403 thì báo và thuốc vẫn còn (AC10, AC14e)', (tester) async {
+      final repository = RecordingRepository()
+        ..failNextDelete = const MedicationFailure(MedicationFailureKind.forbidden);
+      await pumpApp(tester, repository: repository);
+      await openDetail(tester, 'Losartan 50mg');
+      await openEdit(tester);
+
+      await tester.tap(find.text('Xoá thuốc'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(TextButton, 'Xoá thuốc'));
+      await tester.pumpAndSettle();
+
+      expect(repository.deleteCalls, ['m2']);
+      expect(find.text('Bạn không có quyền thực hiện thao tác này.'), findsOneWidget);
+      expect(find.byType(EditMedicationScreen), findsOneWidget);
+      expect((await repository.fetchAll()).any((m) => m.id == 'm2'), isTrue);
+    });
+
+    testWidgets('Sửa liều chỉ gửi quantity_per_dose (AC13)', (tester) async {
+      final repository = RecordingRepository();
+      await pumpApp(tester, repository: repository);
+      await openDetail(tester, 'Losartan 50mg');
+      await openEdit(tester);
+
+      await tester.tap(find.text('1 viên'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('2 viên'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Lưu'));
+      await tester.pumpAndSettle();
+
+      final (before, after) = repository.updateCalls.single;
+      expect(MedicationApiMapper.patchBody(before, after), {'quantity_per_dose': 2.0});
+      expect(find.byType(MedicationDetailScreen), findsOneWidget);
+    });
+
+    testWidgets('Thuốc "Khi cần" hiện ô tối đa lần/ngày ở màn sửa (AC14f)', (tester) async {
+      final repository = RecordingRepository();
+      await pumpApp(tester, repository: repository);
+      await openDetail(tester, 'Paracetamol 500mg');
+      expect(find.text('Tối đa 3 lần/ngày'), findsOneWidget);
+      await openEdit(tester);
+
+      expect(find.text('Tối đa mỗi ngày'), findsOneWidget);
+      await tapVisibleIn(tester, find.byTooltip('Tăng số lần tối đa'), EditMedicationScreen);
+      await tester.tap(find.text('Lưu'));
+      await tester.pumpAndSettle();
+
+      final (before, after) = repository.updateCalls.single;
+      expect(MedicationApiMapper.patchBody(before, after), {'max_doses_per_day': 4});
     });
   });
 }

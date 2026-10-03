@@ -3,7 +3,10 @@ import 'package:flutter/material.dart';
 import '../../../../app/theme/app_theme.dart';
 import '../../../../shared/widgets/pill_icon.dart';
 import '../../domain/entities/medication.dart';
+import '../../domain/entities/medication_failure.dart';
 import '../state/medication_controller.dart';
+import '../widgets/medication_error_messages.dart';
+import '../widgets/medication_labels.dart';
 import 'edit_medication_screen.dart';
 
 /// S06a · Xem chi tiết thuốc.
@@ -18,6 +21,8 @@ class MedicationDetailScreen extends StatefulWidget {
   });
 
   final Medication medication;
+
+  /// Dạng bào chế hiển thị; mặc định lấy từ [medication].
   final String? dosageForm;
 
   @override
@@ -26,25 +31,14 @@ class MedicationDetailScreen extends StatefulWidget {
 
 class _MedicationDetailScreenState extends State<MedicationDetailScreen> {
   late Medication _medication;
-  String? _dosageForm;
+  bool _busy = false;
+
+  String? get _dosageForm => widget.dosageForm ?? _medication.dosageForm;
 
   @override
   void initState() {
     super.initState();
     _medication = widget.medication;
-    _dosageForm = widget.dosageForm;
-    WidgetsBinding.instance.addPostFrameCallback((_) => _loadCatalogDetails());
-  }
-
-  Future<void> _loadCatalogDetails() async {
-    if (_dosageForm != null) return;
-    final controller = MedicationScope.read(context);
-    final catalogItem = await controller.findCatalogItem(_medication.catalogId);
-    if (catalogItem != null && mounted) {
-      setState(() {
-        _dosageForm = catalogItem.dosageForm;
-      });
-    }
   }
 
   Future<void> _openEditScreen() async {
@@ -103,16 +97,24 @@ class _MedicationDetailScreenState extends State<MedicationDetailScreen> {
     }
 
     final controller = MedicationScope.read(context);
-    final updated = _medication.copyWith(
-      status: newStatus,
-      endedOn: isStopping ? DateTime.now() : null,
-    );
-
-    await controller.update(updated);
+    setState(() => _busy = true);
+    final Medication updated;
+    try {
+      // Ngừng: đóng lịch nhắc. Dùng lại: server mở lại đúng giờ uống trước khi ngừng.
+      updated = await controller.setStopped(_medication.id, isStopping);
+    } on MedicationFailure catch (failure) {
+      if (!mounted) return;
+      setState(() => _busy = false);
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(content: Text(medicationErrorMessage(failure))));
+      return;
+    }
     if (!mounted) return;
 
     setState(() {
       _medication = updated;
+      _busy = false;
     });
 
     ScaffoldMessenger.of(context)
@@ -132,7 +134,7 @@ class _MedicationDetailScreenState extends State<MedicationDetailScreen> {
   Widget build(BuildContext context) {
     final med = _medication;
     final active = med.isActive;
-    final dosageFormText = _dosageForm ?? 'Viên nén bao phim';
+    final dosageFormText = _dosageForm ?? 'Chưa có thông tin';
 
     return Scaffold(
       backgroundColor: AppColors.canvas,
@@ -206,7 +208,7 @@ class _MedicationDetailScreenState extends State<MedicationDetailScreen> {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        '${med.activeIngredient} · $dosageFormText',
+                        drugSubtitle(med.activeIngredient, _dosageForm),
                         style: const TextStyle(
                           fontSize: 14,
                           color: AppColors.inkMuted,
@@ -253,7 +255,7 @@ class _MedicationDetailScreenState extends State<MedicationDetailScreen> {
               Expanded(
                 child: _MetricCard(
                   title: 'Số lượng/lần',
-                  value: '${med.dosePerIntake} ${med.unit}',
+                  value: med.doseLabel,
                   icon: Icons.medication,
                 ),
               ),
@@ -261,7 +263,7 @@ class _MedicationDetailScreenState extends State<MedicationDetailScreen> {
               Expanded(
                 child: _MetricCard(
                   title: 'Tần suất',
-                  value: med.frequency.label,
+                  value: med.maxDosesLabel ?? med.frequencyLabel,
                   icon: Icons.repeat,
                 ),
               ),
@@ -387,7 +389,12 @@ class _MedicationDetailScreenState extends State<MedicationDetailScreen> {
               children: [
                 _DetailRow(label: 'Tên biệt dược', value: med.name),
                 const Divider(height: 1),
-                _DetailRow(label: 'Hoạt chất chính', value: med.activeIngredient),
+                _DetailRow(
+                  label: 'Hoạt chất chính',
+                  value: med.activeIngredient.isEmpty
+                      ? 'Chưa có thông tin'
+                      : med.activeIngredient,
+                ),
                 const Divider(height: 1),
                 _DetailRow(label: 'Hàm lượng', value: med.strength),
                 const Divider(height: 1),
@@ -464,7 +471,7 @@ class _MedicationDetailScreenState extends State<MedicationDetailScreen> {
               ),
               const SizedBox(height: AppSpacing.sm),
               OutlinedButton(
-                onPressed: _toggleStatus,
+                onPressed: _busy ? null : _toggleStatus,
                 style: OutlinedButton.styleFrom(
                   foregroundColor: active ? AppColors.cautionText : AppColors.brand,
                   side: BorderSide(

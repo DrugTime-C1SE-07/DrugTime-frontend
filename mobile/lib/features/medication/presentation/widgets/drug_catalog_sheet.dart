@@ -1,9 +1,17 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../../../app/theme/app_theme.dart';
 import '../../../../shared/widgets/pill_icon.dart';
 import '../../domain/entities/medication.dart';
+import '../../domain/entities/medication_failure.dart';
 import '../state/medication_controller.dart';
+import 'medication_error_messages.dart';
+import 'medication_labels.dart';
+
+/// Chờ người dùng ngừng gõ ngần này rồi mới gọi API tìm danh mục.
+const catalogSearchDebounce = Duration(milliseconds: 300);
 
 Future<DrugCatalogItem?> showDrugCatalogSheet(BuildContext context) {
   return showModalBottomSheet<DrugCatalogItem>(
@@ -24,21 +32,54 @@ class DrugCatalogSheet extends StatefulWidget {
 
 class _DrugCatalogSheetState extends State<DrugCatalogSheet> {
   late final MedicationController _controller;
-  List<DrugCatalogItem>? _results;
+  Timer? _debounce;
+
+  /// `null` khi đang tìm.
+  List<DrugCatalogItem>? _results = const [];
+  MedicationFailure? _error;
   String _query = '';
 
   @override
   void initState() {
     super.initState();
     _controller = MedicationScope.read(context);
-    _search('');
+  }
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    super.dispose();
+  }
+
+  void _onChanged(String value) {
+    _query = value;
+    _debounce?.cancel();
+    if (value.trim().isEmpty) {
+      setState(() {
+        _results = const [];
+        _error = null;
+      });
+      return;
+    }
+    setState(() => _results = null);
+    _debounce = Timer(catalogSearchDebounce, () => _search(value));
   }
 
   Future<void> _search(String query) async {
-    _query = query;
-    final results = await _controller.searchCatalog(query);
+    List<DrugCatalogItem> results;
+    MedicationFailure? error;
+    try {
+      results = await _controller.searchCatalog(query);
+    } on MedicationFailure catch (failure) {
+      results = const [];
+      error = failure;
+    }
+    // Kết quả của chuỗi cũ về muộn hơn chuỗi mới thì bỏ.
     if (!mounted || query != _query) return;
-    setState(() => _results = results);
+    setState(() {
+      _results = results;
+      _error = error;
+    });
   }
 
   @override
@@ -68,7 +109,7 @@ class _DrugCatalogSheetState extends State<DrugCatalogSheet> {
                   const SizedBox(height: AppSpacing.md),
                   TextField(
                     autofocus: true,
-                    onChanged: _search,
+                    onChanged: _onChanged,
                     textInputAction: TextInputAction.search,
                     style: AppTextStyles.body,
                     decoration: const InputDecoration(
@@ -83,9 +124,21 @@ class _DrugCatalogSheetState extends State<DrugCatalogSheet> {
             Expanded(
               child: results == null
                   ? const Center(child: CircularProgressIndicator())
-                  : results.isEmpty
-                      ? const _NoResults()
-                      : ListView.separated(
+                  : _error != null
+                      ? _SheetMessage(
+                          icon: Icons.cloud_off_outlined,
+                          title: 'Chưa tìm được',
+                          message: medicationErrorMessage(_error!),
+                        )
+                      : _query.trim().isEmpty
+                          ? const _SheetMessage(
+                              icon: Icons.search,
+                              title: 'Nhập tên thuốc hoặc hoạt chất',
+                              message: 'Gõ có dấu hay không dấu đều được, ví dụ: thuoc ho.',
+                            )
+                          : results.isEmpty
+                              ? const _NoResults()
+                              : ListView.separated(
                           padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
                           itemCount: results.length,
                           separatorBuilder: (_, __) => const Divider(
@@ -132,7 +185,7 @@ class _CatalogTile extends StatelessWidget {
                 children: [
                   Text(drug.name, style: AppTextStyles.bodyStrong),
                   Text(
-                    '${drug.activeIngredient} · ${drug.dosageForm}',
+                    drugSubtitle(drug.activeIngredient, drug.dosageForm),
                     style: AppTextStyles.caption,
                   ),
                 ],
@@ -185,6 +238,31 @@ class _NoResults extends StatelessWidget {
             textAlign: TextAlign.center,
             style: AppTextStyles.caption,
           ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SheetMessage extends StatelessWidget {
+  const _SheetMessage({required this.icon, required this.title, required this.message});
+
+  final IconData icon;
+  final String title;
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(AppSpacing.xl),
+      child: Column(
+        children: [
+          const SizedBox(height: AppSpacing.xl),
+          Icon(icon, size: 48, color: AppColors.inkMuted),
+          const SizedBox(height: AppSpacing.lg),
+          Text(title, textAlign: TextAlign.center, style: AppTextStyles.heading),
+          const SizedBox(height: AppSpacing.sm),
+          Text(message, textAlign: TextAlign.center, style: AppTextStyles.caption),
         ],
       ),
     );
