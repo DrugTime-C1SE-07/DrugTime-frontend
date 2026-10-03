@@ -247,7 +247,7 @@ class _EditMedicationScreenState extends State<EditMedicationScreen> {
     } on MedicationFailure catch (failure) {
       if (!mounted) return;
       setState(() => _saving = false);
-      _toast(medicationErrorMessage(failure));
+      showMedicationFailure(context, failure);
       return;
     }
 
@@ -301,7 +301,7 @@ class _EditMedicationScreenState extends State<EditMedicationScreen> {
     } on MedicationFailure catch (failure) {
       if (!mounted) return;
       setState(() => _saving = false);
-      _toast(medicationErrorMessage(failure));
+      showMedicationFailure(context, failure);
       return;
     }
 

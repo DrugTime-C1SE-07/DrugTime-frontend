@@ -105,9 +105,7 @@ class _MedicationDetailScreenState extends State<MedicationDetailScreen> {
     } on MedicationFailure catch (failure) {
       if (!mounted) return;
       setState(() => _busy = false);
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(SnackBar(content: Text(medicationErrorMessage(failure))));
+      showMedicationFailure(context, failure);
       return;
     }
     if (!mounted) return;

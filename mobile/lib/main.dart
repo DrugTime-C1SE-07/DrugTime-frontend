@@ -13,6 +13,7 @@ import 'features/auth/data/repositories/remote_auth_repository.dart';
 import 'features/auth/data/sources/auth_api_service.dart';
 import 'features/auth/data/sources/auth_session_store.dart';
 import 'features/auth/presentation/state/auth_controller.dart';
+import 'features/consent/data/repositories/remote_consent_repository.dart';
 import 'features/medication/data/repositories/remote_medication_repository.dart';
 
 void main() {
@@ -35,6 +36,7 @@ void main() {
   runApp(DrugTimeApp(
     authController: authController,
     medicationRepository: apiClient == null ? null : RemoteMedicationRepository(apiClient),
+    consentRepository: apiClient == null ? null : RemoteConsentRepository(apiClient),
     doseOutboxSyncEngine: apiClient == null ? null : _buildDoseOutboxSyncEngine(apiClient),
   ));
 }

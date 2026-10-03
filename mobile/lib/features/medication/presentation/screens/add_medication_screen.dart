@@ -141,7 +141,7 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
       // Giữ nguyên form để người dùng lưu lại; lần sau dùng cùng _clientUuid.
       if (!mounted) return;
       setState(() => _saving = false);
-      _toast(medicationErrorMessage(failure));
+      showMedicationFailure(context, failure);
       return;
     }
     navigator.pop(created);

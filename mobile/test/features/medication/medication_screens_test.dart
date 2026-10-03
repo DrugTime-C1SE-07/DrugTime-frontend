@@ -132,7 +132,9 @@ void main() {
       await pumpApp(tester);
 
       expect(find.text('Thuốc của tôi'), findsOneWidget);
-      expect(find.text('4 thuốc đang dùng'), findsOneWidget);
+      // Header không nhắc lại số thuốc đang dùng: thanh lọc đã hiện số đếm.
+      expect(find.text('4 thuốc đang dùng'), findsNothing);
+      expect(find.bySemanticsLabel('Đang dùng, 4 thuốc'), findsOneWidget);
       expect(find.text('1 thuốc sắp hết'), findsOneWidget);
       await tester.scrollUntilVisible(find.text('Sắp hết · còn 3 viên'), 200,
           scrollable: find.byType(Scrollable).first);
@@ -370,7 +372,7 @@ void main() {
       await tester.tap(find.text('Thử lại'));
       await tester.pumpAndSettle();
       expect(find.text('Thử lại'), findsNothing);
-      expect(find.text('4 thuốc đang dùng'), findsOneWidget);
+      expect(find.bySemanticsLabel('Đang dùng, 4 thuốc'), findsOneWidget);
     });
 
     testWidgets('sheet danh mục: chưa gõ thì gợi ý, không tìm', (tester) async {

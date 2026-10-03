@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 
+import '../features/consent/presentation/screens/consent_screen.dart';
+import '../features/consent/presentation/screens/privacy_settings_screen.dart';
+import '../features/consent/presentation/widgets/consent_gate.dart';
 import '../features/medication/data/repositories/in_memory_medication_repository.dart';
 import '../features/medication/domain/entities/medication.dart';
 import '../features/medication/presentation/screens/edit_medication_screen.dart';
@@ -22,14 +25,25 @@ abstract final class AppRoutes {
   static const otpPhone = '/login/otp/phone';
   static const otpEmail = '/login/otp/email';
   static const completeProfile = '/onboarding/profile';
+  static const consent = '/onboarding/consent';
+  static const privacySettings = '/settings/privacy';
   static const devCatalog = '/dev-catalog';
 }
 
 Route<dynamic>? onGenerateRoute(RouteSettings settings) {
   return switch (settings.name) {
+    // Mọi đường vào Trang chủ đi qua cổng consent (chưa có health_data thì hiện màn đồng ý).
     AppRoutes.home => MaterialPageRoute<void>(
         settings: settings,
-        builder: (_) => const AppShell(),
+        builder: (_) => const ConsentGate(child: AppShell()),
+      ),
+    AppRoutes.consent => MaterialPageRoute<bool>(
+        settings: settings,
+        builder: (_) => const ConsentScreen(),
+      ),
+    AppRoutes.privacySettings => MaterialPageRoute<void>(
+        settings: settings,
+        builder: (_) => const PrivacySettingsScreen(),
       ),
     AppRoutes.addMedication => MaterialPageRoute<Medication>(
         settings: settings,
