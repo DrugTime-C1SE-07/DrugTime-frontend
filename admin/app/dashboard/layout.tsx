@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 import SessionKeepAlive from "../../components/auth/SessionKeepAlive";
 import Sidebar from "../../components/layout/Sidebar";
 import Topbar from "../../components/layout/Topbar";
-import { SESSION_COOKIE, readExpiry } from "../../lib/auth/session";
+import { ToastProvider } from "../../components/ui/Toast";
 
 export default function DashboardLayout({
   children,
@@ -15,13 +15,14 @@ export default function DashboardLayout({
   const expiresAt = readExpiry(cookies().get(SESSION_COOKIE)?.value);
 
   return (
-    <div className="admin-shell">
-      <SessionKeepAlive expiresAt={expiresAt} />
-      <Sidebar />
-      <main className="admin-shell__content">
-        <Topbar />
-        <div className="admin-shell__body">{children}</div>
-      </main>
-    </div>
+    <ToastProvider>
+      <div className="admin-shell">
+        <Sidebar />
+        <main className="admin-shell__content">
+          <Topbar />
+          <div className="admin-shell__body">{children}</div>
+        </main>
+      </div>
+    </ToastProvider>
   );
 }

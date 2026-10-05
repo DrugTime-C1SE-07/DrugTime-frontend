@@ -2,37 +2,39 @@
 
 import { ChevronRight, Download, Plus } from "lucide-react";
 
-interface MedicationHeaderProps {
+interface InteractionHeaderProps {
   onOpenCreateModal: () => void;
   onExportData: () => void;
 }
 
-export default function MedicationHeader({
+export default function InteractionHeader({
   onOpenCreateModal,
   onExportData,
-}: MedicationHeaderProps) {
+}: InteractionHeaderProps) {
   return (
-    <header className="medications-header">
+    <header className="interactions-header">
       <div>
         <nav className="dashboard-breadcrumb" aria-label="Đường dẫn">
           <span>DrugTime Admin</span>
           <ChevronRight size={14} strokeWidth={2} aria-hidden="true" />
-          <strong>Danh mục CSDL</strong>
+          <span>Danh mục CSDL</span>
+          <ChevronRight size={14} strokeWidth={2} aria-hidden="true" />
+          <strong>Quy tắc tương tác</strong>
         </nav>
-        <h1>Danh mục thuốc tự lưu trữ</h1>
+        <h1>Quy tắc tương tác thuốc</h1>
         <p>
-          Cơ sở dữ liệu biệt dược và hoạt chất bóc tách từ Dược thư Quốc gia & Cục Quản lý Dược (DAV)
+          Cơ sở tri thức cảnh báo tương tác thuốc Dược thư Quốc gia, DrugBank &amp; FDA phục vụ kê đơn và nhắc uống an toàn
         </p>
       </div>
 
-      <div className="medications-header__actions">
+      <div className="interactions-header__actions">
         <button
           className="dashboard-action dashboard-action--secondary"
           type="button"
           onClick={onExportData}
         >
           <Download size={18} strokeWidth={2} aria-hidden="true" />
-          Xuất dữ liệu
+          Xuất ma trận đối soát
         </button>
         <button
           className="dashboard-action dashboard-action--primary"
@@ -40,7 +42,7 @@ export default function MedicationHeader({
           onClick={onOpenCreateModal}
         >
           <Plus size={18} strokeWidth={2.2} aria-hidden="true" />
-          Thêm thuốc mới
+          Thêm quy tắc mới
         </button>
       </div>
     </header>

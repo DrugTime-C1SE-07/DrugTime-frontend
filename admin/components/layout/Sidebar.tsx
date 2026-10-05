@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   ClipboardCheck,
   Database,
@@ -12,6 +12,8 @@ import {
   UserRound,
   type LucideIcon,
 } from "lucide-react";
+import { useAuthSession } from "../../lib/auth/session";
+import { useToast } from "../ui/Toast";
 
 import LogoutButton from "../auth/LogoutButton";
 
@@ -47,6 +49,7 @@ const sidebarItems: SidebarItem[] = [
     label: "Đối soát OCR",
     href: "/dashboard/ocr-review",
     icon: ScanText,
+    badge: 3,
   },
 ];
 
@@ -60,6 +63,19 @@ function isActivePath(pathname: string, href: string) {
 
 export default function Sidebar() {
   const pathname = usePathname();
+  const router = useRouter();
+  const { user, logout } = useAuthSession();
+  const { showToast } = useToast();
+
+  const handleLogout = () => {
+    logout();
+    showToast({
+      type: "info",
+      title: "Đã đăng xuất",
+      message: "Phiên làm việc quản trị đã được kết thúc an toàn.",
+    });
+    router.push("/auth/login");
+  };
 
   return (
     <aside className="admin-sidebar" aria-label="Menu quản trị">
@@ -76,6 +92,14 @@ export default function Sidebar() {
         </div>
       </div>
 
+      <div className="admin-sidebar__status" aria-label="Trạng thái hệ thống: Hoạt động v1.2">
+        <div className="admin-sidebar__status-left">
+          <span className="admin-sidebar__status-dot" aria-hidden="true" />
+          <span>Hệ thống hoạt động</span>
+        </div>
+        <span className="admin-sidebar__status-version">v1.2</span>
+      </div>
+
       <nav className="admin-sidebar__nav">
         {sidebarItems.map((item) => {
           const Icon = item.icon;
@@ -88,7 +112,7 @@ export default function Sidebar() {
               href={item.href}
               aria-current={active ? "page" : undefined}
             >
-              <Icon size={20} strokeWidth={2.4} />
+              <Icon size={18} strokeWidth={2} />
               <span>{item.label}</span>
               {item.badge ? (
                 <span className="admin-sidebar__badge" aria-label={`${item.badge} mục cần xử lý`}>
@@ -101,14 +125,26 @@ export default function Sidebar() {
       </nav>
 
       <div className="admin-sidebar__account">
-        <div className="admin-sidebar__avatar" aria-hidden="true">
-          <UserRound size={18} strokeWidth={2.4} />
+        <div className="admin-sidebar__avatar" aria-hidden="true" title={user?.roleName || "Quản trị viên"}>
+          {user?.avatarInitials ? (
+            <span style={{ fontSize: 11, fontWeight: 700 }}>{user.avatarInitials}</span>
+          ) : (
+            <UserRound size={16} strokeWidth={2.2} />
+          )}
         </div>
         <div className="admin-sidebar__account-text">
-          <strong>DS. Lê Minh Trí</strong>
-          <span>Quản trị Dữ liệu Dược</span>
+          <strong title={user?.name || "DS. Lê Minh Trí"}>{user?.name || "DS. Lê Minh Trí"}</strong>
+          <span title={user?.title || "Quản trị Dữ liệu Dược"}>{user?.title || "Quản trị Dữ liệu Dược"}</span>
         </div>
-        <LogoutButton className="admin-sidebar__logout" iconSize={18} />
+        <button
+          className="admin-sidebar__logout"
+          type="button"
+          aria-label="Đăng xuất"
+          title="Đăng xuất khỏi hệ thống"
+          onClick={handleLogout}
+        >
+          <LogOut size={16} strokeWidth={2} />
+        </button>
       </div>
     </aside>
   );
