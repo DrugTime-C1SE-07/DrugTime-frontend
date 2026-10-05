@@ -14,6 +14,7 @@ import '../widgets/consent_texts.dart';
 /// - Mở qua route (từ câu lỗi `consent_revoked`): xong thì `pop(true)`.
 ///
 /// Mỗi mục đích một công tắc; không có nút đồng ý tất cả. `health_data` bắt buộc để tiếp tục.
+/// Điều khoản (`terms`) không phải công tắc nên không có ở đây.
 class ConsentScreen extends StatefulWidget {
   const ConsentScreen({super.key, this.onCompleted});
 
@@ -26,7 +27,7 @@ class ConsentScreen extends StatefulWidget {
 class _ConsentScreenState extends State<ConsentScreen> {
   /// Lựa chọn trên màn; ban đầu theo trạng thái server (người mới: tất cả tắt).
   late final Map<ConsentPurpose, bool> _choices = {
-    for (final p in ConsentPurpose.values) p: ConsentScope.read(context).isGranted(p),
+    for (final p in ConsentPurpose.toggleable) p: ConsentScope.read(context).isGranted(p),
   };
   bool _saving = false;
 
@@ -39,7 +40,7 @@ class _ConsentScreenState extends State<ConsentScreen> {
     setState(() => _saving = true);
     try {
       // Tuần tự, từng mục một; mục đã khớp server (kể cả do lần bấm trước) thì không gửi lại.
-      for (final purpose in ConsentPurpose.values) {
+      for (final purpose in ConsentPurpose.toggleable) {
         final wanted = _choices[purpose]!;
         if (wanted == consents.isGranted(purpose)) continue;
         if (wanted) {
@@ -87,7 +88,7 @@ class _ConsentScreenState extends State<ConsentScreen> {
               style: AppTextStyles.body,
             ),
             const SizedBox(height: AppSpacing.lg),
-            for (final purpose in ConsentPurpose.values) ...[
+            for (final purpose in ConsentPurpose.toggleable) ...[
               ConsentPurposeCard(
                 purpose: purpose,
                 value: _choices[purpose]!,

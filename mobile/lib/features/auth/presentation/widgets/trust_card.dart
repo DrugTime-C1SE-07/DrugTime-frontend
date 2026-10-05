@@ -3,7 +3,8 @@ import 'package:flutter/material.dart';
 import '../../../../app/theme/app_theme.dart';
 import '../../../../core/widgets/vector_icons.dart';
 
-/// Trust card theo thiết kế `trust-card`:
+/// Trust card theo thiết kế `trust-card`. Câu chữ chỉ nêu điều hệ thống thực sự làm (HTTPS,
+/// người thân chỉ xem khi được cho phép):
 /// - Rộng 327px, Cao 118px, Padding 16px, Gap 12px
 /// - Nền [AppColors.brandTint] (#E7F3F1), Bo góc 12px
 /// - Dòng 1: ShieldCheckIcon (16x16) + nhãn 12.5px
@@ -27,14 +28,14 @@ class TrustCard extends StatelessWidget {
           // Trust row 1: Shield-check
           _TrustRow(
             icon: ShieldCheckIcon(size: 16.0),
-            text: 'Bảo mật thông tin sức khỏe theo tiêu chuẩn y tế quốc gia.',
+            text: 'Chỉ người thân bạn cho phép mới xem được dữ liệu của bạn.',
           ),
           SizedBox(height: AppSpacing.md),
 
           // Trust row 2: Lock
           _TrustRow(
             icon: LockIcon(size: 16.0),
-            text: 'Dữ liệu được mã hóa đầu cuối và không bao giờ chia sẻ với bên thứ ba.',
+            text: 'Dữ liệu được truyền qua kết nối mã hóa.',
           ),
         ],
       ),

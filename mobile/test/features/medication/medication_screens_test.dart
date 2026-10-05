@@ -6,6 +6,7 @@ import 'package:drugtime_mobile/features/medication/data/repositories/in_memory_
 import 'package:drugtime_mobile/features/medication/domain/entities/medication.dart';
 import 'package:drugtime_mobile/features/medication/domain/entities/medication_failure.dart';
 import 'package:drugtime_mobile/features/medication/presentation/screens/add_medication_screen.dart';
+import 'package:drugtime_mobile/features/medication/presentation/widgets/medication_filter_bar.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -144,6 +145,56 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Metformin 500mg'), findsNothing);
       expect(find.text('Amoxicillin 500mg'), findsOneWidget);
+    });
+
+    final headerAdd = find.widgetWithText(FilledButton, 'Thêm');
+    final emptyAdd = find.widgetWithText(FilledButton, 'Thêm thuốc mới');
+
+    testWidgets('AC11, AC15: chưa có thuốc → chỉ nút giữa, không có tìm kiếm/tra cứu/bộ lọc',
+        (tester) async {
+      await pumpApp(tester, repository: InMemoryMedicationRepository(seed: const []));
+
+      expect(find.text('Chưa có thuốc nào'), findsOneWidget);
+      expect(emptyAdd, findsOneWidget);
+      expect(headerAdd, findsNothing);
+      expect(find.byType(TextField), findsNothing);
+      expect(find.text('Tra cứu danh mục thuốc'), findsNothing);
+      expect(find.byType(MedicationFilterBar), findsNothing);
+
+      await tester.tap(emptyAdd);
+      await tester.pumpAndSettle();
+      expect(find.byType(AddMedicationScreen), findsOneWidget);
+    });
+
+    testWidgets('AC12: có thuốc → có nút "Thêm" ở header, không có empty-state', (tester) async {
+      await pumpApp(tester);
+
+      expect(headerAdd, findsOneWidget);
+      expect(emptyAdd, findsNothing);
+      expect(find.text('Chưa có thuốc nào'), findsNothing);
+      expect(find.byType(MedicationFilterBar), findsOneWidget);
+    });
+
+    testWidgets('AC13: tìm không khớp → chỉ nút "Thêm thuốc mới" ở giữa', (tester) async {
+      await pumpApp(tester);
+
+      await tester.enterText(find.byType(TextField), 'xyz');
+      await tester.pumpAndSettle();
+
+      expect(find.text('Không tìm thấy "xyz"'), findsOneWidget);
+      expect(emptyAdd, findsOneWidget);
+      expect(headerAdd, findsNothing);
+      expect(find.byType(TextField), findsOneWidget); // còn ô tìm để sửa từ khóa
+    });
+
+    testWidgets('AC14: rỗng do tải lỗi → thẻ lỗi và nút "Thêm" ở header', (tester) async {
+      final repository = RecordingRepository(seed: const [])
+        ..failNextFetch = const MedicationFailure(MedicationFailureKind.network);
+      await pumpApp(tester, repository: repository);
+
+      expect(find.text('Không kết nối được máy chủ. Kiểm tra mạng rồi thử lại.'), findsOneWidget);
+      expect(headerAdd, findsOneWidget);
+      expect(emptyAdd, findsNothing);
     });
 
     testWidgets('tìm theo hoạt chất và báo khi không có kết quả', (tester) async {

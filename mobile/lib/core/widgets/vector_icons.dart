@@ -139,67 +139,6 @@ class _LockPainter extends CustomPainter {
       oldDelegate.color != color || oldDelegate.strokeWidth != strokeWidth;
 }
 
-/// Message Circle Icon for Helper Row (13x13, stroke 1.08px #5B6169)
-class MessageCircleIcon extends StatelessWidget {
-  final double size;
-  final Color color;
-  final double strokeWidth;
-
-  const MessageCircleIcon({
-    super.key,
-    this.size = 13.0,
-    this.color = AppColors.inkMuted,
-    this.strokeWidth = 1.08,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return CustomPaint(
-      size: Size(size, size),
-      painter: _MessageCirclePainter(color: color, strokeWidth: strokeWidth),
-    );
-  }
-}
-
-class _MessageCirclePainter extends CustomPainter {
-  final Color color;
-  final double strokeWidth;
-
-  _MessageCirclePainter({required this.color, required this.strokeWidth});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = color
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = strokeWidth
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round;
-
-    final w = size.width;
-    final h = size.height;
-
-    final path = Path()
-      ..moveTo(w * 0.88, h * 0.5)
-      ..arcToPoint(
-        Offset(w * 0.5, h * 0.88),
-        radius: Radius.circular(w * 0.38),
-      )
-      ..lineTo(w * 0.2, h * 0.92)
-      ..lineTo(w * 0.24, h * 0.64)
-      ..arcToPoint(
-        Offset(w * 0.88, h * 0.5),
-        radius: Radius.circular(w * 0.38),
-      );
-
-    canvas.drawPath(path, paint);
-  }
-
-  @override
-  bool shouldRepaint(covariant _MessageCirclePainter oldDelegate) =>
-      oldDelegate.color != color || oldDelegate.strokeWidth != strokeWidth;
-}
-
 /// Status Bar Signal Icon (16x16, 5 signal bars #211D1D)
 class StatusBarSignalIcon extends StatelessWidget {
   final double size;

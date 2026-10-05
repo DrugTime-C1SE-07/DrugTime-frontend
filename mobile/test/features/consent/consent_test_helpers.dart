@@ -13,8 +13,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 /// Consent trong bộ nhớ, ghi lại mọi lời gọi; có thể ép lỗi cho lần gọi kế tiếp.
+///
+/// Mặc định đã đồng ý `terms` (bản hiện hành) để test của luồng `health_data` không phải đi qua
+/// màn điều khoản. Test luồng điều khoản đặt [termsAccepted] = false, hoặc truyền phiên bản cũ
+/// qua `grantedVersions`.
 class RecordingConsentRepository extends InMemoryConsentRepository {
-  RecordingConsentRepository({super.granted = const {}});
+  RecordingConsentRepository({
+    Set<ConsentPurpose> granted = const {},
+    bool termsAccepted = true,
+    super.grantedVersions,
+  }) : super(granted: {...granted, if (termsAccepted) ConsentPurpose.terms});
 
   final List<String> calls = [];
 
@@ -117,6 +125,7 @@ Future<void> pumpConsentApp(
   required InMemoryConsentRepository consents,
   MedicationRepository? medications,
   String? initialRoute,
+  AuthController? auth,
 }) async {
   // Cao hơn màn thật để ListView dựng đủ ba thẻ và nút, không phải cuộn trong test.
   tester.view.physicalSize = const Size(375, 1400);
@@ -124,7 +133,7 @@ Future<void> pumpConsentApp(
   addTearDown(tester.view.reset);
 
   await tester.pumpWidget(DrugTimeApp(
-    authController: signedInAuth(),
+    authController: auth ?? signedInAuth(),
     consentRepository: consents,
     medicationRepository: medications ?? InMemoryMedicationRepository(),
     initialRoute: initialRoute,

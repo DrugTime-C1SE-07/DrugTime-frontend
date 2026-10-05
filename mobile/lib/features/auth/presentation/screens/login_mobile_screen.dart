@@ -3,7 +3,7 @@ import 'package:flutter/services.dart';
 
 import '../../../../app/router.dart';
 import '../../../../app/theme/app_theme.dart';
-import '../../../../core/widgets/vector_icons.dart';
+import '../../../consent/presentation/widgets/terms_agreement_row.dart';
 import '../../domain/entities/login_method.dart';
 import '../state/auth_controller.dart';
 import '../widgets/email_input_field.dart';
@@ -20,10 +20,10 @@ import '../widgets/trust_card.dart';
 /// - Header: ảnh mascot DrugTime cao 150px, heading 22px bold, subheading 13px
 /// - Segmented Picker: 331x42px ([AppColors.surfaceMuted])
 /// - Ô nhập dữ liệu: 327x48px (viền 1px [AppColors.border])
-/// - Dòng phụ trợ: Icon 13x13 message-circle + chữ 11.5px
+/// - Dòng phụ trợ: icon SMS (tab SĐT) hoặc thư (tab Email) 14px + chữ 11.5px, cao theo chữ
+/// - Ô tick đồng ý Điều khoản và Chính sách, đặt ngay trên nút gửi; chưa tick thì không gửi OTP
 /// - Nút bấm: 327x48px (nền thương hiệu [AppColors.brand] #01554F)
 /// - Trust Card: 327x118px (nền [AppColors.brandTint] #E7F3F1)
-/// - Chân trang pháp lý: 11.5px [AppColors.inkMuted]
 /// Status bar và thanh điều hướng là của hệ điều hành (nội dung nằm trong [SafeArea]).
 class LoginMobileScreen extends StatefulWidget {
   const LoginMobileScreen({
@@ -53,6 +53,26 @@ class _LoginMobileScreenState extends State<LoginMobileScreen> {
   String? _localEmailError;
   bool _localIsLoading = false;
 
+  /// Dùng khi chạy độc lập (không có AuthScope); có controller thì đọc `termsAccepted` của nó.
+  bool _localTermsAccepted = false;
+  bool _showTermsError = false;
+
+  static const _termsErrorText =
+      'Vui lòng đồng ý Điều khoản dịch vụ và Chính sách quyền riêng tư';
+
+  bool _termsAccepted(AuthController? controller) =>
+      controller?.termsAccepted ?? _localTermsAccepted;
+
+  void _setTermsAccepted(bool value, AuthController? controller) {
+    if (controller != null) {
+      controller.setTermsAccepted(value);
+    }
+    setState(() {
+      _localTermsAccepted = value;
+      if (value) _showTermsError = false;
+    });
+  }
+
   @override
   void dispose() {
     _phoneController.dispose();
@@ -78,6 +98,11 @@ class _LoginMobileScreenState extends State<LoginMobileScreen> {
     AuthController? controller,
   ) async {
     FocusScope.of(context).unfocus();
+    // Kiểm ô tick trước mọi bước khác: chưa đồng ý thì không gửi gì lên server.
+    if (!_termsAccepted(controller)) {
+      setState(() => _showTermsError = true);
+      return;
+    }
     final messenger = ScaffoldMessenger.of(context);
     final navigator = Navigator.of(context);
 
@@ -326,19 +351,27 @@ class _LoginMobileScreenState extends State<LoginMobileScreen> {
 
                       // helper-row (order: 3)
                       _buildHelperRow(activeMethod),
-                      const SizedBox(height: 20.0),
+                      const SizedBox(height: AppSpacing.lg),
 
-                      // btn/send-otp (order: 4)
+                      // terms (order: 4): đồng ý trước khi gửi OTP
+                      TermsAgreementRow(
+                        value: _termsAccepted(controller),
+                        onChanged: isLoading
+                            ? null
+                            : (v) => _setTermsAccepted(v, controller),
+                        errorText: _showTermsError ? _termsErrorText : null,
+                        onTermsTapped: widget.onTermsTapped,
+                        onPrivacyTapped: widget.onPrivacyTapped,
+                      ),
+                      const SizedBox(height: AppSpacing.md),
+
+                      // btn/send-otp (order: 5)
                       _buildSendOtpButton(
                           context, activeMethod, isLoading, controller),
                       const SizedBox(height: 20.0),
 
-                      // trust-card (order: 5)
+                      // trust-card (order: 6)
                       const TrustCard(),
-                      const SizedBox(height: 20.0),
-
-                      // legal (order: 6)
-                      _buildLegalText(),
                     ],
                   ),
                 ),
@@ -350,19 +383,24 @@ class _LoginMobileScreenState extends State<LoginMobileScreen> {
     );
   }
 
-  /// helper-row (order: 3)
+  /// helper-row (order: 3). Không đặt chiều cao cố định: chữ phóng to thì dòng cao theo.
   Widget _buildHelperRow(LoginMethod activeMethod) {
+    final isPhone = activeMethod == LoginMethod.phone;
     return SizedBox(
+      key: const Key('login-helper-row'),
       width: 327.0,
-      height: 17.0,
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          const MessageCircleIcon(size: 13.0),
+          Icon(
+            isPhone ? Icons.sms_outlined : Icons.mail_outline,
+            size: 14.0,
+            color: AppColors.inkMuted,
+          ),
           const SizedBox(width: 6.0),
           Expanded(
             child: Text(
-              activeMethod == LoginMethod.phone
+              isPhone
                   ? 'Mã OTP sẽ được gửi qua tin nhắn SMS'
                   : 'Mã OTP sẽ được gửi qua hòm thư điện tử',
               style: const TextStyle(
@@ -371,7 +409,6 @@ class _LoginMobileScreenState extends State<LoginMobileScreen> {
                 height: 17.0 / 11.5,
                 color: AppColors.inkMuted,
               ),
-              overflow: TextOverflow.ellipsis,
             ),
           ),
         ],
@@ -418,61 +455,6 @@ class _LoginMobileScreenState extends State<LoginMobileScreen> {
                   ),
           ),
         ),
-      ),
-    );
-  }
-
-  /// legal text (order: 6)
-  Widget _buildLegalText() {
-    return SizedBox(
-      width: 327.0,
-      child: Text.rich(
-        TextSpan(
-          text: 'Bằng cách tiếp tục, bạn đồng ý với ',
-          style: const TextStyle(
-            fontSize: 11.5,
-            fontWeight: FontWeight.w400,
-            height: 17.0 / 11.5,
-            color: AppColors.inkMuted,
-          ),
-          children: [
-            WidgetSpan(
-              baseline: TextBaseline.alphabetic,
-              alignment: PlaceholderAlignment.baseline,
-              child: GestureDetector(
-                onTap: widget.onTermsTapped,
-                child: const Text(
-                  'Điều khoản dịch vụ',
-                  style: TextStyle(
-                    fontSize: 11.5,
-                    color: AppColors.brand,
-                    fontWeight: FontWeight.w500,
-                    decoration: TextDecoration.underline,
-                  ),
-                ),
-              ),
-            ),
-            const TextSpan(text: ' và '),
-            WidgetSpan(
-              baseline: TextBaseline.alphabetic,
-              alignment: PlaceholderAlignment.baseline,
-              child: GestureDetector(
-                onTap: widget.onPrivacyTapped,
-                child: const Text(
-                  'Chính sách quyền riêng tư',
-                  style: TextStyle(
-                    fontSize: 11.5,
-                    color: AppColors.brand,
-                    fontWeight: FontWeight.w500,
-                    decoration: TextDecoration.underline,
-                  ),
-                ),
-              ),
-            ),
-            const TextSpan(text: ' của DrugTime.'),
-          ],
-        ),
-        textAlign: TextAlign.center,
       ),
     );
   }

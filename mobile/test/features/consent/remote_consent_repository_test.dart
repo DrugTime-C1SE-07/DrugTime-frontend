@@ -63,19 +63,20 @@ void main() {
 
   tearDown(() => server.close(force: true));
 
-  test('fetchAll đọc đủ ba mục đích của GET /consents', () async {
+  test('fetchAll đọc đủ bốn mục đích của GET /consents', () async {
     replies.add((200, {
       'items': [
         consentJson('health_data', granted: true),
         consentJson('family_sharing'),
         consentJson('ai_meal'),
+        consentJson('terms', granted: true),
       ]
     }));
 
     final states = await repo.fetchAll();
 
     expect(states.map((s) => s.purpose), ConsentPurpose.values);
-    expect(states.map((s) => s.granted), [true, false, false]);
+    expect(states.map((s) => s.granted), [true, false, false, true]);
     expect(states.first.grantedAt, DateTime.parse('2026-10-03T17:20:05+07:00'));
     expect(states.first.documentVersion, '2026-10-v1');
     expect(requests.single.method, 'GET');
@@ -99,6 +100,34 @@ void main() {
       ('POST', '/consents'),
     ]);
     expect(requests.first.json, {'purpose': 'health_data', 'document_version': '2026-10-v1'});
+  });
+
+  test('AC22: server trả mục đích app chưa biết → bỏ qua, không lỗi', () async {
+    replies.add((200, {
+      'items': [
+        consentJson('health_data', granted: true),
+        consentJson('family_sharing'),
+        consentJson('xyz', granted: true),
+        consentJson('ai_meal'),
+        consentJson('terms', granted: true),
+      ]
+    }));
+
+    final states = await repo.fetchAll();
+
+    expect(states.map((s) => s.purpose), ConsentPurpose.values);
+    expect(states.map((s) => s.granted), [true, false, false, true]);
+  });
+
+  test('grant(terms) gửi purpose terms và phiên bản điều khoản', () async {
+    replies.add((201, consentJson('terms', granted: true)));
+
+    final state = await repo.grant(ConsentPurpose.terms);
+
+    expect(state.purpose, ConsentPurpose.terms);
+    expect(state.granted, isTrue);
+    expect(requests.single.json, {'purpose': 'terms', 'document_version': termsDocumentVersion});
+    expect(termsDocumentVersion, '2026-10-v1');
   });
 
   test('withdraw gửi POST /consents/{purpose}/withdraw và trả not_granted', () async {
@@ -133,6 +162,13 @@ void main() {
     await expectKind(repo.withdraw(ConsentPurpose.aiMeal), ConsentFailureKind.unauthorized);
     await expectKind(repo.grant(ConsentPurpose.aiMeal), ConsentFailureKind.unknown);
     expect(unauthorizedCalls, 1);
+  });
+
+  test('422 consent_not_withdrawable → unknown', () async {
+    replies.add((422, {'detail': 'consent_not_withdrawable'}));
+
+    await expectKind(repo.withdraw(ConsentPurpose.terms), ConsentFailureKind.unknown);
+    expect(requests.single.uri.path, '/consents/terms/withdraw');
   });
 
   test('không kết nối được máy chủ → network', () async {
