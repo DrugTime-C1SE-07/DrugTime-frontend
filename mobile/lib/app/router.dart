@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 
 import '../features/consent/presentation/screens/consent_screen.dart';
+import '../features/consent/presentation/screens/legal_document_screen.dart';
 import '../features/consent/presentation/screens/privacy_settings_screen.dart';
 import '../features/consent/presentation/widgets/consent_gate.dart';
+import '../features/consent/presentation/widgets/legal_texts.dart';
 import '../features/medication/data/repositories/in_memory_medication_repository.dart';
 import '../features/medication/domain/entities/medication.dart';
 import '../features/medication/presentation/screens/edit_medication_screen.dart';
@@ -27,6 +29,8 @@ abstract final class AppRoutes {
   static const completeProfile = '/onboarding/profile';
   static const consent = '/onboarding/consent';
   static const privacySettings = '/settings/privacy';
+  static const termsOfService = '/legal/terms';
+  static const privacyPolicy = '/legal/privacy';
   static const devCatalog = '/dev-catalog';
 }
 
@@ -44,6 +48,14 @@ Route<dynamic>? onGenerateRoute(RouteSettings settings) {
     AppRoutes.privacySettings => MaterialPageRoute<void>(
         settings: settings,
         builder: (_) => const PrivacySettingsScreen(),
+      ),
+    AppRoutes.termsOfService => MaterialPageRoute<void>(
+        settings: settings,
+        builder: (_) => const LegalDocumentScreen(document: termsOfService),
+      ),
+    AppRoutes.privacyPolicy => MaterialPageRoute<void>(
+        settings: settings,
+        builder: (_) => const LegalDocumentScreen(document: privacyPolicy),
       ),
     AppRoutes.addMedication => MaterialPageRoute<Medication>(
         settings: settings,
@@ -122,6 +134,18 @@ class DevUiCatalogScreen extends StatelessWidget {
         description: 'Màn hình nhập mã OTP 6 số gửi qua hòm thư điện tử',
         badge: 'Auth',
         route: AppRoutes.otpEmail,
+      ),
+      const _UiItem(
+        title: 'Điều khoản dịch vụ',
+        description: 'Văn bản điều khoản, mở từ ô tick ở màn đăng nhập',
+        badge: 'Legal',
+        route: AppRoutes.termsOfService,
+      ),
+      const _UiItem(
+        title: 'Chính sách quyền riêng tư',
+        description: 'Văn bản chính sách, mở từ ô tick ở màn đăng nhập',
+        badge: 'Legal',
+        route: AppRoutes.privacyPolicy,
       ),
       const _UiItem(
         title: 'App Shell (Chính 5 tabs)',

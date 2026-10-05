@@ -27,6 +27,14 @@ class ConsentController extends ChangeNotifier {
   bool isGranted(ConsentPurpose purpose) => _states[purpose]?.granted ?? false;
   bool get hasHealthData => isGranted(ConsentPurpose.healthData);
 
+  /// Chưa đồng ý điều khoản, hoặc đã đồng ý bản cũ hơn bản server đang công bố.
+  bool get needsTerms {
+    final terms = _states[ConsentPurpose.terms];
+    return terms == null ||
+        !terms.granted ||
+        terms.documentVersion != terms.currentDocumentVersion;
+  }
+
   Future<void> load() async {
     _isLoading = true;
     _loadError = null;

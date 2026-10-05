@@ -18,6 +18,7 @@ class AuthController extends ChangeNotifier {
   String? _infoMessage;
   String? _lastSentIdentifier;
   AuthSession? _currentSession;
+  bool _termsAccepted = false;
 
   LoginMethod get method => _method;
   bool get isLoading => _isLoading;
@@ -29,6 +30,17 @@ class AuthController extends ChangeNotifier {
 
   /// Đã đăng nhập nhưng chưa có hồ sơ (người mới): phải qua màn hoàn thiện hồ sơ.
   bool get needsProfile => isAuthenticated && _currentSession?.profileComplete == false;
+
+  /// Người dùng đã tick đồng ý Điều khoản và Chính sách ở màn đăng nhập (chỉ trong bộ nhớ).
+  /// Sau khi đăng nhập, cổng consent ở Trang chủ dùng giá trị này để ghi `terms` lên server
+  /// mà không hỏi lại. Đăng xuất hoặc phiên hết hạn thì đặt lại.
+  bool get termsAccepted => _termsAccepted;
+
+  void setTermsAccepted(bool value) {
+    if (_termsAccepted == value) return;
+    _termsAccepted = value;
+    notifyListeners();
+  }
 
   /// Giới tính màn hồ sơ gửi lên API.
   static const genders = {'nam': 'Nam', 'nu': 'Nữ', 'khac': 'Khác'};
@@ -226,6 +238,7 @@ class AuthController extends ChangeNotifier {
     await _repository.signOut();
     _currentSession = null;
     _lastSentIdentifier = null;
+    _termsAccepted = false;
     notifyListeners();
   }
 
@@ -234,6 +247,7 @@ class AuthController extends ChangeNotifier {
     await _repository.signOut();
     _currentSession = null;
     _lastSentIdentifier = null;
+    _termsAccepted = false;
     notifyListeners();
   }
 }

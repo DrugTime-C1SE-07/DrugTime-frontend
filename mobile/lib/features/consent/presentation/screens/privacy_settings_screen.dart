@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../../../../app/router.dart';
 import '../../../../app/theme/app_theme.dart';
 import '../../../medication/presentation/state/medication_controller.dart';
 import '../../domain/entities/consent.dart';
@@ -11,6 +12,7 @@ import '../widgets/consent_purpose_card.dart';
 import '../widgets/consent_texts.dart';
 
 /// Xem và đổi consent từng mục đích. Bật là đồng ý ngay; tắt phải xác nhận vì có hệ quả.
+/// Điều khoản không có công tắc (không rút được); chỉ có link đọc lại hai văn bản.
 class PrivacySettingsScreen extends StatefulWidget {
   const PrivacySettingsScreen({super.key});
 
@@ -115,7 +117,7 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
               const SizedBox(height: AppSpacing.md),
               OutlinedButton(onPressed: consents.load, child: const Text('Thử lại')),
             ] else
-              for (final purpose in ConsentPurpose.values) ...[
+              for (final purpose in ConsentPurpose.toggleable) ...[
                 ConsentPurposeCard(
                   purpose: purpose,
                   value: consents.isGranted(purpose),
@@ -123,9 +125,37 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
                 ),
                 const SizedBox(height: AppSpacing.md),
               ],
+            const SizedBox(height: AppSpacing.md),
+            const _LegalLink(
+              key: Key('privacy-link-terms'),
+              title: 'Điều khoản dịch vụ',
+              route: AppRoutes.termsOfService,
+            ),
+            const _LegalLink(
+              key: Key('privacy-link-privacy'),
+              title: 'Chính sách quyền riêng tư',
+              route: AppRoutes.privacyPolicy,
+            ),
           ],
         ),
       ),
     );
   }
+}
+
+class _LegalLink extends StatelessWidget {
+  const _LegalLink({super.key, required this.title, required this.route});
+
+  final String title;
+  final String route;
+
+  @override
+  Widget build(BuildContext context) => ListTile(
+        contentPadding: EdgeInsets.zero,
+        minTileHeight: AppSizes.tapTarget,
+        leading: const Icon(Icons.description_outlined, color: AppColors.inkMuted),
+        title: Text(title, style: AppTextStyles.body),
+        trailing: const Icon(Icons.chevron_right, color: AppColors.inkMuted),
+        onTap: () => Navigator.of(context).pushNamed(route),
+      );
 }
