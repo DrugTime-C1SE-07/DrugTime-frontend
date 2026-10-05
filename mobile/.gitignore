@@ -34,3 +34,20 @@ ios/Flutter/flutter_export_environment.sh
 # Env
 .env
 .env.*
+!.env.example
+
+# Flutter (bổ sung theo template `flutter create`)
+.flutter-plugins-dependencies
+.build/
+.swiftpm/
+migrate_working_dir/
+*.ipr
+*.iws
+*.log
+app.*.symbols
+app.*.map.json
+/android/app/.cxx/
+/ios/Flutter/ephemeral/
+
+# Web chỉ dùng để chạy thử cục bộ, không đưa lên repo
+/web/

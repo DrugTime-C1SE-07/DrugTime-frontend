@@ -6,7 +6,6 @@ import {
   ClipboardCheck,
   Database,
   LayoutDashboard,
-  LogOut,
   Notebook,
   PillIcon,
   ScanText,
@@ -15,6 +14,8 @@ import {
 } from "lucide-react";
 import { useAuthSession } from "../../lib/auth/session";
 import { useToast } from "../ui/Toast";
+
+import LogoutButton from "../auth/LogoutButton";
 
 type SidebarItem = {
   label: string;

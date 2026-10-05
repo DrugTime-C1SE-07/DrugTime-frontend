@@ -6,6 +6,8 @@ import { Bell, CircleHelp, LogOut, ShieldCheck, UserRound } from "lucide-react";
 import { useAuthSession } from "../../lib/auth/session";
 import { useToast } from "../ui/Toast";
 
+import LogoutButton from "../auth/LogoutButton";
+
 type TopbarProps = {
   syncLabel?: string;
   notificationCount?: number;

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Nền màn khởi động, trùng AppColors.canvas để chuyển sang màn chờ của Flutter không bị giật màu. -->
+    <color name="splash_background">#FCFCFC</color>
+    <!-- Nền adaptive icon (ảnh mascot nằm trên nền trắng). -->
+    <color name="ic_launcher_background">#FFFFFF</color>
+</resources>

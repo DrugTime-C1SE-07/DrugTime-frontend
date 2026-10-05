@@ -1,4 +1,7 @@
+import { cookies } from "next/headers";
 import type { ReactNode } from "react";
+
+import SessionKeepAlive from "../../components/auth/SessionKeepAlive";
 import Sidebar from "../../components/layout/Sidebar";
 import Topbar from "../../components/layout/Topbar";
 import { ToastProvider } from "../../components/ui/Toast";
@@ -8,6 +11,9 @@ export default function DashboardLayout({
 }: {
   children: ReactNode;
 }) {
+  // Đọc hạn phiên ở server (cookie httpOnly) để client biết khi nào gia hạn.
+  const expiresAt = readExpiry(cookies().get(SESSION_COOKIE)?.value);
+
   return (
     <ToastProvider>
       <div className="admin-shell">
