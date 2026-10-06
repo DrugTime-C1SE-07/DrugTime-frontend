@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import {
   AlertCircle,
   AlertTriangle,
@@ -21,23 +21,29 @@ import {
   ShieldCheck,
   Stethoscope,
 } from "lucide-react";
-import { useAuthSession } from "../../lib/auth/session";
 import { useToast } from "../ui/Toast";
 import { Modal } from "../ui/Modal";
 
 const MAX_FAILED_ATTEMPTS = 5;
 const LOCKOUT_DURATION_MS = 15 * 60 * 1000; // 15 minutes lockout
+const MIN_PASSWORD_LENGTH = 8;
+
+/** Thông báo theo mã lỗi của /api/session/login (xem `toBrowserError` trong lib/api/client.ts). */
+const MESSAGES: Record<string, string> = {
+  invalid_credentials: "Email hoặc mật khẩu không đúng.",
+  admin_required: "Tài khoản này không có quyền quản trị.",
+  invalid_input: "Email không hợp lệ hoặc mật khẩu ngắn hơn 8 ký tự.",
+  rate_limited: "Bạn thao tác quá nhanh, vui lòng thử lại sau ít phút.",
+  unavailable: "Hệ thống đang bận, vui lòng thử lại sau.",
+};
 
 export default function LoginForm() {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const { login } = useAuthSession();
   const { showToast } = useToast();
 
   // Form State
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [rememberMe, setRememberMe] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -131,8 +137,8 @@ export default function LoginForm() {
 
     if (!password) {
       errors.password = "Vui lòng nhập mật khẩu tài khoản.";
-    } else if (password.length < 6) {
-      errors.password = "Mật khẩu bảo mật phải có ít nhất 6 ký tự.";
+    } else if (password.length < MIN_PASSWORD_LENGTH) {
+      errors.password = `Mật khẩu bảo mật phải có ít nhất ${MIN_PASSWORD_LENGTH} ký tự.`;
     }
 
     setFieldErrors(errors);
@@ -158,9 +164,23 @@ export default function LoginForm() {
     setIsSubmitting(true);
 
     try {
-      const res = await login(email, password, rememberMe);
+      const response = await fetch("/api/session/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: email.trim(), password }),
+      });
 
-      if (!res.success) {
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        const code: string = typeof data?.error === "string" ? data.error : "unavailable";
+
+        // Chỉ sai email/mật khẩu mới tính vào số lần thử; lỗi hệ thống hay quyền thì báo thẳng.
+        if (code !== "invalid_credentials") {
+          setSubmitError(MESSAGES[code] ?? MESSAGES.unavailable);
+          setIsSubmitting(false);
+          return;
+        }
+
         const nextAttempts = failedAttempts + 1;
         setFailedAttempts(nextAttempts);
         sessionStorage.setItem("drugtime_failed_attempts", nextAttempts.toString());
@@ -177,7 +197,7 @@ export default function LoginForm() {
             `Email công vụ hoặc mật khẩu không chính xác. Cảnh báo an ninh: Bạn đã thử sai ${nextAttempts}/${MAX_FAILED_ATTEMPTS} lần.`
           );
         } else {
-          setSubmitError(res.error || "Email công vụ hoặc mật khẩu không chính xác. Vui lòng kiểm tra lại.");
+          setSubmitError(MESSAGES.invalid_credentials);
         }
 
         setIsSubmitting(false);
@@ -191,13 +211,12 @@ export default function LoginForm() {
       showToast({
         type: "success",
         title: "Đăng nhập thành công",
-        message: `Chào mừng ${res.user?.name} (${res.user?.title}) đã đăng nhập vào hệ thống.`,
       });
 
-      const redirectUrl = searchParams.get("redirect") || "/dashboard";
-      router.push(redirectUrl);
+      router.replace("/dashboard");
+      router.refresh();
     } catch {
-      setSubmitError("Đã xảy ra sự cố kết nối tới máy chủ xác thực. Vui lòng thử lại sau ít phút.");
+      setSubmitError("Không kết nối được máy chủ, vui lòng kiểm tra mạng.");
       setIsSubmitting(false);
     }
   };
@@ -419,19 +438,6 @@ export default function LoginForm() {
                   <span>{fieldErrors.password}</span>
                 </div>
               ) : null}
-            </div>
-
-            {/* Duy trì đăng nhập */}
-            <div className="admin-login-options">
-              <label className="admin-login-checkbox-label">
-                <input
-                  type="checkbox"
-                  checked={rememberMe}
-                  disabled={isSubmitting || isLockedOut}
-                  onChange={(e) => setRememberMe(e.target.checked)}
-                />
-                <span>Duy trì phiên đăng nhập trên trình duyệt này</span>
-              </label>
             </div>
 
             {/* Nút bấm Submit */}
