@@ -11,6 +11,8 @@ import '../features/medication/presentation/screens/edit_medication_screen.dart'
 import '../features/medication/presentation/screens/medication_detail_screen.dart';
 import '../features/medication/presentation/screens/add_medication_screen.dart';
 import '../features/medication/presentation/screens/my_medications_screen.dart';
+import '../features/reminder/domain/entities/dose_reminder.dart';
+import '../features/reminder/presentation/screens/dose_reminder_screen.dart';
 import '../features/auth/presentation/screens/complete_profile_screen.dart';
 import '../features/auth/presentation/screens/email_otp_screen.dart';
 import '../features/auth/presentation/screens/login_mobile_screen.dart';
@@ -31,6 +33,7 @@ abstract final class AppRoutes {
   static const privacySettings = '/settings/privacy';
   static const termsOfService = '/legal/terms';
   static const privacyPolicy = '/legal/privacy';
+  static const doseReminder = '/reminders/dose';
   static const devCatalog = '/dev-catalog';
 }
 
@@ -101,12 +104,61 @@ Route<dynamic>? onGenerateRoute(RouteSettings settings) {
         settings: settings,
         builder: (_) => const CompleteProfileScreen(),
       ),
+    AppRoutes.doseReminder => MaterialPageRoute<DoseReminderResult>(
+        settings: settings,
+        fullscreenDialog: true,
+        builder: (_) {
+          final arguments = settings.arguments;
+          if (arguments is! DoseReminderRouteArguments) {
+            return const _InvalidDoseReminderRouteScreen();
+          }
+          return DoseReminderScreen(arguments: arguments);
+        },
+      ),
     AppRoutes.devCatalog => MaterialPageRoute<void>(
         settings: settings,
         builder: (_) => const DevUiCatalogScreen(),
       ),
     _ => null,
   };
+}
+
+/// Safe fallback when a notification opens the route without typed arguments.
+class _InvalidDoseReminderRouteScreen extends StatelessWidget {
+  const _InvalidDoseReminderRouteScreen();
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Nhắc uống thuốc')),
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.xl),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(
+                Icons.error_outline,
+                size: 48,
+                color: AppColors.danger,
+              ),
+              const SizedBox(height: AppSpacing.md),
+              const Text(
+                'Không thể mở thông tin liều thuốc.',
+                style: AppTextStyles.bodyStrong,
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: AppSpacing.lg),
+              FilledButton(
+                onPressed: () => Navigator.of(context).maybePop(),
+                child: const Text('Đóng'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 /// Màn hình Catalog dành cho Developer / Tester để duyệt nhanh qua tất cả các UI
