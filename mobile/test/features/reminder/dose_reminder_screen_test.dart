@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:drugtime_mobile/app/router.dart';
 import 'package:drugtime_mobile/app/theme/app_theme.dart';
 import 'package:drugtime_mobile/core/contracts/dose_outbox.dart';
@@ -173,6 +175,28 @@ void main() {
     expect(outbox.scheduleIds, isEmpty);
   });
 
+  testWidgets('pending confirmation disables snooze and skip', (tester) async {
+    final completer = Completer<LocalDoseLog>();
+    final outbox = _FakeDoseOutbox(completer: completer);
+    await _pumpReminder(tester, items: [_item(1, 'Losartan')], outbox: outbox);
+
+    await tester.tap(find.text('Đã uống'));
+    await tester.pump();
+
+    final snooze = tester.widget<OutlinedButton>(
+      find.widgetWithText(OutlinedButton, 'Nhắc lại sau 10 phút'),
+    );
+    final skip = tester.widget<TextButton>(
+      find.widgetWithText(TextButton, 'Bỏ qua liều này'),
+    );
+    expect(snooze.onPressed, isNull);
+    expect(skip.onPressed, isNull);
+
+    completer.complete(_record(1));
+    await tester.pumpAndSettle();
+    expect(find.text('Đóng'), findsOneWidget);
+  });
+
   testWidgets('route with invalid arguments renders safe error',
       (tester) async {
     await tester.pumpWidget(
@@ -308,9 +332,11 @@ DoseReminderItem _item(int id, String name) {
 }
 
 class _FakeDoseOutbox implements DoseOutbox {
-  _FakeDoseOutbox({Set<int>? failOnceFor}) : _failOnceFor = failOnceFor ?? {};
+  _FakeDoseOutbox({Set<int>? failOnceFor, this.completer})
+      : _failOnceFor = failOnceFor ?? {};
 
   final Set<int> _failOnceFor;
+  final Completer<LocalDoseLog>? completer;
   final List<int> scheduleIds = [];
 
   @override
@@ -323,19 +349,30 @@ class _FakeDoseOutbox implements DoseOutbox {
     if (_failOnceFor.remove(medicationScheduleId)) {
       throw StateError('write failed');
     }
-    return LocalDoseLog(
-      clientUuid: 'uuid-$medicationScheduleId',
-      medicationScheduleId: medicationScheduleId,
-      scheduledAt: scheduledAt,
-      takenAt: takenAt,
-      status: DoseLogStatus.taken,
-      syncState: DoseLogSyncState.pendingUpload,
-      localUpdatedAt: takenAt,
-    );
+    if (completer case final pending?) return pending.future;
+    return _record(medicationScheduleId,
+        scheduledAt: scheduledAt, takenAt: takenAt);
   }
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+LocalDoseLog _record(
+  int medicationScheduleId, {
+  DateTime? scheduledAt,
+  DateTime? takenAt,
+}) {
+  final persistedAt = takenAt ?? DateTime.utc(2026, 10, 7, 13, 5);
+  return LocalDoseLog(
+    clientUuid: 'uuid-$medicationScheduleId',
+    medicationScheduleId: medicationScheduleId,
+    scheduledAt: scheduledAt ?? DateTime.utc(2026, 9, 25, 13),
+    takenAt: persistedAt,
+    status: DoseLogStatus.taken,
+    syncState: DoseLogSyncState.pendingUpload,
+    localUpdatedAt: persistedAt,
+  );
 }
 
 class _SnoozeCall {

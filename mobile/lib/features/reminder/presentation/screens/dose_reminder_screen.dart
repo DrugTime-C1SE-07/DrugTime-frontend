@@ -80,7 +80,8 @@ class _DoseReminderScreenState extends State<DoseReminderScreen> {
   }
 
   void _skip() {
-    Navigator.of(context).pop(_controller.skip());
+    final result = _controller.skip();
+    if (result != null) Navigator.of(context).pop(result);
   }
 
   void _closeConfirmed() {
@@ -121,7 +122,9 @@ class _DoseReminderScreenState extends State<DoseReminderScreen> {
                           child: DoseReminderCard(
                             item: item,
                             status: _controller.statusOf(item),
-                            onConfirm: () => _confirmItem(item),
+                            onConfirm: _controller.isBusy
+                                ? null
+                                : () => _confirmItem(item),
                           ),
                         ),
                       ),
@@ -282,7 +285,7 @@ class _DoseReminderScreenState extends State<DoseReminderScreen> {
   }
 
   Widget _buildActions(int itemCount) {
-    final busy = _controller.isConfirmingGroup || _controller.isSnoozing;
+    final busy = _controller.isBusy;
     final confirmLabel =
         itemCount == 1 ? 'Đã uống' : 'Đã uống cả $itemCount thuốc';
 
