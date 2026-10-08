@@ -93,6 +93,48 @@ void main() {
     expect(outbox.scheduleIds, [1, 1]);
   });
 
+  testWidgets('single success remains visible and closes explicitly',
+      (tester) async {
+    final outbox = _FakeDoseOutbox();
+    DoseReminderResult? result;
+    await _pumpHost(
+      tester,
+      items: [_item(1, 'Losartan')],
+      outbox: outbox,
+      onResult: (value) => result = value,
+    );
+
+    await tester.tap(find.text('Đã uống'));
+    await tester.pumpAndSettle();
+
+    expect(find.byTooltip('Losartan đã uống'), findsOneWidget);
+    expect(find.text('Đóng'), findsOneWidget);
+    expect(result, isNull);
+    expect(outbox.scheduleIds, [1]);
+
+    await tester.tap(find.text('Đóng'));
+    await tester.pumpAndSettle();
+    expect(result, DoseReminderResult.confirmed);
+    expect(outbox.scheduleIds, [1]);
+  });
+
+  testWidgets('group success remains visible and prevents repeat enqueue',
+      (tester) async {
+    final outbox = _FakeDoseOutbox();
+    final items = [_item(1, 'Losartan'), _item(2, 'Metformin')];
+    await _pumpReminder(tester, items: items, outbox: outbox);
+
+    await tester.tap(find.text('Đã uống cả 2 thuốc'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Đóng'), findsOneWidget);
+    expect(outbox.scheduleIds, [1, 2]);
+    final confirmButton = tester.widget<FilledButton>(
+      find.widgetWithText(FilledButton, 'Đã uống cả 2 thuốc'),
+    );
+    expect(confirmButton.onPressed, isNull);
+  });
+
   testWidgets('snooze returns result and does not enqueue', (tester) async {
     final outbox = _FakeDoseOutbox();
     final scheduler = _FakeReminderScheduler();

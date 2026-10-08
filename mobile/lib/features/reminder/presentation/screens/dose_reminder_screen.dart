@@ -65,18 +65,11 @@ class _DoseReminderScreenState extends State<DoseReminderScreen> {
   }
 
   Future<void> _confirmItem(DoseReminderItem item) async {
-    final succeeded = await _controller.confirmItem(item);
-    if (!mounted) return;
-    if (succeeded && _group.items.length == 1) {
-      Navigator.of(context).pop(DoseReminderResult.confirmed);
-    }
+    await _controller.confirmItem(item);
   }
 
   Future<void> _confirmAll() async {
-    final succeeded = await _controller.confirmAll();
-    if (mounted && succeeded) {
-      Navigator.of(context).pop(DoseReminderResult.confirmed);
-    }
+    await _controller.confirmAll();
   }
 
   Future<void> _snooze() async {
@@ -88,6 +81,10 @@ class _DoseReminderScreenState extends State<DoseReminderScreen> {
 
   void _skip() {
     Navigator.of(context).pop(_controller.skip());
+  }
+
+  void _closeConfirmed() {
+    Navigator.of(context).pop(DoseReminderResult.confirmed);
   }
 
   @override
@@ -286,9 +283,8 @@ class _DoseReminderScreenState extends State<DoseReminderScreen> {
 
   Widget _buildActions(int itemCount) {
     final busy = _controller.isConfirmingGroup || _controller.isSnoozing;
-    final confirmLabel = itemCount == 1
-        ? (_controller.allConfirmed ? 'Đã uống' : 'Đã uống')
-        : 'Đã uống cả $itemCount thuốc';
+    final confirmLabel =
+        itemCount == 1 ? 'Đã uống' : 'Đã uống cả $itemCount thuốc';
 
     return Column(
       children: [
@@ -318,7 +314,7 @@ class _DoseReminderScreenState extends State<DoseReminderScreen> {
               foregroundColor: AppColors.onBrand,
               side: const BorderSide(color: Color(0xFF7AB0AC)),
             ),
-            onPressed: busy ? null : _snooze,
+            onPressed: busy || _controller.allConfirmed ? null : _snooze,
             icon: const ClockIcon(color: AppColors.onBrand, size: 20),
             label: const Text('Nhắc lại sau 10 phút'),
           ),
@@ -329,8 +325,14 @@ class _DoseReminderScreenState extends State<DoseReminderScreen> {
           child: TextButton(
             style:
                 TextButton.styleFrom(foregroundColor: const Color(0xFFD9E7E6)),
-            onPressed: busy ? null : _skip,
-            child: const Text('Bỏ qua liều này'),
+            onPressed: busy
+                ? null
+                : _controller.allConfirmed
+                    ? _closeConfirmed
+                    : _skip,
+            child: Text(
+              _controller.allConfirmed ? 'Đóng' : 'Bỏ qua liều này',
+            ),
           ),
         ),
       ],
