@@ -39,6 +39,27 @@ void main() {
     expect(outbox.calls, hasLength(1));
   });
 
+  test('pending confirmation blocks snooze and skip', () async {
+    final completer = Completer<LocalDoseLog>();
+    final outbox = _FakeDoseOutbox(completer: completer);
+    final scheduler = _FakeReminderScheduler();
+    final item = _item(1);
+    final controller = _controller(
+      items: [item],
+      outbox: outbox,
+      scheduler: scheduler,
+    );
+
+    final confirmation = controller.confirmItem(item);
+
+    expect(await controller.snooze(), isFalse);
+    expect(controller.skip(), isNull);
+    expect(scheduler.calls, isEmpty);
+
+    completer.complete(_record(item, 'same-uuid'));
+    expect(await confirmation, isTrue);
+  });
+
   test('outbox failure keeps item retryable', () async {
     final outbox = _FakeDoseOutbox(failOnceFor: {1});
     final item = _item(1);

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:drugtime_mobile/app/router.dart';
 import 'package:drugtime_mobile/app/theme/app_theme.dart';
 import 'package:drugtime_mobile/core/contracts/dose_outbox.dart';
@@ -93,6 +95,48 @@ void main() {
     expect(outbox.scheduleIds, [1, 1]);
   });
 
+  testWidgets('single success remains visible and closes explicitly',
+      (tester) async {
+    final outbox = _FakeDoseOutbox();
+    DoseReminderResult? result;
+    await _pumpHost(
+      tester,
+      items: [_item(1, 'Losartan')],
+      outbox: outbox,
+      onResult: (value) => result = value,
+    );
+
+    await tester.tap(find.text('Đã uống'));
+    await tester.pumpAndSettle();
+
+    expect(find.byTooltip('Losartan đã uống'), findsOneWidget);
+    expect(find.text('Đóng'), findsOneWidget);
+    expect(result, isNull);
+    expect(outbox.scheduleIds, [1]);
+
+    await tester.tap(find.text('Đóng'));
+    await tester.pumpAndSettle();
+    expect(result, DoseReminderResult.confirmed);
+    expect(outbox.scheduleIds, [1]);
+  });
+
+  testWidgets('group success remains visible and prevents repeat enqueue',
+      (tester) async {
+    final outbox = _FakeDoseOutbox();
+    final items = [_item(1, 'Losartan'), _item(2, 'Metformin')];
+    await _pumpReminder(tester, items: items, outbox: outbox);
+
+    await tester.tap(find.text('Đã uống cả 2 thuốc'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Đóng'), findsOneWidget);
+    expect(outbox.scheduleIds, [1, 2]);
+    final confirmButton = tester.widget<FilledButton>(
+      find.widgetWithText(FilledButton, 'Đã uống cả 2 thuốc'),
+    );
+    expect(confirmButton.onPressed, isNull);
+  });
+
   testWidgets('snooze returns result and does not enqueue', (tester) async {
     final outbox = _FakeDoseOutbox();
     final scheduler = _FakeReminderScheduler();
@@ -129,6 +173,28 @@ void main() {
 
     expect(result, DoseReminderResult.skipped);
     expect(outbox.scheduleIds, isEmpty);
+  });
+
+  testWidgets('pending confirmation disables snooze and skip', (tester) async {
+    final completer = Completer<LocalDoseLog>();
+    final outbox = _FakeDoseOutbox(completer: completer);
+    await _pumpReminder(tester, items: [_item(1, 'Losartan')], outbox: outbox);
+
+    await tester.tap(find.text('Đã uống'));
+    await tester.pump();
+
+    final snooze = tester.widget<OutlinedButton>(
+      find.widgetWithText(OutlinedButton, 'Nhắc lại sau 10 phút'),
+    );
+    final skip = tester.widget<TextButton>(
+      find.widgetWithText(TextButton, 'Bỏ qua liều này'),
+    );
+    expect(snooze.onPressed, isNull);
+    expect(skip.onPressed, isNull);
+
+    completer.complete(_record(1));
+    await tester.pumpAndSettle();
+    expect(find.text('Đóng'), findsOneWidget);
   });
 
   testWidgets('route with invalid arguments renders safe error',
@@ -266,9 +332,11 @@ DoseReminderItem _item(int id, String name) {
 }
 
 class _FakeDoseOutbox implements DoseOutbox {
-  _FakeDoseOutbox({Set<int>? failOnceFor}) : _failOnceFor = failOnceFor ?? {};
+  _FakeDoseOutbox({Set<int>? failOnceFor, this.completer})
+      : _failOnceFor = failOnceFor ?? {};
 
   final Set<int> _failOnceFor;
+  final Completer<LocalDoseLog>? completer;
   final List<int> scheduleIds = [];
 
   @override
@@ -281,19 +349,30 @@ class _FakeDoseOutbox implements DoseOutbox {
     if (_failOnceFor.remove(medicationScheduleId)) {
       throw StateError('write failed');
     }
-    return LocalDoseLog(
-      clientUuid: 'uuid-$medicationScheduleId',
-      medicationScheduleId: medicationScheduleId,
-      scheduledAt: scheduledAt,
-      takenAt: takenAt,
-      status: DoseLogStatus.taken,
-      syncState: DoseLogSyncState.pendingUpload,
-      localUpdatedAt: takenAt,
-    );
+    if (completer case final pending?) return pending.future;
+    return _record(medicationScheduleId,
+        scheduledAt: scheduledAt, takenAt: takenAt);
   }
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+LocalDoseLog _record(
+  int medicationScheduleId, {
+  DateTime? scheduledAt,
+  DateTime? takenAt,
+}) {
+  final persistedAt = takenAt ?? DateTime.utc(2026, 10, 7, 13, 5);
+  return LocalDoseLog(
+    clientUuid: 'uuid-$medicationScheduleId',
+    medicationScheduleId: medicationScheduleId,
+    scheduledAt: scheduledAt ?? DateTime.utc(2026, 9, 25, 13),
+    takenAt: persistedAt,
+    status: DoseLogStatus.taken,
+    syncState: DoseLogSyncState.pendingUpload,
+    localUpdatedAt: persistedAt,
+  );
 }
 
 class _SnoozeCall {

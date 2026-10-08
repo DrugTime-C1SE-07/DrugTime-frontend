@@ -34,6 +34,7 @@ class DoseReminderController extends ChangeNotifier {
 
   bool _confirmingGroup = false;
   bool _snoozing = false;
+  bool _disposed = false;
   String? _message;
 
   DoseReminderItemStatus statusOf(DoseReminderItem item) =>
@@ -43,12 +44,19 @@ class DoseReminderController extends ChangeNotifier {
   String? get message => _message;
   bool get isConfirmingGroup => _confirmingGroup;
   bool get isSnoozing => _snoozing;
+  bool get isConfirming =>
+      _confirmingGroup ||
+      _statuses.values.contains(DoseReminderItemStatus.saving);
+  bool get isBusy => isConfirming || _snoozing;
   bool get allConfirmed => group.items.every(
         (item) => statusOf(item) == DoseReminderItemStatus.confirmed,
       );
 
   /// Persists one occurrence unless it is already saving or confirmed.
-  Future<bool> confirmItem(DoseReminderItem item) => _confirm(item);
+  Future<bool> confirmItem(DoseReminderItem item) {
+    if (isBusy) return Future.value(false);
+    return _confirm(item);
+  }
 
   Future<bool> _confirm(DoseReminderItem item) async {
     final current = statusOf(item);
@@ -59,7 +67,7 @@ class DoseReminderController extends ChangeNotifier {
 
     _statuses[item.occurrenceKey] = DoseReminderItemStatus.saving;
     _message = null;
-    notifyListeners();
+    _notify();
 
     try {
       final record = await _outbox.enqueue(
@@ -69,22 +77,22 @@ class DoseReminderController extends ChangeNotifier {
       );
       _records[item.occurrenceKey] = record;
       _statuses[item.occurrenceKey] = DoseReminderItemStatus.confirmed;
-      notifyListeners();
+      _notify();
       return true;
     } catch (_) {
       _statuses[item.occurrenceKey] = DoseReminderItemStatus.failed;
       _message = 'Không thể lưu xác nhận. Vui lòng thử lại.';
-      notifyListeners();
+      _notify();
       return false;
     }
   }
 
   /// Confirms every unconfirmed occurrence and preserves partial successes.
   Future<bool> confirmAll() async {
-    if (_confirmingGroup) return false;
+    if (isBusy) return false;
     _confirmingGroup = true;
     _message = null;
-    notifyListeners();
+    _notify();
 
     var succeeded = true;
     try {
@@ -98,16 +106,16 @@ class DoseReminderController extends ChangeNotifier {
       return succeeded && allConfirmed;
     } finally {
       _confirmingGroup = false;
-      notifyListeners();
+      _notify();
     }
   }
 
   /// Schedules every occurrence in the group ten minutes from the injected clock.
   Future<bool> snooze() async {
-    if (_snoozing) return false;
+    if (isBusy) return false;
     _snoozing = true;
     _message = null;
-    notifyListeners();
+    _notify();
 
     final remindAt = _clock().toUtc().add(const Duration(minutes: 10));
     try {
@@ -124,10 +132,20 @@ class DoseReminderController extends ChangeNotifier {
       return false;
     } finally {
       _snoozing = false;
-      notifyListeners();
+      _notify();
     }
   }
 
   /// Closes the reminder without writing a taken or missed dose.
-  DoseReminderResult skip() => DoseReminderResult.skipped;
+  DoseReminderResult? skip() => isBusy ? null : DoseReminderResult.skipped;
+
+  void _notify() {
+    if (!_disposed) notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    _disposed = true;
+    super.dispose();
+  }
 }
