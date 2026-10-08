@@ -12,6 +12,7 @@ import 'package:drugtime_mobile/features/auth/presentation/widgets/phone_input_f
 import 'package:drugtime_mobile/features/consent/presentation/screens/consent_screen.dart';
 import 'package:drugtime_mobile/main.dart' as app;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 /// Số thử `test_otp` của Supabase local (`backend/supabase/config.toml`): không gửi SMS thật.
@@ -35,7 +36,11 @@ final homeShell = find.byType(AppShell);
 Future<void> clearSession() => SecureAuthSessionStore().clear();
 
 /// Mở app bằng `main()` thật (lặp lại được để giả lập mở lại app với cùng bộ nhớ thiết bị).
+///
+/// Tháo cây widget cũ trước: nếu gọi `runApp` lần hai với cùng kiểu widget gốc, Flutter giữ State
+/// cũ (không chạy lại `initState`), app không đọc lại phiên đã lưu và vẫn nghe AuthController cũ.
 Future<void> startApp(WidgetTester tester) async {
+  await tester.pumpWidget(const SizedBox.shrink());
   app.main();
   await tester.pump();
 }
@@ -52,7 +57,34 @@ Future<void> waitFor(
     await tester.pump(_step);
     if (finder.evaluate().isNotEmpty) return;
   }
-  fail('Hết ${timeout.inSeconds} giây mà chưa thấy: ${finder.describeMatch(Plurality.zero)}');
+  fail('Hết ${timeout.inSeconds} giây mà chưa thấy: ${finder.describeMatch(Plurality.zero)}. '
+      'Đang hiển thị: ${_visibleScreens()}. Chữ trên màn: ${_visibleTexts()}');
+}
+
+/// Tối đa 20 chuỗi chữ đang hiển thị (bỏ trùng), để đọc được thông báo lỗi thực tế khi hết giờ chờ.
+String _visibleTexts() {
+  final texts = <String>{
+    for (final element in find.byType(Text).hitTestable().evaluate())
+      if ((element.widget as Text).data case final data? when data.trim().isNotEmpty) data.trim(),
+  };
+  return texts.take(20).map((t) => '"$t"').join(', ');
+}
+
+/// Tên các màn chính đang có trên cây widget, để biết test kẹt ở đâu khi hết giờ chờ.
+String _visibleScreens() {
+  final screens = {
+    'Đăng nhập': loginScreen,
+    'OTP': otpScreen,
+    'Hồ sơ': profileScreen,
+    'Consent': consentScreen,
+    'Trang chủ (AppShell)': homeShell,
+    'Dialog': find.byType(Dialog),
+  };
+  final shown = [
+    for (final entry in screens.entries)
+      if (entry.value.evaluate().isNotEmpty) entry.key,
+  ];
+  return shown.isEmpty ? '(không có màn nào trong danh sách)' : shown.join(', ');
 }
 
 /// Pump trong [duration] để UI cập nhật mà không cần chờ một widget cụ thể.
@@ -71,13 +103,36 @@ Future<void> tapVisible(WidgetTester tester, Finder finder) async {
 }
 
 /// Nhập số điện thoại, tick điều khoản (nếu chưa), bấm "Gửi mã OTP". Không chờ màn OTP.
+/// Gõ [text] vào ô [field] như người dùng.
+///
+/// Trên thiết bị, sau khi ô bị bỏ focus bằng code (gửi OTP, xác thực) rồi được dùng lại, kênh nhập
+/// phím giả lập của integration_test có lúc không còn gắn vào ô và `enterText` không đổi được nội
+/// dung (đã kiểm: ô giữ nguyên chữ cũ). Khi đó áp đúng `inputFormatters` của ô lên [text] rồi đặt
+/// qua controller — app nghe controller nên phản ứng như khi gõ; việc gõ bằng bàn phím thật được
+/// kiểm tay.
+Future<void> typeInto(WidgetTester tester, Finder field, String text) async {
+  await tester.tap(field, warnIfMissed: false);
+  await tester.pump(_step);
+  await tester.enterText(field, text);
+  await tester.pump(_step);
+  final widget = tester.widget<TextField>(field);
+  var expected = TextEditingValue(text: text, selection: TextSelection.collapsed(offset: text.length));
+  for (final formatter in widget.inputFormatters ?? const <TextInputFormatter>[]) {
+    expected = formatter.formatEditUpdate(TextEditingValue.empty, expected);
+  }
+  if (widget.controller!.text != expected.text) {
+    widget.controller!.value = expected;
+    await tester.pump(_step);
+  }
+}
+
 Future<void> submitPhone(WidgetTester tester, String raw) async {
   await waitFor(tester, loginScreen);
-  await tester.enterText(
+  await typeInto(
+    tester,
     find.descendant(of: find.byType(PhoneInputField), matching: find.byType(TextField)),
     raw,
   );
-  await tester.pump(_step);
   final checkbox = find.byKey(const Key('terms-checkbox'));
   if (tester.widget<Checkbox>(checkbox).value != true) {
     await tapVisible(tester, checkbox);
@@ -85,13 +140,12 @@ Future<void> submitPhone(WidgetTester tester, String raw) async {
   await tapVisible(tester, find.text('Gửi mã OTP'));
 }
 
+/// Nhập mã như người dùng: xóa mã cũ rồi gõ mã mới. Đủ 6 số thì app tự gửi xác thực.
 Future<void> enterOtp(WidgetTester tester, String code) async {
   await waitFor(tester, otpScreen);
-  await tester.enterText(
-    find.descendant(of: otpScreen, matching: find.byType(TextField)),
-    code,
-  );
-  await tester.pump(_step);
+  final field = find.descendant(of: otpScreen, matching: find.byType(TextField));
+  await typeInto(tester, field, '');
+  await typeInto(tester, field, code);
 }
 
 /// Đăng nhập trọn vẹn bằng số thử; dừng khi đã rời màn OTP (sang màn Hồ sơ hoặc Trang chủ).
@@ -115,8 +169,7 @@ Future<void> acceptConsent(WidgetTester tester) async {
 
 Future<void> enterFullName(WidgetTester tester, String name) async {
   await waitFor(tester, profileScreen);
-  await tester.enterText(find.byKey(const Key('profile-full-name')), name);
-  await tester.pump(_step);
+  await typeInto(tester, find.byKey(const Key('profile-full-name')), name);
 }
 
 /// Mở date picker và chọn ngày mặc định của app (năm hiện tại − 60).

@@ -1,5 +1,6 @@
 // E2E pha 2 (AC19, AC20 phần số điện thoại). Số thử đã có hồ sơ và consent từ pha 1; sau pha,
 // script kiểm vẫn chỉ có một dòng `users` cho số thử, cùng `user_id` với pha 1.
+import 'package:drugtime_mobile/features/auth/presentation/widgets/phone_input_field.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
@@ -41,11 +42,12 @@ void main() {
 
     // Cách lần gửi OTP ở test trước ít nhất 5 giây (giới hạn của Supabase local).
     await pumpFor(tester, otpResendGap);
-    await submitPhone(tester, '0900 000 001');
-    final field = tester.widget<TextField>(
-      find.descendant(of: loginScreen, matching: find.byType(TextField)).first,
-    );
-    expect(field.controller?.text, '0900000001');
+    final phoneField =
+        find.descendant(of: find.byType(PhoneInputField), matching: find.byType(TextField));
+    await typeInto(tester, phoneField, '0900 000 001');
+    // Ô chỉ giữ chữ số rồi tự nhóm 3-3-4 khi hiển thị; app bỏ khoảng trắng trước khi gửi.
+    expect(tester.widget<TextField>(phoneField).controller?.text, '090 000 0001');
+    await tapVisible(tester, find.text('Gửi mã OTP'));
     await enterOtp(tester, testPhoneOtp);
     await waitFor(tester, homeShell);
     await logout(tester);
