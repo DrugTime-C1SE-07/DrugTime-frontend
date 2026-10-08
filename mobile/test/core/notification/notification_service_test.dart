@@ -28,6 +28,27 @@ class MockNotificationPlatform implements NotificationPlatform {
       AndroidNotificationChannel channel) async {
     createdChannels.add(channel);
   }
+
+  @override
+  Future<void> zonedSchedule(
+    int id,
+    String? title,
+    String? body,
+    tz.TZDateTime scheduledDate,
+    NotificationDetails notificationDetails, {
+    required AndroidScheduleMode androidScheduleMode,
+    required UILocalNotificationDateInterpretation
+        uiLocalNotificationDateInterpretation,
+    String? payload,
+    DateTimeComponents? matchDateTimeComponents,
+  }) async {}
+
+  @override
+  Future<void> cancel(int id, {String? tag}) async {}
+
+  @override
+  Future<List<PendingNotificationRequest>>
+      pendingNotificationRequests() async => [];
 }
 
 void main() {

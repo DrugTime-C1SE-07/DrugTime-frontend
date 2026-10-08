@@ -11,6 +11,23 @@ abstract class NotificationPlatform {
   });
 
   Future<void> createNotificationChannel(AndroidNotificationChannel channel);
+
+  Future<void> zonedSchedule(
+    int id,
+    String? title,
+    String? body,
+    tz.TZDateTime scheduledDate,
+    NotificationDetails notificationDetails, {
+    required AndroidScheduleMode androidScheduleMode,
+    required UILocalNotificationDateInterpretation
+        uiLocalNotificationDateInterpretation,
+    String? payload,
+    DateTimeComponents? matchDateTimeComponents,
+  });
+
+  Future<void> cancel(int id, {String? tag});
+
+  Future<List<PendingNotificationRequest>> pendingNotificationRequests();
 }
 
 /// Cài đặt mặc định của [NotificationPlatform] sử dụng [FlutterLocalNotificationsPlugin].
@@ -39,6 +56,43 @@ class DefaultNotificationPlatform implements NotificationPlatform {
         .resolvePlatformSpecificImplementation<
             AndroidFlutterLocalNotificationsPlugin>()
         ?.createNotificationChannel(channel);
+  }
+
+  @override
+  Future<void> zonedSchedule(
+    int id,
+    String? title,
+    String? body,
+    tz.TZDateTime scheduledDate,
+    NotificationDetails notificationDetails, {
+    required AndroidScheduleMode androidScheduleMode,
+    required UILocalNotificationDateInterpretation
+        uiLocalNotificationDateInterpretation,
+    String? payload,
+    DateTimeComponents? matchDateTimeComponents,
+  }) {
+    return _plugin.zonedSchedule(
+      id,
+      title,
+      body,
+      scheduledDate,
+      notificationDetails,
+      androidScheduleMode: androidScheduleMode,
+      uiLocalNotificationDateInterpretation:
+          uiLocalNotificationDateInterpretation,
+      payload: payload,
+      matchDateTimeComponents: matchDateTimeComponents,
+    );
+  }
+
+  @override
+  Future<void> cancel(int id, {String? tag}) {
+    return _plugin.cancel(id, tag: tag);
+  }
+
+  @override
+  Future<List<PendingNotificationRequest>> pendingNotificationRequests() {
+    return _plugin.pendingNotificationRequests();
   }
 }
 
