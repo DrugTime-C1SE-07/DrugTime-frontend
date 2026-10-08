@@ -1,52 +1,72 @@
+"use client";
+
 import { AlertTriangle, ClipboardCheck, Database, ShieldCheck } from "lucide-react";
 
-const stats = [
-  {
-    tone: "blue",
-    label: "Tổng số bản ghi",
-    value: "14,850",
-    icon: Database,
-  },
-  {
-    tone: "green",
-    label: "Đã xác thực",
-    value: "14,422",
-    percent: "97.1%",
-    icon: ShieldCheck,
-  },
-  {
-    tone: "blue",
-    label: "Cào mới / Cần thẩm định",
-    value: "286",
-    percent: "1.9%",
-    icon: ClipboardCheck,
-  },
-  {
-    tone: "red",
-    label: "Thiếu thông tin",
-    value: "142",
-    percent: "1.0%",
-    icon: AlertTriangle,
-  },
-];
+interface MedicationStatsGridProps {
+  stats?: {
+    total: number;
+    verified: number;
+    pending: number;
+    missing: number;
+  };
+}
 
-export default function MedicationStatsGrid() {
+export default function MedicationStatsGrid({ stats }: MedicationStatsGridProps) {
+  const total = stats?.total ?? 14850;
+  const verified = stats?.verified ?? 14422;
+  const pending = stats?.pending ?? 286;
+  const missing = stats?.missing ?? 142;
+
+  const verifiedPercent = total > 0 ? ((verified / total) * 100).toFixed(1) + "%" : "0%";
+  const pendingPercent = total > 0 ? ((pending / total) * 100).toFixed(1) + "%" : "0%";
+  const missingPercent = total > 0 ? ((missing / total) * 100).toFixed(1) + "%" : "0%";
+
+  const items = [
+    {
+      tone: "neutral" as const,
+      label: "TỔNG SỐ BẢN GHI",
+      value: total.toLocaleString("vi-VN"),
+      icon: Database,
+    },
+    {
+      tone: "green" as const,
+      label: "ĐÃ XÁC THỰC",
+      value: verified.toLocaleString("vi-VN"),
+      percent: verifiedPercent,
+      icon: ShieldCheck,
+    },
+    {
+      tone: "blue" as const,
+      label: "DỮ LIỆU CÀO / CẦN DUYỆT",
+      value: pending.toLocaleString("vi-VN"),
+      percent: pendingPercent,
+      icon: ClipboardCheck,
+    },
+    {
+      tone: "red" as const,
+      label: "THIẾU THÔNG TIN",
+      value: missing.toLocaleString("vi-VN"),
+      percent: missingPercent,
+      icon: AlertTriangle,
+    },
+  ];
+
   return (
     <div className="medication-stats-grid">
-      {stats.map((stat) => {
+      {items.map((stat) => {
         const Icon = stat.icon;
 
         return (
           <article className={`medication-stat medication-stat--${stat.tone}`} key={stat.label}>
-            <div>
-              <span>{stat.label}</span>
+            <div className="medication-stat__content">
+              <span className="medication-stat__label">{stat.label}</span>
               <strong>{stat.value}</strong>
             </div>
             <div className="medication-stat__side">
-              {stat.percent ? <em>{stat.percent}</em> : null}
-              <span aria-hidden="true">
-                <Icon size={30} strokeWidth={2.4} />
-              </span>
+              {stat.percent ? <em className="medication-stat__badge">{stat.percent}</em> : null}
+              <div className="medication-stat__icon-box" aria-hidden="true">
+                <Icon size={20} strokeWidth={2.2} />
+              </div>
             </div>
           </article>
         );

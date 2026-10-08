@@ -84,41 +84,49 @@ class _MyMedicationsScreenState extends State<MyMedicationsScreen> {
     final active = matches.where((m) => m.isActive).toList();
     final stopped = matches.where((m) => !m.isActive).toList();
     final lowStock = all.where((m) => m.isLowStock).toList();
+    final loadError = controller.loadError;
+
+    // Tải xong, không lỗi, chưa có thuốc: chỉ còn lời mời "Thêm thuốc mới" ở giữa, không cần
+    // ô tìm kiếm, link tra cứu hay bộ lọc.
+    final emptyList = all.isEmpty && loadError == null && !controller.isLoading;
+    // Nút "Thêm" ở header trùng với nút của empty-state (chưa có thuốc, hoặc tìm không khớp).
+    final showsEmptyState = emptyList || (all.isNotEmpty && matches.isEmpty);
 
     final children = <Widget>[
-      _Header(onAdd: _openAddMedication),
+      _Header(showAdd: !showsEmptyState, onAdd: _openAddMedication),
       if (lowStock.isNotEmpty) ...[
         const SizedBox(height: AppSpacing.lg),
         LowStockBanner(medications: lowStock),
       ],
-      const SizedBox(height: AppSpacing.lg),
-      _SearchField(
-        controller: _searchController,
-        onChanged: (v) => setState(() => _query = v),
-        onClear: _clearSearch,
-      ),
-      Align(
-        alignment: Alignment.centerLeft,
-        child: TextButton.icon(
-          onPressed: () => _showNotBuilt('Danh mục thuốc'),
-          style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xs)),
-          icon: const Icon(Icons.menu_book_outlined, size: 20),
-          label: const Text('Tra cứu danh mục thuốc'),
+      if (!emptyList) ...[
+        const SizedBox(height: AppSpacing.lg),
+        _SearchField(
+          controller: _searchController,
+          onChanged: (v) => setState(() => _query = v),
+          onClear: _clearSearch,
         ),
-      ),
-      const SizedBox(height: AppSpacing.sm),
-      MedicationFilterBar(
-        selected: _filter,
-        counts: {
-          MedicationFilter.all: matches.length,
-          MedicationFilter.active: active.length,
-          MedicationFilter.stopped: stopped.length,
-        },
-        onChanged: (f) => setState(() => _filter = f),
-      ),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: TextButton.icon(
+            onPressed: () => _showNotBuilt('Danh mục thuốc'),
+            style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xs)),
+            icon: const Icon(Icons.menu_book_outlined, size: 20),
+            label: const Text('Tra cứu danh mục thuốc'),
+          ),
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        MedicationFilterBar(
+          selected: _filter,
+          counts: {
+            MedicationFilter.all: matches.length,
+            MedicationFilter.active: active.length,
+            MedicationFilter.stopped: stopped.length,
+          },
+          onChanged: (f) => setState(() => _filter = f),
+        ),
+      ],
     ];
 
-    final loadError = controller.loadError;
     if (loadError != null) {
       children
         ..add(const SizedBox(height: AppSpacing.lg))
@@ -199,8 +207,10 @@ class _MyMedicationsScreenState extends State<MyMedicationsScreen> {
 }
 
 class _Header extends StatelessWidget {
-  const _Header({required this.onAdd});
+  const _Header({required this.showAdd, required this.onAdd});
 
+  /// Ẩn khi màn đang hiện nút "Thêm thuốc mới" ở giữa, để không có hai nút cùng việc.
+  final bool showAdd;
   final VoidCallback onAdd;
 
   @override
@@ -219,13 +229,15 @@ class _Header extends StatelessWidget {
             ],
           ),
         ),
-        const SizedBox(width: AppSpacing.md),
-        // Nút có chữ thay cho dấu "+" trơn: người lớn tuổi hiểu ngay.
-        FilledButton.icon(
-          onPressed: onAdd,
-          icon: const Icon(Icons.add),
-          label: const Text('Thêm'),
-        ),
+        if (showAdd) ...[
+          const SizedBox(width: AppSpacing.md),
+          // Nút có chữ thay cho dấu "+" trơn: người lớn tuổi hiểu ngay.
+          FilledButton.icon(
+            onPressed: onAdd,
+            icon: const Icon(Icons.add),
+            label: const Text('Thêm'),
+          ),
+        ],
       ],
     );
   }

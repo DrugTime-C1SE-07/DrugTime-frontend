@@ -1,6 +1,9 @@
 import 'package:drugtime_mobile/app/app_shell.dart';
+import 'package:drugtime_mobile/app/router.dart';
 import 'package:drugtime_mobile/features/consent/domain/entities/consent.dart';
 import 'package:drugtime_mobile/features/consent/presentation/screens/consent_screen.dart';
+import 'package:drugtime_mobile/features/consent/presentation/screens/legal_document_screen.dart';
+import 'package:drugtime_mobile/features/consent/presentation/screens/privacy_settings_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -30,7 +33,7 @@ void main() {
     await pumpConsentApp(tester, consents: RecordingConsentRepository());
 
     expect(find.byType(ConsentScreen), findsOneWidget);
-    for (final purpose in ConsentPurpose.values) {
+    for (final purpose in ConsentPurpose.toggleable) {
       expect(consentSwitch(purpose), findsOneWidget);
       expect(switchValue(tester, purpose), isFalse);
     }
@@ -112,5 +115,38 @@ void main() {
 
     expect(meds.fetchCount, greaterThan(before));
     expect(find.textContaining('cần bạn đồng ý'), findsNothing);
+  });
+
+  group('AC23: điều khoản không phải công tắc', () {
+    testWidgets('màn đồng ý: server có terms nhưng không có công tắc terms', (tester) async {
+      await pumpConsentApp(tester, consents: RecordingConsentRepository());
+
+      expect(find.byType(ConsentScreen), findsOneWidget);
+      expect(consentSwitch(ConsentPurpose.terms), findsNothing);
+      expect(find.byType(Switch), findsNWidgets(3));
+    });
+
+    testWidgets('màn Quyền riêng tư: không có công tắc terms, có link hai văn bản', (tester) async {
+      final repo = RecordingConsentRepository(granted: {ConsentPurpose.healthData});
+      await pumpConsentApp(tester, consents: repo, initialRoute: AppRoutes.privacySettings);
+
+      expect(find.byType(PrivacySettingsScreen), findsOneWidget);
+      expect(consentSwitch(ConsentPurpose.terms), findsNothing);
+      expect(find.byType(Switch), findsNWidgets(3));
+
+      for (final (key, title) in [
+        ('privacy-link-terms', 'Điều khoản dịch vụ'),
+        ('privacy-link-privacy', 'Chính sách quyền riêng tư'),
+      ]) {
+        await tester.ensureVisible(find.byKey(Key(key)));
+        await tester.tap(find.byKey(Key(key)));
+        await tester.pumpAndSettle();
+        expect(find.byType(LegalDocumentScreen), findsOneWidget);
+        expect(find.widgetWithText(AppBar, title), findsOneWidget);
+        await tester.tap(find.byType(BackButton));
+        await tester.pumpAndSettle();
+      }
+      expect(repo.writes, isEmpty);
+    });
   });
 }

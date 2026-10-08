@@ -171,4 +171,44 @@ void main() {
     expect(await repo.getCurrentSession(), isNull);
     expect(notified, greaterThan(0));
   });
+
+  group('termsAccepted', () {
+    Future<AuthController> signedIn() async {
+      final controller = AuthController(InMemoryAuthRepository(
+          initialSession: _session(profileComplete: true), simulatedDelay: Duration.zero));
+      await controller.initSession();
+      return controller;
+    }
+
+    test('mặc định false; setTermsAccepted đổi giá trị và báo listener', () {
+      final controller = AuthController(InMemoryAuthRepository(simulatedDelay: Duration.zero));
+      var notified = 0;
+      controller.addListener(() => notified++);
+
+      expect(controller.termsAccepted, isFalse);
+      controller.setTermsAccepted(true);
+      controller.setTermsAccepted(true);
+
+      expect(controller.termsAccepted, isTrue);
+      expect(notified, 1);
+    });
+
+    test('signOut đặt lại false', () async {
+      final controller = await signedIn();
+      controller.setTermsAccepted(true);
+
+      await controller.signOut();
+
+      expect(controller.termsAccepted, isFalse);
+    });
+
+    test('handleUnauthorized (401) đặt lại false', () async {
+      final controller = await signedIn();
+      controller.setTermsAccepted(true);
+
+      await controller.handleUnauthorized();
+
+      expect(controller.termsAccepted, isFalse);
+    });
+  });
 }

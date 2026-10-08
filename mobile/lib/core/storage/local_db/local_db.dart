@@ -27,7 +27,7 @@ class LocalDb {
       dbPath,
       password: dbPassword,
       version: 1,
-      onCreate: _createSchema,
+      onCreate: createSchema,
     );
 
     return _database!;
@@ -43,7 +43,7 @@ class LocalDb {
     return path.join(basePath, 'drugtime_local_store.db');
   }
 
-  Future<void> _createSchema(Database db, int version) async {
+  static Future<void> createSchema(Database db, int version) async {
     await db.execute('''
       CREATE TABLE $schedulesTable (
         id INTEGER PRIMARY KEY,

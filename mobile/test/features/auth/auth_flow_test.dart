@@ -8,9 +8,15 @@ import 'package:drugtime_mobile/features/auth/presentation/screens/complete_prof
 import 'package:drugtime_mobile/features/auth/presentation/screens/login_mobile_screen.dart';
 import 'package:drugtime_mobile/features/auth/presentation/screens/otp_verification_screen.dart';
 import 'package:drugtime_mobile/features/auth/presentation/state/auth_controller.dart';
+import 'package:drugtime_mobile/features/auth/presentation/widgets/phone_input_field.dart';
+import 'package:drugtime_mobile/features/consent/data/repositories/in_memory_consent_repository.dart';
+import 'package:drugtime_mobile/features/consent/domain/entities/consent.dart';
+import 'package:drugtime_mobile/features/consent/presentation/screens/terms_update_screen.dart';
 import 'package:drugtime_mobile/features/medication/data/repositories/in_memory_medication_repository.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+import '../consent/consent_test_helpers.dart';
 
 AuthSession _session({required bool profileComplete}) => AuthSession(
       userId: 'u-1',
@@ -27,6 +33,7 @@ Future<AuthController> _pumpApp(
   InMemoryAuthRepository repo, {
   AuthController? controller,
   String? initialRoute,
+  InMemoryConsentRepository? consents,
 }) async {
   tester.view.physicalSize = const Size(375, 812);
   tester.view.devicePixelRatio = 1;
@@ -35,6 +42,7 @@ Future<AuthController> _pumpApp(
   final auth = controller ?? AuthController(repo);
   await tester.pumpWidget(DrugTimeApp(
     authController: auth,
+    consentRepository: consents,
     medicationRepository: InMemoryMedicationRepository(),
     initialRoute: initialRoute,
   ));
@@ -63,6 +71,50 @@ void main() {
 
     expect(find.byType(LoginMobileScreen), findsOneWidget);
     expect(find.byType(AppShell), findsNothing);
+  });
+
+  Future<void> enterPhoneAndSend(WidgetTester tester, {required bool tick}) async {
+    await tester.enterText(
+      find.descendant(of: find.byType(PhoneInputField), matching: find.byType(TextField)),
+      '0900000001',
+    );
+    if (tick) {
+      await tester.ensureVisible(find.byKey(const Key('terms-checkbox')));
+      await tester.tap(find.byKey(const Key('terms-checkbox')));
+      await tester.pumpAndSettle();
+    }
+    await tester.ensureVisible(find.text('Gửi mã OTP'));
+    await tester.tap(find.text('Gửi mã OTP'));
+    await tester.pumpAndSettle();
+  }
+
+  testWidgets('(h) màn Đăng nhập chưa tick điều khoản → không gửi OTP', (tester) async {
+    final repo = _repo();
+    await _pumpApp(tester, repo);
+
+    await enterPhoneAndSend(tester, tick: false);
+
+    expect(repo.requestedPhoneOtps, isEmpty);
+    expect(find.byType(LoginMobileScreen), findsOneWidget);
+    expect(find.byType(OtpVerificationScreen), findsNothing);
+  });
+
+  testWidgets('(i) AC19: tick → OTP đúng → ghi terms một lần, không hỏi lại điều khoản',
+      (tester) async {
+    final repo = _repo()..verifiedProfileComplete = true;
+    final consents = RecordingConsentRepository(
+      granted: {ConsentPurpose.healthData},
+      termsAccepted: false,
+    );
+    await _pumpApp(tester, repo, consents: consents);
+
+    await enterPhoneAndSend(tester, tick: true);
+    expect(repo.requestedPhoneOtps, ['+84900000001']);
+    await _enterOtp(tester, '123456');
+
+    expect(find.byType(AppShell), findsOneWidget);
+    expect(find.byType(TermsUpdateScreen), findsNothing);
+    expect(consents.writes, ['grant:terms']);
   });
 
   testWidgets('(b) OTP đúng, người mới → màn hồ sơ → lưu → Trang chủ', (tester) async {

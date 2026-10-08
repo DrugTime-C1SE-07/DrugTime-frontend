@@ -8,11 +8,15 @@ import '../../domain/entities/consent.dart';
 import '../../domain/entities/consent_failure.dart';
 
 abstract final class ConsentApiMapper {
-  /// `Consent` → [ConsentState].
+  /// `Consent` → [ConsentState]. Dùng cho phản hồi grant/withdraw: server trả đúng mục đích
+  /// app vừa gửi, nên mục đích lạ là lỗi định dạng.
   static ConsentState consentFromJson(Map<String, dynamic> json) {
+    final value = json['purpose'] as String;
+    final purpose = ConsentPurpose.tryFromApi(value) ??
+        (throw FormatException('Unknown consent purpose: $value'));
     final grantedAt = json['granted_at'] as String?;
     return ConsentState(
-      purpose: ConsentPurpose.fromApi(json['purpose'] as String),
+      purpose: purpose,
       granted: json['status'] == 'granted',
       grantedAt: grantedAt == null ? null : DateTime.parse(grantedAt),
       documentVersion: json['document_version'] as String?,
@@ -20,15 +24,19 @@ abstract final class ConsentApiMapper {
     );
   }
 
-  /// `ConsentList` → danh sách theo thứ tự server trả.
+  /// `ConsentList` → danh sách theo thứ tự server trả, bỏ mục đích app chưa biết (contract:
+  /// client phải bỏ qua giá trị lạ).
   static List<ConsentState> consentListFromJson(Object? json) {
     final items = ((json as Map<String, dynamic>)['items'] as List).cast<Map<String, dynamic>>();
-    return items.map(consentFromJson).toList(growable: false);
+    return [
+      for (final item in items)
+        if (ConsentPurpose.tryFromApi(item['purpose'] as String) != null) consentFromJson(item),
+    ];
   }
 
   static Map<String, Object?> grantBody(ConsentPurpose purpose) => {
         'purpose': purpose.apiValue,
-        'document_version': consentDocumentVersion,
+        'document_version': purpose.documentVersion,
       };
 
   static ConsentFailure failureFrom(ApiException error) {

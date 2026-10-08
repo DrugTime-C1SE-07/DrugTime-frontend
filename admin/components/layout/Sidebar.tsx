@@ -47,6 +47,7 @@ const sidebarItems: SidebarItem[] = [
     label: "Đối soát OCR",
     href: "/dashboard/ocr-review",
     icon: ScanText,
+    badge: 3,
   },
 ];
 
@@ -76,6 +77,14 @@ export default function Sidebar() {
         </div>
       </div>
 
+      <div className="admin-sidebar__status" aria-label="Trạng thái hệ thống: Hoạt động v1.2">
+        <div className="admin-sidebar__status-left">
+          <span className="admin-sidebar__status-dot" aria-hidden="true" />
+          <span>Hệ thống hoạt động</span>
+        </div>
+        <span className="admin-sidebar__status-version">v1.2</span>
+      </div>
+
       <nav className="admin-sidebar__nav">
         {sidebarItems.map((item) => {
           const Icon = item.icon;
@@ -88,7 +97,7 @@ export default function Sidebar() {
               href={item.href}
               aria-current={active ? "page" : undefined}
             >
-              <Icon size={20} strokeWidth={2.4} />
+              <Icon size={18} strokeWidth={2} />
               <span>{item.label}</span>
               {item.badge ? (
                 <span className="admin-sidebar__badge" aria-label={`${item.badge} mục cần xử lý`}>
@@ -102,13 +111,13 @@ export default function Sidebar() {
 
       <div className="admin-sidebar__account">
         <div className="admin-sidebar__avatar" aria-hidden="true">
-          <UserRound size={18} strokeWidth={2.4} />
+          <UserRound size={16} strokeWidth={2.2} />
         </div>
         <div className="admin-sidebar__account-text">
-          <strong>DS. Lê Minh Trí</strong>
-          <span>Quản trị Dữ liệu Dược</span>
+          <strong>Quản trị viên</strong>
+          <span>DrugTime Admin</span>
         </div>
-        <LogoutButton className="admin-sidebar__logout" iconSize={18} />
+        <LogoutButton className="admin-sidebar__logout" iconSize={16} />
       </div>
     </aside>
   );

@@ -1,14 +1,18 @@
 import 'package:flutter/material.dart';
 
 import '../features/consent/presentation/screens/consent_screen.dart';
+import '../features/consent/presentation/screens/legal_document_screen.dart';
 import '../features/consent/presentation/screens/privacy_settings_screen.dart';
 import '../features/consent/presentation/widgets/consent_gate.dart';
+import '../features/consent/presentation/widgets/legal_texts.dart';
 import '../features/medication/data/repositories/in_memory_medication_repository.dart';
 import '../features/medication/domain/entities/medication.dart';
 import '../features/medication/presentation/screens/edit_medication_screen.dart';
 import '../features/medication/presentation/screens/medication_detail_screen.dart';
 import '../features/medication/presentation/screens/add_medication_screen.dart';
 import '../features/medication/presentation/screens/my_medications_screen.dart';
+import '../features/reminder/domain/entities/dose_reminder.dart';
+import '../features/reminder/presentation/screens/dose_reminder_screen.dart';
 import '../features/auth/presentation/screens/complete_profile_screen.dart';
 import '../features/auth/presentation/screens/email_otp_screen.dart';
 import '../features/auth/presentation/screens/login_mobile_screen.dart';
@@ -27,6 +31,9 @@ abstract final class AppRoutes {
   static const completeProfile = '/onboarding/profile';
   static const consent = '/onboarding/consent';
   static const privacySettings = '/settings/privacy';
+  static const termsOfService = '/legal/terms';
+  static const privacyPolicy = '/legal/privacy';
+  static const doseReminder = '/reminders/dose';
   static const devCatalog = '/dev-catalog';
 }
 
@@ -44,6 +51,14 @@ Route<dynamic>? onGenerateRoute(RouteSettings settings) {
     AppRoutes.privacySettings => MaterialPageRoute<void>(
         settings: settings,
         builder: (_) => const PrivacySettingsScreen(),
+      ),
+    AppRoutes.termsOfService => MaterialPageRoute<void>(
+        settings: settings,
+        builder: (_) => const LegalDocumentScreen(document: termsOfService),
+      ),
+    AppRoutes.privacyPolicy => MaterialPageRoute<void>(
+        settings: settings,
+        builder: (_) => const LegalDocumentScreen(document: privacyPolicy),
       ),
     AppRoutes.addMedication => MaterialPageRoute<Medication>(
         settings: settings,
@@ -89,12 +104,61 @@ Route<dynamic>? onGenerateRoute(RouteSettings settings) {
         settings: settings,
         builder: (_) => const CompleteProfileScreen(),
       ),
+    AppRoutes.doseReminder => MaterialPageRoute<DoseReminderResult>(
+        settings: settings,
+        fullscreenDialog: true,
+        builder: (_) {
+          final arguments = settings.arguments;
+          if (arguments is! DoseReminderRouteArguments) {
+            return const _InvalidDoseReminderRouteScreen();
+          }
+          return DoseReminderScreen(arguments: arguments);
+        },
+      ),
     AppRoutes.devCatalog => MaterialPageRoute<void>(
         settings: settings,
         builder: (_) => const DevUiCatalogScreen(),
       ),
     _ => null,
   };
+}
+
+/// Safe fallback when a notification opens the route without typed arguments.
+class _InvalidDoseReminderRouteScreen extends StatelessWidget {
+  const _InvalidDoseReminderRouteScreen();
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Nhắc uống thuốc')),
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.xl),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(
+                Icons.error_outline,
+                size: 48,
+                color: AppColors.danger,
+              ),
+              const SizedBox(height: AppSpacing.md),
+              const Text(
+                'Không thể mở thông tin liều thuốc.',
+                style: AppTextStyles.bodyStrong,
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: AppSpacing.lg),
+              FilledButton(
+                onPressed: () => Navigator.of(context).maybePop(),
+                child: const Text('Đóng'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 /// Màn hình Catalog dành cho Developer / Tester để duyệt nhanh qua tất cả các UI
@@ -122,6 +186,18 @@ class DevUiCatalogScreen extends StatelessWidget {
         description: 'Màn hình nhập mã OTP 6 số gửi qua hòm thư điện tử',
         badge: 'Auth',
         route: AppRoutes.otpEmail,
+      ),
+      const _UiItem(
+        title: 'Điều khoản dịch vụ',
+        description: 'Văn bản điều khoản, mở từ ô tick ở màn đăng nhập',
+        badge: 'Legal',
+        route: AppRoutes.termsOfService,
+      ),
+      const _UiItem(
+        title: 'Chính sách quyền riêng tư',
+        description: 'Văn bản chính sách, mở từ ô tick ở màn đăng nhập',
+        badge: 'Legal',
+        route: AppRoutes.privacyPolicy,
       ),
       const _UiItem(
         title: 'App Shell (Chính 5 tabs)',

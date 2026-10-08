@@ -3,6 +3,7 @@ import 'dart:io';
 
 import '../api/api_client.dart';
 import '../api/api_exception.dart';
+import '../contracts/dose_outbox.dart';
 import '../storage/local_db/local_medication_store.dart';
 import '../storage/local_db/local_models.dart';
 
@@ -242,6 +243,7 @@ class DoseOutboxSyncEngine {
     required LocalMedicationStore localStore,
     required DoseRemoteDataSource remoteDataSource,
     required ConnectivityMonitor connectivityMonitor,
+    DoseOutbox? outbox,
     int maxAttempts = 3,
     int batchSize = 10,
     List<Duration> backoffSchedule = const [
@@ -254,6 +256,7 @@ class DoseOutboxSyncEngine {
   })  : _localStore = localStore,
         _remoteDataSource = remoteDataSource,
         _connectivityMonitor = connectivityMonitor,
+        _outbox = outbox,
         _maxAttempts = maxAttempts,
         _batchSize = batchSize,
         _backoffSchedule = backoffSchedule,
@@ -263,6 +266,7 @@ class DoseOutboxSyncEngine {
   final LocalMedicationStore _localStore;
   final DoseRemoteDataSource _remoteDataSource;
   final ConnectivityMonitor _connectivityMonitor;
+  final DoseOutbox? _outbox;
   final int _maxAttempts;
   final int _batchSize;
   final List<Duration> _backoffSchedule;
@@ -310,7 +314,9 @@ class DoseOutboxSyncEngine {
     }
 
     while (!_disposed && await _connectivityMonitor.isOnline) {
-      final pendingLogs = await _localStore.getPendingDoseLogs();
+      final pendingLogs = _outbox != null
+          ? await _outbox.getPendingLogs()
+          : await _localStore.getPendingDoseLogs();
       if (pendingLogs.isEmpty) {
         return;
       }
@@ -324,13 +330,51 @@ class DoseOutboxSyncEngine {
     }
   }
 
+  Future<void> _markDoseLogSynced({
+    required String clientUuid,
+    required int? serverId,
+    required DateTime syncedAt,
+  }) async {
+    if (_outbox != null) {
+      await _outbox.markSynced(
+        clientUuid: clientUuid,
+        serverId: serverId,
+        syncedAt: syncedAt,
+      );
+    } else {
+      await _localStore.markDoseLogSynced(
+        clientUuid: clientUuid,
+        serverId: serverId,
+        syncedAt: syncedAt,
+      );
+    }
+  }
+
+  Future<void> _markDoseLogFailed({
+    required String clientUuid,
+    required String errorMessage,
+  }) async {
+    if (_outbox != null) {
+      await _outbox.markFailed(
+        clientUuid: clientUuid,
+        errorMessage: errorMessage,
+      );
+    } else {
+      await _localStore.markDoseLogFailed(
+        clientUuid: clientUuid,
+        errorMessage: errorMessage,
+      );
+    }
+  }
+
   Future<bool> _uploadBatchWithRetry(List<LocalDoseLog> doseLogs) async {
     Object? lastError;
 
     for (var attempt = 1; attempt <= _maxAttempts; attempt++) {
       try {
         final results = await _remoteDataSource.uploadDoses(doseLogs);
-        final requestedClientUuids = doseLogs.map((doseLog) => doseLog.clientUuid).toSet();
+        final requestedClientUuids =
+            doseLogs.map((doseLog) => doseLog.clientUuid).toSet();
         final resultByClientUuid = {
           for (final result in results)
             if (requestedClientUuids.contains(result.clientUuid))
@@ -346,7 +390,7 @@ class DoseOutboxSyncEngine {
           }
 
           if (result.isSynced) {
-            await _localStore.markDoseLogSynced(
+            await _markDoseLogSynced(
               clientUuid: doseLog.clientUuid,
               serverId: result.serverId ?? doseLog.id,
               syncedAt: result.syncedAt ?? _clock(),
@@ -355,7 +399,7 @@ class DoseOutboxSyncEngine {
           }
 
           if (result.isFailed) {
-            await _localStore.markDoseLogFailed(
+            await _markDoseLogFailed(
               clientUuid: doseLog.clientUuid,
               errorMessage: result.errorMessage ?? 'Dose upload failed',
             );
@@ -370,7 +414,7 @@ class DoseOutboxSyncEngine {
           }
 
           for (final doseLog in doseLogs) {
-            await _localStore.markDoseLogFailed(
+            await _markDoseLogFailed(
               clientUuid: doseLog.clientUuid,
               errorMessage: error.message,
             );
@@ -390,7 +434,7 @@ class DoseOutboxSyncEngine {
     // launch can retry without user intervention.
     if (lastError is ApiException && !lastError.isTransient) {
       for (final doseLog in doseLogs) {
-        await _localStore.markDoseLogFailed(
+        await _markDoseLogFailed(
           clientUuid: doseLog.clientUuid,
           errorMessage: lastError.message,
         );

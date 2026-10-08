@@ -69,4 +69,39 @@ void main() {
     expect(controller.isLoaded, isFalse);
     expect(controller.hasHealthData, isFalse);
   });
+
+  group('needsTerms', () {
+    test('chưa đồng ý điều khoản → true', () async {
+      final controller = ConsentController(RecordingConsentRepository(termsAccepted: false));
+      await controller.load();
+
+      expect(controller.needsTerms, isTrue);
+    });
+
+    test('đã đồng ý bản hiện hành → false', () async {
+      final controller = ConsentController(RecordingConsentRepository());
+      await controller.load();
+
+      expect(controller.needsTerms, isFalse);
+    });
+
+    test('đã đồng ý bản cũ → true; đồng ý lại → false', () async {
+      final repo = RecordingConsentRepository(
+        grantedVersions: const {ConsentPurpose.terms: '2026-09-v0'},
+      );
+      final controller = ConsentController(repo);
+      await controller.load();
+
+      expect(controller.isGranted(ConsentPurpose.terms), isTrue);
+      expect(controller.needsTerms, isTrue);
+
+      await controller.grant(ConsentPurpose.terms);
+      expect(controller.needsTerms, isFalse);
+      expect(repo.writes, ['grant:terms']);
+    });
+
+    test('chưa tải → true', () {
+      expect(ConsentController(RecordingConsentRepository()).needsTerms, isTrue);
+    });
+  });
 }
