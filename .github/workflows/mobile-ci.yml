@@ -37,3 +37,14 @@ jobs:
         run: |
           cd mobile
           flutter test
+
+      # Biên dịch cả phần Android của plugin; analyze/test không phát hiện được lỗi cấu hình Gradle.
+      - uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Build Android APK (debug)
+        run: |
+          cd mobile
+          flutter build apk --debug

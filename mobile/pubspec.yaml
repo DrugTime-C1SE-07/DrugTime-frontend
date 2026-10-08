@@ -18,7 +18,7 @@ dependencies:
   http: ^1.6.0
   flutter_local_notifications: ^17.2.2
   timezone: ^0.9.4
-  flutter_timezone: ^2.0.1
+  flutter_timezone: ^5.1.1
 
 dev_dependencies:
   flutter_test:
