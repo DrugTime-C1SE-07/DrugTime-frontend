@@ -49,6 +49,13 @@ class MockNotificationPlatform implements NotificationPlatform {
   @override
   Future<List<PendingNotificationRequest>>
       pendingNotificationRequests() async => [];
+
+  @override
+  Future<NotificationAppLaunchDetails?> getNotificationAppLaunchDetails() async =>
+      null;
+
+  @override
+  Future<bool?> requestFullScreenIntentPermission() async => true;
 }
 
 void main() {

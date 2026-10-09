@@ -13,6 +13,7 @@ import '../features/medication/presentation/screens/add_medication_screen.dart';
 import '../features/medication/presentation/screens/my_medications_screen.dart';
 import '../features/reminder/domain/entities/dose_reminder.dart';
 import '../features/reminder/presentation/screens/dose_reminder_screen.dart';
+import '../features/reminder/presentation/widgets/lockscreen_privacy_gate.dart';
 import '../features/auth/presentation/screens/complete_profile_screen.dart';
 import '../features/auth/presentation/screens/email_otp_screen.dart';
 import '../features/auth/presentation/screens/login_mobile_screen.dart';
@@ -112,7 +113,9 @@ Route<dynamic>? onGenerateRoute(RouteSettings settings) {
           if (arguments is! DoseReminderRouteArguments) {
             return const _InvalidDoseReminderRouteScreen();
           }
-          return DoseReminderScreen(arguments: arguments);
+          return LockscreenPrivacyGate(
+            child: DoseReminderScreen(arguments: arguments),
+          );
         },
       ),
     AppRoutes.devCatalog => MaterialPageRoute<void>(

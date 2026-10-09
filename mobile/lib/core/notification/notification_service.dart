@@ -28,6 +28,11 @@ abstract class NotificationPlatform {
   Future<void> cancel(int id, {String? tag});
 
   Future<List<PendingNotificationRequest>> pendingNotificationRequests();
+
+  Future<NotificationAppLaunchDetails?>
+      getNotificationAppLaunchDetails() async => null;
+
+  Future<bool?> requestFullScreenIntentPermission() async => true;
 }
 
 /// Cài đặt mặc định của [NotificationPlatform] sử dụng [FlutterLocalNotificationsPlugin].
@@ -94,6 +99,19 @@ class DefaultNotificationPlatform implements NotificationPlatform {
   Future<List<PendingNotificationRequest>> pendingNotificationRequests() {
     return _plugin.pendingNotificationRequests();
   }
+
+  @override
+  Future<NotificationAppLaunchDetails?> getNotificationAppLaunchDetails() {
+    return _plugin.getNotificationAppLaunchDetails();
+  }
+
+  @override
+  Future<bool?> requestFullScreenIntentPermission() async {
+    return _plugin
+        .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin>()
+        ?.requestFullScreenIntentPermission();
+  }
 }
 
 /// Dịch vụ quản lý thông báo nhắc uống thuốc.
@@ -103,12 +121,42 @@ class NotificationService {
   NotificationService({
     NotificationPlatform? platform,
     this.onNotificationAction,
-  }) : _platform = platform ?? DefaultNotificationPlatform();
+  })  : _platform = platform ?? DefaultNotificationPlatform(),
+        _actionHandler = onNotificationAction;
 
   final NotificationPlatform _platform;
 
   /// Callback chuyển tiếp payload khi người dùng bấm vào thông báo nhắc uống thuốc.
   final void Function(NotificationPayload payload)? onNotificationAction;
+  void Function(NotificationPayload payload)? _actionHandler;
+
+  NotificationPayload? _pendingPayload;
+  NotificationPayload? get pendingPayload => _pendingPayload;
+
+  /// Đăng ký handler nhận hành động tương tác thông báo.
+  /// Nếu có [pendingPayload] đang chờ từ cold start, lập tức gọi handler và xóa đệm.
+  void setNotificationActionHandler(
+    void Function(NotificationPayload payload)? handler,
+  ) {
+    _actionHandler = handler;
+    if (handler != null && _pendingPayload != null) {
+      final payload = _pendingPayload!;
+      _pendingPayload = null;
+      handler(payload);
+    }
+  }
+
+  /// Tiêu thụ (consume) và xóa payload đang chờ.
+  NotificationPayload? consumePendingPayload() {
+    final payload = _pendingPayload;
+    _pendingPayload = null;
+    return payload;
+  }
+
+  /// Yêu cầu cấp quyền full-screen intent trên Android 14+ (AC8).
+  Future<bool?> requestFullScreenIntentPermission() async {
+    return _platform.requestFullScreenIntentPermission();
+  }
 
   bool _isInitialized = false;
   bool get isInitialized => _isInitialized;
@@ -164,7 +212,22 @@ class NotificationService {
     );
     await _platform.createNotificationChannel(androidChannel);
 
-    // ponytail: current scope only configures init and channel; scheduling and exact alarm permissions will be added in SCRUM-57 part 2 / SCRUM-61.
+    // Kiểm tra và đệm payload khi khởi động lạnh từ thông báo (cold start)
+    final launchDetails = await _platform.getNotificationAppLaunchDetails();
+    if (launchDetails?.didNotificationLaunchApp ?? false) {
+      final raw = launchDetails?.notificationResponse?.payload;
+      final payload = NotificationPayload.tryParse(raw);
+      if (payload != null) {
+        if (_actionHandler != null) {
+          _actionHandler!(payload);
+        } else if (onNotificationAction != null) {
+          onNotificationAction!(payload);
+        } else {
+          _pendingPayload = payload;
+        }
+      }
+    }
+
     _isInitialized = true;
   }
 
@@ -174,7 +237,13 @@ class NotificationService {
 
     final payload = NotificationPayload.tryParse(rawPayload);
     if (payload != null) {
-      onNotificationAction?.call(payload);
+      if (_actionHandler != null) {
+        _actionHandler!(payload);
+      } else if (onNotificationAction != null) {
+        onNotificationAction!(payload);
+      } else {
+        _pendingPayload = payload;
+      }
     }
   }
 }

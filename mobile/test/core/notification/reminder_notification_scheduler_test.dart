@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:ui';
 
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -95,6 +96,13 @@ class MockReminderNotificationPlatform implements NotificationPlatform {
   Future<List<PendingNotificationRequest>> pendingNotificationRequests() async {
     return pendingRequests;
   }
+
+  @override
+  Future<NotificationAppLaunchDetails?> getNotificationAppLaunchDetails() async =>
+      null;
+
+  @override
+  Future<bool?> requestFullScreenIntentPermission() async => true;
 }
 
 void main() {
@@ -171,14 +179,10 @@ void main() {
       expect(call1.uiLocalNotificationDateInterpretation,
           UILocalNotificationDateInterpretation.absoluteTime);
 
-      final actions = androidDetails.actions;
-      expect(actions, isNotNull);
-      expect(actions!.length, 1);
-      final takeDoseAction = actions.first;
-      expect(takeDoseAction.id, 'take_dose');
-      expect(takeDoseAction.title, 'Đã uống');
-      expect(takeDoseAction.showsUserInterface, isFalse);
-      expect(takeDoseAction.cancelNotification, isTrue);
+      // Full-Screen Intent, Alarm category và Brand color theme (Ảnh 4)
+      expect(androidDetails.fullScreenIntent, isTrue);
+      expect(androidDetails.category, AndroidNotificationCategory.alarm);
+      expect(androidDetails.color, const Color(0xFF004D40));
 
       // Kiểm tra cuộc gọi 2
       final call2 = mockPlatform.zonedScheduleCalls[1];
@@ -439,6 +443,67 @@ void main() {
         ),
       );
       expect(receivedPayload, isNull);
+    });
+  });
+
+  group('ReminderNotificationScheduler.snooze (AC5, AC8)', () {
+    test(
+        'schedules snooze notification at remindAt with fullScreenIntent, category alarm, correct id and payload',
+        () async {
+      final nowUtc = DateTime.utc(2026, 10, 8, 7, 0, 0);
+      final scheduler = ReminderNotificationScheduler(
+        platform: mockPlatform,
+        location: vnLocation,
+        clockProvider: () => nowUtc,
+      );
+
+      final scheduledAt = DateTime.utc(2026, 10, 8, 7, 0, 0);
+      final remindAt = DateTime.utc(2026, 10, 8, 7, 10, 0);
+
+      await scheduler.snooze(
+        medicationScheduleId: 42,
+        scheduledAt: scheduledAt,
+        remindAt: remindAt,
+      );
+
+      expect(mockPlatform.zonedScheduleCalls.length, 1);
+      final call = mockPlatform.zonedScheduleCalls.first;
+      expect(call.id, notificationIdFor(42, scheduledAt));
+      expect(call.scheduledDate.hour, 14); // 07:10 UTC + 7 = 14:10 VN
+      expect(call.scheduledDate.minute, 10);
+      expect(call.notificationDetails.android!.fullScreenIntent, isTrue);
+      expect(call.notificationDetails.android!.category,
+          AndroidNotificationCategory.alarm);
+
+      final payload = NotificationPayload.tryParse(call.payload);
+      expect(payload, isNotNull);
+      expect(payload!.medicationScheduleId, 42);
+      expect(payload.scheduledAt, scheduledAt);
+    });
+
+    test('falls back to inexactAllowWhileIdle on snooze if exact alarm throws',
+        () async {
+      mockPlatform.shouldThrowOnExactAlarm = true;
+      final logs = <String>[];
+      final scheduler = ReminderNotificationScheduler(
+        platform: mockPlatform,
+        location: vnLocation,
+        onLog: logs.add,
+      );
+
+      final scheduledAt = DateTime.utc(2026, 10, 8, 7, 0, 0);
+      final remindAt = DateTime.utc(2026, 10, 8, 7, 10, 0);
+
+      await scheduler.snooze(
+        medicationScheduleId: 42,
+        scheduledAt: scheduledAt,
+        remindAt: remindAt,
+      );
+
+      expect(mockPlatform.zonedScheduleCalls.length, 1);
+      expect(mockPlatform.zonedScheduleCalls.first.androidScheduleMode,
+          AndroidScheduleMode.inexactAllowWhileIdle);
+      expect(logs.any((l) => l.contains('Fallback')), isTrue);
     });
   });
 

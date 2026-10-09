@@ -1,8 +1,11 @@
+import 'dart:ui';
+
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/timezone.dart' as tz;
 import 'package:drugtime_mobile/core/notification/notification_id.dart';
 import 'package:drugtime_mobile/core/notification/notification_service.dart';
 import 'package:drugtime_mobile/core/notification/reminder_occurrence_generator.dart';
+import 'package:drugtime_mobile/core/notification/reminder_scheduler.dart';
 
 /// Dịch vụ lên lịch và hủy thông báo nhắc uống thuốc cục bộ trên Android/iOS.
 ///
@@ -10,7 +13,8 @@ import 'package:drugtime_mobile/core/notification/reminder_occurrence_generator.
 /// - Quyết định NT-02: Không chứa tên thuốc trên màn hình khóa.
 /// - Quyết định CD7: Múi giờ cố định Asia/Ho_Chi_Minh (UTC+7), không dùng múi giờ thiết bị.
 /// - Thời điểm hiện tại luôn được tiêm qua clock provider.
-class ReminderNotificationScheduler {
+/// - Triển khai [ReminderScheduler] để hỗ trợ thao tác hoãn cữ (snooze).
+class ReminderNotificationScheduler implements ReminderScheduler {
   ReminderNotificationScheduler({
     required this.platform,
     required this.location,
@@ -33,6 +37,22 @@ class ReminderNotificationScheduler {
   static const String actionTakeDoseTitle = 'Đã uống';
   static const String defaultTitle = 'Nhắc uống thuốc';
   static const String defaultBody = 'Đã đến giờ uống thuốc theo lịch';
+
+  static const AndroidNotificationDetails _androidNotificationDetails =
+      AndroidNotificationDetails(
+    NotificationService.reminderChannelId,
+    NotificationService.reminderChannelName,
+    channelDescription: NotificationService.reminderChannelDescription,
+    importance: Importance.max,
+    priority: Priority.high,
+    fullScreenIntent: true,
+    category: AndroidNotificationCategory.alarm,
+    color: Color(0xFF004D40),
+  );
+
+  static const NotificationDetails _notificationDetails = NotificationDetails(
+    android: _androidNotificationDetails,
+  );
 
   /// Lên lịch các lượt nhắc uống thuốc từ danh sách [occurrences].
   ///
@@ -66,33 +86,13 @@ class ReminderNotificationScheduler {
 
       final scheduledDate = tz.TZDateTime.from(occ.scheduledAt, location);
 
-      const androidNotificationDetails = AndroidNotificationDetails(
-        NotificationService.reminderChannelId,
-        NotificationService.reminderChannelName,
-        channelDescription: NotificationService.reminderChannelDescription,
-        importance: Importance.max,
-        priority: Priority.high,
-        actions: [
-          AndroidNotificationAction(
-            actionTakeDose,
-            actionTakeDoseTitle,
-            showsUserInterface: false,
-            cancelNotification: true,
-          ),
-        ],
-      );
-
-      const notificationDetails = NotificationDetails(
-        android: androidNotificationDetails,
-      );
-
       try {
         await platform.zonedSchedule(
           id,
           defaultTitle,
           defaultBody,
           scheduledDate,
-          notificationDetails,
+          _notificationDetails,
           androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
           uiLocalNotificationDateInterpretation:
               UILocalNotificationDateInterpretation.absoluteTime,
@@ -109,13 +109,66 @@ class ReminderNotificationScheduler {
           defaultTitle,
           defaultBody,
           scheduledDate,
-          notificationDetails,
+          _notificationDetails,
           androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
           uiLocalNotificationDateInterpretation:
               UILocalNotificationDateInterpretation.absoluteTime,
           payload: payload,
         );
       }
+    }
+  }
+
+  /// Lên lịch hoãn cữ thuốc (snooze) đến [remindAt].
+  ///
+  /// Triển khai interface [ReminderScheduler].
+  /// Lưu ý: [scheduledAt] vẫn là mốc thời gian gốc của cữ thuốc để đảm bảo
+  /// tính nhất quán cho luồng xác nhận liều và outbox.
+  @override
+  Future<void> snooze({
+    required int medicationScheduleId,
+    required DateTime scheduledAt,
+    required DateTime remindAt,
+  }) async {
+    final utcRemindAt = remindAt.toUtc();
+    final utcScheduledAt = scheduledAt.toUtc();
+    final id = notificationIdFor(medicationScheduleId, utcScheduledAt);
+    final payload = NotificationPayload(
+      medicationScheduleId: medicationScheduleId,
+      scheduledAt: utcScheduledAt,
+    ).serialize();
+
+    final scheduledDate = tz.TZDateTime.from(utcRemindAt, location);
+
+    try {
+      await platform.zonedSchedule(
+        id,
+        defaultTitle,
+        defaultBody,
+        scheduledDate,
+        _notificationDetails,
+        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+        uiLocalNotificationDateInterpretation:
+            UILocalNotificationDateInterpretation.absoluteTime,
+        payload: payload,
+      );
+    } catch (e) {
+      onLog?.call(
+        'Lỗi lên lịch exact alarm cho snooze $id: $e. '
+        'Fallback sang inexactAllowWhileIdle (lưu ý: không thỏa mãn NFR04 về độ trễ).',
+      );
+
+      await platform.zonedSchedule(
+        id,
+        defaultTitle,
+        defaultBody,
+        scheduledDate,
+        _notificationDetails,
+        androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+        uiLocalNotificationDateInterpretation:
+            UILocalNotificationDateInterpretation.absoluteTime,
+        payload: payload,
+      );
     }
   }
 
