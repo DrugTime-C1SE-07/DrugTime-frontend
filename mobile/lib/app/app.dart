@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
+import '../core/notification/notification_service.dart';
 import '../core/sync/sync_engine.dart';
 import '../features/auth/presentation/state/auth_controller.dart';
 import '../features/consent/data/repositories/in_memory_consent_repository.dart';
@@ -23,6 +24,8 @@ class DrugTimeApp extends StatefulWidget {
     this.consentRepository,
     this.doseOutboxSyncEngine,
     this.initialRoute,
+    this.navigatorKey,
+    this.notificationService,
   });
 
   /// Trạng thái đăng nhập; app chạy thật dựng với RemoteAuthRepository (xem main.dart).
@@ -38,12 +41,19 @@ class DrugTimeApp extends StatefulWidget {
   /// Ép route đầu (test, dev catalog). Không truyền thì chọn theo phiên đăng nhập.
   final String? initialRoute;
 
+  /// Khóa điều hướng cấp cao nhất; cho phép test hoặc bên ngoài chủ động điều hướng.
+  final GlobalKey<NavigatorState>? navigatorKey;
+
+  /// Dịch vụ thông báo để tiếp nhận sự kiện click thông báo và điều hướng cold start.
+  final NotificationService? notificationService;
+
   @override
   State<DrugTimeApp> createState() => _DrugTimeAppState();
 }
 
 class _DrugTimeAppState extends State<DrugTimeApp> {
-  final _navigatorKey = GlobalKey<NavigatorState>();
+  late final GlobalKey<NavigatorState> _navigatorKey =
+      widget.navigatorKey ?? GlobalKey<NavigatorState>();
 
   /// Chỉ tải khi đã có phiên: gọi API trước khi đăng nhập sẽ nhận 401 và đá người dùng về
   /// màn Đăng nhập.
@@ -69,7 +79,19 @@ class _DrugTimeAppState extends State<DrugTimeApp> {
       unawaited(syncEngine.start());
     }
     _auth.addListener(_onAuthChanged);
+    _setupNotificationHandling();
     unawaited(_loadSession());
+  }
+
+  void _setupNotificationHandling() {
+    widget.notificationService?.setNotificationActionHandler((payload) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _navigatorKey.currentState?.pushNamed(
+          AppRoutes.doseReminder,
+          arguments: payload,
+        );
+      });
+    });
   }
 
   Future<void> _loadSession() async {
@@ -89,7 +111,8 @@ class _DrugTimeAppState extends State<DrugTimeApp> {
     if (_wasAuthenticated && !authenticated) {
       _medications.clear();
       _consents.clear();
-      _navigatorKey.currentState?.pushNamedAndRemoveUntil(AppRoutes.login, (_) => false);
+      _navigatorKey.currentState
+          ?.pushNamedAndRemoveUntil(AppRoutes.login, (_) => false);
     } else if (!_wasAuthenticated && authenticated) {
       unawaited(_medications.load());
     }
@@ -142,7 +165,8 @@ class _DrugTimeAppState extends State<DrugTimeApp> {
       onGenerateRoute: onGenerateRoute,
       // Chỉ dựng đúng một route đầu; mặc định Flutter tách '/login' thành ['/', '/login'],
       // khiến nút Back ở màn Đăng nhập quay về Trang chủ khi chưa đăng nhập.
-      onGenerateInitialRoutes: (name) => [onGenerateRoute(RouteSettings(name: name))!],
+      onGenerateInitialRoutes: (name) =>
+          [onGenerateRoute(RouteSettings(name: name))!],
     );
   }
 }
