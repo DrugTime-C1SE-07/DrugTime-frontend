@@ -51,3 +51,5 @@ app.*.map.json
 
 # Web chỉ dùng để chạy thử cục bộ, không đưa lên repo
 /web/
+# Widget Preview related
+.widget_preview/
