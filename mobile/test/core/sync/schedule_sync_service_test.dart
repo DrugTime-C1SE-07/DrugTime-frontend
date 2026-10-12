@@ -144,6 +144,12 @@ class _FakeLocalMedicationStore implements LocalMedicationStore {
   }
 
   @override
+  Future<bool> hasDoseLog({
+    required int medicationScheduleId,
+    required DateTime scheduledAt,
+  }) async => false;
+
+  @override
   Future<void> markDoseLogFailed({
     required String clientUuid,
     required String errorMessage,

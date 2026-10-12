@@ -114,6 +114,7 @@ Route<dynamic>? onGenerateRoute(RouteSettings settings) {
             return const _InvalidDoseReminderRouteScreen();
           }
           return LockscreenPrivacyGate(
+            platform: arguments.keyguardPlatform,
             child: DoseReminderScreen(arguments: arguments),
           );
         },

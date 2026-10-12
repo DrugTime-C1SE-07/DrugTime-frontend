@@ -75,10 +75,6 @@ class _DoseReminderScreenState extends State<DoseReminderScreen> {
     await _controller.confirmItem(item);
   }
 
-  Future<void> _confirmAll() async {
-    await _controller.confirmAll();
-  }
-
   Future<void> _snooze() async {
     final succeeded = await _controller.snooze();
     if (mounted && succeeded) {
@@ -464,20 +460,17 @@ class _DoseReminderScreenState extends State<DoseReminderScreen> {
 
     final bool canConfirm = !busy &&
         !allConfirmed &&
-        (itemCount == 1 || !_expanded || selectedUnconfirmed.isNotEmpty);
+        (itemCount == 1 || selectedUnconfirmed.isNotEmpty);
 
     Future<void> handleConfirm() async {
       if (itemCount == 1) {
         await _confirmItem(_group.items.first);
-      } else if (!_expanded) {
-        await _confirmAll();
+      } else if (selectedUnconfirmed.length == unconfirmedItems.length) {
+        await _controller.confirmAll();
       } else {
-        if (selectedUnconfirmed.length == unconfirmedItems.length) {
-          await _confirmAll();
-        } else {
-          for (final item in selectedUnconfirmed) {
-            await _confirmItem(item);
-          }
+        // Chỉ gửi các thuốc đang được tích chọn (mỗi thuốc enqueue riêng)
+        for (final item in selectedUnconfirmed) {
+          await _confirmItem(item);
         }
       }
     }
