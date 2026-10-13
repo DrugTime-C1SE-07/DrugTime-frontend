@@ -41,7 +41,8 @@ void main() {
         request.headers.value(HttpHeaders.authorizationHeader),
         await utf8.decodeStream(request),
       ));
-      final (status, body) = replies.isEmpty ? (200, userMedicationJson()) : replies.removeAt(0);
+      final (status, body) =
+          replies.isEmpty ? (200, userMedicationJson()) : replies.removeAt(0);
       request.response.statusCode = status;
       if (body != null) {
         request.response
@@ -60,7 +61,12 @@ void main() {
   tearDown(() => server.close(force: true));
 
   test('fetchAll đọc items của GET /medications', () async {
-    replies.add((200, {'items': [userMedicationJson(), userMedicationJson(status: 'stopped')]}));
+    replies.add((
+      200,
+      {
+        'items': [userMedicationJson(), userMedicationJson(status: 'stopped')]
+      }
+    ));
 
     final meds = await repo.fetchAll();
 
@@ -74,17 +80,21 @@ void main() {
   test('add gửi POST /medications với client_uuid và Bearer (AC8)', () async {
     replies.add((201, userMedicationJson()));
 
-    final created = await repo.add(base(), clientUuid: '6f1c2a9e-4b7d-4e0a-9c55-2d8f3b1a7e10');
+    final created = await repo.add(base(),
+        clientUuid: '6f1c2a9e-4b7d-4e0a-9c55-2d8f3b1a7e10');
 
     expect(created.id, '42');
     final req = requests.single;
     expect(req.method, 'POST');
     expect(req.uri.path, '/medications');
     expect(req.authorization, 'Bearer app-token');
-    expect((req.json as Map)['client_uuid'], '6f1c2a9e-4b7d-4e0a-9c55-2d8f3b1a7e10');
+    expect((req.json as Map)['client_uuid'],
+        '6f1c2a9e-4b7d-4e0a-9c55-2d8f3b1a7e10');
   });
 
-  test('gửi lại sau lỗi mạng dùng cùng client_uuid; server trả 200 thuốc cũ (AC9)', () async {
+  test(
+      'gửi lại sau lỗi mạng dùng cùng client_uuid; server trả 200 thuốc cũ (AC9)',
+      () async {
     replies
       ..add((503, {'detail': 'unavailable'}))
       ..add((200, userMedicationJson()));
@@ -97,7 +107,8 @@ void main() {
     final again = await repo.add(base(), clientUuid: 'same-uuid');
 
     expect(again.id, '42');
-    expect(requests.map((r) => (r.json as Map)['client_uuid']), ['same-uuid', 'same-uuid']);
+    expect(requests.map((r) => (r.json as Map)['client_uuid']),
+        ['same-uuid', 'same-uuid']);
   });
 
   test('setStopped gửi PATCH {"stopped": true/false} (AC12, AC14e)', () async {
@@ -111,14 +122,16 @@ void main() {
     expect(stopped.isActive, isFalse);
     expect(resumed.isActive, isTrue);
     expect(requests.map((r) => r.method), ['PATCH', 'PATCH']);
-    expect(requests.map((r) => r.uri.path), ['/medications/42', '/medications/42']);
+    expect(requests.map((r) => r.uri.path),
+        ['/medications/42', '/medications/42']);
     expect(requests.map((r) => r.json), [
       {'stopped': true},
       {'stopped': false},
     ]);
   });
 
-  test('update chỉ gửi field đổi; không đổi gì thì không gọi API (AC13)', () async {
+  test('update chỉ gửi field đổi; không đổi gì thì không gọi API (AC13)',
+      () async {
     final before = base();
 
     await repo.update(before, before.copyWith(dosePerIntake: 2));
@@ -129,7 +142,9 @@ void main() {
     expect(requests.single.json, {'quantity_per_dose': 2.0});
   });
 
-  test('delete: 204 thành công; 404 khi gửi lại cũng coi là đã xoá; 403 ném lỗi (AC14e)', () async {
+  test(
+      'delete: 204 thành công; 404 khi gửi lại cũng coi là đã xoá; 403 ném lỗi (AC14e)',
+      () async {
     replies
       ..add((204, null))
       ..add((404, {'detail': 'user_medication_not_found'}))
@@ -170,6 +185,67 @@ void main() {
     expect(requests.single.uri.queryParameters, {'q': 'thuoc ho'});
   });
 
+  test('3.05 search GET trim, server order, nullable and exact ids', () async {
+    replies.add((
+      200,
+      {
+        'items': [
+          {
+            'id': 22,
+            'name': 'Same',
+            'active_ingredient': null,
+            'strength_text': null,
+            'dosage_form': null
+          },
+          {
+            'id': 11,
+            'name': 'Same',
+            'active_ingredient': 'Ingredient',
+            'strength_text': '5 mg',
+            'dosage_form': 'Siro'
+          },
+        ]
+      }
+    ));
+    final found = await repo.searchCatalog('  Same  ');
+    expect(requests.single.method, 'GET');
+    expect(requests.single.uri.path, '/catalog/medications');
+    expect(requests.single.uri.queryParameters, {'q': 'Same'});
+    expect(found.map((d) => d.id), ['22', '11']);
+    expect(found.first.activeIngredient, '');
+    expect(found.first.strength, '');
+    expect(found.first.dosageForm, '');
+    expect(found.last.strength, '5 mg');
+    expect(found.last.unit, 'ml');
+  });
+
+  for (final (status, kind) in [
+    (401, MedicationFailureKind.unauthorized),
+    (422, MedicationFailureKind.validation),
+    (408, MedicationFailureKind.network),
+    (500, MedicationFailureKind.network),
+    (503, MedicationFailureKind.network),
+  ]) {
+    test('3.05 search $status throws failure rather than empty success',
+        () async {
+      replies.add((status, {'detail': []}));
+      await expectLater(
+          repo.searchCatalog('A'),
+          throwsA(
+              isA<MedicationFailure>().having((f) => f.kind, 'kind', kind)));
+      expect(unauthorizedCalls, status == 401 ? 1 : 0);
+      expect(requests, hasLength(1));
+    });
+  }
+
+  test('3.05 search socket failure is network error', () async {
+    await server.close(force: true);
+    await expectLater(
+        repo.searchCatalog('A'),
+        throwsA(isA<MedicationFailure>()
+            .having((f) => f.kind, 'kind', MedicationFailureKind.network)));
+  });
+
   test('401 gọi onUnauthorized và ném unauthorized (AC11)', () async {
     replies.add((401, {'detail': 'Token expired'}));
 
@@ -186,8 +262,8 @@ void main() {
 
     await expectLater(
       repo.add(base(), clientUuid: 'u'),
-      throwsA(isA<MedicationFailure>()
-          .having((f) => f.kind, 'kind', MedicationFailureKind.catalogNotFound)),
+      throwsA(isA<MedicationFailure>().having(
+          (f) => f.kind, 'kind', MedicationFailureKind.catalogNotFound)),
     );
   });
 
