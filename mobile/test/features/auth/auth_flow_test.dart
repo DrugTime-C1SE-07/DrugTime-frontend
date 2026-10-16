@@ -25,8 +25,8 @@ AuthSession _session({required bool profileComplete}) => AuthSession(
       profileComplete: profileComplete,
     );
 
-InMemoryAuthRepository _repo({AuthSession? session}) =>
-    InMemoryAuthRepository(initialSession: session, simulatedDelay: Duration.zero);
+InMemoryAuthRepository _repo({AuthSession? session}) => InMemoryAuthRepository(
+    initialSession: session, simulatedDelay: Duration.zero);
 
 Future<AuthController> _pumpApp(
   WidgetTester tester,
@@ -51,15 +51,19 @@ Future<AuthController> _pumpApp(
 }
 
 /// Đã gửi OTP tới email (bước màn Đăng nhập), app mở ở màn nhập OTP.
-Future<AuthController> _atEmailOtp(WidgetTester tester, InMemoryAuthRepository repo) async {
+Future<AuthController> _atEmailOtp(
+    WidgetTester tester, InMemoryAuthRepository repo) async {
   final controller = AuthController(repo)..setMethod(LoginMethod.email);
   await controller.requestOtp('lan@example.com');
-  return _pumpApp(tester, repo, controller: controller, initialRoute: AppRoutes.otpEmail);
+  return _pumpApp(tester, repo,
+      controller: controller, initialRoute: AppRoutes.otpEmail);
 }
 
 Future<void> _enterOtp(WidgetTester tester, String code) async {
   await tester.enterText(
-    find.descendant(of: find.byType(OtpVerificationScreen), matching: find.byType(TextField)),
+    find.descendant(
+        of: find.byType(OtpVerificationScreen),
+        matching: find.byType(TextField)),
     code,
   );
   await tester.pumpAndSettle();
@@ -73,9 +77,11 @@ void main() {
     expect(find.byType(AppShell), findsNothing);
   });
 
-  Future<void> enterPhoneAndSend(WidgetTester tester, {required bool tick}) async {
+  Future<void> enterPhoneAndSend(WidgetTester tester,
+      {required bool tick}) async {
     await tester.enterText(
-      find.descendant(of: find.byType(PhoneInputField), matching: find.byType(TextField)),
+      find.descendant(
+          of: find.byType(PhoneInputField), matching: find.byType(TextField)),
       '0900000001',
     );
     if (tick) {
@@ -88,7 +94,8 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  testWidgets('(h) màn Đăng nhập chưa tick điều khoản → không gửi OTP', (tester) async {
+  testWidgets('(h) màn Đăng nhập chưa tick điều khoản → không gửi OTP',
+      (tester) async {
     final repo = _repo();
     await _pumpApp(tester, repo);
 
@@ -99,7 +106,8 @@ void main() {
     expect(find.byType(OtpVerificationScreen), findsNothing);
   });
 
-  testWidgets('(i) AC19: tick → OTP đúng → ghi terms một lần, không hỏi lại điều khoản',
+  testWidgets(
+      '(i) AC19: tick → OTP đúng → ghi terms một lần, không hỏi lại điều khoản',
       (tester) async {
     final repo = _repo()..verifiedProfileComplete = true;
     final consents = RecordingConsentRepository(
@@ -117,14 +125,16 @@ void main() {
     expect(consents.writes, ['grant:terms']);
   });
 
-  testWidgets('(b) OTP đúng, người mới → màn hồ sơ → lưu → Trang chủ', (tester) async {
+  testWidgets('(b) OTP đúng, người mới → màn hồ sơ → lưu → Trang chủ',
+      (tester) async {
     final repo = _repo()..verifiedProfileComplete = false;
     await _atEmailOtp(tester, repo);
 
     await _enterOtp(tester, '123456');
     expect(find.byType(CompleteProfileScreen), findsOneWidget);
 
-    await tester.enterText(find.byKey(const Key('profile-full-name')), 'Nguyễn Thị Lan');
+    await tester.enterText(
+        find.byKey(const Key('profile-full-name')), 'Nguyễn Thị Lan');
     await tester.tap(find.byKey(const Key('profile-date-of-birth')));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Chọn'));
@@ -140,7 +150,8 @@ void main() {
     expect((await repo.getCurrentSession())?.profileComplete, isTrue);
   });
 
-  testWidgets('(b2) hồ sơ thiếu giới tính → báo lỗi, ở lại màn hồ sơ', (tester) async {
+  testWidgets('(b2) hồ sơ thiếu giới tính → báo lỗi, ở lại màn hồ sơ',
+      (tester) async {
     final repo = _repo(session: _session(profileComplete: false));
     await _pumpApp(tester, repo);
 
@@ -157,7 +168,8 @@ void main() {
     expect(repo.completedProfiles, isEmpty);
   });
 
-  testWidgets('(c) phiên đã lưu, có hồ sơ → vào thẳng Trang chủ', (tester) async {
+  testWidgets('(c) phiên đã lưu, có hồ sơ → vào thẳng Trang chủ',
+      (tester) async {
     await _pumpApp(tester, _repo(session: _session(profileComplete: true)));
 
     expect(find.byType(AppShell), findsOneWidget);
@@ -188,7 +200,9 @@ void main() {
 
     await tester.tap(find.text('Hồ sơ'));
     await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const Key('logout-tile')));
+    await tester.tap(find.byType(PopupMenuButton<String>));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Đăng xuất'));
     await tester.pumpAndSettle();
 
     expect(find.byType(LoginMobileScreen), findsOneWidget);
@@ -196,8 +210,10 @@ void main() {
     expect(await repo.getCurrentSession(), isNull);
   });
 
-  testWidgets('(f) API báo 401 (handleUnauthorized) → màn Đăng nhập', (tester) async {
-    final auth = await _pumpApp(tester, _repo(session: _session(profileComplete: true)));
+  testWidgets('(f) API báo 401 (handleUnauthorized) → màn Đăng nhập',
+      (tester) async {
+    final auth =
+        await _pumpApp(tester, _repo(session: _session(profileComplete: true)));
     expect(find.byType(AppShell), findsOneWidget);
 
     await auth.handleUnauthorized();
