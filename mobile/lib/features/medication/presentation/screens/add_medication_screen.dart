@@ -63,7 +63,7 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
 
   Future<void> _pickDrug() async {
     final picked = await showDrugCatalogSheet(context);
-    if (picked == null) return;
+    if (!mounted || picked == null) return;
     _update(() {
       _drug = picked;
       _showDrugError = false;
@@ -110,7 +110,8 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
       setState(() => _showDrugError = true);
       final fieldContext = _drugFieldKey.currentContext;
       if (fieldContext != null) {
-        Scrollable.ensureVisible(fieldContext, duration: const Duration(milliseconds: 250));
+        Scrollable.ensureVisible(fieldContext,
+            duration: const Duration(milliseconds: 250));
       }
       return;
     }
@@ -152,7 +153,8 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Bỏ thông tin đã nhập?'),
-        content: const Text('Thuốc này chưa được lưu. Nếu thoát, các thông tin vừa nhập sẽ mất.'),
+        content: const Text(
+            'Thuốc này chưa được lưu. Nếu thoát, các thông tin vừa nhập sẽ mất.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
@@ -194,7 +196,8 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
             AppSpacing.xl,
           ),
           children: [
-            ScanEntryCard(onTap: () => _toast('Quét vỏ thuốc đang được phát triển')),
+            ScanEntryCard(
+                onTap: () => _toast('Quét vỏ thuốc đang được phát triển')),
             const SizedBox(height: AppSpacing.xl),
             const OrDivider(label: 'hoặc nhập thủ công'),
             const SizedBox(height: AppSpacing.xl),
@@ -205,7 +208,8 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
               key: _drugFieldKey,
               value: drug,
               onTap: _pickDrug,
-              errorText: _showDrugError ? 'Vui lòng chọn thuốc từ danh mục' : null,
+              errorText:
+                  _showDrugError ? 'Vui lòng chọn thuốc từ danh mục' : null,
             ),
             if (inUse) ...[
               const SizedBox(height: AppSpacing.sm),
@@ -221,7 +225,8 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
 
             // 2. Hàm lượng
             const FormFieldLabel('Hàm lượng'),
-            ReadOnlyField(value: drug?.strength, placeholder: 'Tự điền khi chọn thuốc'),
+            ReadOnlyField(
+                value: drug?.strength, placeholder: 'Tự điền khi chọn thuốc'),
             const SizedBox(height: AppSpacing.xl),
 
             // 3. Liều mỗi lần
@@ -322,13 +327,16 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
     final drug = _drug;
     if (drug == null) return null;
     final dose = '${formatQuantity(_dose)} ${drug.unit}';
-    if (_frequency.isAsNeeded) return '$dose mỗi lần · Khi cần · tối đa $_maxDoses lần/ngày';
+    if (_frequency.isAsNeeded) {
+      return '$dose mỗi lần · Khi cần · tối đa $_maxDoses lần/ngày';
+    }
     return '$dose · ${_times.map((t) => t.format()).join(', ')} · ${_timing.label}';
   }
 }
 
 class _SaveBar extends StatelessWidget {
-  const _SaveBar({required this.summary, required this.saving, required this.onSave});
+  const _SaveBar(
+      {required this.summary, required this.saving, required this.onSave});
 
   final String? summary;
   final bool saving;
@@ -358,7 +366,8 @@ class _SaveBar extends StatelessWidget {
                 Text(
                   summary!,
                   textAlign: TextAlign.center,
-                  style: AppTextStyles.figureSmall.copyWith(color: AppColors.inkMuted),
+                  style: AppTextStyles.figureSmall
+                      .copyWith(color: AppColors.inkMuted),
                 ),
                 const SizedBox(height: AppSpacing.sm),
               ],
