@@ -3,6 +3,13 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
+import '../core/contracts/dose_outbox.dart';
+import '../core/notification/notification_id.dart';
+import '../core/notification/notification_service.dart';
+import '../core/notification/reminder_scheduler.dart';
+import '../core/platform/keyguard_service.dart';
+import '../core/storage/local_db/local_medication_store.dart';
+import '../core/storage/local_db/local_models.dart';
 import '../core/sync/sync_engine.dart';
 import '../features/auth/presentation/state/auth_controller.dart';
 import '../features/consent/data/repositories/in_memory_consent_repository.dart';
@@ -11,6 +18,7 @@ import '../features/consent/presentation/state/consent_controller.dart';
 import '../features/medication/data/repositories/in_memory_medication_repository.dart';
 import '../features/medication/domain/repositories/medication_repository.dart';
 import '../features/medication/presentation/state/medication_controller.dart';
+import '../features/reminder/domain/entities/dose_reminder.dart';
 import 'router.dart';
 import '../core/utils/app_assets.dart';
 import 'theme/app_theme.dart';
@@ -22,7 +30,15 @@ class DrugTimeApp extends StatefulWidget {
     this.medicationRepository,
     this.consentRepository,
     this.doseOutboxSyncEngine,
+    this.localMedicationStore,
+    this.doseOutbox,
+    this.reminderScheduler,
+    this.keyguardPlatform,
+    this.clock,
     this.initialRoute,
+    this.navigatorKey,
+    this.scaffoldMessengerKey,
+    this.notificationService,
   });
 
   /// Trạng thái đăng nhập; app chạy thật dựng với RemoteAuthRepository (xem main.dart).
@@ -35,15 +51,42 @@ class DrugTimeApp extends StatefulWidget {
   final ConsentRepository? consentRepository;
   final DoseOutboxSyncEngine? doseOutboxSyncEngine;
 
+  /// Kho lưu trữ lịch và liều thuốc cục bộ (dùng tra cứu khi bấm thông báo).
+  final LocalMedicationStore? localMedicationStore;
+
+  /// Hàng đợi ghi nhận liều offline.
+  final DoseOutbox? doseOutbox;
+
+  /// Bộ điều phối hoãn/lên lịch nhắc.
+  final ReminderScheduler? reminderScheduler;
+
+  /// Bộ kiểm tra trạng thái màn hình khóa.
+  final KeyguardPlatform? keyguardPlatform;
+
+  /// Đồng hồ tiêm vào phục vụ test thời gian.
+  final DateTime Function()? clock;
+
+  /// Khóa hiển thị SnackBar toàn cục.
+  final GlobalKey<ScaffoldMessengerState>? scaffoldMessengerKey;
+
   /// Ép route đầu (test, dev catalog). Không truyền thì chọn theo phiên đăng nhập.
   final String? initialRoute;
+
+  /// Khóa điều hướng cấp cao nhất; cho phép test hoặc bên ngoài chủ động điều hướng.
+  final GlobalKey<NavigatorState>? navigatorKey;
+
+  /// Dịch vụ thông báo để tiếp nhận sự kiện click thông báo và điều hướng cold start.
+  final NotificationService? notificationService;
 
   @override
   State<DrugTimeApp> createState() => _DrugTimeAppState();
 }
 
 class _DrugTimeAppState extends State<DrugTimeApp> {
-  final _navigatorKey = GlobalKey<NavigatorState>();
+  late final GlobalKey<NavigatorState> _navigatorKey =
+      widget.navigatorKey ?? GlobalKey<NavigatorState>();
+  late final GlobalKey<ScaffoldMessengerState> _scaffoldMessengerKey =
+      widget.scaffoldMessengerKey ?? GlobalKey<ScaffoldMessengerState>();
 
   /// Chỉ tải khi đã có phiên: gọi API trước khi đăng nhập sẽ nhận 401 và đá người dùng về
   /// màn Đăng nhập.
@@ -69,7 +112,111 @@ class _DrugTimeAppState extends State<DrugTimeApp> {
       unawaited(syncEngine.start());
     }
     _auth.addListener(_onAuthChanged);
+    _setupNotificationHandling();
     unawaited(_loadSession());
+  }
+
+  void _setupNotificationHandling() {
+    widget.notificationService?.setNotificationActionHandler((payload) async {
+      await _handleNotificationPayload(payload);
+    });
+  }
+
+  Future<void> _handleNotificationPayload(NotificationPayload payload) async {
+    final store = widget.localMedicationStore;
+    if (store == null) return;
+
+    final targetSchedule =
+        await store.getScheduleById(payload.medicationScheduleId);
+    if (targetSchedule == null) {
+      _scaffoldMessengerKey.currentState?.showSnackBar(
+        const SnackBar(
+          content: Text('Lịch uống thuốc không còn tồn tại.'),
+          duration: Duration(seconds: 3),
+        ),
+      );
+      return;
+    }
+
+    // Tra tất cả các thuốc cùng mốc giờ (cùng scheduled_at)
+    final allSchedules = await store.getActiveSchedules(
+      patientId: targetSchedule.patientUserId,
+    );
+
+    // Múi giờ Việt Nam UTC+7
+    final vnTime = payload.scheduledAt.toUtc().add(const Duration(hours: 7));
+    final targetHour = vnTime.hour;
+    final targetMinute = vnTime.minute;
+    final targetWeekday = vnTime.weekday;
+
+    final matchingSchedules = allSchedules.where((s) {
+      if (s.id == targetSchedule.id) return true;
+      if (!s.reminderEnabled) return false;
+      if (!s.daysOfWeek.contains(targetWeekday)) return false;
+      if (payload.scheduledAt.isBefore(s.effectiveFrom)) return false;
+      if (s.endedAt != null && !payload.scheduledAt.isBefore(s.endedAt!)) {
+        return false;
+      }
+      final parts = s.intakeTime.split(':');
+      if (parts.length < 2) return false;
+      final hour = int.tryParse(parts[0]);
+      final minute = int.tryParse(parts[1]);
+      return hour == targetHour && minute == targetMinute;
+    }).toList();
+
+    // Loại các liều đã có bản ghi trong local_dose_logs
+    final unrecordedSchedules = <LocalMedicationSchedule>[];
+    for (final s in matchingSchedules) {
+      final recorded = await store.hasDoseLog(
+        medicationScheduleId: s.id,
+        scheduledAt: payload.scheduledAt,
+      );
+      if (!recorded) {
+        unrecordedSchedules.add(s);
+      }
+    }
+
+    if (unrecordedSchedules.isEmpty) {
+      _scaffoldMessengerKey.currentState?.showSnackBar(
+        const SnackBar(
+          content: Text('Các liều thuốc này đã được ghi nhận.'),
+          duration: Duration(seconds: 3),
+        ),
+      );
+      return;
+    }
+
+    final items = unrecordedSchedules.map((s) {
+      final dosageText = s.strengthText != null
+          ? '${s.quantityPerDose} viên · ${s.strengthText}'
+          : '${s.quantityPerDose} viên';
+      final instruction = s.dosageForm ?? 'Đúng giờ';
+      return DoseReminderItem(
+        medicationScheduleId: s.id,
+        scheduledAt: payload.scheduledAt,
+        medicationName: s.medicationName,
+        dosageText: dosageText,
+        instruction: instruction,
+      );
+    }).toList();
+
+    final group = DoseReminderGroup(items);
+    final outbox = widget.doseOutbox ?? _FallbackDoseOutbox();
+    final scheduler =
+        widget.reminderScheduler ?? _FallbackReminderScheduler();
+
+    final args = DoseReminderRouteArguments(
+      group: group,
+      outbox: outbox,
+      scheduler: scheduler,
+      clock: widget.clock,
+      keyguardPlatform: widget.keyguardPlatform,
+    );
+
+    _navigatorKey.currentState?.pushNamed(
+      AppRoutes.doseReminder,
+      arguments: args,
+    );
   }
 
   Future<void> _loadSession() async {
@@ -89,7 +236,8 @@ class _DrugTimeAppState extends State<DrugTimeApp> {
     if (_wasAuthenticated && !authenticated) {
       _medications.clear();
       _consents.clear();
-      _navigatorKey.currentState?.pushNamedAndRemoveUntil(AppRoutes.login, (_) => false);
+      _navigatorKey.currentState
+          ?.pushNamedAndRemoveUntil(AppRoutes.login, (_) => false);
     } else if (!_wasAuthenticated && authenticated) {
       unawaited(_medications.load());
     }
@@ -132,6 +280,7 @@ class _DrugTimeAppState extends State<DrugTimeApp> {
   Widget _buildApp() {
     return MaterialApp(
       navigatorKey: _navigatorKey,
+      scaffoldMessengerKey: _scaffoldMessengerKey,
       title: 'DrugTime',
       debugShowCheckedModeBanner: false,
       theme: buildAppTheme(),
@@ -142,7 +291,8 @@ class _DrugTimeAppState extends State<DrugTimeApp> {
       onGenerateRoute: onGenerateRoute,
       // Chỉ dựng đúng một route đầu; mặc định Flutter tách '/login' thành ['/', '/login'],
       // khiến nút Back ở màn Đăng nhập quay về Trang chủ khi chưa đăng nhập.
-      onGenerateInitialRoutes: (name) => [onGenerateRoute(RouteSettings(name: name))!],
+      onGenerateInitialRoutes: (name) =>
+          [onGenerateRoute(RouteSettings(name: name))!],
     );
   }
 }
@@ -192,4 +342,55 @@ class _SessionLoadingScreen extends StatelessWidget {
       ),
     );
   }
+}
+
+class _FallbackDoseOutbox implements DoseOutbox {
+  @override
+  Future<LocalDoseLog> enqueue({
+    required int medicationScheduleId,
+    required DateTime scheduledAt,
+    required DateTime takenAt,
+  }) async {
+    return LocalDoseLog(
+      clientUuid: 'fallback-${DateTime.now().microsecondsSinceEpoch}',
+      medicationScheduleId: medicationScheduleId,
+      scheduledAt: scheduledAt,
+      takenAt: takenAt,
+      status: DoseLogStatus.taken,
+      syncState: DoseLogSyncState.pendingUpload,
+      localUpdatedAt: DateTime.now().toUtc(),
+    );
+  }
+
+  @override
+  Future<List<LocalDoseLog>> getPendingLogs() async => const [];
+
+  @override
+  Future<void> markSynced({
+    required String clientUuid,
+    required int? serverId,
+    required DateTime syncedAt,
+  }) async {}
+
+  @override
+  Future<void> markFailed({
+    required String clientUuid,
+    required String errorMessage,
+  }) async {}
+
+  @override
+  Stream<DoseLogSyncState?> watchStatus(String clientUuid) =>
+      const Stream.empty();
+
+  @override
+  Future<void> dispose() async {}
+}
+
+class _FallbackReminderScheduler implements ReminderScheduler {
+  @override
+  Future<void> snooze({
+    required int medicationScheduleId,
+    required DateTime scheduledAt,
+    required DateTime remindAt,
+  }) async {}
 }

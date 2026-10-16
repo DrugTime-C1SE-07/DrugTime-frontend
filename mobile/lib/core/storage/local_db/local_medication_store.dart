@@ -12,6 +12,10 @@ abstract class LocalMedicationStore {
     required String patientId,
   });
   Future<LocalMedicationSchedule?> getScheduleById(int scheduleId);
+  Future<bool> hasDoseLog({
+    required int medicationScheduleId,
+    required DateTime scheduledAt,
+  });
 
   Future<void> upsertDoseLog(LocalDoseLog doseLog);
   Future<List<LocalDoseLog>> getPendingDoseLogs();
@@ -91,6 +95,25 @@ class SqliteLocalMedicationStore implements LocalMedicationStore {
     }
 
     return LocalMedicationSchedule.fromDbMap(rows.first);
+  }
+
+  @override
+  Future<bool> hasDoseLog({
+    required int medicationScheduleId,
+    required DateTime scheduledAt,
+  }) async {
+    final db = await _localDb.database;
+    final rows = await db.query(
+      LocalDb.doseLogsTable,
+      columns: ['client_uuid'],
+      where: 'medication_schedule_id = ? AND scheduled_at = ?',
+      whereArgs: [
+        medicationScheduleId,
+        scheduledAt.toUtc().toIso8601String(),
+      ],
+      limit: 1,
+    );
+    return rows.isNotEmpty;
   }
 
   @override
