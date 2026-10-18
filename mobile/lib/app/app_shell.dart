@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../features/medication/presentation/screens/my_medications_screen.dart';
+import '../features/family/presentation/screens/family_link_code_screen.dart';
 import '../shared/widgets/coming_soon_view.dart';
 import '../shared/widgets/pill_icon.dart';
 import '../features/auth/presentation/state/auth_controller.dart';
@@ -30,8 +31,9 @@ class _AppShellState extends State<AppShell> {
         children: [
           const ComingSoonView(title: 'Trang chủ', icon: Icons.home_outlined),
           const MyMedicationsScreen(),
-          const ComingSoonView(title: 'Lịch nhắc', icon: Icons.calendar_month_outlined),
-          const ComingSoonView(title: 'Người thân', icon: Icons.people_outline),
+          const ComingSoonView(
+              title: 'Lịch nhắc', icon: Icons.calendar_month_outlined),
+          const FamilyLinkCodeScreen(),
           _buildProfileTab(context),
         ],
       ),
@@ -100,7 +102,8 @@ class _AppShellState extends State<AppShell> {
                 style: AppTextStyles.caption,
               ),
               trailing: const Icon(Icons.chevron_right, color: AppColors.brand),
-              onTap: () => Navigator.of(context).pushNamed(AppRoutes.devCatalog),
+              onTap: () =>
+                  Navigator.of(context).pushNamed(AppRoutes.devCatalog),
             ),
           ),
           const SizedBox(height: AppSpacing.md),
@@ -121,7 +124,8 @@ class _AppShellState extends State<AppShell> {
                 'Mở trực tiếp màn hình đăng nhập S00c',
                 style: AppTextStyles.caption,
               ),
-              trailing: const Icon(Icons.chevron_right, color: AppColors.inkMuted),
+              trailing:
+                  const Icon(Icons.chevron_right, color: AppColors.inkMuted),
               onTap: () => Navigator.of(context).pushNamed(AppRoutes.login),
             ),
           ),
@@ -135,14 +139,18 @@ class _AppShellState extends State<AppShell> {
             color: AppColors.surface,
             child: ListTile(
               key: const Key('privacy-settings-tile'),
-              leading: const Icon(Icons.privacy_tip_outlined, color: AppColors.ink),
-              title: const Text('Quyền riêng tư', style: AppTextStyles.bodyStrong),
+              leading:
+                  const Icon(Icons.privacy_tip_outlined, color: AppColors.ink),
+              title:
+                  const Text('Quyền riêng tư', style: AppTextStyles.bodyStrong),
               subtitle: const Text(
                 'Xem và thay đổi đồng ý xử lý dữ liệu theo từng mục đích',
                 style: AppTextStyles.caption,
               ),
-              trailing: const Icon(Icons.chevron_right, color: AppColors.inkMuted),
-              onTap: () => Navigator.of(context).pushNamed(AppRoutes.privacySettings),
+              trailing:
+                  const Icon(Icons.chevron_right, color: AppColors.inkMuted),
+              onTap: () =>
+                  Navigator.of(context).pushNamed(AppRoutes.privacySettings),
             ),
           ),
           const SizedBox(height: AppSpacing.md),
