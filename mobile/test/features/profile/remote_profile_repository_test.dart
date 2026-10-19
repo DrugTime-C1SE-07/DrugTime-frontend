@@ -19,6 +19,7 @@ void main() {
       'full_name': null,
       'date_of_birth': null,
       'gender': null,
+      'email': 'user@example.com',
       'conditions': []
     };
     server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
@@ -48,9 +49,13 @@ void main() {
       () async {
     final p = await repo.fetch();
     expect(p.fullName, isNull);
+    expect(p.email, 'user@example.com');
     status = 204;
     await repo.update(ProfileDraft(
-        fullName: ' Mai ', dateOfBirth: DateTime(1960), gender: 'nu'));
+        fullName: ' Mai ',
+        dateOfBirth: DateTime(1960),
+        gender: 'nu',
+        email: 'new@example.com'));
     status = 200;
     response = {
       'items': [
@@ -81,8 +86,12 @@ void main() {
     expect(calls.map((c) => c.$1).toList(),
         ['GET', 'PUT', 'GET', 'POST', 'PATCH', 'DELETE']);
     expect(calls.map((c) => c.$4), everyElement('Bearer session'));
-    expect(calls[1].$3,
-        {'full_name': 'Mai', 'date_of_birth': '1960-01-01', 'gender': 'nu'});
+    expect(calls[1].$3, {
+      'full_name': 'Mai',
+      'date_of_birth': '1960-01-01',
+      'gender': 'nu',
+      'email': 'new@example.com'
+    });
     expect(calls[4].$2.path, '/profile/conditions/91');
     expect(calls[4].$3, {'stage': null});
     expect(calls.every((c) => !c.$2.queryParameters.containsKey('patient_id')),

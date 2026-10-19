@@ -15,6 +15,7 @@ class PersonalProfileScreen extends StatefulWidget {
 }
 
 class _PersonalProfileScreenState extends State<PersonalProfileScreen> {
+  final _messengerKey = GlobalKey<ScaffoldMessengerState>();
   GlobalKey<_PersonalFormState>? _formKey;
   int? _formGeneration;
 
@@ -29,40 +30,50 @@ class _PersonalProfileScreenState extends State<PersonalProfileScreen> {
   @override
   Widget build(BuildContext context) {
     final c = ProfileScope.of(context);
+    final mediaQuery = MediaQuery.of(context);
+    final missingBottomInset =
+        (mediaQuery.viewPadding.bottom - mediaQuery.padding.bottom)
+            .clamp(0.0, mediaQuery.viewPadding.bottom)
+            .toDouble();
     if (_formGeneration != c.generation) {
       _formGeneration = c.generation;
       _formKey = GlobalKey<_PersonalFormState>();
     }
-    return Scaffold(
-      appBar: AppBar(
-          title: const Text('Thông tin cá nhân'),
-          leading: IconButton(
-              tooltip: 'Quay lại',
-              onPressed: () => Navigator.maybePop(context),
-              icon: const ProfileIcon('p-arrow-left'))),
-      body: SafeArea(
-          child: SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(20, 20, 20, AppSpacing.xl),
-              child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    const ProfileNotices(hideSuccessNotice: true),
-                    if (c.profile == null && c.loading) const ProfileLoading(),
-                    if (c.profile != null && !c.denied)
-                      _PersonalForm(key: _formKey, profile: c.profile!),
-                  ]))),
-      bottomNavigationBar: c.profile != null && !c.denied
-          ? SafeArea(
-              top: false,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
-                child: FilledButton(
-                    key: const Key('save-profile'),
-                    onPressed: c.saving || c.loading ? null : _saveProfile,
-                    child: Text(c.saving ? 'Đang lưu…' : 'Lưu thay đổi')),
-              ),
-            )
-          : null,
+    return ScaffoldMessenger(
+      key: _messengerKey,
+      child: Scaffold(
+        appBar: AppBar(
+            title: const Text('Thông tin cá nhân'),
+            leading: IconButton(
+                tooltip: 'Quay lại',
+                onPressed: () => Navigator.maybePop(context),
+                icon: const ProfileIcon('p-arrow-left'))),
+        body: SafeArea(
+            child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(20, 20, 20, AppSpacing.xl),
+                child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      const ProfileNotices(hideSuccessNotice: true),
+                      if (c.profile == null && c.loading)
+                        const ProfileLoading(),
+                      if (c.profile != null && !c.denied)
+                        _PersonalForm(key: _formKey, profile: c.profile!),
+                    ]))),
+        bottomNavigationBar: c.profile != null && !c.denied
+            ? SafeArea(
+                top: false,
+                child: Padding(
+                  padding:
+                      EdgeInsets.fromLTRB(20, 8, 20, 12 + missingBottomInset),
+                  child: FilledButton(
+                      key: const Key('save-profile'),
+                      onPressed: c.saving || c.loading ? null : _saveProfile,
+                      child: Text(c.saving ? 'Đang lưu…' : 'Lưu thay đổi')),
+                ),
+              )
+            : null,
+      ),
     );
   }
 
@@ -73,7 +84,7 @@ class _PersonalProfileScreenState extends State<PersonalProfileScreen> {
     final c = ProfileScope.read(context);
     if (c.error != null || c.notice != 'Đã lưu thay đổi') return;
 
-    final messenger = ScaffoldMessenger.of(context);
+    final messenger = _messengerKey.currentState!;
     messenger
       ..hideCurrentSnackBar()
       ..showSnackBar(
@@ -115,7 +126,7 @@ class _PersonalForm extends StatefulWidget {
 class _PersonalFormState extends State<_PersonalForm> {
   final _formKey = GlobalKey<FormState>();
   late final _name = TextEditingController(text: widget.profile.fullName ?? '');
-  final _email = TextEditingController();
+  late final _email = TextEditingController(text: widget.profile.email ?? '');
   late DateTime? _dob = widget.profile.dateOfBirth;
   late String? _gender = widget.profile.gender;
   bool _dirty = false;
@@ -124,6 +135,7 @@ class _PersonalFormState extends State<_PersonalForm> {
     super.didUpdateWidget(oldWidget);
     if (!_dirty) {
       _name.text = widget.profile.fullName ?? '';
+      _email.text = widget.profile.email ?? '';
       _dob = widget.profile.dateOfBirth;
       _gender = widget.profile.gender;
     }
@@ -155,7 +167,12 @@ class _PersonalFormState extends State<_PersonalForm> {
     if (!_formKey.currentState!.validate()) return false;
     final c = ProfileScope.read(context);
     final saved = await c.update(ProfileDraft(
-        fullName: _name.text, dateOfBirth: _dob!, gender: _gender!));
+        fullName: _name.text,
+        dateOfBirth: _dob!,
+        gender: _gender!,
+        email: _email.text.trim().isEmpty
+            ? null
+            : _email.text.trim().toLowerCase()));
     if (mounted && saved) setState(() => _dirty = false);
     return saved;
   }
@@ -257,25 +274,23 @@ class _PersonalFormState extends State<_PersonalForm> {
                   enabled: !c.saving,
                   keyboardType: TextInputType.emailAddress,
                   textInputAction: TextInputAction.done,
-                  validator: (v) => ProfileDraft.validateEmail(v ?? ''),
-                  onChanged: (_) => setState(() {}),
+                  validator: (v) {
+                    final value = v?.trim() ?? '';
+                    if (value.isEmpty &&
+                        (widget.profile.email?.isNotEmpty ?? false)) {
+                      return 'Vui lòng nhập email';
+                    }
+                    return ProfileDraft.validateEmail(value);
+                  },
+                  onChanged: (_) => setState(() => _dirty = true),
                   decoration: InputDecoration(
                       hintText: 'Nhập email',
                       helperText: _email.text.trim().isEmpty
                           ? null
-                          : 'Email chưa được đồng bộ với máy chủ.',
+                          : 'Email này dùng để đăng nhập và nhận OTP lần sau.',
                       suffixIcon: const Center(
                           widthFactor: 1, child: ProfileIcon('p-pencil'))))),
           const SizedBox(height: AppSpacing.xl),
         ]));
-  }
-
-  String? _validateEmail(String? value) {
-    final email = value?.trim() ?? '';
-    if (email.isEmpty) return null;
-    if (!RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(email)) {
-      return 'Email không đúng định dạng';
-    }
-    return null;
   }
 }

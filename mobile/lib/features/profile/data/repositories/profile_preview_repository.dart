@@ -10,6 +10,7 @@ class ProfilePreviewRepository implements ProfileRepository {
     fullName: 'Nguyễn Minh Anh',
     dateOfBirth: DateTime(1985, 6, 15),
     gender: 'nu',
+    email: 'minh.anh@example.com',
     conditions: const [
       ProfileCondition(
         id: 1001,
@@ -43,6 +44,7 @@ class ProfilePreviewRepository implements ProfileRepository {
         draft.dateOfBirth.day,
       ),
       gender: draft.gender,
+      email: draft.email ?? _profile.email,
       conditions: _profile.conditions,
     );
   }
@@ -114,6 +116,7 @@ class ProfilePreviewRepository implements ProfileRepository {
       fullName: _profile.fullName,
       dateOfBirth: _profile.dateOfBirth,
       gender: _profile.gender,
+      email: _profile.email,
       conditions: List.unmodifiable(conditions),
     );
   }

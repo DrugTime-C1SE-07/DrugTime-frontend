@@ -6,7 +6,10 @@ import 'package:drugtime_mobile/features/profile/domain/repositories/profile_rep
 
 class FakeProfileRepository implements ProfileRepository {
   HealthProfile value = HealthProfile(
-      fullName: 'Nguyễn Mai', dateOfBirth: DateTime(1960, 3, 1), gender: 'nu');
+      fullName: 'Nguyễn Mai',
+      dateOfBirth: DateTime(1960, 3, 1),
+      gender: 'nu',
+      email: 'old@example.com');
   int reads = 0, writes = 0;
   ProfileDraft? lastDraft;
   Completer<HealthProfile>? pendingRead;
@@ -33,6 +36,7 @@ class FakeProfileRepository implements ProfileRepository {
         fullName: draft.fullName.trim(),
         dateOfBirth: draft.dateOfBirth,
         gender: draft.gender,
+        email: draft.email ?? value.email,
         conditions: value.conditions);
     if (failFetchAfterWrite) {
       fetchFailure = const ProfileFailure(ProfileFailureKind.network);
@@ -59,6 +63,7 @@ class FakeProfileRepository implements ProfileRepository {
         fullName: value.fullName,
         dateOfBirth: value.dateOfBirth,
         gender: value.gender,
+        email: value.email,
         conditions: [...value.conditions, c]);
     if (writeFailure case final f?) throw f;
     return c;
@@ -82,6 +87,7 @@ class FakeProfileRepository implements ProfileRepository {
         fullName: value.fullName,
         dateOfBirth: value.dateOfBirth,
         gender: value.gender,
+        email: value.email,
         conditions: [
           for (final c in value.conditions) c.id == linkId ? changed : c
         ]);
@@ -96,6 +102,7 @@ class FakeProfileRepository implements ProfileRepository {
         fullName: value.fullName,
         dateOfBirth: value.dateOfBirth,
         gender: value.gender,
+        email: value.email,
         conditions: value.conditions.where((c) => c.id != linkId).toList());
     if (writeFailure case final f?) throw f;
   }
