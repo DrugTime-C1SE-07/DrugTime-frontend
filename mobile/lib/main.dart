@@ -12,12 +12,13 @@ import 'core/sync/sync_engine.dart';
 import 'features/auth/data/repositories/remote_auth_repository.dart';
 import 'features/auth/data/sources/auth_api_service.dart';
 import 'features/auth/data/sources/auth_session_store.dart';
+import 'core/notification/notification_service.dart';
 import 'features/auth/presentation/state/auth_controller.dart';
 import 'features/consent/data/repositories/remote_consent_repository.dart';
 import 'features/medication/data/repositories/remote_medication_repository.dart';
 import 'features/profile/data/repositories/profile_repository_provider.dart';
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   if (!AppConfig.isConfigured) {
     runApp(const MissingConfigApp());
@@ -28,22 +29,26 @@ void main() {
     apiService: AuthApiService(baseUrl: AppConfig.apiBaseUrl),
     sessionStore: SecureAuthSessionStore(),
   );
+  
   final authController = AuthController(authRepository);
+  final notificationService = NotificationService();
+  await notificationService.init();
 
-  // Hồ sơ và các API dùng chung chạy được trên web qua package:http. SQLite/outbox
-  // vẫn chỉ khởi tạo trên mobile.
-  final apiClient = _buildApiClient(authController);
-
+  // ApiClient dùng `dart:io` (`HttpClient`), không chạy được trên web: bản web (chỉ để xem thử
+  // giao diện) dùng thuốc mẫu trong bộ nhớ và bỏ qua đồng bộ liều ngoại tuyến.
+  final apiClient = kIsWeb ? null : _buildApiClient(authController);
+  
   // PROFILE_PREVIEW=true bypasses only the profile API for local UI review.
   // Run without that dart-define to reconnect profile screens to the backend.
   final profileRepository = createProfileRepository(apiClient);
-
+  
   runApp(DrugTimeApp(
     authController: authController,
     medicationRepository: kIsWeb ? null : RemoteMedicationRepository(apiClient),
     consentRepository: kIsWeb ? null : RemoteConsentRepository(apiClient),
-    profileRepository: profileRepository,
     doseOutboxSyncEngine: kIsWeb ? null : _buildDoseOutboxSyncEngine(apiClient),
+    notificationService: notificationService,
+    profileRepository: profileRepository,
   ));
 }
 
