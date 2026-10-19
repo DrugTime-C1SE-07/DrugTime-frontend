@@ -225,8 +225,7 @@ class _DrugTimeAppState extends State<DrugTimeApp> {
 
     final group = DoseReminderGroup(items);
     final outbox = widget.doseOutbox ?? _FallbackDoseOutbox();
-    final scheduler =
-        widget.reminderScheduler ?? _FallbackReminderScheduler();
+    final scheduler = widget.reminderScheduler ?? _FallbackReminderScheduler();
 
     final args = DoseReminderRouteArguments(
       group: group,
@@ -310,9 +309,10 @@ class _DrugTimeAppState extends State<DrugTimeApp> {
           controller: _consents,
           child: FamilyLinkCodeScope(
             controller: _familyLinkCode,
-          child: ProfileScope(
-            controller: _profiles,
-            child: _sessionLoaded ? _buildApp() : const _SessionLoadingApp(),
+            child: ProfileScope(
+              controller: _profiles,
+              child: _sessionLoaded ? _buildApp() : const _SessionLoadingApp(),
+            ),
           ),
         ),
       ),
@@ -387,7 +387,7 @@ class _UnavailableFamilyLinkCodeRepository implements FamilyLinkCodeRepository {
         const FamilyLinkCodeFailure(FamilyLinkCodeFailureKind.unavailable),
       );
 }
-      
+
 class _FallbackDoseOutbox implements DoseOutbox {
   @override
   Future<LocalDoseLog> enqueue({
