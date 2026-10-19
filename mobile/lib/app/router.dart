@@ -19,6 +19,9 @@ import '../features/auth/presentation/screens/email_otp_screen.dart';
 import '../features/auth/presentation/screens/login_mobile_screen.dart';
 import '../features/auth/presentation/screens/phone_otp_screen.dart';
 import 'app_shell.dart';
+import '../features/profile/presentation/screens/profile_screen.dart';
+import '../features/profile/presentation/screens/personal_profile_screen.dart';
+import '../features/profile/presentation/screens/medical_profile_screen.dart';
 import 'theme/app_theme.dart';
 
 abstract final class AppRoutes {
@@ -36,10 +39,20 @@ abstract final class AppRoutes {
   static const privacyPolicy = '/legal/privacy';
   static const doseReminder = '/reminders/dose';
   static const devCatalog = '/dev-catalog';
+  static const profile = '/profile';
+  static const personalProfile = '/profile/personal';
+  static const medicalProfile = '/profile/medical';
 }
 
 Route<dynamic>? onGenerateRoute(RouteSettings settings) {
   return switch (settings.name) {
+    AppRoutes.profile => MaterialPageRoute<void>(
+        settings: settings,
+        builder: (_) => const Scaffold(body: ProfileScreen())),
+    AppRoutes.personalProfile => MaterialPageRoute<void>(
+        settings: settings, builder: (_) => const PersonalProfileScreen()),
+    AppRoutes.medicalProfile => MaterialPageRoute<void>(
+        settings: settings, builder: (_) => const MedicalProfileScreen()),
     // Mọi đường vào Trang chủ đi qua cổng consent (chưa có health_data thì hiện màn đồng ý).
     AppRoutes.home => MaterialPageRoute<void>(
         settings: settings,
@@ -172,6 +185,21 @@ class DevUiCatalogScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final screens = <_UiItem>[
+      const _UiItem(
+          title: 'S08 · Hồ sơ',
+          description: 'Xem thông tin hồ sơ và cài đặt',
+          badge: 'Profile',
+          route: AppRoutes.profile),
+      const _UiItem(
+          title: 'S08-1 · Thông tin cá nhân',
+          description: 'Cập nhật thông tin và chọn ảnh đại diện',
+          badge: 'Profile',
+          route: AppRoutes.personalProfile),
+      const _UiItem(
+          title: 'S08-2 · Thông tin y tế',
+          description: 'Quản lý bệnh nền từ danh mục',
+          badge: 'Profile',
+          route: AppRoutes.medicalProfile),
       const _UiItem(
         title: 'S00c · Đăng nhập (OTP / Email)',
         description:

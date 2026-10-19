@@ -16,6 +16,7 @@ import 'core/notification/notification_service.dart';
 import 'features/auth/presentation/state/auth_controller.dart';
 import 'features/consent/data/repositories/remote_consent_repository.dart';
 import 'features/medication/data/repositories/remote_medication_repository.dart';
+import 'features/profile/data/repositories/profile_repository_provider.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -28,24 +29,26 @@ Future<void> main() async {
     apiService: AuthApiService(baseUrl: AppConfig.apiBaseUrl),
     sessionStore: SecureAuthSessionStore(),
   );
+  
   final authController = AuthController(authRepository);
-
   final notificationService = NotificationService();
   await notificationService.init();
 
   // ApiClient dùng `dart:io` (`HttpClient`), không chạy được trên web: bản web (chỉ để xem thử
   // giao diện) dùng thuốc mẫu trong bộ nhớ và bỏ qua đồng bộ liều ngoại tuyến.
   final apiClient = kIsWeb ? null : _buildApiClient(authController);
-
+  
+  // PROFILE_PREVIEW=true bypasses only the profile API for local UI review.
+  // Run without that dart-define to reconnect profile screens to the backend.
+  final profileRepository = createProfileRepository(apiClient);
+  
   runApp(DrugTimeApp(
     authController: authController,
-    medicationRepository:
-        apiClient == null ? null : RemoteMedicationRepository(apiClient),
-    consentRepository:
-        apiClient == null ? null : RemoteConsentRepository(apiClient),
-    doseOutboxSyncEngine:
-        apiClient == null ? null : _buildDoseOutboxSyncEngine(apiClient),
+    medicationRepository: kIsWeb ? null : RemoteMedicationRepository(apiClient),
+    consentRepository: kIsWeb ? null : RemoteConsentRepository(apiClient),
+    doseOutboxSyncEngine: kIsWeb ? null : _buildDoseOutboxSyncEngine(apiClient),
     notificationService: notificationService,
+    profileRepository: profileRepository,
   ));
 }
 

@@ -19,6 +19,8 @@ import '../features/medication/data/repositories/in_memory_medication_repository
 import '../features/medication/domain/repositories/medication_repository.dart';
 import '../features/medication/presentation/state/medication_controller.dart';
 import '../features/reminder/domain/entities/dose_reminder.dart';
+import '../features/profile/domain/repositories/profile_repository.dart';
+import '../features/profile/presentation/state/profile_controller.dart';
 import 'router.dart';
 import '../core/utils/app_assets.dart';
 import 'theme/app_theme.dart';
@@ -29,6 +31,7 @@ class DrugTimeApp extends StatefulWidget {
     required this.authController,
     this.medicationRepository,
     this.consentRepository,
+    this.profileRepository,
     this.doseOutboxSyncEngine,
     this.localMedicationStore,
     this.doseOutbox,
@@ -49,6 +52,7 @@ class DrugTimeApp extends StatefulWidget {
 
   /// Không truyền thì dùng consent trong bộ nhớ đã đồng ý `health_data` (vào thẳng Trang chủ).
   final ConsentRepository? consentRepository;
+  final ProfileRepository? profileRepository;
   final DoseOutboxSyncEngine? doseOutboxSyncEngine;
 
   /// Kho lưu trữ lịch và liều thuốc cục bộ (dùng tra cứu khi bấm thông báo).
@@ -100,6 +104,16 @@ class _DrugTimeAppState extends State<DrugTimeApp> {
   );
 
   AuthController get _auth => widget.authController;
+  late final ProfileController _profiles =
+      ProfileController(widget.profileRepository);
+  String? _profileUser;
+  bool _hadHealthConsent = false;
+
+  void _onConsentChanged() {
+    final granted = _consents.hasHealthData;
+    if (_hadHealthConsent && !granted) _profiles.revoke();
+    _hadHealthConsent = granted;
+  }
 
   bool _sessionLoaded = false;
   bool _wasAuthenticated = false;
@@ -113,6 +127,7 @@ class _DrugTimeAppState extends State<DrugTimeApp> {
     }
     _auth.addListener(_onAuthChanged);
     _setupNotificationHandling();
+    _consents.addListener(_onConsentChanged);
     unawaited(_loadSession());
   }
 
@@ -225,6 +240,8 @@ class _DrugTimeAppState extends State<DrugTimeApp> {
     setState(() {
       _sessionLoaded = true;
       _wasAuthenticated = _auth.isAuthenticated;
+      _profileUser =
+          _auth.isAuthenticated ? _auth.currentSession?.userId : null;
     });
     if (_auth.isAuthenticated) unawaited(_medications.load());
   }
@@ -233,12 +250,24 @@ class _DrugTimeAppState extends State<DrugTimeApp> {
   void _onAuthChanged() {
     if (!_sessionLoaded) return;
     final authenticated = _auth.isAuthenticated;
+    final user = authenticated ? _auth.currentSession?.userId : null;
+    final switchedUser = user != _profileUser;
+    if (switchedUser) {
+      _profiles.clear();
+      _profileUser = user;
+    }
     if (_wasAuthenticated && !authenticated) {
       _medications.clear();
       _consents.clear();
       _navigatorKey.currentState
           ?.pushNamedAndRemoveUntil(AppRoutes.login, (_) => false);
     } else if (!_wasAuthenticated && authenticated) {
+      unawaited(_medications.load());
+    } else if (switchedUser && authenticated) {
+      _medications.clear();
+      _consents.clear();
+      _navigatorKey.currentState
+          ?.pushNamedAndRemoveUntil(AppRoutes.home, (_) => false);
       unawaited(_medications.load());
     }
     _wasAuthenticated = authenticated;
@@ -253,6 +282,8 @@ class _DrugTimeAppState extends State<DrugTimeApp> {
   @override
   void dispose() {
     _auth.removeListener(_onAuthChanged);
+    _consents.removeListener(_onConsentChanged);
+    _profiles.dispose();
     final syncEngine = widget.doseOutboxSyncEngine;
     if (syncEngine != null) {
       unawaited(syncEngine.dispose());
@@ -271,7 +302,10 @@ class _DrugTimeAppState extends State<DrugTimeApp> {
         controller: _medications,
         child: ConsentScope(
           controller: _consents,
-          child: _sessionLoaded ? _buildApp() : const _SessionLoadingApp(),
+          child: ProfileScope(
+            controller: _profiles,
+            child: _sessionLoaded ? _buildApp() : const _SessionLoadingApp(),
+          ),
         ),
       ),
     );
