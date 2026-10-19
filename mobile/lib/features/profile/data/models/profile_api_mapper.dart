@@ -22,6 +22,7 @@ abstract final class ProfileApiMapper {
   static String? gender(String? value) => switch (value) {
         'nam' || 'male' => 'nam',
         'nu' || 'female' => 'nu',
+        'khac' || 'other' => 'khac',
         _ => null,
       };
   static String dateString(DateTime date) =>
@@ -54,6 +55,7 @@ abstract final class ProfileApiMapper {
         fullName: j['full_name'] as String?,
         dateOfBirth: parseDate(j['date_of_birth']),
         gender: gender(j['gender'] as String?),
+        email: j['email'] as String?,
         conditions:
             List.unmodifiable((j['conditions'] as List).map(condition)));
   }
@@ -62,6 +64,7 @@ abstract final class ProfileApiMapper {
         'full_name': draft.fullName.trim(),
         'date_of_birth': dateString(draft.dateOfBirth),
         'gender': draft.gender,
+        if (draft.email != null) 'email': draft.email!.trim().toLowerCase(),
       };
   static Map<String, String?> metadataChanges(ProfileCondition before,
           {required String? subtype, required String? stage}) =>

@@ -32,7 +32,8 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Tên mới'), findsOneWidget);
     expect(find.text('Đã lưu thay đổi'), findsNothing);
-    expect(find.byKey(const Key('profile-save-success-snackbar')), findsNothing);
+    expect(
+        find.byKey(const Key('profile-save-success-snackbar')), findsNothing);
     repo.writeFailure = null;
     repo.pendingWrite = Completer();
     await tester.ensureVisible(find.byKey(const Key('save-profile')));
@@ -43,7 +44,8 @@ void main() {
     repo.pendingWrite!.complete();
     await tester.pumpAndSettle();
     expect(find.text('Đã lưu thay đổi'), findsOneWidget);
-    expect(find.byKey(const Key('profile-save-success-snackbar')), findsOneWidget);
+    expect(
+        find.byKey(const Key('profile-save-success-snackbar')), findsOneWidget);
     expect(
         find.descendant(
             of: find.byType(ProfileNotices),
@@ -65,13 +67,14 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(repo.writes, 1);
-    expect(find.byKey(const Key('profile-save-success-snackbar')), findsNothing);
+    expect(
+        find.byKey(const Key('profile-save-success-snackbar')), findsNothing);
     expect(find.text('Đã lưu. Chưa tải lại được hồ sơ, vui lòng tải lại.'),
         findsOneWidget);
     expect(find.text('Không thể kết nối. Vui lòng thử lại.'), findsOneWidget);
   });
 
-  testWidgets('email is editable draft but never part of saved profile',
+  testWidgets('email loads from profile and is saved as the login email',
       (tester) async {
     final repo = FakeProfileRepository();
     final c = ProfileController(repo);
@@ -81,7 +84,8 @@ void main() {
 
     final email = find.byKey(const Key('profile-email'));
     expect(email, findsOneWidget);
-    expect(tester.widget<TextFormField>(email).controller!.text, isEmpty);
+    expect(tester.widget<TextFormField>(email).controller!.text,
+        'old@example.com');
     await tester.enterText(email, 'not-an-email');
     await tester.ensureVisible(find.byKey(const Key('save-profile')));
     await tester.tap(find.byKey(const Key('save-profile')));
@@ -95,7 +99,10 @@ void main() {
     await tester.pumpAndSettle();
     expect(repo.writes, 1);
     expect(repo.lastDraft!.fullName, 'Nguyễn Mai');
-    expect(find.text('Email chưa được đồng bộ với máy chủ.'), findsOneWidget);
+    expect(repo.lastDraft!.email, 'mai@example.com');
+    expect(repo.value.email, 'mai@example.com');
+    expect(find.text('Email này dùng để đăng nhập và nhận OTP lần sau.'),
+        findsOneWidget);
   });
   testWidgets('profile only loads when tab is activated, opens personal route',
       (tester) async {

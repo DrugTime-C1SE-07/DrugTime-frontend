@@ -11,9 +11,11 @@ void main() {
       'full_name': null,
       'date_of_birth': null,
       'gender': null,
+      'email': 'old@example.com',
       'conditions': []
     });
     expect(p.fullName, isNull);
+    expect(p.email, 'old@example.com');
     expect(p.conditions, isEmpty);
     for (final pair in {
       'male': 'nam',
@@ -26,11 +28,21 @@ void main() {
       expect(ProfileApiMapper.gender(pair.key), pair.value);
     }
   });
-  test('PUT only supported fields, trim name and preserve calendar date', () {
+  test('PUT sends editable fields and preserves calendar date', () {
     final body = ProfileApiMapper.updateBody(ProfileDraft(
-        fullName: '  Mai  ', dateOfBirth: DateTime(1958, 3, 1), gender: 'nu'));
-    expect(body,
-        {'full_name': 'Mai', 'date_of_birth': '1958-03-01', 'gender': 'nu'});
+        fullName: '  Mai  ',
+        dateOfBirth: DateTime(1958, 3, 1),
+        gender: 'nu',
+        email: '  New@Example.com  '));
+    expect(body, {
+      'full_name': 'Mai',
+      'date_of_birth': '1958-03-01',
+      'gender': 'nu',
+      'email': 'new@example.com'
+    });
+    final unchanged = ProfileApiMapper.updateBody(ProfileDraft(
+        fullName: 'Mai', dateOfBirth: DateTime(1958, 3, 1), gender: 'nu'));
+    expect(unchanged.containsKey('email'), isFalse);
   });
   test('Vietnam midnight boundary, blank name and future DOB', () {
     final now = DateTime.utc(2026, 10, 14, 17, 1);
@@ -39,6 +51,12 @@ void main() {
     expect(ProfileDraft.validateDate(DateTime(2026, 10, 16), now), isNotNull);
     expect(ProfileDraft.validateDate(null, now), isNotNull);
     expect(ProfileDraft.validateName('  '), isNotNull);
+    expect(ProfileDraft.validateEmail('new@example.com'), isNull);
+    expect(ProfileDraft.validateEmail('not-an-email'), isNotNull);
+    expect(
+        ProfileDraft.validateEmail(
+            '${List.filled(251, 'x').join()}@example.com'),
+        isNotNull);
     expect(
         () => ProfileApiMapper.parseDate('2026-02-30'), throwsFormatException);
   });

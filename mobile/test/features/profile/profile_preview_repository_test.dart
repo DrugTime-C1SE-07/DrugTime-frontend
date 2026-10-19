@@ -14,13 +14,16 @@ void main() {
     final initial = await repository.fetch();
 
     expect(initial.fullName, 'Nguyễn Minh Anh');
+    expect(initial.email, 'minh.anh@example.com');
     expect(initial.conditions, hasLength(1));
     await repository.update(ProfileDraft(
       fullName: 'Tên xem trước',
       dateOfBirth: DateTime(1990, 2, 3),
       gender: 'nam',
+      email: 'new@example.com',
     ));
     expect((await repository.fetch()).fullName, 'Tên xem trước');
+    expect((await repository.fetch()).email, 'new@example.com');
 
     final page = await repository.catalog(offset: 0, limit: 2);
     expect(page.items, hasLength(2));
