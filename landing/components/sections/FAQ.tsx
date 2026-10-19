@@ -1,8 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useId, useState } from 'react';
+import Image from 'next/image';
 import Icon from '@/components/ui/Icon';
-import { siteConfig } from '@/lib/seo/metadata';
+import { assets, siteConfig } from '@/lib/seo/metadata';
 
 // Only the first answer comes from Figma; the other three were written from facts elsewhere
 // on the page — confirm with the product team.
@@ -25,47 +26,53 @@ const FAQS = [
   },
 ];
 
+/** Accordion (WAI-ARIA pattern): one answer open at a time, height animated with grid rows. */
 export default function FAQ() {
-  // One item open at a time.
   const [openIndex, setOpenIndex] = useState<number | null>(0);
+  const baseId = useId();
 
   return (
-    <section className="section" id="hoi-dap" aria-labelledby="faq-title">
-      <div className="container split split--faq">
-        <div className="split__main">
-          <h2 className="section__title" id="faq-title">Câu hỏi thường gặp</h2>
-          <p className="section__lead">Giải đáp thắc mắc phổ biến của người bệnh và người chăm sóc khi dùng DrugTime.</p>
-          <a className="help-card" href={siteConfig.links.contactEmail}>
-            <span className="tile tile--md tile--brand"><Icon name="mail" /></span>
+    <section className="section faq-section" id="hoi-dap" aria-labelledby="faq-title">
+      <div className="container faq-layout">
+        <div className="faq-aside">
+          <p className="kicker">Hỏi đáp</p>
+          <h2 className="section__title" id="faq-title" data-split>Câu hỏi thường gặp</h2>
+          <Image className="faq-mascot" src={assets.mascotThinking} alt="" width={521} height={479} sizes="168px" />
+          <a className="help-card" href={siteConfig.links.contactEmail} data-spotlight>
+            <span className="tile tile--brand"><Icon name="mail" /></span>
             <span>
               <strong>Vẫn còn thắc mắc?</strong>
-              <span className="help-card__link">Liên hệ &amp; Hỏi đáp <Icon name="arrow-right" size="sm" /></span>
+              <span className="help-card__link">Liên hệ với chúng tôi <Icon name="arrow-right" size="sm" /></span>
             </span>
           </a>
         </div>
+
         <div className="faq">
-          {FAQS.map((item, i) => (
-            <details
-              key={item.q}
-              className="faq__item"
-              open={openIndex === i}
-              onToggle={(e) => {
-                const isOpen = e.currentTarget.open;
-                setOpenIndex((cur) => (isOpen ? i : cur === i ? null : cur));
-              }}
-            >
-              <summary
-                onClick={(e) => {
-                  e.preventDefault();
-                  setOpenIndex((cur) => (cur === i ? null : i));
-                }}
-              >
-                <span>{item.q}</span>
-                <span className="faq__toggle" aria-hidden="true"><Icon name="plus" size="sm" /></span>
-              </summary>
-              <div className="faq__answer"><p>{item.a}</p></div>
-            </details>
-          ))}
+          {FAQS.map((item, i) => {
+            const open = openIndex === i;
+            const triggerId = `${baseId}-q${i}`;
+            const panelId = `${baseId}-a${i}`;
+            return (
+              <div className={open ? 'faq__item is-open' : 'faq__item'} key={item.q} data-reveal>
+                <h3 className="faq__q">
+                  <button
+                    type="button"
+                    className="faq__trigger"
+                    id={triggerId}
+                    aria-expanded={open}
+                    aria-controls={panelId}
+                    onClick={() => setOpenIndex(open ? null : i)}
+                  >
+                    <span>{item.q}</span>
+                    <span className="faq__toggle" aria-hidden="true"><Icon name="plus" size="sm" /></span>
+                  </button>
+                </h3>
+                <div className="faq__panel" id={panelId} role="region" aria-labelledby={triggerId} inert={!open}>
+                  <div><p className="faq__answer">{item.a}</p></div>
+                </div>
+              </div>
+            );
+          })}
         </div>
       </div>
     </section>

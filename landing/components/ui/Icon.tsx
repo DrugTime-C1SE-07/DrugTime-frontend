@@ -1,7 +1,8 @@
 export type IconName =
   | 'check' | 'x' | 'plus' | 'menu' | 'arrow-right' | 'bell' | 'pill' | 'alert-triangle'
   | 'users' | 'shield-check' | 'check-circle' | 'scan' | 'calendar-clock' | 'stethoscope'
-  | 'lock' | 'mail' | 'heart-pulse';
+  | 'lock' | 'mail' | 'heart-pulse' | 'sparkles' | 'wifi-off' | 'smartphone' | 'chevron-down'
+  | 'phone' | 'pause' | 'play' | 'chart-column' | 'utensils' | 'a-large-small' | 'search';
 
 type Props = { name: IconName; size?: 'xs' | 'sm' | 'md' | 'lg'; className?: string };
 

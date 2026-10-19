@@ -4,8 +4,7 @@ import '../features/medication/presentation/screens/my_medications_screen.dart';
 import '../features/family/presentation/screens/family_link_code_screen.dart';
 import '../shared/widgets/coming_soon_view.dart';
 import '../shared/widgets/pill_icon.dart';
-import '../features/auth/presentation/state/auth_controller.dart';
-import 'router.dart';
+import '../features/profile/presentation/screens/profile_screen.dart';
 import 'theme/app_theme.dart';
 
 enum AppTab { home, medications, reminders, family, profile }
@@ -35,6 +34,8 @@ class _AppShellState extends State<AppShell> {
               title: 'Lịch nhắc', icon: Icons.calendar_month_outlined),
           const FamilyLinkCodeScreen(),
           _buildProfileTab(context),
+          const ComingSoonView(title: 'Người thân', icon: Icons.people_outline),
+          ProfileScreen(active: _tab == AppTab.profile),
         ],
       ),
       bottomNavigationBar: DecoratedBox(

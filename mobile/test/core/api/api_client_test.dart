@@ -29,7 +29,9 @@ void main() {
       if (status != 204) {
         request.response
           ..headers.contentType = ContentType.json
-          ..write(status == 200 ? '{"ok": true}' : '{"detail": "Invalid bearer token"}');
+          ..write(status == 200
+              ? '{"ok": true}'
+              : '{"detail": "Invalid bearer token"}');
       }
       await request.response.close();
     });
@@ -40,7 +42,8 @@ void main() {
   Uri base() => Uri.parse('http://127.0.0.1:${server.port}');
 
   test('gắn Authorization: Bearer khi có token', () async {
-    final client = ApiClient(baseUrl: base(), authTokenProvider: () async => 'app-token');
+    final client =
+        ApiClient(baseUrl: base(), authTokenProvider: () async => 'app-token');
 
     await client.postJson('/doses/batch', body: {});
 
@@ -48,7 +51,8 @@ void main() {
   });
 
   test('không gắn header khi chưa đăng nhập (token null)', () async {
-    final client = ApiClient(baseUrl: base(), authTokenProvider: () async => null);
+    final client =
+        ApiClient(baseUrl: base(), authTokenProvider: () async => null);
 
     await client.postJson('/doses/batch', body: {});
 
@@ -66,7 +70,8 @@ void main() {
 
     await expectLater(
       client.postJson('/doses/batch', body: {}),
-      throwsA(isA<ApiException>().having((e) => e.statusCode, 'statusCode', 401)),
+      throwsA(
+          isA<ApiException>().having((e) => e.statusCode, 'statusCode', 401)),
     );
     expect(called, 1);
   });
@@ -74,16 +79,20 @@ void main() {
   test('lỗi khác 401 không gọi onUnauthorized', () async {
     status = 403;
     var called = 0;
-    final client = ApiClient(baseUrl: base(), onUnauthorized: () async => called++);
+    final client =
+        ApiClient(baseUrl: base(), onUnauthorized: () async => called++);
 
-    await expectLater(client.postJson('/x', body: {}), throwsA(isA<ApiException>()));
+    await expectLater(
+        client.postJson('/x', body: {}), throwsA(isA<ApiException>()));
     expect(called, 0);
   });
 
   test('getJson gửi GET kèm query đã mã hoá và giải mã JSON', () async {
-    final client = ApiClient(baseUrl: base(), authTokenProvider: () async => 't');
+    final client =
+        ApiClient(baseUrl: base(), authTokenProvider: () async => 't');
 
-    final result = await client.getJson('/catalog/medications', query: {'q': 'thuốc ho', 'limit': '5'});
+    final result = await client.getJson('/catalog/medications',
+        query: {'q': 'thuốc ho', 'limit': '5'});
 
     expect(result, {'ok': true});
     expect(methods.single, 'GET');
@@ -111,19 +120,34 @@ void main() {
     expect(methods.single, 'DELETE');
   });
 
+  test('putJson gửi PUT đúng body và Bearer, chấp nhận 204', () async {
+    status = 204;
+    final client =
+        ApiClient(baseUrl: base(), authTokenProvider: () async => 't');
+    expect(
+        await client.putJson('/profile', body: {'full_name': 'Mai'}), isNull);
+    expect(methods.single, 'PUT');
+    expect(uris.single.path, '/profile');
+    expect(jsonDecode(bodies.single), {'full_name': 'Mai'});
+    expect(authHeaders.single, 'Bearer t');
+  });
+
   for (final call in <String, Future<Object?> Function(ApiClient)>{
     'GET': (c) => c.getJson('/medications'),
+    'PUT': (c) => c.putJson('/profile', body: {}),
     'PATCH': (c) => c.patchJson('/medications/1', body: {}),
     'DELETE': (c) => c.delete('/medications/1'),
   }.entries) {
     test('${call.key} nhận 401 gọi onUnauthorized', () async {
       status = 401;
       var called = 0;
-      final client = ApiClient(baseUrl: base(), onUnauthorized: () async => called++);
+      final client =
+          ApiClient(baseUrl: base(), onUnauthorized: () async => called++);
 
       await expectLater(
         call.value(client),
-        throwsA(isA<ApiException>().having((e) => e.statusCode, 'statusCode', 401)),
+        throwsA(
+            isA<ApiException>().having((e) => e.statusCode, 'statusCode', 401)),
       );
       expect(called, 1);
     });
@@ -136,7 +160,8 @@ void main() {
 
     await expectLater(
       client.getJson('/medications'),
-      throwsA(isA<ApiException>().having((e) => e.isTransient, 'isTransient', true)),
+      throwsA(isA<ApiException>()
+          .having((e) => e.isTransient, 'isTransient', true)),
     );
   });
 }
