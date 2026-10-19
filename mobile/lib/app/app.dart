@@ -15,6 +15,10 @@ import '../features/auth/presentation/state/auth_controller.dart';
 import '../features/consent/data/repositories/in_memory_consent_repository.dart';
 import '../features/consent/domain/repositories/consent_repository.dart';
 import '../features/consent/presentation/state/consent_controller.dart';
+import '../features/family/domain/entities/family_link_code.dart';
+import '../features/family/domain/entities/family_link_code_failure.dart';
+import '../features/family/domain/repositories/family_link_code_repository.dart';
+import '../features/family/presentation/state/family_link_code_controller.dart';
 import '../features/medication/data/repositories/in_memory_medication_repository.dart';
 import '../features/medication/domain/repositories/medication_repository.dart';
 import '../features/medication/presentation/state/medication_controller.dart';
@@ -31,6 +35,7 @@ class DrugTimeApp extends StatefulWidget {
     required this.authController,
     this.medicationRepository,
     this.consentRepository,
+    this.familyLinkCodeRepository,
     this.profileRepository,
     this.doseOutboxSyncEngine,
     this.localMedicationStore,
@@ -52,6 +57,9 @@ class DrugTimeApp extends StatefulWidget {
 
   /// Không truyền thì dùng consent trong bộ nhớ đã đồng ý `health_data` (vào thẳng Trang chủ).
   final ConsentRepository? consentRepository;
+
+  /// Cho phép test thay nguồn lấy mã liên kết; bản thật dùng Backend API.
+  final FamilyLinkCodeRepository? familyLinkCodeRepository;
   final ProfileRepository? profileRepository;
   final DoseOutboxSyncEngine? doseOutboxSyncEngine;
 
@@ -92,15 +100,17 @@ class _DrugTimeAppState extends State<DrugTimeApp> {
   late final GlobalKey<ScaffoldMessengerState> _scaffoldMessengerKey =
       widget.scaffoldMessengerKey ?? GlobalKey<ScaffoldMessengerState>();
 
-  /// Chỉ tải khi đã có phiên: gọi API trước khi đăng nhập sẽ nhận 401 và đá người dùng về
-  /// màn Đăng nhập.
   late final MedicationController _medications = MedicationController(
     widget.medicationRepository ?? InMemoryMedicationRepository(),
   );
 
-  /// Cổng ở Trang chủ tự tải khi được dựng; ở đây chỉ giữ và xóa khi đăng xuất.
   late final ConsentController _consents = ConsentController(
     widget.consentRepository ?? InMemoryConsentRepository(),
+  );
+
+  late final FamilyLinkCodeController _familyLinkCode =
+      FamilyLinkCodeController(
+    widget.familyLinkCodeRepository ?? _UnavailableFamilyLinkCodeRepository(),
   );
 
   AuthController get _auth => widget.authController;
@@ -122,9 +132,7 @@ class _DrugTimeAppState extends State<DrugTimeApp> {
   void initState() {
     super.initState();
     final syncEngine = widget.doseOutboxSyncEngine;
-    if (syncEngine != null) {
-      unawaited(syncEngine.start());
-    }
+    if (syncEngine != null) unawaited(syncEngine.start());
     _auth.addListener(_onAuthChanged);
     _setupNotificationHandling();
     _consents.addListener(_onConsentChanged);
@@ -217,8 +225,7 @@ class _DrugTimeAppState extends State<DrugTimeApp> {
 
     final group = DoseReminderGroup(items);
     final outbox = widget.doseOutbox ?? _FallbackDoseOutbox();
-    final scheduler =
-        widget.reminderScheduler ?? _FallbackReminderScheduler();
+    final scheduler = widget.reminderScheduler ?? _FallbackReminderScheduler();
 
     final args = DoseReminderRouteArguments(
       group: group,
@@ -246,7 +253,6 @@ class _DrugTimeAppState extends State<DrugTimeApp> {
     if (_auth.isAuthenticated) unawaited(_medications.load());
   }
 
-  /// Mất phiên (đăng xuất hoặc API trả 401) thì đưa người dùng về màn Đăng nhập.
   void _onAuthChanged() {
     if (!_sessionLoaded) return;
     final authenticated = _auth.isAuthenticated;
@@ -259,6 +265,7 @@ class _DrugTimeAppState extends State<DrugTimeApp> {
     if (_wasAuthenticated && !authenticated) {
       _medications.clear();
       _consents.clear();
+      _familyLinkCode.clear();
       _navigatorKey.currentState
           ?.pushNamedAndRemoveUntil(AppRoutes.login, (_) => false);
     } else if (!_wasAuthenticated && authenticated) {
@@ -285,26 +292,27 @@ class _DrugTimeAppState extends State<DrugTimeApp> {
     _consents.removeListener(_onConsentChanged);
     _profiles.dispose();
     final syncEngine = widget.doseOutboxSyncEngine;
-    if (syncEngine != null) {
-      unawaited(syncEngine.dispose());
-    }
+    if (syncEngine != null) unawaited(syncEngine.dispose());
     _medications.dispose();
     _consents.dispose();
+    _familyLinkCode.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    // Scopes đặt trên MaterialApp để mọi route (kể cả modal bottom sheet) đều truy cập được.
     return AuthScope(
       controller: _auth,
       child: MedicationScope(
         controller: _medications,
         child: ConsentScope(
           controller: _consents,
-          child: ProfileScope(
-            controller: _profiles,
-            child: _sessionLoaded ? _buildApp() : const _SessionLoadingApp(),
+          child: FamilyLinkCodeScope(
+            controller: _familyLinkCode,
+            child: ProfileScope(
+              controller: _profiles,
+              child: _sessionLoaded ? _buildApp() : const _SessionLoadingApp(),
+            ),
           ),
         ),
       ),
@@ -331,18 +339,15 @@ class _DrugTimeAppState extends State<DrugTimeApp> {
   }
 }
 
-/// Màn chờ trong lúc đọc phiên đã lưu (MaterialApp riêng, không dùng navigatorKey của app).
 class _SessionLoadingApp extends StatelessWidget {
   const _SessionLoadingApp();
 
   @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      theme: buildAppTheme(),
-      home: const _SessionLoadingScreen(),
-    );
-  }
+  Widget build(BuildContext context) => MaterialApp(
+        debugShowCheckedModeBanner: false,
+        theme: buildAppTheme(),
+        home: const _SessionLoadingScreen(),
+      );
 }
 
 class _SessionLoadingScreen extends StatelessWidget {
@@ -350,7 +355,6 @@ class _SessionLoadingScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Cùng nền với màn khởi động của hệ điều hành và cùng ảnh mascot, để chuyển cảnh không giật.
     final width = MediaQuery.sizeOf(context).width;
     return Scaffold(
       backgroundColor: AppColors.canvas,
@@ -367,15 +371,21 @@ class _SessionLoadingScreen extends StatelessWidget {
             ),
             const SizedBox(height: AppSpacing.xl),
             const SizedBox(
-              width: 24.0,
-              height: 24.0,
-              child: CircularProgressIndicator(strokeWidth: 2.5),
-            ),
+                width: 24.0,
+                height: 24.0,
+                child: CircularProgressIndicator(strokeWidth: 2.5)),
           ],
         ),
       ),
     );
   }
+}
+
+class _UnavailableFamilyLinkCodeRepository implements FamilyLinkCodeRepository {
+  @override
+  Future<FamilyLinkCode> fetch() => Future.error(
+        const FamilyLinkCodeFailure(FamilyLinkCodeFailureKind.unavailable),
+      );
 }
 
 class _FallbackDoseOutbox implements DoseOutbox {
