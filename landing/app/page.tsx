@@ -1,6 +1,7 @@
 import Hero from '@/components/sections/Hero';
-import Statement from '@/components/sections/Statement';
-import FeatureGrid from '@/components/sections/FeatureGrid';
+import ProofStrip from '@/components/sections/ProofStrip';
+import FeatureStory from '@/components/sections/FeatureStory';
+import MoreFeatures from '@/components/sections/MoreFeatures';
 import HowItWorks from '@/components/sections/HowItWorks';
 import Safety from '@/components/sections/Safety';
 import FAQ from '@/components/sections/FAQ';
@@ -10,8 +11,9 @@ export default function HomePage() {
   return (
     <>
       <Hero />
-      <Statement />
-      <FeatureGrid />
+      <ProofStrip />
+      <FeatureStory />
+      <MoreFeatures />
       <HowItWorks />
       <Safety />
       <FAQ />

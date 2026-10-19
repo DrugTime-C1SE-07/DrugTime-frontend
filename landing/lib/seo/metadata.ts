@@ -26,9 +26,16 @@ export const siteConfig = {
  */
 export const assets = {
   logo: "/icons/logo.png",
-  mascotCooking: "/icons/mascot-cooking.png",
+  /** 192px quantised copy of the logo (~10 KB) for favicon / touch icon; the original is 411 KB. */
+  favicon: "/images/logo-192.png",
   mascotHappy: "/icons/mascot-happy.png",
+  mascotThinking: "/icons/mascot-thinking.png",
+  mascotProtect: "/icons/mascot-protect.png",
+  appHome: "/images/trangchu.png",
 } as const;
+
+/** iPhone 3D trong hero — scene xuất từ Spline (Export › Code › React). */
+export const SPLINE_SCENE_URL = "https://prod.spline.design/HPxIP0ufwvPd0zHS/scene.splinecode";
 
 type PageMeta = { title?: string; description?: string; path?: string };
 
