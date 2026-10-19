@@ -1,0 +1,39 @@
+/* ───────── Safety ───────── */
+.safety { background: var(--color-surface); overflow: clip; }
+.pillars { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-md); }
+.pillar {
+  display: grid; align-content: start; gap: var(--space-sm);
+  min-height: 260px; padding: var(--space-lg); border-radius: var(--radius-card-xl);
+  background: var(--color-canvas); box-shadow: inset 0 0 0 1px var(--color-border);
+  transition: box-shadow var(--dur-slow) var(--ease-out);
+}
+.pillar:hover { box-shadow: inset 0 0 0 1px var(--color-brand-line), var(--shadow-float); }
+.pillar__title { font-size: var(--text-title); line-height: 1.25; margin-top: var(--space-xs); }
+.pillar p { color: var(--color-ink-muted); }
+
+/* Icon tile with a light running around its border */
+.tile--ring { isolation: isolate; overflow: hidden; color: var(--color-brand); }
+.tile--ring::before {
+  content: ""; position: absolute; inset: -40%; z-index: -2;
+  background: conic-gradient(from 0deg, transparent 0 70%, var(--color-brand-glow) 85%, var(--color-mint) 92%, transparent 100%);
+}
+.tile--ring::after { content: ""; position: absolute; inset: 2px; z-index: -1; border-radius: inherit; background: var(--color-brand-tint); }
+@media (prefers-reduced-motion: no-preference) { .tile--ring::before { animation: spin 4s linear infinite; } }
+
+.medical-note {
+  display: flex; align-items: flex-start; gap: var(--space-md); margin-top: var(--space-md);
+  padding: var(--space-lg); border-radius: var(--radius-card-xl);
+  background: var(--color-danger-bg); box-shadow: inset 0 0 0 1px var(--color-danger-line);
+}
+.medical-note p { color: var(--color-ink); max-width: 56rem; }
+.medical-note__head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2xs) var(--space-xs); margin-bottom: var(--space-2xs); }
+.medical-note__head strong { color: var(--color-danger-strong); font-size: var(--text-label); text-transform: uppercase; letter-spacing: 0.06em; }
+.badge-115 {
+  display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 0 14px; border-radius: var(--radius-pill);
+  background: var(--color-danger); color: var(--color-on-brand); font-size: var(--text-label); font-weight: 700; white-space: nowrap;
+  transition: background-color var(--dur-base) var(--ease-out);
+}
+.badge-115:hover { background: var(--color-danger-strong); }
+
+@media (max-width: 1023px) { .pillars { grid-template-columns: minmax(0, 1fr); } .pillar { min-height: 0; } }
+@media (max-width: 639px) { .medical-note { flex-direction: column; padding: var(--space-md); } .pillar { padding: var(--space-md); } }

@@ -1,0 +1,111 @@
+/* ───────── Feature story ─────────
+ * Default (no JS, mobile, reduced motion): chapters stacked as cards with their own mini screen.
+ * `.story.is-pinned` (desktop + motion): device fixed on the left, chapters crossfade on the right.
+ */
+.story { overflow: clip; }
+.story__layout { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-lg); }
+.story__device { display: none; }
+
+.chapters { display: grid; gap: var(--space-md); }
+.chapter {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: var(--space-md);
+  padding: var(--space-lg); border-radius: var(--radius-card-xl);
+  background: var(--color-surface); box-shadow: inset 0 0 0 1px var(--color-border), var(--shadow-soft);
+}
+.chapter__index { font-size: var(--text-label); font-weight: 700; letter-spacing: 0.08em; color: var(--color-brand); }
+.chapter__title { font-size: var(--text-display-md); line-height: 1.15; letter-spacing: -0.02em; margin: var(--space-2xs) 0 var(--space-xs); }
+.chapter__text { color: var(--color-ink-muted); max-width: 30rem; }
+.chapter__tag {
+  display: inline-flex; align-items: center; gap: 6px; margin-top: var(--space-sm);
+  padding: 6px 12px; border-radius: var(--radius-pill);
+  background: var(--color-brand-tint); color: var(--color-brand); font-size: var(--text-label); font-weight: 600;
+}
+/* Mini device = the full-size device scaled down, so the mock screens keep their proportions. */
+.chapter__mini.device { zoom: 0.55; }
+
+@media (max-width: 639px) {
+  .chapter { grid-template-columns: minmax(0, 1fr); padding: var(--space-md); }
+  .chapter__mini.device { zoom: 0.5; justify-self: center; }
+}
+
+/* Desktop pinned mode */
+@media (min-width: 1024px) {
+  .story__layout { grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr); align-items: center; gap: var(--space-2xl); }
+  .story__device { display: grid; place-items: center; position: relative; }
+  .chapter__mini { display: none; }
+  .chapter { grid-template-columns: minmax(0, 1fr); background: transparent; box-shadow: none; padding: 0; }
+  .chapter__title { font-size: clamp(2rem, 1rem + 2.4vw, 3.25rem); }
+  .chapter__text { font-size: var(--text-body-lg); }
+  .chapters { gap: var(--space-2xl); }
+
+  .story.is-pinned { min-height: 100svh; display: grid; align-items: center; padding-block: var(--space-xl); }
+  .story.is-pinned .section__head { margin-bottom: var(--space-lg); }
+  .story.is-pinned .chapters { display: grid; }
+  .story.is-pinned .chapter { grid-area: 1 / 1; opacity: 0; }
+  .story.is-pinned .chapter:first-child { opacity: 1; }
+}
+
+/* Device + screens (shared by the big device and the mini cards) */
+.device {
+  position: relative; width: 300px; aspect-ratio: 9 / 18.5; padding: 10px; border-radius: 46px;
+  background: linear-gradient(145deg, var(--device-frame-a), var(--device-frame-b));
+  box-shadow: inset 0 0 0 1.5px var(--color-white-25), var(--shadow-device);
+}
+.device__screens { position: relative; width: 100%; height: 100%; overflow: hidden; border-radius: 36px; background: var(--color-canvas); }
+.device__island { position: absolute; top: 20px; left: 50%; width: 30%; height: 22px; margin-left: -15%; border-radius: 12px; background: var(--device-island); z-index: 3; }
+.device .screen { position: absolute; inset: 0; }
+.device .screen + .screen { opacity: 0; }
+.story__glow { position: absolute; width: 140%; aspect-ratio: 1; border-radius: 50%; z-index: -1; background: radial-gradient(circle, var(--color-brand-tint), transparent 65%); }
+
+.progress { position: absolute; left: calc(100% + var(--space-lg)); top: 50%; translate: 0 -50%; display: grid; gap: var(--space-xs); justify-items: center; }
+.progress__rail { position: relative; width: 3px; height: 180px; border-radius: 3px; background: var(--color-border); overflow: hidden; }
+.progress__fill { position: absolute; inset: 0; background: var(--color-brand); transform-origin: top; transform: scaleY(var(--p, 1)); }
+.progress__dots { display: grid; gap: 10px; }
+.progress__dot { width: 10px; height: 10px; border-radius: 50%; background: var(--color-border); transition: background-color var(--dur-base), transform var(--dur-base) var(--ease-spring); }
+.progress__dot.is-active { background: var(--color-brand); transform: scale(1.4); }
+
+/* ── Screen mocks ── */
+.screen { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; padding: 48px 18px 22px; overflow: hidden; text-align: center; }
+.screen--remind { background: linear-gradient(180deg, var(--color-brand-tint), var(--color-surface) 60%); }
+.screen--scan { background: var(--color-brand-strong); color: var(--color-on-dark); }
+.screen--interaction { background: linear-gradient(180deg, var(--color-caution-bg), var(--color-surface) 70%); }
+.screen--family { background: linear-gradient(180deg, var(--color-surface-2), var(--color-surface)); justify-content: flex-start; padding-top: 64px; }
+
+.mock-time { font-weight: 700; font-size: 2.25rem; letter-spacing: -0.03em; color: var(--color-ink); line-height: 1; }
+.mock-bell { position: relative; display: grid; place-items: center; width: 96px; height: 96px; }
+.mock-bell::before, .mock-bell::after { content: ""; position: absolute; inset: 0; border-radius: 50%; background: var(--color-brand); opacity: 0.14; }
+.mock-bell::after { inset: 12px; opacity: 0.22; }
+.mock-bell .tile { width: 60px; height: 60px; background: var(--color-brand); color: var(--color-on-brand); z-index: 1; }
+.mock-pill { display: inline-flex; align-items: center; gap: 6px; padding: 8px 12px; border-radius: var(--radius-control); background: var(--color-surface); box-shadow: var(--shadow-soft); font-size: 0.8125rem; font-weight: 600; color: var(--color-ink-muted); }
+.mock-pill .icon { color: var(--color-brand); }
+.mock-btn { width: 100%; padding: 14px; border-radius: var(--radius-card-md); background: var(--color-safe-strong); color: var(--color-on-brand); font-weight: 700; display: inline-flex; justify-content: center; gap: 6px; }
+
+.mock-frame { position: relative; width: 100%; aspect-ratio: 1; border-radius: var(--radius-card-lg); border: 2px dashed var(--color-white-70); display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; padding: 18px; overflow: hidden; }
+.mock-frame i { border-radius: 999px; background: var(--color-white-25); }
+.mock-beam { position: absolute; left: 8px; right: 8px; top: 30%; height: 3px; border-radius: 2px; background: var(--color-accent); box-shadow: 0 0 14px 2px var(--color-accent); }
+.mock-found { display: inline-flex; align-items: center; gap: 6px; padding: 8px 12px; border-radius: var(--radius-pill); background: var(--color-surface); color: var(--color-ink); font-size: 0.8125rem; font-weight: 700; }
+.mock-found .icon { color: var(--color-safe); }
+
+.mock-alert { width: 100%; display: grid; gap: 8px; padding: 14px; border-radius: var(--radius-card-md); background: var(--color-surface); box-shadow: inset 0 0 0 1.5px var(--color-caution), var(--shadow-soft); text-align: left; }
+.mock-alert strong { display: flex; align-items: center; gap: 6px; font-size: 0.875rem; color: var(--color-caution-strong); }
+.mock-row { display: flex; align-items: center; justify-content: center; gap: 8px; }
+.mock-chip { padding: 6px 10px; border-radius: var(--radius-pill); background: var(--color-surface); box-shadow: var(--shadow-soft); font-size: 0.75rem; font-weight: 700; }
+.mock-chip--x { color: var(--color-caution-strong); font-size: 1rem; }
+
+.mock-notif { width: 100%; display: flex; align-items: center; gap: 10px; padding: 12px; border-radius: var(--radius-card-md); background: var(--color-surface); box-shadow: var(--shadow-soft); text-align: left; }
+.mock-notif strong { display: block; font-size: 0.8125rem; line-height: 1.3; }
+.mock-notif small { font-size: 0.75rem; color: var(--color-ink-muted); }
+.mock-qr { width: 96px; height: 96px; margin-top: 8px; border-radius: 12px; background:
+  conic-gradient(from 90deg at 30% 30%, var(--color-ink) 25%, transparent 0) 0 0 / 24px 24px,
+  var(--color-surface); box-shadow: inset 0 0 0 6px var(--color-surface), 0 0 0 1px var(--color-border); }
+
+@media (prefers-reduced-motion: no-preference) {
+  .mock-beam { animation: beam 2.2s var(--ease-in-out) infinite alternate; }
+  .mock-bell .tile { animation: ring 2.4s var(--ease-in-out) infinite; transform-origin: 50% 20%; }
+}
+@keyframes beam { from { transform: translateY(-40px); } to { transform: translateY(120px); } }
+@keyframes ring {
+  0%, 55%, 100% { transform: rotate(0); }
+  62% { transform: rotate(-12deg); } 69% { transform: rotate(10deg); }
+  76% { transform: rotate(-7deg); } 83% { transform: rotate(4deg); } 90% { transform: rotate(0); }
+}

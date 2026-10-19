@@ -1,0 +1,65 @@
+/* Ambient backgrounds: aurora on dark panels, soft orbs + dot grid on light sections, grain. */
+
+/* ── Aurora ── */
+.aurora { position: absolute; inset: 0; z-index: -1; overflow: hidden; pointer-events: none; border-radius: inherit; }
+.aurora__blob {
+  position: absolute; border-radius: 50%; filter: blur(80px); opacity: 0.7; will-change: transform;
+  mix-blend-mode: screen;
+}
+.aurora__blob--1 { width: 52vmax; height: 52vmax; left: -12vmax; top: -18vmax; background: radial-gradient(circle, var(--aurora-a), transparent 65%); }
+.aurora__blob--2 { width: 44vmax; height: 44vmax; right: -14vmax; top: -6vmax; background: radial-gradient(circle, var(--aurora-b), transparent 62%); opacity: 0.45; }
+.aurora__blob--3 { width: 36vmax; height: 36vmax; left: 30%; bottom: -22vmax; background: radial-gradient(circle, var(--aurora-c), transparent 60%); opacity: 0.32; }
+.aurora__blob--4 { width: 28vmax; height: 28vmax; right: 18%; bottom: -8vmax; background: radial-gradient(circle, var(--aurora-a), transparent 60%); opacity: 0.55; }
+/* Cursor glow (hero/CTA write --gx / --gy). */
+.aurora__cursor {
+  position: absolute; inset: 0;
+  background: radial-gradient(520px circle at var(--gx, 70%) var(--gy, 40%), var(--spot-color-dark), transparent 60%);
+  transition: background-position var(--dur-base) linear;
+}
+/* Perspective grid fading towards the horizon. */
+.aurora__grid {
+  position: absolute; left: -50%; right: -50%; bottom: -10%; height: 60%;
+  background-image:
+    linear-gradient(var(--color-on-dark-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--color-on-dark-line) 1px, transparent 1px);
+  background-size: 64px 64px;
+  transform: perspective(600px) rotateX(62deg);
+  transform-origin: bottom center;
+  mask-image: linear-gradient(to top, black 10%, transparent 85%);
+  opacity: 0.6;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .aurora__blob--1 { animation: aurora-a var(--dur-ambient) var(--ease-in-out) infinite alternate; }
+  .aurora__blob--2 { animation: aurora-b calc(var(--dur-ambient) * 1.2) var(--ease-in-out) infinite alternate; }
+  .aurora__blob--3 { animation: aurora-c calc(var(--dur-ambient) * 0.9) var(--ease-in-out) infinite alternate; }
+  .aurora__blob--4 { animation: aurora-b calc(var(--dur-ambient) * 0.8) var(--ease-in-out) infinite alternate-reverse; }
+  .aurora__grid { animation: grid-flow 6s linear infinite; }
+}
+@keyframes aurora-a { 50% { transform: translate(14vmax, 6vmax) scale(1.15); } 100% { transform: translate(6vmax, 14vmax) scale(0.9); } }
+@keyframes aurora-b { 50% { transform: translate(-10vmax, 10vmax) scale(0.85); } 100% { transform: translate(-16vmax, -4vmax) scale(1.1); } }
+@keyframes aurora-c { 50% { transform: translate(-12vmax, -8vmax) scale(1.2); } 100% { transform: translate(10vmax, -12vmax) scale(1); } }
+@keyframes grid-flow { to { background-position: 0 64px, 0 0; } }
+
+/* ── Light-section ambience ── */
+.ambient { position: absolute; inset: 0; z-index: -1; overflow: hidden; pointer-events: none; }
+.ambient__dots {
+  position: absolute; inset: 0;
+  background-image: radial-gradient(var(--color-border) 1.2px, transparent 1.2px);
+  background-size: 28px 28px;
+  mask-image: radial-gradient(ellipse 70% 60% at 50% 40%, black, transparent 75%);
+}
+.ambient__orb { position: absolute; border-radius: 50%; filter: blur(90px); opacity: 0.55; }
+.ambient__orb--brand { width: 420px; height: 420px; background: var(--color-brand-tint); }
+.ambient__orb--accent { width: 360px; height: 360px; background: var(--color-accent-bg); }
+@media (prefers-reduced-motion: no-preference) {
+  .ambient__orb { animation: orb-drift calc(var(--dur-ambient) * 0.6) var(--ease-in-out) infinite alternate; }
+  .ambient__orb--accent { animation-direction: alternate-reverse; }
+}
+@keyframes orb-drift { to { transform: translate(80px, -60px) scale(1.1); } }
+
+/* ── Grain over everything ── */
+.grain {
+  position: fixed; inset: -50%; z-index: var(--z-grain); pointer-events: none; opacity: 0.06;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
