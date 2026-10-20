@@ -8,6 +8,9 @@
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     <!-- Bật thông báo toàn màn hình khi màn hình khóa/tắt (Full-Screen Intent) -->
     <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
+    <!-- Quét mã QR liên kết người thân; máy không có camera vẫn cài được (nhập mã thay thế) -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
 
     <application
         android:label="DrugTime"
@@ -36,6 +39,21 @@
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
+            <!-- Link mời người thân https://<host>/link#code=<mã> (App Links, xác minh bằng
+                 /.well-known/assetlinks.json trên landing). Host phải trùng AppConfig.inviteLinkHost. -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" />
+                <data android:host="drug-time-frontend.vercel.app" />
+                <data android:path="/link" />
+            </intent-filter>
+            <!-- Link do app_links xử lý (chờ đăng nhập rồi mới mở màn nhập mã); tắt deep link
+                 mặc định của Flutter để nó không tự đẩy route "/link". -->
+            <meta-data
+                android:name="flutter_deeplinking_enabled"
+                android:value="false" />
         </activity>
 
         <!-- Receiver lên lịch thông báo qua AlarmManager -->

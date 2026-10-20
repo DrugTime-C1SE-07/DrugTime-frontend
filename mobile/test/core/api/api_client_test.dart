@@ -12,6 +12,7 @@ void main() {
   late List<Uri> uris;
   late List<String> bodies;
   late int status;
+  late String? retryAfterHeader;
 
   setUp(() async {
     authHeaders = [];
@@ -19,6 +20,7 @@ void main() {
     uris = [];
     bodies = [];
     status = 200;
+    retryAfterHeader = null;
     server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     server.listen((request) async {
       authHeaders.add(request.headers.value(HttpHeaders.authorizationHeader));
@@ -26,6 +28,9 @@ void main() {
       uris.add(request.uri);
       bodies.add(await utf8.decodeStream(request));
       request.response.statusCode = status;
+      if (retryAfterHeader case final value?) {
+        request.response.headers.set(HttpHeaders.retryAfterHeader, value);
+      }
       if (status != 204) {
         request.response
           ..headers.contentType = ContentType.json
@@ -152,6 +157,45 @@ void main() {
       expect(called, 1);
     });
   }
+
+  test('429 kèm Retry-After số giây → retryAfter', () async {
+    status = 429;
+    retryAfterHeader = '900';
+    final client = ApiClient(baseUrl: base());
+
+    await expectLater(
+      client.postJson('/family/link-requests', body: {}),
+      throwsA(isA<ApiException>()
+          .having((e) => e.statusCode, 'statusCode', 429)
+          .having((e) => e.retryAfter, 'retryAfter',
+              const Duration(seconds: 900))),
+    );
+  });
+
+  test('429 không có Retry-After → retryAfter null', () async {
+    status = 429;
+    final client = ApiClient(baseUrl: base());
+
+    await expectLater(
+      client.postJson('/family/link-requests', body: {}),
+      throwsA(isA<ApiException>()
+          .having((e) => e.retryAfter, 'retryAfter', isNull)),
+    );
+  });
+
+  test('Retry-After dạng ngày giờ hoặc không dương → retryAfter null', () async {
+    status = 429;
+    final client = ApiClient(baseUrl: base());
+
+    for (final value in ['Wed, 21 Oct 2026 07:28:00 GMT', '0', '-5']) {
+      retryAfterHeader = value;
+      await expectLater(
+        client.postJson('/family/link-requests', body: {}),
+        throwsA(isA<ApiException>()
+            .having((e) => e.retryAfter, 'retryAfter', isNull)),
+      );
+    }
+  });
 
   test('không kết nối được máy chủ ném ApiException tạm thời', () async {
     final port = server.port;

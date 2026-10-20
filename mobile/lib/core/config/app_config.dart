@@ -7,4 +7,11 @@ abstract final class AppConfig {
   static const apiBaseUrl = String.fromEnvironment('DRUGTIME_API_BASE_URL');
 
   static bool get isConfigured => apiBaseUrl.isNotEmpty;
+
+  /// Host của link mời người thân `https://<host>/link#code=<mã>` (trang `/link` của landing).
+  /// Đổi host thì sửa cả `intent-filter` App Links trong `android/app/src/main/AndroidManifest.xml`.
+  static const inviteLinkHost = String.fromEnvironment(
+    'DRUGTIME_INVITE_LINK_HOST',
+    defaultValue: 'drug-time-frontend.vercel.app',
+  );
 }

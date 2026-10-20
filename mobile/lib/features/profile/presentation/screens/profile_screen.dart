@@ -82,14 +82,9 @@ class _ProfileScreenState extends State<ProfileScreen>
                   padding: EdgeInsets.zero,
                 ),
                 onSelected: (value) {
-                  if (value == 'catalog') {
-                    _open(AppRoutes.devCatalog);
-                  } else if (value == 'logout') {
-                    AuthScope.read(context).signOut();
-                  }
+                  if (value == 'logout') AuthScope.read(context).signOut();
                 },
                 itemBuilder: (_) => const [
-                  PopupMenuItem(value: 'catalog', child: Text('UI Catalog')),
                   PopupMenuItem(value: 'logout', child: Text('Đăng xuất')),
                 ],
               ),
