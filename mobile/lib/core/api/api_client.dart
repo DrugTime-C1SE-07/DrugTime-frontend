@@ -80,6 +80,7 @@ class ApiClient {
           isTransient: response.statusCode == 408 ||
               response.statusCode == 429 ||
               response.statusCode >= 500,
+          retryAfter: _retryAfter(response.headers['retry-after']),
         );
       }
       if (response.bodyBytes.isEmpty) return null;
@@ -92,5 +93,11 @@ class ApiClient {
     } on http.ClientException catch (error) {
       throw ApiException(error.message, isTransient: true);
     }
+  }
+
+  /// Chỉ nhận dạng số giây nguyên dương; dạng ngày giờ HTTP bị bỏ qua.
+  static Duration? _retryAfter(String? header) {
+    final seconds = int.tryParse(header?.trim() ?? '');
+    return seconds == null || seconds <= 0 ? null : Duration(seconds: seconds);
   }
 }

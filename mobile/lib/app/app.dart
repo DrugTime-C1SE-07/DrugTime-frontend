@@ -19,6 +19,13 @@ import '../features/family/domain/entities/family_link_code.dart';
 import '../features/family/domain/entities/family_link_code_failure.dart';
 import '../features/family/domain/repositories/family_link_code_repository.dart';
 import '../features/family/presentation/state/family_link_code_controller.dart';
+import '../core/config/app_config.dart';
+import '../features/family_link/data/repositories/in_memory_family_link_repository.dart';
+import '../features/family_link/data/sources/invite_link_source.dart';
+import '../features/family_link/domain/entities/link_code.dart';
+import '../features/family_link/domain/repositories/family_link_repository.dart';
+import '../features/family_link/presentation/state/family_link_scope.dart';
+import '../features/family_link/presentation/state/invite_link_controller.dart';
 import '../features/medication/data/repositories/in_memory_medication_repository.dart';
 import '../features/medication/domain/repositories/medication_repository.dart';
 import '../features/medication/presentation/state/medication_controller.dart';
@@ -36,6 +43,8 @@ class DrugTimeApp extends StatefulWidget {
     this.medicationRepository,
     this.consentRepository,
     this.familyLinkCodeRepository,
+    this.familyLinkRepository,
+    this.inviteLinkSource,
     this.profileRepository,
     this.doseOutboxSyncEngine,
     this.localMedicationStore,
@@ -60,6 +69,12 @@ class DrugTimeApp extends StatefulWidget {
 
   /// Cho phép test thay nguồn lấy mã liên kết; bản thật dùng Backend API.
   final FamilyLinkCodeRepository? familyLinkCodeRepository;
+
+  /// Gửi yêu cầu theo dõi người thân. Không truyền thì dùng bản trong bộ nhớ (web, test).
+  final FamilyLinkRepository? familyLinkRepository;
+
+  /// Link mời mở app (Android App Links). Không truyền thì app không nhận link.
+  final InviteLinkSource? inviteLinkSource;
   final ProfileRepository? profileRepository;
   final DoseOutboxSyncEngine? doseOutboxSyncEngine;
 
@@ -81,7 +96,7 @@ class DrugTimeApp extends StatefulWidget {
   /// Khóa hiển thị SnackBar toàn cục.
   final GlobalKey<ScaffoldMessengerState>? scaffoldMessengerKey;
 
-  /// Ép route đầu (test, dev catalog). Không truyền thì chọn theo phiên đăng nhập.
+  /// Ép route đầu (test). Không truyền thì chọn theo phiên đăng nhập.
   final String? initialRoute;
 
   /// Khóa điều hướng cấp cao nhất; cho phép test hoặc bên ngoài chủ động điều hướng.
@@ -113,6 +128,11 @@ class _DrugTimeAppState extends State<DrugTimeApp> {
     widget.familyLinkCodeRepository ?? _UnavailableFamilyLinkCodeRepository(),
   );
 
+  late final FamilyLinkRepository _familyLinks =
+      widget.familyLinkRepository ?? InMemoryFamilyLinkRepository();
+  final InviteLinkController _invites = InviteLinkController();
+  StreamSubscription<Uri>? _inviteLinks;
+
   AuthController get _auth => widget.authController;
   late final ProfileController _profiles =
       ProfileController(widget.profileRepository);
@@ -136,6 +156,10 @@ class _DrugTimeAppState extends State<DrugTimeApp> {
     _auth.addListener(_onAuthChanged);
     _setupNotificationHandling();
     _consents.addListener(_onConsentChanged);
+    // Link chỉ được giữ chờ; AppShell mở màn nhập mã khi người dùng đã đăng nhập xong.
+    _inviteLinks = widget.inviteLinkSource?.links.listen((uri) => _invites.offer(
+          code: linkCodeFromInviteUri(uri, host: AppConfig.inviteLinkHost),
+        ));
     unawaited(_loadSession());
   }
 
@@ -266,6 +290,7 @@ class _DrugTimeAppState extends State<DrugTimeApp> {
       _medications.clear();
       _consents.clear();
       _familyLinkCode.clear();
+      _invites.clear();
       _navigatorKey.currentState
           ?.pushNamedAndRemoveUntil(AppRoutes.login, (_) => false);
     } else if (!_wasAuthenticated && authenticated) {
@@ -296,6 +321,8 @@ class _DrugTimeAppState extends State<DrugTimeApp> {
     _medications.dispose();
     _consents.dispose();
     _familyLinkCode.dispose();
+    unawaited(_inviteLinks?.cancel());
+    _invites.dispose();
     super.dispose();
   }
 
@@ -309,9 +336,13 @@ class _DrugTimeAppState extends State<DrugTimeApp> {
           controller: _consents,
           child: FamilyLinkCodeScope(
             controller: _familyLinkCode,
-            child: ProfileScope(
-              controller: _profiles,
-              child: _sessionLoaded ? _buildApp() : const _SessionLoadingApp(),
+            child: FamilyLinkScope(
+              repository: _familyLinks,
+              invites: _invites,
+              child: ProfileScope(
+                controller: _profiles,
+                child: _sessionLoaded ? _buildApp() : const _SessionLoadingApp(),
+              ),
             ),
           ),
         ),

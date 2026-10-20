@@ -5,12 +5,17 @@ import '../features/consent/presentation/screens/legal_document_screen.dart';
 import '../features/consent/presentation/screens/privacy_settings_screen.dart';
 import '../features/consent/presentation/widgets/consent_gate.dart';
 import '../features/consent/presentation/widgets/legal_texts.dart';
+import '../features/family/presentation/screens/family_link_code_screen.dart';
+import '../features/family_link/presentation/screens/enter_link_code_screen.dart';
+import '../features/family_link/presentation/screens/link_request_result_screen.dart';
+import '../features/family_link/presentation/screens/scan_link_qr_screen.dart';
+import '../features/family_link/presentation/screens/share_invite_link_screen.dart';
+import '../features/family_link/presentation/state/link_request_controller.dart';
 import '../features/medication/data/repositories/in_memory_medication_repository.dart';
 import '../features/medication/domain/entities/medication.dart';
 import '../features/medication/presentation/screens/edit_medication_screen.dart';
 import '../features/medication/presentation/screens/medication_detail_screen.dart';
 import '../features/medication/presentation/screens/add_medication_screen.dart';
-import '../features/medication/presentation/screens/my_medications_screen.dart';
 import '../features/reminder/domain/entities/dose_reminder.dart';
 import '../features/reminder/presentation/screens/dose_reminder_screen.dart';
 import '../features/reminder/presentation/widgets/lockscreen_privacy_gate.dart';
@@ -38,10 +43,14 @@ abstract final class AppRoutes {
   static const termsOfService = '/legal/terms';
   static const privacyPolicy = '/legal/privacy';
   static const doseReminder = '/reminders/dose';
-  static const devCatalog = '/dev-catalog';
   static const profile = '/profile';
   static const personalProfile = '/profile/personal';
   static const medicalProfile = '/profile/medical';
+  static const familyMyCode = '/family/my-code';
+  static const familyScanCode = '/family/follow/scan';
+  static const familyEnterCode = '/family/follow/enter';
+  static const familyLinkResult = '/family/follow/result';
+  static const familyShareLink = '/family/share-link';
 }
 
 Route<dynamic>? onGenerateRoute(RouteSettings settings) {
@@ -132,9 +141,30 @@ Route<dynamic>? onGenerateRoute(RouteSettings settings) {
           );
         },
       ),
-    AppRoutes.devCatalog => MaterialPageRoute<void>(
+    AppRoutes.familyMyCode => MaterialPageRoute<void>(
         settings: settings,
-        builder: (_) => const DevUiCatalogScreen(),
+        builder: (_) => const FamilyLinkCodeScreen(),
+      ),
+    AppRoutes.familyShareLink => MaterialPageRoute<void>(
+        settings: settings,
+        builder: (_) => const ShareInviteLinkScreen(),
+      ),
+    AppRoutes.familyScanCode => MaterialPageRoute<void>(
+        settings: settings,
+        fullscreenDialog: true,
+        builder: (_) => const ScanLinkQrScreen(),
+      ),
+    AppRoutes.familyEnterCode => MaterialPageRoute<void>(
+        settings: settings,
+        builder: (_) => EnterLinkCodeScreen(
+          args: settings.arguments as EnterLinkCodeArgs? ?? const EnterLinkCodeArgs(),
+        ),
+      ),
+    AppRoutes.familyLinkResult => MaterialPageRoute<void>(
+        settings: settings,
+        builder: (_) => LinkRequestResultScreen(
+          outcome: settings.arguments as LinkSubmitOutcome? ?? LinkSubmitOutcome.waiting,
+        ),
       ),
     _ => null,
   };
@@ -176,185 +206,4 @@ class _InvalidDoseReminderRouteScreen extends StatelessWidget {
       ),
     );
   }
-}
-
-/// Màn hình Catalog dành cho Developer / Tester để duyệt nhanh qua tất cả các UI
-class DevUiCatalogScreen extends StatelessWidget {
-  const DevUiCatalogScreen({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    final screens = <_UiItem>[
-      const _UiItem(
-          title: 'S08 · Hồ sơ',
-          description: 'Xem thông tin hồ sơ và cài đặt',
-          badge: 'Profile',
-          route: AppRoutes.profile),
-      const _UiItem(
-          title: 'S08-1 · Thông tin cá nhân',
-          description: 'Cập nhật thông tin và chọn ảnh đại diện',
-          badge: 'Profile',
-          route: AppRoutes.personalProfile),
-      const _UiItem(
-          title: 'S08-2 · Thông tin y tế',
-          description: 'Quản lý bệnh nền từ danh mục',
-          badge: 'Profile',
-          route: AppRoutes.medicalProfile),
-      const _UiItem(
-        title: 'S00c · Đăng nhập (OTP / Email)',
-        description:
-            'Màn hình đăng nhập di động, chọn số điện thoại hoặc email',
-        badge: 'Auth',
-        route: AppRoutes.login,
-      ),
-      const _UiItem(
-        title: 'S00c-otp · Xác thực OTP (Số điện thoại)',
-        description: 'Màn hình nhập mã OTP 6 số gửi qua tin nhắn SMS',
-        badge: 'Auth',
-        route: AppRoutes.otpPhone,
-      ),
-      const _UiItem(
-        title: 'S00c-otp-2 · Xác thực OTP (Email)',
-        description: 'Màn hình nhập mã OTP 6 số gửi qua hòm thư điện tử',
-        badge: 'Auth',
-        route: AppRoutes.otpEmail,
-      ),
-      const _UiItem(
-        title: 'Điều khoản dịch vụ',
-        description: 'Văn bản điều khoản, mở từ ô tick ở màn đăng nhập',
-        badge: 'Legal',
-        route: AppRoutes.termsOfService,
-      ),
-      const _UiItem(
-        title: 'Chính sách quyền riêng tư',
-        description: 'Văn bản chính sách, mở từ ô tick ở màn đăng nhập',
-        badge: 'Legal',
-        route: AppRoutes.privacyPolicy,
-      ),
-      const _UiItem(
-        title: 'App Shell (Chính 5 tabs)',
-        description: 'Khung điều hướng đáy (Thuốc, Trang chủ, Lịch nhắc...)',
-        badge: 'Core',
-        route: AppRoutes.home,
-      ),
-      _UiItem(
-        title: 'S06 · Thuốc của tôi',
-        description: 'Danh sách thuốc đang dùng, cảnh báo sắp hết, bộ lọc',
-        badge: 'Medication',
-        builder: (_) =>
-            const Scaffold(body: SafeArea(child: MyMedicationsScreen())),
-      ),
-      const _UiItem(
-        title: 'S07 · Thêm thuốc mới',
-        description: 'Form tìm dược thư, liều lượng, lịch nhắc, lưu trữ',
-        badge: 'Medication',
-        route: AppRoutes.addMedication,
-      ),
-    ];
-
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('UI Dev Catalog · DrugTime'),
-        backgroundColor: AppColors.canvas,
-        centerTitle: false,
-      ),
-      body: ListView.separated(
-        padding: const EdgeInsets.all(AppSpacing.lg),
-        itemCount: screens.length,
-        separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.md),
-        itemBuilder: (context, index) {
-          final item = screens[index];
-          return Card(
-            elevation: 0,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(AppRadius.card),
-              side: const BorderSide(color: AppColors.border),
-            ),
-            color: AppColors.surface,
-            child: InkWell(
-              borderRadius: BorderRadius.circular(AppRadius.card),
-              onTap: () {
-                if (item.route != null) {
-                  Navigator.of(context).pushNamed(item.route!);
-                } else if (item.builder != null) {
-                  Navigator.of(context).push(
-                    MaterialPageRoute<void>(builder: item.builder!),
-                  );
-                }
-              },
-              child: Padding(
-                padding: const EdgeInsets.all(AppSpacing.lg),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 8.0,
-                                  vertical: 2.0,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: AppColors.brandTint,
-                                  borderRadius: BorderRadius.circular(6.0),
-                                ),
-                                child: Text(
-                                  item.badge,
-                                  style: const TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w600,
-                                    color: AppColors.brand,
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: AppSpacing.sm),
-                              Expanded(
-                                child: Text(
-                                  item.title,
-                                  style: AppTextStyles.bodyStrong,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: AppSpacing.xs),
-                          Text(
-                            item.description,
-                            style: AppTextStyles.caption,
-                          ),
-                        ],
-                      ),
-                    ),
-                    const Icon(
-                      Icons.chevron_right,
-                      color: AppColors.inkMuted,
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          );
-        },
-      ),
-    );
-  }
-}
-
-class _UiItem {
-  const _UiItem({
-    required this.title,
-    required this.description,
-    required this.badge,
-    this.route,
-    this.builder,
-  });
-
-  final String title;
-  final String description;
-  final String badge;
-  final String? route;
-  final WidgetBuilder? builder;
 }
