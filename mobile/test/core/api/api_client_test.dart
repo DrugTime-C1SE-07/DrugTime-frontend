@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -13,6 +14,7 @@ void main() {
   late List<String> bodies;
   late int status;
   late String? retryAfterHeader;
+  Completer<void>? responseGate;
 
   setUp(() async {
     authHeaders = [];
@@ -21,12 +23,14 @@ void main() {
     bodies = [];
     status = 200;
     retryAfterHeader = null;
+    responseGate = null;
     server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     server.listen((request) async {
       authHeaders.add(request.headers.value(HttpHeaders.authorizationHeader));
       methods.add(request.method);
       uris.add(request.uri);
       bodies.add(await utf8.decodeStream(request));
+      await responseGate?.future;
       request.response.statusCode = status;
       if (retryAfterHeader case final value?) {
         request.response.headers.set(HttpHeaders.retryAfterHeader, value);
@@ -45,6 +49,48 @@ void main() {
   tearDown(() => server.close(force: true));
 
   Uri base() => Uri.parse('http://127.0.0.1:${server.port}');
+
+  test('late 401 from A cannot clear active account B', () async {
+    status = 401;
+    responseGate = Completer<void>();
+    var token = 'A';
+    var unauthorized = 0;
+    final client = ApiClient(
+        baseUrl: base(),
+        authTokenProvider: () async => token,
+        onUnauthorized: () async {
+          unauthorized++;
+        });
+    final pending = client.getJson('/notifications');
+    final assertion = expectLater(pending, throwsA(isA<ApiException>()));
+    while (authHeaders.isEmpty) {
+      await Future<void>.delayed(Duration.zero);
+    }
+    token = 'B';
+    responseGate!.complete();
+    await assertion;
+    expect(authHeaders.single, 'Bearer A');
+    expect(unauthorized, 0);
+  });
+
+  test('DELETE JSON keeps body and bearer, accepts only confirmed 204',
+      () async {
+    status = 204;
+    final client = ApiClient(
+        baseUrl: base(), authTokenProvider: () async => 'captured-session');
+    expect(
+        await client.deleteJson('/me/device-tokens',
+            body: {'fcm_token': 'test'}, expectedStatus: 204),
+        isNull);
+    expect(methods, ['DELETE']);
+    expect(jsonDecode(bodies.single), {'fcm_token': 'test'});
+    expect(authHeaders.single, 'Bearer captured-session');
+    status = 200;
+    await expectLater(
+        client.deleteJson('/me/device-tokens',
+            body: {'fcm_token': 'test'}, expectedStatus: 204),
+        throwsA(isA<ApiException>()));
+  });
 
   test('gắn Authorization: Bearer khi có token', () async {
     final client =
@@ -167,8 +213,8 @@ void main() {
       client.postJson('/family/link-requests', body: {}),
       throwsA(isA<ApiException>()
           .having((e) => e.statusCode, 'statusCode', 429)
-          .having((e) => e.retryAfter, 'retryAfter',
-              const Duration(seconds: 900))),
+          .having(
+              (e) => e.retryAfter, 'retryAfter', const Duration(seconds: 900))),
     );
   });
 
@@ -183,7 +229,8 @@ void main() {
     );
   });
 
-  test('Retry-After dạng ngày giờ hoặc không dương → retryAfter null', () async {
+  test('Retry-After dạng ngày giờ hoặc không dương → retryAfter null',
+      () async {
     status = 429;
     final client = ApiClient(baseUrl: base());
 

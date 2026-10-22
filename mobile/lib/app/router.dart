@@ -6,6 +6,10 @@ import '../features/consent/presentation/screens/privacy_settings_screen.dart';
 import '../features/consent/presentation/widgets/consent_gate.dart';
 import '../features/consent/presentation/widgets/legal_texts.dart';
 import '../features/family/presentation/screens/family_link_code_screen.dart';
+import '../features/family/presentation/screens/family_alert_inbox_screen.dart';
+import '../features/family/presentation/screens/family_alert_detail_screen.dart';
+import '../features/auth/presentation/state/auth_controller.dart';
+import '../features/family/domain/entities/family_alert.dart';
 import '../features/family_link/presentation/screens/enter_link_code_screen.dart';
 import '../features/family_link/presentation/screens/link_request_result_screen.dart';
 import '../features/family_link/presentation/screens/scan_link_qr_screen.dart';
@@ -30,6 +34,8 @@ import '../features/profile/presentation/screens/medical_profile_screen.dart';
 import 'theme/app_theme.dart';
 
 abstract final class AppRoutes {
+  static const familyAlerts = '/family/alerts';
+  static const familyAlertDetail = '/family/alerts/detail';
   static const home = '/';
   static const addMedication = '/medications/add';
   static const medicationDetail = '/medications/detail';
@@ -55,6 +61,25 @@ abstract final class AppRoutes {
 
 Route<dynamic>? onGenerateRoute(RouteSettings settings) {
   return switch (settings.name) {
+    // Kiểm auth/consent cả khi đi vào từ push hoặc điều hướng trực tiếp tới route.
+    AppRoutes.familyAlerts => MaterialPageRoute<void>(
+        settings: settings,
+        builder: (context) => AuthScope.of(context).isAuthenticated
+            ? const ConsentGate(child: FamilyAlertInboxScreen())
+            : const LoginMobileScreen()),
+    AppRoutes.familyAlertDetail => MaterialPageRoute<void>(
+        settings: settings,
+        builder: (context) {
+          final id = settings.arguments;
+          if (!AuthScope.of(context).isAuthenticated) {
+            return const LoginMobileScreen();
+          }
+          if (id is! int || familyNotificationId('$id') == null) {
+            return const Scaffold(
+                body: Center(child: Text('Cảnh báo không còn khả dụng')));
+          }
+          return ConsentGate(child: FamilyAlertDetailScreen(id: id));
+        }),
     AppRoutes.profile => MaterialPageRoute<void>(
         settings: settings,
         builder: (_) => const Scaffold(body: ProfileScreen())),
@@ -157,13 +182,15 @@ Route<dynamic>? onGenerateRoute(RouteSettings settings) {
     AppRoutes.familyEnterCode => MaterialPageRoute<void>(
         settings: settings,
         builder: (_) => EnterLinkCodeScreen(
-          args: settings.arguments as EnterLinkCodeArgs? ?? const EnterLinkCodeArgs(),
+          args: settings.arguments as EnterLinkCodeArgs? ??
+              const EnterLinkCodeArgs(),
         ),
       ),
     AppRoutes.familyLinkResult => MaterialPageRoute<void>(
         settings: settings,
         builder: (_) => LinkRequestResultScreen(
-          outcome: settings.arguments as LinkSubmitOutcome? ?? LinkSubmitOutcome.waiting,
+          outcome: settings.arguments as LinkSubmitOutcome? ??
+              LinkSubmitOutcome.waiting,
         ),
       ),
     _ => null,

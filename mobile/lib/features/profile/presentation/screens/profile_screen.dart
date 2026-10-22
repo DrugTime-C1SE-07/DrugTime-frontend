@@ -17,6 +17,24 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen>
     with WidgetsBindingObserver {
+  bool _loggingOut = false;
+  // Chờ cleanup token, khóa thao tác lặp và cho thử lại nếu đăng xuất thất bại.
+  Future<void> _logout() async {
+    if (_loggingOut) return;
+    setState(() => _loggingOut = true);
+    try {
+      await AuthScope.read(context).signOut();
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: const Text('Chưa hoàn tất đăng xuất. Vui lòng thử lại'),
+            action: SnackBarAction(label: 'Thử lại', onPressed: _logout)));
+      }
+    } finally {
+      if (mounted) setState(() => _loggingOut = false);
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -82,8 +100,9 @@ class _ProfileScreenState extends State<ProfileScreen>
                   padding: EdgeInsets.zero,
                 ),
                 onSelected: (value) {
-                  if (value == 'logout') AuthScope.read(context).signOut();
+                  if (value == 'logout') _logout();
                 },
+                enabled: !_loggingOut,
                 itemBuilder: (_) => const [
                   PopupMenuItem(value: 'logout', child: Text('Đăng xuất')),
                 ],
