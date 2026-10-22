@@ -11,6 +11,7 @@ import '../core/platform/keyguard_service.dart';
 import '../core/storage/local_db/local_medication_store.dart';
 import '../core/storage/local_db/local_models.dart';
 import '../core/sync/sync_engine.dart';
+import '../features/adherence/domain/repositories/adherence_repository.dart';
 import '../features/auth/presentation/state/auth_controller.dart';
 import '../features/consent/data/repositories/in_memory_consent_repository.dart';
 import '../features/consent/domain/repositories/consent_repository.dart';
@@ -43,6 +44,7 @@ class DrugTimeApp extends StatefulWidget {
     super.key,
     required this.authController,
     this.medicationRepository,
+    this.adherenceRepository,
     this.consentRepository,
     this.familyLinkCodeRepository,
     this.familyLinkRepository,
@@ -66,6 +68,9 @@ class DrugTimeApp extends StatefulWidget {
 
   /// Cho phép test/bản build khác thay nguồn dữ liệu thuốc.
   final MedicationRepository? medicationRepository;
+
+  /// Read-only family adherence history; supplied from Backend API on mobile.
+  final AdherenceRepository? adherenceRepository;
 
   /// Không truyền thì dùng consent trong bộ nhớ đã đồng ý `health_data` (vào thẳng Trang chủ).
   final ConsentRepository? consentRepository;
@@ -166,9 +171,10 @@ class _DrugTimeAppState extends State<DrugTimeApp> {
     _setupNotificationHandling();
     _consents.addListener(_onConsentChanged);
     // Link chỉ được giữ chờ; AppShell mở màn nhập mã khi người dùng đã đăng nhập xong.
-    _inviteLinks = widget.inviteLinkSource?.links.listen((uri) => _invites.offer(
-          code: linkCodeFromInviteUri(uri, host: AppConfig.inviteLinkHost),
-        ));
+    _inviteLinks =
+        widget.inviteLinkSource?.links.listen((uri) => _invites.offer(
+              code: linkCodeFromInviteUri(uri, host: AppConfig.inviteLinkHost),
+            ));
     unawaited(_loadSession());
   }
 
@@ -351,7 +357,8 @@ class _DrugTimeAppState extends State<DrugTimeApp> {
               invites: _invites,
               child: ProfileScope(
                 controller: _profiles,
-                child: _sessionLoaded ? _buildApp() : const _SessionLoadingApp(),
+                child:
+                    _sessionLoaded ? _buildApp() : const _SessionLoadingApp(),
               ),
             ),
           ),
@@ -371,11 +378,17 @@ class _DrugTimeAppState extends State<DrugTimeApp> {
       supportedLocales: const [Locale('vi'), Locale('en')],
       localizationsDelegates: GlobalMaterialLocalizations.delegates,
       initialRoute: _startRoute,
-      onGenerateRoute: onGenerateRoute,
+      navigatorObservers: [familyAdherenceRouteObserver],
+      onGenerateRoute: (settings) => onGenerateRoute(
+        settings,
+        adherenceRepository: widget.adherenceRepository,
+      ),
       // Chỉ dựng đúng một route đầu; mặc định Flutter tách '/login' thành ['/', '/login'],
       // khiến nút Back ở màn Đăng nhập quay về Trang chủ khi chưa đăng nhập.
-      onGenerateInitialRoutes: (name) =>
-          [onGenerateRoute(RouteSettings(name: name))!],
+      onGenerateInitialRoutes: (name) => [
+        onGenerateRoute(RouteSettings(name: name),
+            adherenceRepository: widget.adherenceRepository)!
+      ],
     );
   }
 }

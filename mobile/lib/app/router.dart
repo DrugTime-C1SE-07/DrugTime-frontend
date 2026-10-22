@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../features/adherence/domain/repositories/adherence_repository.dart';
+import '../features/adherence/presentation/screens/family_adherence_screen.dart';
 import '../features/consent/presentation/screens/consent_screen.dart';
 import '../features/consent/presentation/screens/legal_document_screen.dart';
 import '../features/consent/presentation/screens/privacy_settings_screen.dart';
@@ -53,9 +55,24 @@ abstract final class AppRoutes {
   static const familyEnterCode = '/family/follow/enter';
   static const familyLinkResult = '/family/follow/result';
   static const familyShareLink = '/family/share-link';
+  static const familyAdherence = '/family/adherence';
 }
 
-Route<dynamic>? onGenerateRoute(RouteSettings settings) {
+final RouteObserver<PageRoute<dynamic>> familyAdherenceRouteObserver =
+    RouteObserver<PageRoute<dynamic>>();
+
+class FamilyAdherenceRouteArgs {
+  const FamilyAdherenceRouteArgs({required this.patientId, this.patientName});
+
+  final String patientId;
+  final String? patientName;
+}
+
+final _patientUuid = RegExp(
+    r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$');
+
+Route<dynamic>? onGenerateRoute(RouteSettings settings,
+    {AdherenceRepository? adherenceRepository}) {
   return switch (settings.name) {
     AppRoutes.profile => MaterialPageRoute<void>(
         settings: settings,
@@ -161,17 +178,54 @@ Route<dynamic>? onGenerateRoute(RouteSettings settings) {
     AppRoutes.familyEnterCode => MaterialPageRoute<void>(
         settings: settings,
         builder: (_) => EnterLinkCodeScreen(
-          args: settings.arguments as EnterLinkCodeArgs? ?? const EnterLinkCodeArgs(),
+          args: settings.arguments as EnterLinkCodeArgs? ??
+              const EnterLinkCodeArgs(),
         ),
       ),
     AppRoutes.familyLinkResult => MaterialPageRoute<void>(
         settings: settings,
         builder: (_) => LinkRequestResultScreen(
-          outcome: settings.arguments as LinkSubmitOutcome? ?? LinkSubmitOutcome.waiting,
+          outcome: settings.arguments as LinkSubmitOutcome? ??
+              LinkSubmitOutcome.waiting,
         ),
+      ),
+    AppRoutes.familyAdherence => MaterialPageRoute<void>(
+        settings: settings,
+        builder: (_) {
+          final args = settings.arguments;
+          if (args is! FamilyAdherenceRouteArgs ||
+              !_patientUuid.hasMatch(args.patientId) ||
+              adherenceRepository == null) {
+            return const _InvalidFamilyAdherenceRouteScreen();
+          }
+          return FamilyAdherenceScreen(
+            patientId: args.patientId,
+            patientName: args.patientName,
+            repository: adherenceRepository,
+          );
+        },
       ),
     _ => null,
   };
+}
+
+class _InvalidFamilyAdherenceRouteScreen extends StatelessWidget {
+  const _InvalidFamilyAdherenceRouteScreen();
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+        appBar: AppBar(title: const Text('Lịch sử tuân thủ')),
+        body: const Center(
+          child: Padding(
+            padding: EdgeInsets.all(AppSpacing.xl),
+            child: Text(
+              'Chưa thể mở lịch sử của người bệnh này.',
+              style: AppTextStyles.body,
+              textAlign: TextAlign.center,
+            ),
+          ),
+        ),
+      );
 }
 
 /// Safe fallback when a notification opens the route without typed arguments.
