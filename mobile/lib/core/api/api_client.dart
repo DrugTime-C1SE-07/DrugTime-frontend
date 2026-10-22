@@ -34,6 +34,10 @@ class ApiClient {
   Future<Object?> postJson(String path, {required Object? body}) =>
       _send('POST', path, body: body, hasBody: true);
 
+  /// POST không có body và không có `Content-Type`, cho thao tác mà server từ chối mọi body
+  /// (kể cả `null` hay `{}`), ví dụ từ chối hoặc hủy liên kết người thân.
+  Future<Object?> post(String path) => _send('POST', path);
+
   Future<Object?> patchJson(String path, {required Object? body}) =>
       _send('PATCH', path, body: body, hasBody: true);
 

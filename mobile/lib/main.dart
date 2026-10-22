@@ -22,6 +22,7 @@ import 'core/notification/notification_service.dart';
 import 'features/auth/presentation/state/auth_controller.dart';
 import 'features/consent/data/repositories/remote_consent_repository.dart';
 import 'features/family/data/repositories/remote_family_link_code_repository.dart';
+import 'features/family_link/data/repositories/remote_caregiver_repository.dart';
 import 'features/family_link/data/repositories/remote_family_link_repository.dart';
 import 'features/family_link/data/sources/invite_link_source.dart';
 import 'features/medication/data/repositories/remote_medication_repository.dart';
@@ -112,6 +113,8 @@ Future<void> main() async {
         apiClient == null ? null : RemoteFamilyLinkCodeRepository(apiClient),
     familyLinkRepository:
         apiClient == null ? null : RemoteFamilyLinkRepository(apiClient),
+    caregiverRepository:
+        apiClient == null ? null : RemoteCaregiverRepository(apiClient),
     inviteLinkSource: kIsWeb ? null : AppLinksInviteLinkSource(),
     notificationService: notificationService,
     profileRepository: profileRepository,
