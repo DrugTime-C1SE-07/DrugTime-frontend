@@ -20,9 +20,11 @@ import '../features/family/domain/entities/family_link_code_failure.dart';
 import '../features/family/domain/repositories/family_link_code_repository.dart';
 import '../features/family/presentation/state/family_link_code_controller.dart';
 import '../core/config/app_config.dart';
+import '../features/family_link/data/repositories/in_memory_caregiver_repository.dart';
 import '../features/family_link/data/repositories/in_memory_family_link_repository.dart';
 import '../features/family_link/data/sources/invite_link_source.dart';
 import '../features/family_link/domain/entities/link_code.dart';
+import '../features/family_link/domain/repositories/caregiver_repository.dart';
 import '../features/family_link/domain/repositories/family_link_repository.dart';
 import '../features/family_link/presentation/state/family_link_scope.dart';
 import '../features/family_link/presentation/state/invite_link_controller.dart';
@@ -44,6 +46,7 @@ class DrugTimeApp extends StatefulWidget {
     this.consentRepository,
     this.familyLinkCodeRepository,
     this.familyLinkRepository,
+    this.caregiverRepository,
     this.inviteLinkSource,
     this.profileRepository,
     this.doseOutboxSyncEngine,
@@ -72,6 +75,10 @@ class DrugTimeApp extends StatefulWidget {
 
   /// Gửi yêu cầu theo dõi người thân. Không truyền thì dùng bản trong bộ nhớ (web, test).
   final FamilyLinkRepository? familyLinkRepository;
+
+  /// Duyệt yêu cầu theo dõi và quản lý người giám sát (vai patient). Không truyền thì dùng bản
+  /// trong bộ nhớ (web, test).
+  final CaregiverRepository? caregiverRepository;
 
   /// Link mời mở app (Android App Links). Không truyền thì app không nhận link.
   final InviteLinkSource? inviteLinkSource;
@@ -130,6 +137,8 @@ class _DrugTimeAppState extends State<DrugTimeApp> {
 
   late final FamilyLinkRepository _familyLinks =
       widget.familyLinkRepository ?? InMemoryFamilyLinkRepository();
+  late final CaregiverRepository _caregivers =
+      widget.caregiverRepository ?? InMemoryCaregiverRepository();
   final InviteLinkController _invites = InviteLinkController();
   StreamSubscription<Uri>? _inviteLinks;
 
@@ -338,6 +347,7 @@ class _DrugTimeAppState extends State<DrugTimeApp> {
             controller: _familyLinkCode,
             child: FamilyLinkScope(
               repository: _familyLinks,
+              caregivers: _caregivers,
               invites: _invites,
               child: ProfileScope(
                 controller: _profiles,

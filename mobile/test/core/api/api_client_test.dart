@@ -11,6 +11,7 @@ void main() {
   late List<String> methods;
   late List<Uri> uris;
   late List<String> bodies;
+  late List<String?> contentTypes;
   late int status;
   late String? retryAfterHeader;
 
@@ -19,6 +20,7 @@ void main() {
     methods = [];
     uris = [];
     bodies = [];
+    contentTypes = [];
     status = 200;
     retryAfterHeader = null;
     server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
@@ -26,6 +28,7 @@ void main() {
       authHeaders.add(request.headers.value(HttpHeaders.authorizationHeader));
       methods.add(request.method);
       uris.add(request.uri);
+      contentTypes.add(request.headers.value(HttpHeaders.contentTypeHeader));
       bodies.add(await utf8.decodeStream(request));
       request.response.statusCode = status;
       if (retryAfterHeader case final value?) {
@@ -137,8 +140,44 @@ void main() {
     expect(authHeaders.single, 'Bearer t');
   });
 
+  test('post gửi POST không body, không Content-Type, kèm Bearer', () async {
+    final client =
+        ApiClient(baseUrl: base(), authTokenProvider: () async => 't');
+
+    final result = await client.post('/family/links/7/reject');
+
+    expect(result, {'ok': true});
+    expect(methods.single, 'POST');
+    expect(uris.single.path, '/family/links/7/reject');
+    expect(bodies.single, isEmpty);
+    expect(contentTypes.single, isNull);
+    expect(authHeaders.single, 'Bearer t');
+  });
+
+  test('postJson với body null vẫn gửi "null" (lý do cần post)', () async {
+    final client = ApiClient(baseUrl: base());
+
+    await client.postJson('/x', body: null);
+
+    expect(bodies.single, 'null');
+    expect(contentTypes.single, startsWith('application/json'));
+  });
+
+  test('post: lỗi 409 ném ApiException kèm mã và body', () async {
+    status = 409;
+    final client = ApiClient(baseUrl: base());
+
+    await expectLater(
+      client.post('/family/links/7/revoke'),
+      throwsA(isA<ApiException>()
+          .having((e) => e.statusCode, 'statusCode', 409)
+          .having((e) => e.isTransient, 'isTransient', isFalse)),
+    );
+  });
+
   for (final call in <String, Future<Object?> Function(ApiClient)>{
     'GET': (c) => c.getJson('/medications'),
+    'POST': (c) => c.post('/family/links/1/reject'),
     'PUT': (c) => c.putJson('/profile', body: {}),
     'PATCH': (c) => c.patchJson('/medications/1', body: {}),
     'DELETE': (c) => c.delete('/medications/1'),
