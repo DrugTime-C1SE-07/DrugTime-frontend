@@ -6,6 +6,7 @@ import '../features/consent/presentation/screens/privacy_settings_screen.dart';
 import '../features/consent/presentation/widgets/consent_gate.dart';
 import '../features/consent/presentation/widgets/legal_texts.dart';
 import '../features/family/presentation/screens/family_link_code_screen.dart';
+import '../features/family_link/presentation/screens/caregivers_screen.dart';
 import '../features/family_link/presentation/screens/enter_link_code_screen.dart';
 import '../features/family_link/presentation/screens/link_request_result_screen.dart';
 import '../features/family_link/presentation/screens/scan_link_qr_screen.dart';
@@ -46,6 +47,7 @@ abstract final class AppRoutes {
   static const profile = '/profile';
   static const personalProfile = '/profile/personal';
   static const medicalProfile = '/profile/medical';
+  static const caregivers = '/profile/caregivers';
   static const familyMyCode = '/family/my-code';
   static const familyScanCode = '/family/follow/scan';
   static const familyEnterCode = '/family/follow/enter';
@@ -62,6 +64,8 @@ Route<dynamic>? onGenerateRoute(RouteSettings settings) {
         settings: settings, builder: (_) => const PersonalProfileScreen()),
     AppRoutes.medicalProfile => MaterialPageRoute<void>(
         settings: settings, builder: (_) => const MedicalProfileScreen()),
+    AppRoutes.caregivers => MaterialPageRoute<CaregiversScreenResult>(
+        settings: settings, builder: (_) => const CaregiversScreen()),
     // Mọi đường vào Trang chủ đi qua cổng consent (chưa có health_data thì hiện màn đồng ý).
     AppRoutes.home => MaterialPageRoute<void>(
         settings: settings,

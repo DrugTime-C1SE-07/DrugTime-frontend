@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import '../../../../app/app_shell.dart';
 import '../../../../app/router.dart';
 import '../../../../app/theme/app_theme.dart';
 import '../../../../shared/widgets/coming_soon_view.dart';
 import '../../../auth/presentation/state/auth_controller.dart';
+import '../../../family_link/presentation/screens/caregivers_screen.dart';
 import '../state/profile_controller.dart';
 import '../widgets/profile_avatar.dart';
 import '../widgets/profile_icons.dart';
@@ -52,6 +54,18 @@ class _ProfileScreenState extends State<ProfileScreen>
   Future<void> _open(String route) async {
     await Navigator.pushNamed(context, route);
     if (mounted && widget.active) await ProfileScope.read(context).load();
+  }
+
+  /// Màn Người giám sát trống có nút "Mở tab Người thân": khi đó chuyển tab của shell.
+  Future<void> _openCaregivers() async {
+    final result =
+        await Navigator.pushNamed<CaregiversScreenResult>(context, AppRoutes.caregivers);
+    if (!mounted) return;
+    if (result == CaregiversScreen.openFamilyTab) {
+      AppShell.showTab(context, AppTab.family);
+      return;
+    }
+    if (widget.active) await ProfileScope.read(context).load();
   }
 
   void _openComingSoon(String title, IconData icon) {
@@ -150,7 +164,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                   'Người giám sát',
                   'Quản lý người giám sát',
                   'h-users',
-                  () => _openComingSoon('Người giám sát', Icons.people_outline),
+                  _openCaregivers,
                   key: const Key('supervisors-tile'),
                 ),
                 _divider(),
