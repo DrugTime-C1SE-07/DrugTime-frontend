@@ -36,6 +36,12 @@ ios/Flutter/flutter_export_environment.sh
 .env.*
 !.env.example
 
+# Cấu hình Firebase cá nhân, tạo lại bằng FlutterFire CLI trên từng máy.
+/firebase.json
+/lib/firebase_options.dart
+/android/app/google-services.json
+/ios/Runner/GoogleService-Info.plist
+
 # Flutter (bổ sung theo template `flutter create`)
 .flutter-plugins-dependencies
 .build/

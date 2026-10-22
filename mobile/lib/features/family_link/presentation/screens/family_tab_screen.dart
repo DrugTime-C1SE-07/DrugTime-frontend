@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../../../../app/router.dart';
 import '../../../../app/theme/app_theme.dart';
+import '../../../family/presentation/state/family_alert_scope.dart';
 import '../../../consent/domain/entities/consent.dart';
 import '../../../consent/presentation/state/consent_controller.dart';
 import '../state/family_link_scope.dart';
@@ -54,7 +55,9 @@ class _FamilyTabScreenState extends State<FamilyTabScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final sharingGranted = ConsentScope.of(context).isGranted(ConsentPurpose.familySharing);
+ final unread = FamilyAlertScope.maybeOf(context)?.unreadCount;
+    final sharingGranted =
+        ConsentScope.of(context).isGranted(ConsentPurpose.familySharing);
     return Scaffold(
       appBar: AppBar(title: const Text('Người thân')),
       body: SafeArea(
@@ -69,19 +72,32 @@ class _FamilyTabScreenState extends State<FamilyTabScreen> {
                 sharingConsentGranted: sharingGranted,
               ),
               _EntryCard(
+                key: const Key('family-alerts'),
+                icon: Icons.notifications_outlined,
+                title: 'Cảnh báo người thân',
+                subtitle:
+                    unread == null ? 'Mở hộp thư cảnh báo' : '$unread chưa đọc',
+                onTap: () =>
+                    Navigator.of(context).pushNamed(AppRoutes.familyAlerts),
+              ),
+              const SizedBox(height: AppSpacing.md),
+              _EntryCard(
                 key: const Key('family-my-code'),
                 icon: Icons.qr_code_2,
                 title: 'Mã liên kết của tôi',
                 subtitle: 'Cho người thân quét hoặc nhập để theo dõi bạn',
-                onTap: () => Navigator.of(context).pushNamed(AppRoutes.familyMyCode),
+                onTap: () =>
+                    Navigator.of(context).pushNamed(AppRoutes.familyMyCode),
               ),
               const SizedBox(height: AppSpacing.md),
               _EntryCard(
                 key: const Key('family-share-link'),
                 icon: Icons.share_outlined,
                 title: 'Gửi link mời',
-                subtitle: 'Gửi qua Zalo, tin nhắn hoặc email để người thân theo dõi bạn',
-                onTap: () => Navigator.of(context).pushNamed(AppRoutes.familyShareLink),
+                subtitle:
+                    'Gửi qua Zalo, tin nhắn hoặc email để người thân theo dõi bạn',
+                onTap: () =>
+                    Navigator.of(context).pushNamed(AppRoutes.familyShareLink),
               ),
               const SizedBox(height: AppSpacing.md),
               _EntryCard(
@@ -106,7 +122,8 @@ Future<void> showFollowMethodSheet(BuildContext context) {
     showDragHandle: true,
     builder: (sheetContext) => SafeArea(
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(AppSpacing.page, 0, AppSpacing.page, AppSpacing.lg),
+        padding: const EdgeInsets.fromLTRB(
+            AppSpacing.page, 0, AppSpacing.page, AppSpacing.lg),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -120,20 +137,24 @@ Future<void> showFollowMethodSheet(BuildContext context) {
             const SizedBox(height: AppSpacing.lg),
             ListTile(
               key: const Key('follow-method-scan'),
-              leading: const Icon(Icons.qr_code_scanner, color: AppColors.brand),
+              leading:
+                  const Icon(Icons.qr_code_scanner, color: AppColors.brand),
               title: const Text('Quét mã QR', style: AppTextStyles.bodyStrong),
               onTap: () {
                 Navigator.of(sheetContext).pop();
-                unawaited(Navigator.of(context).pushNamed(AppRoutes.familyScanCode));
+                unawaited(
+                    Navigator.of(context).pushNamed(AppRoutes.familyScanCode));
               },
             ),
             ListTile(
               key: const Key('follow-method-enter'),
-              leading: const Icon(Icons.keyboard_outlined, color: AppColors.brand),
+              leading:
+                  const Icon(Icons.keyboard_outlined, color: AppColors.brand),
               title: const Text('Nhập mã', style: AppTextStyles.bodyStrong),
               onTap: () {
                 Navigator.of(sheetContext).pop();
-                unawaited(Navigator.of(context).pushNamed(AppRoutes.familyEnterCode));
+                unawaited(
+                    Navigator.of(context).pushNamed(AppRoutes.familyEnterCode));
               },
             ),
           ],

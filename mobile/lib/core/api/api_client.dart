@@ -41,8 +41,16 @@ class ApiClient {
   Future<Object?> patchJson(String path, {required Object? body}) =>
       _send('PATCH', path, body: body, hasBody: true);
 
-  Future<Object?> putJson(String path, {required Object? body}) =>
-      _send('PUT', path, body: body, hasBody: true);
+  Future<Object?> putJson(String path,
+          {required Object? body, int? expectedStatus}) =>
+      _send('PUT', path,
+          body: body, hasBody: true, expectedStatus: expectedStatus);
+
+  // DELETE token gửi JSON body theo contract, khác các route DELETE chỉ có đường dẫn.
+  Future<Object?> deleteJson(String path,
+          {required Object? body, int? expectedStatus}) =>
+      _send('DELETE', path,
+          body: body, hasBody: true, expectedStatus: expectedStatus);
 
   /// Trả `null` với 204 (không có body).
   Future<Object?> delete(String path) => _send('DELETE', path);
@@ -54,6 +62,7 @@ class ApiClient {
     Map<String, String>? query,
     Object? body,
     bool hasBody = false,
+    int? expectedStatus,
   }) async {
     var uri = _baseUrl.resolve(path);
     if (query != null && query.isNotEmpty) {
@@ -75,7 +84,11 @@ class ApiClient {
       ).timeout(timeout);
 
       if (response.statusCode == 401) {
-        await _onUnauthorized?.call();
+        // A response for an old session must not sign out the new account.
+        if (_authTokenProvider == null ||
+            await _authTokenProvider.call() == token) {
+          await _onUnauthorized?.call();
+        }
       }
       if (response.statusCode < 200 || response.statusCode >= 300) {
         throw ApiException(
@@ -86,6 +99,11 @@ class ApiClient {
               response.statusCode >= 500,
           retryAfter: _retryAfter(response.headers['retry-after']),
         );
+      }
+      // Token PUT/DELETE chỉ được ACK bằng 204; mã 2xx khác vẫn là lệch contract.
+      if (expectedStatus != null && response.statusCode != expectedStatus) {
+        throw ApiException('Unexpected response status',
+            statusCode: response.statusCode);
       }
       if (response.bodyBytes.isEmpty) return null;
       return jsonDecode(utf8.decode(response.bodyBytes));

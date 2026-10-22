@@ -1,5 +1,11 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
+import 'core/notification/device_token_coordinator.dart';
+import 'core/notification/device_token_store.dart';
+import 'core/notification/family_push_service.dart';
+import 'features/family/data/repositories/remote_family_alert_repository.dart';
+import 'features/family/presentation/state/family_alert_controller.dart';
 
 import 'app/app.dart';
 import 'app/missing_config_app.dart';
@@ -42,6 +48,48 @@ Future<void> main() async {
   // ApiClient dùng `dart:io` (`HttpClient`), không chạy được trên web: bản web (chỉ để xem thử
   // giao diện) dùng thuốc mẫu trong bộ nhớ và bỏ qua đồng bộ liều ngoại tuyến.
   final apiClient = kIsWeb ? null : _buildApiClient(authController);
+  final alerts = apiClient == null
+      ? null
+      : FamilyAlertController(RemoteFamilyAlertRepository(apiClient));
+  // Android dùng FCM; nền tảng có API client vẫn đọc được hộp thư qua REST.
+  final android = !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
+  final pushEnabled = android && await initializeFamilyFirebase();
+  final push = FamilyPushService(
+      android: pushEnabled,
+      showForeground: (id, body) async {
+        if (authController.isAuthenticated && !authController.isSigningOut) {
+          await notificationService.showFamily(id, body);
+        }
+      });
+  DeviceTokenCoordinator? tokens;
+  if (pushEnabled) {
+    FirebaseMessaging.onBackgroundMessage(familyPushBackgroundHandler);
+    // Token creation is explicitly controlled by the authenticated lifecycle.
+    await FirebaseMessaging.instance.setAutoInitEnabled(false);
+    tokens = DeviceTokenCoordinator(
+        messaging: AndroidFamilyMessaging(),
+        store: SecureDeviceTokenStore(),
+        // Client cleanup giữ bearer cố định, không lấy token của tài khoản mới.
+        clientForSession: (session) => ApiClient(
+            baseUrl: Uri.parse(AppConfig.apiBaseUrl),
+            authTokenProvider: () async => session.accessToken),
+        clearHealth: () {
+          alerts?.clear();
+          push.clear();
+        },
+        clearNotifications: notificationService.clearFamily);
+    await push.start();
+  }
+  authController.beforeSignOut = (session) async {
+    alerts?.clear();
+    push.clear();
+    await tokens?.logout(session);
+  };
+  authController.onSessionExpired = () async {
+    alerts?.clear();
+    push.clear();
+    await tokens?.expire();
+  };
 
   // PROFILE_PREVIEW=true bypasses only the profile API for local UI review.
   // Run without that dart-define to reconnect profile screens to the backend.
@@ -51,6 +99,10 @@ Future<void> main() async {
 
   runApp(DrugTimeApp(
     authController: authController,
+    familyAlertController: alerts,
+    familyPushService: push,
+    deviceTokenCoordinator: tokens,
+    familyConnectivity: kIsWeb ? null : PollingConnectivityMonitor(),
     medicationRepository:
         apiClient == null ? null : RemoteMedicationRepository(apiClient),
     consentRepository:

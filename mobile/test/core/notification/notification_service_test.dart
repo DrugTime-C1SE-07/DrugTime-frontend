@@ -6,6 +6,21 @@ import 'package:timezone/timezone.dart' as tz;
 import 'package:drugtime_mobile/core/notification/notification_id.dart';
 import 'package:drugtime_mobile/core/notification/notification_service.dart';
 
+class FamilyPlatform extends MockNotificationPlatform
+    implements FamilyNotificationPlatform {
+  final ids = <int>[];
+  int familyClears = 0;
+  @override
+  Future<void> showFamily(int id, String body) async {
+    ids.add(id);
+  }
+
+  @override
+  Future<void> clearFamily() async {
+    familyClears++;
+  }
+}
+
 class MockNotificationPlatform implements NotificationPlatform {
   int initializeCallCount = 0;
   InitializationSettings? lastSettings;
@@ -51,14 +66,38 @@ class MockNotificationPlatform implements NotificationPlatform {
       pendingNotificationRequests() async => [];
 
   @override
-  Future<NotificationAppLaunchDetails?> getNotificationAppLaunchDetails() async =>
-      null;
+  Future<NotificationAppLaunchDetails?>
+      getNotificationAppLaunchDetails() async => null;
 
   @override
   Future<bool?> requestFullScreenIntentPermission() async => true;
 }
 
 void main() {
+  test(
+      'family namespace handles taps and clears family without replacing reminder handler',
+      () async {
+    final platform = FamilyPlatform();
+    final service = NotificationService(platform: platform);
+    await service.init();
+    final taps = <int?>[];
+    service.onFamilyAction = taps.add;
+    platform.onResponseCallback!(const NotificationResponse(
+        notificationResponseType: NotificationResponseType.selectedNotification,
+        payload: 'family:9'));
+    expect(taps, [9]);
+    expect(service.pendingPayload, isNull);
+    await service.showFamily(9, 'Cảnh báo');
+    await service.clearFamily();
+    expect(platform.ids, [9]);
+    expect(platform.familyClears, 1);
+    service.onFamilyAction = null;
+    platform.onResponseCallback!(const NotificationResponse(
+        notificationResponseType: NotificationResponseType.selectedNotification,
+        payload: 'family:broken'));
+    expect(service.consumeFamilyId(), isNull);
+    expect(service.consumeInvalidFamilyPayload(), true);
+  });
   group('NotificationService.init (AC7 & AC8)', () {
     late MockNotificationPlatform mockPlatform;
 

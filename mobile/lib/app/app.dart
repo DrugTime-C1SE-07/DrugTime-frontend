@@ -12,6 +12,10 @@ import '../core/storage/local_db/local_medication_store.dart';
 import '../core/storage/local_db/local_models.dart';
 import '../core/sync/sync_engine.dart';
 import '../features/auth/presentation/state/auth_controller.dart';
+import '../core/notification/device_token_coordinator.dart';
+import '../core/notification/family_push_service.dart';
+import '../features/family/presentation/state/family_alert_controller.dart';
+import '../features/family/presentation/state/family_alert_scope.dart';
 import '../features/consent/data/repositories/in_memory_consent_repository.dart';
 import '../features/consent/domain/repositories/consent_repository.dart';
 import '../features/consent/presentation/state/consent_controller.dart';
@@ -59,10 +63,18 @@ class DrugTimeApp extends StatefulWidget {
     this.navigatorKey,
     this.scaffoldMessengerKey,
     this.notificationService,
+    this.familyAlertController,
+    this.familyPushService,
+    this.deviceTokenCoordinator,
+    this.familyConnectivity,
   });
 
   /// Trạng thái đăng nhập; app chạy thật dựng với RemoteAuthRepository (xem main.dart).
   final AuthController authController;
+  final FamilyAlertController? familyAlertController;
+  final FamilyPushService? familyPushService;
+  final DeviceTokenCoordinator? deviceTokenCoordinator;
+  final ConnectivityMonitor? familyConnectivity;
 
   /// Cho phép test/bản build khác thay nguồn dữ liệu thuốc.
   final MedicationRepository? medicationRepository;
@@ -116,7 +128,98 @@ class DrugTimeApp extends StatefulWidget {
   State<DrugTimeApp> createState() => _DrugTimeAppState();
 }
 
-class _DrugTimeAppState extends State<DrugTimeApp> {
+class _DrugTimeAppState extends State<DrugTimeApp> with WidgetsBindingObserver {
+  StreamSubscription<bool>? _familyConnection;
+  String? _tokenSession;
+  bool _foreground = true, _online = true, _openingFamily = false;
+  Timer? _expiryTimer;
+  // Chỉ cho đọc cảnh báo khi phiên, hồ sơ, consent, mạng và foreground đều sẵn sàng.
+  bool get _familyReady =>
+      _sessionLoaded &&
+      _auth.isAuthenticated &&
+      !_auth.isSigningOut &&
+      !_auth.needsProfile &&
+      _consents.isLoaded &&
+      _consents.hasHealthData &&
+      !_consents.needsTerms &&
+      _foreground &&
+      _online;
+  void _familyChanged() {
+    final session = _auth.currentSession;
+    final ready = _familyReady;
+    widget.familyAlertController?.setSession(
+        _auth.isAuthenticated ? session?.accessToken : null,
+        ready: ready);
+    if (_auth.isAuthenticated &&
+        !_auth.isSigningOut &&
+        _foreground &&
+        _online &&
+        widget.deviceTokenCoordinator?.blocksRegistration != true &&
+        session != null &&
+        _tokenSession != session.accessToken) {
+      _tokenSession = session.accessToken;
+      widget.familyPushService?.allow();
+      unawaited(widget.deviceTokenCoordinator
+          ?.activate(session)
+          .catchError((Object e) {
+        if (_auth.currentSession?.accessToken == session.accessToken) {
+          _tokenSession = null;
+        }
+        if (mounted) {
+          _scaffoldMessengerKey.currentState?.showSnackBar(const SnackBar(
+              content: Text(
+                  'Chưa bật được cảnh báo đẩy. Mở lại ứng dụng để thử lại')));
+        }
+      }));
+      _expiryTimer?.cancel();
+      _expiryTimer = Timer(session.expiresAt.difference(DateTime.now()), () {
+        if (mounted &&
+            _auth.currentSession?.accessToken == session.accessToken) {
+          unawaited(_auth.handleUnauthorized().catchError((Object _) {}));
+        }
+      });
+    }
+    if (!_auth.isAuthenticated) {
+      _tokenSession = null;
+      _expiryTimer?.cancel();
+      if (_wasAuthenticated) widget.familyPushService?.clear();
+    }
+    if (ready) _openPendingFamily();
+  }
+
+  // Tap cold start giữ lại ID tới khi qua các cổng sẵn sàng và navigator đã được dựng.
+  void _openPendingFamily() {
+    final push = widget.familyPushService;
+    if (!_familyReady || push == null || !push.hasPending || _openingFamily) {
+      return;
+    }
+    _openingFamily = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _openingFamily = false;
+      if (!mounted || !_familyReady || !push.hasPending) return;
+      final id = push.pendingId;
+      push.consume();
+      if (id == null) {
+        _scaffoldMessengerKey.currentState?.showSnackBar(const SnackBar(
+            content: Text('Cảnh báo không còn khả dụng. Vui lòng mở hộp thư')));
+      }
+      _navigatorKey.currentState?.pushNamed(
+          id == null ? AppRoutes.familyAlerts : AppRoutes.familyAlertDetail,
+          arguments: id);
+    });
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    _foreground = state == AppLifecycleState.resumed;
+    // Xóa nội dung khỏi RAM khi app ra nền; lần mở lại phải đọc quyền từ server.
+    if (!_foreground) widget.familyAlertController?.clear();
+    if (_foreground && _auth.currentSession?.isExpired == true) {
+      unawaited(_auth.handleUnauthorized().catchError((Object _) {}));
+    }
+    _familyChanged();
+  }
+
   late final GlobalKey<NavigatorState> _navigatorKey =
       widget.navigatorKey ?? GlobalKey<NavigatorState>();
   late final GlobalKey<ScaffoldMessengerState> _scaffoldMessengerKey =
@@ -152,6 +255,7 @@ class _DrugTimeAppState extends State<DrugTimeApp> {
     final granted = _consents.hasHealthData;
     if (_hadHealthConsent && !granted) _profiles.revoke();
     _hadHealthConsent = granted;
+    _familyChanged();
   }
 
   bool _sessionLoaded = false;
@@ -160,15 +264,31 @@ class _DrugTimeAppState extends State<DrugTimeApp> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    widget.familyPushService?.addListener(_openPendingFamily);
+    widget.notificationService?.onFamilyAction =
+        (id) => widget.familyPushService?.offer(id == null ? null : '$id');
+    final pendingId = widget.notificationService?.consumeFamilyId();
+    final invalidFamily =
+        widget.notificationService?.consumeInvalidFamilyPayload() ?? false;
+    if (pendingId != null) widget.familyPushService?.offer('$pendingId');
+    if (invalidFamily) widget.familyPushService?.offer(null);
+    _familyConnection =
+        widget.familyConnectivity?.onlineChanges.listen((online) {
+      _online = online;
+      if (!online) widget.familyAlertController?.clear();
+      _familyChanged();
+    });
     final syncEngine = widget.doseOutboxSyncEngine;
     if (syncEngine != null) unawaited(syncEngine.start());
     _auth.addListener(_onAuthChanged);
     _setupNotificationHandling();
     _consents.addListener(_onConsentChanged);
     // Link chỉ được giữ chờ; AppShell mở màn nhập mã khi người dùng đã đăng nhập xong.
-    _inviteLinks = widget.inviteLinkSource?.links.listen((uri) => _invites.offer(
-          code: linkCodeFromInviteUri(uri, host: AppConfig.inviteLinkHost),
-        ));
+    _inviteLinks =
+        widget.inviteLinkSource?.links.listen((uri) => _invites.offer(
+              code: linkCodeFromInviteUri(uri, host: AppConfig.inviteLinkHost),
+            ));
     unawaited(_loadSession());
   }
 
@@ -284,10 +404,12 @@ class _DrugTimeAppState extends State<DrugTimeApp> {
           _auth.isAuthenticated ? _auth.currentSession?.userId : null;
     });
     if (_auth.isAuthenticated) unawaited(_medications.load());
+    _familyChanged();
   }
 
   void _onAuthChanged() {
     if (!_sessionLoaded) return;
+    _familyChanged();
     final authenticated = _auth.isAuthenticated;
     final user = authenticated ? _auth.currentSession?.userId : null;
     final switchedUser = user != _profileUser;
@@ -322,6 +444,13 @@ class _DrugTimeAppState extends State<DrugTimeApp> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _expiryTimer?.cancel();
+    unawaited(_familyConnection?.cancel());
+    unawaited(widget.familyConnectivity?.dispose());
+    widget.familyPushService?.removeListener(_openPendingFamily);
+    widget.notificationService?.onFamilyAction = null;
+    unawaited(widget.deviceTokenCoordinator?.dispose());
     _auth.removeListener(_onAuthChanged);
     _consents.removeListener(_onConsentChanged);
     _profiles.dispose();
@@ -351,7 +480,8 @@ class _DrugTimeAppState extends State<DrugTimeApp> {
               invites: _invites,
               child: ProfileScope(
                 controller: _profiles,
-                child: _sessionLoaded ? _buildApp() : const _SessionLoadingApp(),
+                child:
+                    _sessionLoaded ? _buildApp() : const _SessionLoadingApp(),
               ),
             ),
           ),
@@ -361,7 +491,7 @@ class _DrugTimeAppState extends State<DrugTimeApp> {
   }
 
   Widget _buildApp() {
-    return MaterialApp(
+    final app = MaterialApp(
       navigatorKey: _navigatorKey,
       scaffoldMessengerKey: _scaffoldMessengerKey,
       title: 'DrugTime',
@@ -377,6 +507,10 @@ class _DrugTimeAppState extends State<DrugTimeApp> {
       onGenerateInitialRoutes: (name) =>
           [onGenerateRoute(RouteSettings(name: name))!],
     );
+    final alerts = widget.familyAlertController;
+    return alerts == null
+        ? app
+        : FamilyAlertScope(controller: alerts, child: app);
   }
 }
 
