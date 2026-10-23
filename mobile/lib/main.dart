@@ -16,6 +16,7 @@ import 'core/storage/local_db/local_medication_store.dart';
 import 'core/storage/secure_storage.dart';
 import 'core/sync/sync_engine.dart';
 import 'features/auth/data/repositories/remote_auth_repository.dart';
+import 'features/adherence/data/repositories/remote_adherence_repository.dart';
 import 'features/auth/data/sources/auth_api_service.dart';
 import 'features/auth/data/sources/auth_session_store.dart';
 import 'core/notification/notification_service.dart';
@@ -105,6 +106,8 @@ Future<void> main() async {
     familyConnectivity: kIsWeb ? null : PollingConnectivityMonitor(),
     medicationRepository:
         apiClient == null ? null : RemoteMedicationRepository(apiClient),
+    adherenceRepository:
+        apiClient == null ? null : RemoteAdherenceRepository(apiClient),
     consentRepository:
         apiClient == null ? null : RemoteConsentRepository(apiClient),
     doseOutboxSyncEngine:

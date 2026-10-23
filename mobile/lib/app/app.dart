@@ -11,6 +11,7 @@ import '../core/platform/keyguard_service.dart';
 import '../core/storage/local_db/local_medication_store.dart';
 import '../core/storage/local_db/local_models.dart';
 import '../core/sync/sync_engine.dart';
+import '../features/adherence/domain/repositories/adherence_repository.dart';
 import '../features/auth/presentation/state/auth_controller.dart';
 import '../core/notification/device_token_coordinator.dart';
 import '../core/notification/family_push_service.dart';
@@ -47,6 +48,7 @@ class DrugTimeApp extends StatefulWidget {
     super.key,
     required this.authController,
     this.medicationRepository,
+    this.adherenceRepository,
     this.consentRepository,
     this.familyLinkCodeRepository,
     this.familyLinkRepository,
@@ -78,6 +80,9 @@ class DrugTimeApp extends StatefulWidget {
 
   /// Cho phép test/bản build khác thay nguồn dữ liệu thuốc.
   final MedicationRepository? medicationRepository;
+
+  /// Read-only family adherence history; supplied from Backend API on mobile.
+  final AdherenceRepository? adherenceRepository;
 
   /// Không truyền thì dùng consent trong bộ nhớ đã đồng ý `health_data` (vào thẳng Trang chủ).
   final ConsentRepository? consentRepository;
@@ -501,11 +506,17 @@ class _DrugTimeAppState extends State<DrugTimeApp> with WidgetsBindingObserver {
       supportedLocales: const [Locale('vi'), Locale('en')],
       localizationsDelegates: GlobalMaterialLocalizations.delegates,
       initialRoute: _startRoute,
-      onGenerateRoute: onGenerateRoute,
+      navigatorObservers: [familyAdherenceRouteObserver],
+      onGenerateRoute: (settings) => onGenerateRoute(
+        settings,
+        adherenceRepository: widget.adherenceRepository,
+      ),
       // Chỉ dựng đúng một route đầu; mặc định Flutter tách '/login' thành ['/', '/login'],
       // khiến nút Back ở màn Đăng nhập quay về Trang chủ khi chưa đăng nhập.
-      onGenerateInitialRoutes: (name) =>
-          [onGenerateRoute(RouteSettings(name: name))!],
+      onGenerateInitialRoutes: (name) => [
+        onGenerateRoute(RouteSettings(name: name),
+            adherenceRepository: widget.adherenceRepository)!
+      ],
     );
     final alerts = widget.familyAlertController;
     return alerts == null
