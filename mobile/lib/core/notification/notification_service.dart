@@ -2,6 +2,12 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/data/latest_all.dart' as tz_data;
 import 'package:timezone/timezone.dart' as tz;
 import 'package:drugtime_mobile/core/notification/notification_id.dart';
+import '../../features/family/domain/entities/family_alert.dart';
+
+abstract class FamilyNotificationPlatform {
+  Future<void> showFamily(int id, String body);
+  Future<void> clearFamily();
+}
 
 /// Abstraction bọc plugin thông báo để dễ dàng test unit độc lập không cần thiết bị.
 abstract class NotificationPlatform {
@@ -36,21 +42,52 @@ abstract class NotificationPlatform {
 }
 
 /// Cài đặt mặc định của [NotificationPlatform] sử dụng [FlutterLocalNotificationsPlugin].
-class DefaultNotificationPlatform implements NotificationPlatform {
+class DefaultNotificationPlatform
+    implements NotificationPlatform, FamilyNotificationPlatform {
   DefaultNotificationPlatform([FlutterLocalNotificationsPlugin? plugin])
       : _plugin = plugin ?? FlutterLocalNotificationsPlugin();
 
   final FlutterLocalNotificationsPlugin _plugin;
 
   @override
+  // Tag riêng cho từng cảnh báo; khớp remote để dọn được cả hai nguồn thông báo.
+  Future<void> showFamily(int id, String body) => _plugin.show(
+      0,
+      'DrugTime',
+      body,
+      NotificationDetails(
+          android: AndroidNotificationDetails(
+              'family_alerts', 'Cảnh báo người thân',
+              tag: 'family_alert_$id',
+              visibility: NotificationVisibility.private,
+              fullScreenIntent: false)),
+      payload: 'family:$id');
+
+  @override
+  Future<void> clearFamily() async {
+    // Chỉ hủy tag người thân để giữ các thông báo nhắc uống thuốc đã lên lịch.
+    final active = await _plugin.getActiveNotifications();
+    for (final notification in active) {
+      if (notification.tag?.startsWith('family_alert_') == true &&
+          notification.id != null) {
+        await _plugin.cancel(notification.id!, tag: notification.tag);
+      }
+    }
+  }
+
+  @override
   Future<bool?> initialize({
     required InitializationSettings settings,
     DidReceiveNotificationResponseCallback? onDidReceiveNotificationResponse,
-  }) {
-    return _plugin.initialize(
+  }) async {
+    final result = await _plugin.initialize(
       settings,
       onDidReceiveNotificationResponse: onDidReceiveNotificationResponse,
     );
+    await createNotificationChannel(const AndroidNotificationChannel(
+        'family_alerts', 'Cảnh báo người thân',
+        importance: Importance.defaultImportance));
+    return result;
   }
 
   @override
@@ -125,6 +162,49 @@ class NotificationService {
         _actionHandler = onNotificationAction;
 
   final NotificationPlatform _platform;
+  void Function(int?)? onFamilyAction;
+  int? _pendingFamilyId;
+  bool _pendingFamilyInvalid = false;
+  bool consumeInvalidFamilyPayload() {
+    final invalid = _pendingFamilyInvalid;
+    _pendingFamilyInvalid = false;
+    return invalid;
+  }
+
+  int? consumeFamilyId() {
+    final id = _pendingFamilyId;
+    _pendingFamilyId = null;
+    return id;
+  }
+
+  Future<void> showFamily(int id, String body) async {
+    final platform = _platform;
+    if (platform is FamilyNotificationPlatform) {
+      await (platform as FamilyNotificationPlatform).showFamily(id, body);
+    }
+  }
+
+  Future<void> clearFamily() async {
+    _pendingFamilyId = null;
+    _pendingFamilyInvalid = false;
+    final platform = _platform;
+    if (platform is FamilyNotificationPlatform) {
+      await (platform as FamilyNotificationPlatform).clearFamily();
+    }
+  }
+
+  // Prefix phân luồng payload; cold start chỉ giữ ID chờ app gắn callback điều hướng.
+  bool _handleFamily(String? raw) {
+    if (raw == null || !raw.startsWith('family:')) return false;
+    final id = familyNotificationId(raw.substring(7));
+    if (onFamilyAction != null) {
+      onFamilyAction!(id);
+    } else {
+      _pendingFamilyId = id;
+      _pendingFamilyInvalid = id == null;
+    }
+    return true;
+  }
 
   /// Callback chuyển tiếp payload khi người dùng bấm vào thông báo nhắc uống thuốc.
   final void Function(NotificationPayload payload)? onNotificationAction;
@@ -216,6 +296,7 @@ class NotificationService {
     final launchDetails = await _platform.getNotificationAppLaunchDetails();
     if (launchDetails?.didNotificationLaunchApp ?? false) {
       final raw = launchDetails?.notificationResponse?.payload;
+      _handleFamily(raw);
       final payload = NotificationPayload.tryParse(raw);
       if (payload != null) {
         if (_actionHandler != null) {
@@ -234,6 +315,7 @@ class NotificationService {
   void _handleNotificationResponse(NotificationResponse response) {
     final rawPayload = response.payload;
     if (rawPayload == null) return;
+    if (_handleFamily(rawPayload)) return;
 
     final payload = NotificationPayload.tryParse(rawPayload);
     if (payload != null) {

@@ -16,6 +16,9 @@
         android:label="DrugTime"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
+        <!-- Channel mặc định cho FCM, khớp channel family_alerts do ứng dụng tạo. -->
+        <meta-data android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="family_alerts" />
         <activity
             android:name=".MainActivity"
             android:exported="true"

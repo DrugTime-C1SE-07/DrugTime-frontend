@@ -11,9 +11,14 @@ import '../core/platform/keyguard_service.dart';
 import '../core/storage/local_db/local_medication_store.dart';
 import '../core/storage/local_db/local_models.dart';
 import '../core/sync/sync_engine.dart';
+import '../features/adherence/domain/repositories/adherence_repository.dart';
 import '../features/auth/presentation/state/auth_controller.dart';
 import '../features/adherence_history/domain/repositories/adherence_history_repository.dart';
 import '../features/adherence_history/presentation/state/adherence_history_controller.dart';
+import '../core/notification/device_token_coordinator.dart';
+import '../core/notification/family_push_service.dart';
+import '../features/family/presentation/state/family_alert_controller.dart';
+import '../features/family/presentation/state/family_alert_scope.dart';
 import '../features/consent/data/repositories/in_memory_consent_repository.dart';
 import '../features/consent/domain/repositories/consent_repository.dart';
 import '../features/consent/presentation/state/consent_controller.dart';
@@ -22,9 +27,11 @@ import '../features/family/domain/entities/family_link_code_failure.dart';
 import '../features/family/domain/repositories/family_link_code_repository.dart';
 import '../features/family/presentation/state/family_link_code_controller.dart';
 import '../core/config/app_config.dart';
+import '../features/family_link/data/repositories/in_memory_caregiver_repository.dart';
 import '../features/family_link/data/repositories/in_memory_family_link_repository.dart';
 import '../features/family_link/data/sources/invite_link_source.dart';
 import '../features/family_link/domain/entities/link_code.dart';
+import '../features/family_link/domain/repositories/caregiver_repository.dart';
 import '../features/family_link/domain/repositories/family_link_repository.dart';
 import '../features/family_link/presentation/state/family_link_scope.dart';
 import '../features/family_link/presentation/state/invite_link_controller.dart';
@@ -45,9 +52,11 @@ class DrugTimeApp extends StatefulWidget {
     required this.authController,
     this.adherenceHistoryRepository,
     this.medicationRepository,
+    this.adherenceRepository,
     this.consentRepository,
     this.familyLinkCodeRepository,
     this.familyLinkRepository,
+    this.caregiverRepository,
     this.inviteLinkSource,
     this.profileRepository,
     this.doseOutboxSyncEngine,
@@ -62,6 +71,10 @@ class DrugTimeApp extends StatefulWidget {
     this.notificationService,
     this.initialTab = AppTab.medications,
     this.preview = false,
+    this.familyAlertController,
+    this.familyPushService,
+    this.deviceTokenCoordinator,
+    this.familyConnectivity,
   });
 
   /// Trạng thái đăng nhập; app chạy thật dựng với RemoteAuthRepository (xem main.dart).
@@ -69,9 +82,16 @@ class DrugTimeApp extends StatefulWidget {
   final AppTab initialTab;
   final bool preview;
   final AdherenceHistoryRepository? adherenceHistoryRepository;
+  final FamilyAlertController? familyAlertController;
+  final FamilyPushService? familyPushService;
+  final DeviceTokenCoordinator? deviceTokenCoordinator;
+  final ConnectivityMonitor? familyConnectivity;
 
   /// Cho phép test/bản build khác thay nguồn dữ liệu thuốc.
   final MedicationRepository? medicationRepository;
+
+  /// Read-only family adherence history; supplied from Backend API on mobile.
+  final AdherenceRepository? adherenceRepository;
 
   /// Không truyền thì dùng consent trong bộ nhớ đã đồng ý `health_data` (vào thẳng Trang chủ).
   final ConsentRepository? consentRepository;
@@ -81,6 +101,10 @@ class DrugTimeApp extends StatefulWidget {
 
   /// Gửi yêu cầu theo dõi người thân. Không truyền thì dùng bản trong bộ nhớ (web, test).
   final FamilyLinkRepository? familyLinkRepository;
+
+  /// Duyệt yêu cầu theo dõi và quản lý người giám sát (vai patient). Không truyền thì dùng bản
+  /// trong bộ nhớ (web, test).
+  final CaregiverRepository? caregiverRepository;
 
   /// Link mời mở app (Android App Links). Không truyền thì app không nhận link.
   final InviteLinkSource? inviteLinkSource;
@@ -118,7 +142,98 @@ class DrugTimeApp extends StatefulWidget {
   State<DrugTimeApp> createState() => _DrugTimeAppState();
 }
 
-class _DrugTimeAppState extends State<DrugTimeApp> {
+class _DrugTimeAppState extends State<DrugTimeApp> with WidgetsBindingObserver {
+  StreamSubscription<bool>? _familyConnection;
+  String? _tokenSession;
+  bool _foreground = true, _online = true, _openingFamily = false;
+  Timer? _expiryTimer;
+  // Chỉ cho đọc cảnh báo khi phiên, hồ sơ, consent, mạng và foreground đều sẵn sàng.
+  bool get _familyReady =>
+      _sessionLoaded &&
+      _auth.isAuthenticated &&
+      !_auth.isSigningOut &&
+      !_auth.needsProfile &&
+      _consents.isLoaded &&
+      _consents.hasHealthData &&
+      !_consents.needsTerms &&
+      _foreground &&
+      _online;
+  void _familyChanged() {
+    final session = _auth.currentSession;
+    final ready = _familyReady;
+    widget.familyAlertController?.setSession(
+        _auth.isAuthenticated ? session?.accessToken : null,
+        ready: ready);
+    if (_auth.isAuthenticated &&
+        !_auth.isSigningOut &&
+        _foreground &&
+        _online &&
+        widget.deviceTokenCoordinator?.blocksRegistration != true &&
+        session != null &&
+        _tokenSession != session.accessToken) {
+      _tokenSession = session.accessToken;
+      widget.familyPushService?.allow();
+      unawaited(widget.deviceTokenCoordinator
+          ?.activate(session)
+          .catchError((Object e) {
+        if (_auth.currentSession?.accessToken == session.accessToken) {
+          _tokenSession = null;
+        }
+        if (mounted) {
+          _scaffoldMessengerKey.currentState?.showSnackBar(const SnackBar(
+              content: Text(
+                  'Chưa bật được cảnh báo đẩy. Mở lại ứng dụng để thử lại')));
+        }
+      }));
+      _expiryTimer?.cancel();
+      _expiryTimer = Timer(session.expiresAt.difference(DateTime.now()), () {
+        if (mounted &&
+            _auth.currentSession?.accessToken == session.accessToken) {
+          unawaited(_auth.handleUnauthorized().catchError((Object _) {}));
+        }
+      });
+    }
+    if (!_auth.isAuthenticated) {
+      _tokenSession = null;
+      _expiryTimer?.cancel();
+      if (_wasAuthenticated) widget.familyPushService?.clear();
+    }
+    if (ready) _openPendingFamily();
+  }
+
+  // Tap cold start giữ lại ID tới khi qua các cổng sẵn sàng và navigator đã được dựng.
+  void _openPendingFamily() {
+    final push = widget.familyPushService;
+    if (!_familyReady || push == null || !push.hasPending || _openingFamily) {
+      return;
+    }
+    _openingFamily = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _openingFamily = false;
+      if (!mounted || !_familyReady || !push.hasPending) return;
+      final id = push.pendingId;
+      push.consume();
+      if (id == null) {
+        _scaffoldMessengerKey.currentState?.showSnackBar(const SnackBar(
+            content: Text('Cảnh báo không còn khả dụng. Vui lòng mở hộp thư')));
+      }
+      _navigatorKey.currentState?.pushNamed(
+          id == null ? AppRoutes.familyAlerts : AppRoutes.familyAlertDetail,
+          arguments: id);
+    });
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    _foreground = state == AppLifecycleState.resumed;
+    // Xóa nội dung khỏi RAM khi app ra nền; lần mở lại phải đọc quyền từ server.
+    if (!_foreground) widget.familyAlertController?.clear();
+    if (_foreground && _auth.currentSession?.isExpired == true) {
+      unawaited(_auth.handleUnauthorized().catchError((Object _) {}));
+    }
+    _familyChanged();
+  }
+
   late final GlobalKey<NavigatorState> _navigatorKey =
       widget.navigatorKey ?? GlobalKey<NavigatorState>();
   late final GlobalKey<ScaffoldMessengerState> _scaffoldMessengerKey =
@@ -139,6 +254,8 @@ class _DrugTimeAppState extends State<DrugTimeApp> {
 
   late final FamilyLinkRepository _familyLinks =
       widget.familyLinkRepository ?? InMemoryFamilyLinkRepository();
+  late final CaregiverRepository _caregivers =
+      widget.caregiverRepository ?? InMemoryCaregiverRepository();
   final InviteLinkController _invites = InviteLinkController();
   StreamSubscription<Uri>? _inviteLinks;
 
@@ -160,6 +277,7 @@ class _DrugTimeAppState extends State<DrugTimeApp> {
     }
     if (!_hadHealthConsent && granted) _history.allowFreshRead();
     _hadHealthConsent = granted;
+    _familyChanged();
   }
 
   bool _sessionLoaded = false;
@@ -168,6 +286,21 @@ class _DrugTimeAppState extends State<DrugTimeApp> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    widget.familyPushService?.addListener(_openPendingFamily);
+    widget.notificationService?.onFamilyAction =
+        (id) => widget.familyPushService?.offer(id == null ? null : '$id');
+    final pendingId = widget.notificationService?.consumeFamilyId();
+    final invalidFamily =
+        widget.notificationService?.consumeInvalidFamilyPayload() ?? false;
+    if (pendingId != null) widget.familyPushService?.offer('$pendingId');
+    if (invalidFamily) widget.familyPushService?.offer(null);
+    _familyConnection =
+        widget.familyConnectivity?.onlineChanges.listen((online) {
+      _online = online;
+      if (!online) widget.familyAlertController?.clear();
+      _familyChanged();
+    });
     final syncEngine = widget.doseOutboxSyncEngine;
     if (syncEngine != null) unawaited(syncEngine.start());
     _auth.addListener(_onAuthChanged);
@@ -295,10 +428,12 @@ class _DrugTimeAppState extends State<DrugTimeApp> {
     if (_auth.isAuthenticated) unawaited(_medications.load());
     _history.setPatient(
         _auth.isAuthenticated ? _auth.currentSession?.userId : null);
+    _familyChanged();
   }
 
   void _onAuthChanged() {
     if (!_sessionLoaded) return;
+    _familyChanged();
     final authenticated = _auth.isAuthenticated;
     final user = authenticated ? _auth.currentSession?.userId : null;
     final switchedUser = user != _profileUser;
@@ -334,6 +469,13 @@ class _DrugTimeAppState extends State<DrugTimeApp> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _expiryTimer?.cancel();
+    unawaited(_familyConnection?.cancel());
+    unawaited(widget.familyConnectivity?.dispose());
+    widget.familyPushService?.removeListener(_openPendingFamily);
+    widget.notificationService?.onFamilyAction = null;
+    unawaited(widget.deviceTokenCoordinator?.dispose());
     _auth.removeListener(_onAuthChanged);
     _consents.removeListener(_onConsentChanged);
     _profiles.dispose();
@@ -360,6 +502,7 @@ class _DrugTimeAppState extends State<DrugTimeApp> {
             controller: _familyLinkCode,
             child: FamilyLinkScope(
               repository: _familyLinks,
+              caregivers: _caregivers,
               invites: _invites,
               child: ProfileScope(
                 controller: _profiles,
@@ -376,11 +519,15 @@ class _DrugTimeAppState extends State<DrugTimeApp> {
     );
   }
 
-  Route<dynamic>? _route(RouteSettings settings) => onGenerateRoute(settings,
-      initialTab: widget.initialTab, preview: widget.preview);
+  Route<dynamic>? _route(RouteSettings settings) => onGenerateRoute(
+        settings,
+        initialTab: widget.initialTab,
+        preview: widget.preview,
+        adherenceRepository: widget.adherenceRepository,
+      );
 
   Widget _buildApp() {
-    return MaterialApp(
+    final app = MaterialApp(
       navigatorKey: _navigatorKey,
       scaffoldMessengerKey: _scaffoldMessengerKey,
       title: 'DrugTime',
@@ -390,11 +537,17 @@ class _DrugTimeAppState extends State<DrugTimeApp> {
       supportedLocales: const [Locale('vi'), Locale('en')],
       localizationsDelegates: GlobalMaterialLocalizations.delegates,
       initialRoute: _startRoute,
+      navigatorObservers: [familyAdherenceRouteObserver],
       onGenerateRoute: _route,
-      // Chỉ dựng đúng một route đầu; mặc định Flutter tách '/login' thành ['/', '/login'],
-      // khiến nút Back ở màn Đăng nhập quay về Trang chủ khi chưa đăng nhập.
-      onGenerateInitialRoutes: (name) => [_route(RouteSettings(name: name))!],
+      // Chỉ dựng đúng một route đầu.
+      onGenerateInitialRoutes: (name) => [
+        _route(RouteSettings(name: name))!,
+      ],
     );
+    final alerts = widget.familyAlertController;
+    return alerts == null
+        ? app
+        : FamilyAlertScope(controller: alerts, child: app);
   }
 }
 

@@ -23,6 +23,11 @@ class AppShell extends StatefulWidget {
 
   final AppTab initialTab;
 
+  /// Chuyển sang [tab] từ một màn nằm trong shell. Không có shell phía trên (màn mở bằng route
+  /// riêng) thì không làm gì.
+  static void showTab(BuildContext context, AppTab tab) =>
+      context.findAncestorStateOfType<_AppShellState>()?._select(tab);
+
   @override
   State<AppShell> createState() => _AppShellState();
 }
@@ -58,6 +63,10 @@ class _AppShellState extends State<AppShell> {
     ));
   }
 
+  void _select(AppTab tab) {
+    if (mounted) setState(() => _tab = tab);
+  }
+
   @override
   void dispose() {
     _invites?.removeListener(_openPendingInvite);
@@ -85,7 +94,7 @@ class _AppShellState extends State<AppShell> {
           const ComingSoonView(title: 'Trang chủ', icon: Icons.home_outlined),
           const MyMedicationsScreen(),
           AdherenceHistoryScreen(active: _tab == AppTab.reminders),
-          const FamilyTabScreen(),
+          FamilyTabScreen(active: _tab == AppTab.family),
           ProfileScreen(active: _tab == AppTab.profile),
         ],
       ),
@@ -95,7 +104,7 @@ class _AppShellState extends State<AppShell> {
         ),
         child: NavigationBar(
           selectedIndex: _tab.index,
-          onDestinationSelected: (i) => setState(() => _tab = AppTab.values[i]),
+          onDestinationSelected: (i) => _select(AppTab.values[i]),
           destinations: const [
             NavigationDestination(
               icon: Icon(Icons.home_outlined),

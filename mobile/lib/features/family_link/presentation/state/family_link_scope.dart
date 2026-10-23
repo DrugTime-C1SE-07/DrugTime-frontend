@@ -3,6 +3,7 @@ import 'package:flutter/widgets.dart';
 import '../../../../core/config/app_config.dart';
 import '../../data/sources/camera_permission.dart';
 import '../../data/sources/invite_link_sharer.dart';
+import '../../domain/repositories/caregiver_repository.dart';
 import '../../domain/repositories/family_link_repository.dart';
 import 'invite_link_controller.dart';
 
@@ -11,6 +12,7 @@ class FamilyLinkScope extends InheritedWidget {
   const FamilyLinkScope({
     super.key,
     required this.repository,
+    required this.caregivers,
     required this.invites,
     this.cameraPermission = const SystemCameraPermission(),
     this.sharer = const SystemInviteLinkSharer(),
@@ -19,6 +21,9 @@ class FamilyLinkScope extends InheritedWidget {
   });
 
   final FamilyLinkRepository repository;
+
+  /// Phía patient: duyệt yêu cầu theo dõi và quản lý người giám sát.
+  final CaregiverRepository caregivers;
   final InviteLinkController invites;
   final CameraPermission cameraPermission;
   final InviteLinkSharer sharer;
@@ -34,6 +39,7 @@ class FamilyLinkScope extends InheritedWidget {
   @override
   bool updateShouldNotify(FamilyLinkScope oldWidget) =>
       repository != oldWidget.repository ||
+      caregivers != oldWidget.caregivers ||
       invites != oldWidget.invites ||
       cameraPermission != oldWidget.cameraPermission ||
       sharer != oldWidget.sharer ||

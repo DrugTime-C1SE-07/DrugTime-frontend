@@ -1,11 +1,18 @@
 import 'package:flutter/material.dart';
 
+import '../features/adherence/domain/repositories/adherence_repository.dart';
+import '../features/adherence/presentation/screens/family_adherence_screen.dart';
 import '../features/consent/presentation/screens/consent_screen.dart';
 import '../features/consent/presentation/screens/legal_document_screen.dart';
 import '../features/consent/presentation/screens/privacy_settings_screen.dart';
 import '../features/consent/presentation/widgets/consent_gate.dart';
 import '../features/consent/presentation/widgets/legal_texts.dart';
 import '../features/family/presentation/screens/family_link_code_screen.dart';
+import '../features/family/presentation/screens/family_alert_inbox_screen.dart';
+import '../features/family/presentation/screens/family_alert_detail_screen.dart';
+import '../features/auth/presentation/state/auth_controller.dart';
+import '../features/family/domain/entities/family_alert.dart';
+import '../features/family_link/presentation/screens/caregivers_screen.dart';
 import '../features/family_link/presentation/screens/enter_link_code_screen.dart';
 import '../features/family_link/presentation/screens/link_request_result_screen.dart';
 import '../features/family_link/presentation/screens/scan_link_qr_screen.dart';
@@ -30,6 +37,8 @@ import '../features/profile/presentation/screens/medical_profile_screen.dart';
 import 'theme/app_theme.dart';
 
 abstract final class AppRoutes {
+  static const familyAlerts = '/family/alerts';
+  static const familyAlertDetail = '/family/alerts/detail';
   static const home = '/';
   static const addMedication = '/medications/add';
   static const medicationDetail = '/medications/detail';
@@ -46,16 +55,57 @@ abstract final class AppRoutes {
   static const profile = '/profile';
   static const personalProfile = '/profile/personal';
   static const medicalProfile = '/profile/medical';
+  static const caregivers = '/profile/caregivers';
   static const familyMyCode = '/family/my-code';
   static const familyScanCode = '/family/follow/scan';
   static const familyEnterCode = '/family/follow/enter';
   static const familyLinkResult = '/family/follow/result';
   static const familyShareLink = '/family/share-link';
+  static const familyAdherence = '/family/adherence';
 }
 
-Route<dynamic>? onGenerateRoute(RouteSettings settings,
-    {AppTab initialTab = AppTab.medications, bool preview = false}) {
+final RouteObserver<PageRoute<dynamic>> familyAdherenceRouteObserver =
+    RouteObserver<PageRoute<dynamic>>();
+
+class FamilyAdherenceRouteArgs {
+  const FamilyAdherenceRouteArgs({
+    required this.patientId,
+    this.patientName,
+  });
+
+  final String patientId;
+  final String? patientName;
+}
+
+final _patientUuid = RegExp(
+    r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$');
+
+Route<dynamic>? onGenerateRoute(
+  RouteSettings settings, {
+  AppTab initialTab = AppTab.medications,
+  bool preview = false,
+  AdherenceRepository? adherenceRepository,
+}) {
   return switch (settings.name) {
+    // Kiểm auth/consent cả khi đi vào từ push hoặc điều hướng trực tiếp tới route.
+    AppRoutes.familyAlerts => MaterialPageRoute<void>(
+        settings: settings,
+        builder: (context) => AuthScope.of(context).isAuthenticated
+            ? const ConsentGate(child: FamilyAlertInboxScreen())
+            : const LoginMobileScreen()),
+    AppRoutes.familyAlertDetail => MaterialPageRoute<void>(
+        settings: settings,
+        builder: (context) {
+          final id = settings.arguments;
+          if (!AuthScope.of(context).isAuthenticated) {
+            return const LoginMobileScreen();
+          }
+          if (id is! int || familyNotificationId('$id') == null) {
+            return const Scaffold(
+                body: Center(child: Text('Cảnh báo không còn khả dụng')));
+          }
+          return ConsentGate(child: FamilyAlertDetailScreen(id: id));
+        }),
     AppRoutes.profile => MaterialPageRoute<void>(
         settings: settings,
         builder: (_) => const Scaffold(body: ProfileScreen())),
@@ -63,6 +113,8 @@ Route<dynamic>? onGenerateRoute(RouteSettings settings,
         settings: settings, builder: (_) => const PersonalProfileScreen()),
     AppRoutes.medicalProfile => MaterialPageRoute<void>(
         settings: settings, builder: (_) => const MedicalProfileScreen()),
+    AppRoutes.caregivers => MaterialPageRoute<CaregiversScreenResult>(
+        settings: settings, builder: (_) => const CaregiversScreen()),
     // Mọi đường vào Trang chủ đi qua cổng consent (chưa có health_data thì hiện màn đồng ý).
     AppRoutes.home => MaterialPageRoute<void>(
         settings: settings,
@@ -172,8 +224,43 @@ Route<dynamic>? onGenerateRoute(RouteSettings settings,
               LinkSubmitOutcome.waiting,
         ),
       ),
+    AppRoutes.familyAdherence => MaterialPageRoute<void>(
+        settings: settings,
+        builder: (_) {
+          final args = settings.arguments;
+          if (args is! FamilyAdherenceRouteArgs ||
+              !_patientUuid.hasMatch(args.patientId) ||
+              adherenceRepository == null) {
+            return const _InvalidFamilyAdherenceRouteScreen();
+          }
+          return FamilyAdherenceScreen(
+            patientId: args.patientId,
+            patientName: args.patientName,
+            repository: adherenceRepository,
+          );
+        },
+      ),
     _ => null,
   };
+}
+
+class _InvalidFamilyAdherenceRouteScreen extends StatelessWidget {
+  const _InvalidFamilyAdherenceRouteScreen();
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+        appBar: AppBar(title: const Text('Lịch sử tuân thủ')),
+        body: const Center(
+          child: Padding(
+            padding: EdgeInsets.all(AppSpacing.xl),
+            child: Text(
+              'Chưa thể mở lịch sử của người bệnh này.',
+              style: AppTextStyles.body,
+              textAlign: TextAlign.center,
+            ),
+          ),
+        ),
+      );
 }
 
 /// Safe fallback when a notification opens the route without typed arguments.
