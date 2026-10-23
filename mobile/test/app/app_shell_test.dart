@@ -1,6 +1,7 @@
 import 'package:drugtime_mobile/app/app.dart';
 import 'package:drugtime_mobile/app/app_shell.dart';
 import 'package:drugtime_mobile/app/router.dart';
+import 'package:drugtime_mobile/features/adherence_history/presentation/screens/adherence_history_screen.dart';
 import 'package:drugtime_mobile/features/auth/data/repositories/in_memory_auth_repository.dart';
 import 'package:drugtime_mobile/features/auth/domain/entities/auth_session.dart';
 import 'package:drugtime_mobile/features/auth/presentation/state/auth_controller.dart';
@@ -34,7 +35,18 @@ Future<void> _pumpLoggedIn(WidgetTester tester, {CaregiverRepository? caregivers
 }
 
 void main() {
-  testWidgets('AC24: tab Hồ sơ là ProfileScreen, không còn danh sách dev', (tester) async {
+  testWidgets('tab Lịch nhắc mở lịch sử tuân thủ, không dùng dữ liệu mẫu',
+      (tester) async {
+    await _pumpLoggedIn(tester);
+    await tester.tap(find.text('Lịch nhắc'));
+    await tester.pumpAndSettle();
+    expect(find.byType(AdherenceHistoryScreen), findsOneWidget);
+    expect(find.byKey(const Key('history-title')), findsOneWidget);
+    expect(
+        find.text('Chưa có kết nối Backend để xem lịch sử.'), findsOneWidget);
+  });
+  testWidgets('AC24: tab Hồ sơ là ProfileScreen, không còn danh sách dev',
+      (tester) async {
     await _pumpLoggedIn(tester);
 
     await tester.tap(find.text('Hồ sơ'));

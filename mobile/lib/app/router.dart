@@ -68,7 +68,10 @@ final RouteObserver<PageRoute<dynamic>> familyAdherenceRouteObserver =
     RouteObserver<PageRoute<dynamic>>();
 
 class FamilyAdherenceRouteArgs {
-  const FamilyAdherenceRouteArgs({required this.patientId, this.patientName});
+  const FamilyAdherenceRouteArgs({
+    required this.patientId,
+    this.patientName,
+  });
 
   final String patientId;
   final String? patientName;
@@ -77,8 +80,12 @@ class FamilyAdherenceRouteArgs {
 final _patientUuid = RegExp(
     r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$');
 
-Route<dynamic>? onGenerateRoute(RouteSettings settings,
-    {AdherenceRepository? adherenceRepository}) {
+Route<dynamic>? onGenerateRoute(
+  RouteSettings settings, {
+  AppTab initialTab = AppTab.medications,
+  bool preview = false,
+  AdherenceRepository? adherenceRepository,
+}) {
   return switch (settings.name) {
     // Kiểm auth/consent cả khi đi vào từ push hoặc điều hướng trực tiếp tới route.
     AppRoutes.familyAlerts => MaterialPageRoute<void>(
@@ -111,7 +118,7 @@ Route<dynamic>? onGenerateRoute(RouteSettings settings,
     // Mọi đường vào Trang chủ đi qua cổng consent (chưa có health_data thì hiện màn đồng ý).
     AppRoutes.home => MaterialPageRoute<void>(
         settings: settings,
-        builder: (_) => const ConsentGate(child: AppShell()),
+        builder: (_) => ConsentGate(child: AppShell(initialTab: initialTab)),
       ),
     AppRoutes.consent => MaterialPageRoute<bool>(
         settings: settings,
@@ -193,12 +200,15 @@ Route<dynamic>? onGenerateRoute(RouteSettings settings,
       ),
     AppRoutes.familyShareLink => MaterialPageRoute<void>(
         settings: settings,
-        builder: (_) => const ShareInviteLinkScreen(),
+        builder: (_) => preview
+            ? const FamilyLinkCodeScreen()
+            : const ShareInviteLinkScreen(),
       ),
     AppRoutes.familyScanCode => MaterialPageRoute<void>(
         settings: settings,
         fullscreenDialog: true,
-        builder: (_) => const ScanLinkQrScreen(),
+        builder: (_) =>
+            preview ? const EnterLinkCodeScreen() : const ScanLinkQrScreen(),
       ),
     AppRoutes.familyEnterCode => MaterialPageRoute<void>(
         settings: settings,
