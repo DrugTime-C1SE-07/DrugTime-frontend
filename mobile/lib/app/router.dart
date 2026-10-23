@@ -53,7 +53,8 @@ abstract final class AppRoutes {
   static const familyShareLink = '/family/share-link';
 }
 
-Route<dynamic>? onGenerateRoute(RouteSettings settings) {
+Route<dynamic>? onGenerateRoute(RouteSettings settings,
+    {AppTab initialTab = AppTab.medications, bool preview = false}) {
   return switch (settings.name) {
     AppRoutes.profile => MaterialPageRoute<void>(
         settings: settings,
@@ -65,7 +66,7 @@ Route<dynamic>? onGenerateRoute(RouteSettings settings) {
     // Mọi đường vào Trang chủ đi qua cổng consent (chưa có health_data thì hiện màn đồng ý).
     AppRoutes.home => MaterialPageRoute<void>(
         settings: settings,
-        builder: (_) => const ConsentGate(child: AppShell()),
+        builder: (_) => ConsentGate(child: AppShell(initialTab: initialTab)),
       ),
     AppRoutes.consent => MaterialPageRoute<bool>(
         settings: settings,
@@ -147,23 +148,28 @@ Route<dynamic>? onGenerateRoute(RouteSettings settings) {
       ),
     AppRoutes.familyShareLink => MaterialPageRoute<void>(
         settings: settings,
-        builder: (_) => const ShareInviteLinkScreen(),
+        builder: (_) => preview
+            ? const FamilyLinkCodeScreen()
+            : const ShareInviteLinkScreen(),
       ),
     AppRoutes.familyScanCode => MaterialPageRoute<void>(
         settings: settings,
         fullscreenDialog: true,
-        builder: (_) => const ScanLinkQrScreen(),
+        builder: (_) =>
+            preview ? const EnterLinkCodeScreen() : const ScanLinkQrScreen(),
       ),
     AppRoutes.familyEnterCode => MaterialPageRoute<void>(
         settings: settings,
         builder: (_) => EnterLinkCodeScreen(
-          args: settings.arguments as EnterLinkCodeArgs? ?? const EnterLinkCodeArgs(),
+          args: settings.arguments as EnterLinkCodeArgs? ??
+              const EnterLinkCodeArgs(),
         ),
       ),
     AppRoutes.familyLinkResult => MaterialPageRoute<void>(
         settings: settings,
         builder: (_) => LinkRequestResultScreen(
-          outcome: settings.arguments as LinkSubmitOutcome? ?? LinkSubmitOutcome.waiting,
+          outcome: settings.arguments as LinkSubmitOutcome? ??
+              LinkSubmitOutcome.waiting,
         ),
       ),
     _ => null,
