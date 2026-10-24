@@ -87,4 +87,27 @@ void main() {
     expect(await controller.selectDate(DateTime.utc(2026, 7, 1)), isFalse);
     expect(repo.requests, isEmpty);
   });
+
+  test('403 denied triggers onPatientRevoked callback and clears history (P6 / AC6)', () async {
+    final revokedPatients = <String>[];
+    final customController = AdherenceController(
+      repo,
+      patientId: samplePatientId,
+      now: () => DateTime.utc(2026, 10, 22, 5),
+      onPatientRevoked: (patientId) async {
+        revokedPatients.add(patientId);
+      },
+    );
+
+    final req = customController.load();
+    repo.pending.last
+        .completeError(const AdherenceFailure(AdherenceFailureKind.denied));
+    await req;
+
+    expect(customController.history, isNull);
+    expect(customController.denied, isTrue);
+    expect(revokedPatients, [samplePatientId]);
+
+    customController.dispose();
+  });
 }

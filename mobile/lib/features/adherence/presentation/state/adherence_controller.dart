@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/foundation.dart';
 
 import '../../domain/entities/adherence_failure.dart';
@@ -10,12 +11,14 @@ class AdherenceController extends ChangeNotifier {
     this._repository, {
     required this.patientId,
     DateTime Function()? now,
+    this.onPatientRevoked,
   }) : _now = now ?? DateTime.now {
     selectedDate = today;
   }
 
   final AdherenceRepository _repository;
   final DateTime Function() _now;
+  final Future<void> Function(String patientId)? onPatientRevoked;
   int _generation = 0;
   bool _disposed = false;
 
@@ -74,7 +77,13 @@ class AdherenceController extends ChangeNotifier {
         history = result;
       }
     } on AdherenceFailure catch (error) {
-      if (_current(generation, requestedPatient)) failure = error;
+      if (_current(generation, requestedPatient)) {
+        failure = error;
+        history = null;
+        if (error.kind == AdherenceFailureKind.denied) {
+          unawaited(onPatientRevoked?.call(requestedPatient));
+        }
+      }
     } finally {
       if (_current(generation, requestedPatient)) {
         loading = false;
