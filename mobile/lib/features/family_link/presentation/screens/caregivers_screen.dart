@@ -113,22 +113,22 @@ class _CaregiversScreenState extends State<CaregiversScreen> {
       context: context,
       builder: (dialogContext) => AlertDialog(
         key: const Key('revoke-dialog'),
-        title: Text('Hủy liên kết với $name?'),
+        title: const Text('Gỡ liên kết với người thân?'),
         content: const Text(
-          'Người này mất quyền xem dữ liệu và không nhận cảnh báo của bạn ngay lập tức. Muốn '
-          'liên kết lại, họ phải gửi yêu cầu mới và bạn chấp thuận lại.',
+          'Người thân này sẽ mất quyền xem thông tin của bạn ngay sau khi liên kết bị gỡ. '
+          'Bạn có chắc chắn muốn tiếp tục?',
         ),
         actions: [
           TextButton(
             key: const Key('revoke-cancel'),
             onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('Giữ liên kết'),
+            child: const Text('Hủy'),
           ),
           FilledButton(
             key: const Key('revoke-confirm'),
             style: FilledButton.styleFrom(backgroundColor: AppColors.danger),
             onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: const Text('Hủy liên kết'),
+            child: const Text('Gỡ liên kết'),
           ),
         ],
       ),
@@ -137,7 +137,7 @@ class _CaregiversScreenState extends State<CaregiversScreen> {
     final error = await _controller.revoke(caregiver);
     if (!mounted) return;
     if (error != null) return _showError(error);
-    _showMessage('Đã hủy liên kết với $name.');
+    _showMessage('Đã gỡ liên kết với $name.');
   }
 
   void _showError(CaregiverFailureKind kind) {
@@ -246,7 +246,13 @@ class _CaregiverCard extends StatelessWidget {
                 key: Key('revoke-${caregiver.linkId}'),
                 style: TextButton.styleFrom(foregroundColor: AppColors.danger),
                 onPressed: busy ? null : onRevoke,
-                child: const Text('Hủy liên kết'),
+                child: busy
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Text('Gỡ liên kết'),
               ),
             ),
           ],

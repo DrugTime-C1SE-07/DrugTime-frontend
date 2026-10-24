@@ -48,6 +48,20 @@ class FamilyAlertController extends ChangeNotifier {
     if (!_disposed) notifyListeners();
   }
 
+  /// Loại bỏ toàn bộ cảnh báo của [patientId] khi quyền liên kết bị thu hồi (QD-29, AC8).
+  void removePatient(String patientId) {
+    final remaining = items.where((item) => item.patientId != patientId).toList();
+    if (remaining.length == items.length && detail?.patientId != patientId) return;
+    items = List.unmodifiable(remaining);
+    total = items.length;
+    unreadCount = items.where((item) => !item.isRead).length;
+    if (detail?.patientId == patientId) {
+      detail = null;
+      openId = null;
+    }
+    if (!_disposed) notifyListeners();
+  }
+
   Future<void> load({bool more = false}) async {
     if (!ready) return;
     final epoch = _epoch, run = ++_load;
