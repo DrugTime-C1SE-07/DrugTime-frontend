@@ -1,0 +1,974 @@
+/* ==========================================================================
+   DASHBOARD THEME — phong cách "sky dashboard" (nền gradient xanh, khung trắng bo lớn,
+   sidebar xanh bo cong, card trắng bóng mềm, Open Sans).
+   Mọi selector đều nằm dưới .admin-theme (bọc trong app/dashboard/layout.tsx) để
+   trang Login dùng chung globals.css không bị ảnh hưởng.
+   ========================================================================== */
+
+/* ---------- Tokens ---------- */
+.admin-theme {
+  --font-sans:
+    var(--font-open-sans), "Open Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+  --font-main: var(--font-sans);
+
+  --color-primary: #2563eb;
+  --color-primary-strong: #1d4ed8;
+  --color-primary-dark: #1d4ed8;
+  --color-primary-soft: #eaf2fe;
+  --color-text: #111827;
+  --color-muted: #5b6472;
+  --color-secondary-text: #374151;
+  --color-border: #e6edf7;
+  --color-border-subtle: #eef2f8;
+  --color-info: #1d4ed8;
+  --color-info-accent: #2563eb;
+  --color-info-soft: #dbe8fd;
+  --color-surface: #ffffff;
+  --color-shell: #f4f8fe;
+
+  --sidebar-width: 248px;
+  --radius-card: 20px;
+  --radius-control: 12px;
+  --shadow-card: 0 8px 24px rgba(37, 99, 235, 0.07), 0 1px 2px rgba(17, 24, 39, 0.04);
+  --shadow-elevated: 0 14px 36px rgba(37, 99, 235, 0.12);
+
+  --dt-bg-gradient: linear-gradient(135deg, #7cc4f0 0%, #5b8fe0 100%);
+  --dt-accent-gradient: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+  --dt-sidebar-gradient: linear-gradient(180deg, #2563eb 0%, #1e40af 100%);
+  /* Lớp phủ tối trên nền xanh: giữ chữ trắng ≥ 4.5:1 (lớp phủ trắng làm nền sáng lên, tụt dưới ngưỡng). */
+  --dt-on-accent-surface: rgba(15, 23, 80, 0.22);
+  --dt-chip-bg: #eef1f5;
+  --dt-chip-bg-hover: #e3e8ef;
+  --dt-frame-gap: 20px;
+  --dt-frame-radius: 36px;
+  --dt-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+
+  font-family: var(--font-sans);
+  color: var(--color-text);
+}
+
+.admin-theme ::selection {
+  background: #cfe0fd;
+}
+
+/* ---------- Shell: nền gradient + khung trắng bo lớn ---------- */
+/* isolation để khung trắng (z-index -1) nằm trên nền gradient nhưng dưới nội dung;
+   nội dung không có z-index riêng để modal/backdrop vẫn phủ được sidebar. */
+.admin-theme .admin-shell {
+  isolation: isolate;
+  background: var(--dt-bg-gradient);
+}
+
+.admin-theme .admin-shell::before {
+  content: "";
+  position: fixed;
+  inset: var(--dt-frame-gap);
+  z-index: -1;
+  border-radius: var(--dt-frame-radius);
+  background: var(--color-surface);
+  box-shadow: 0 30px 80px rgba(29, 78, 216, 0.25);
+}
+
+.admin-theme .admin-shell__content {
+  height: calc(100vh - 2 * var(--dt-frame-gap));
+  margin: var(--dt-frame-gap) var(--dt-frame-gap) var(--dt-frame-gap)
+    calc(var(--sidebar-width) + var(--dt-frame-gap) * 2);
+  padding: 12px 24px 36px 24px;
+  border-radius: 0 var(--dt-frame-radius) var(--dt-frame-radius) 0;
+}
+
+.admin-theme .admin-shell__body {
+  padding-top: 8px;
+}
+
+/* ---------- Sidebar: xanh đậm, bo cong cạnh phải ---------- */
+.admin-theme .admin-sidebar {
+  top: calc(var(--dt-frame-gap) + 12px);
+  left: calc(var(--dt-frame-gap) + 12px);
+  width: var(--sidebar-width);
+  height: calc(100vh - 2 * var(--dt-frame-gap) - 24px);
+  padding: 28px 18px 18px;
+  border: 0;
+  border-radius: 28px 72px 72px 28px;
+  background: var(--dt-sidebar-gradient);
+  box-shadow: 0 18px 40px rgba(30, 64, 175, 0.28);
+  color: #ffffff;
+}
+
+.admin-theme .admin-sidebar__brand {
+  padding: 0 4px 20px;
+}
+
+.admin-theme .admin-sidebar__brand-icon {
+  border-radius: 14px;
+  background: #ffffff;
+  color: var(--color-primary);
+}
+
+.admin-theme .admin-sidebar__brand-name {
+  color: #ffffff;
+  font-size: 21px;
+  letter-spacing: -0.3px;
+}
+
+.admin-theme .admin-sidebar__brand-badge {
+  background: var(--dt-on-accent-surface);
+  color: #ffffff;
+}
+
+.admin-theme .admin-sidebar__subtitle {
+  color: #f5f8ff;
+}
+
+.admin-theme .admin-sidebar__status {
+  margin: 0 4px 22px;
+  border-radius: 999px;
+  background: var(--dt-on-accent-surface);
+  color: #ffffff;
+}
+
+.admin-theme .admin-sidebar__status-dot {
+  background: #6ee7b7;
+  box-shadow: 0 0 0 3px rgba(110, 231, 183, 0.25);
+}
+
+.admin-theme .admin-sidebar__status-version {
+  color: #f5f8ff;
+}
+
+.admin-theme .admin-sidebar__nav {
+  gap: 6px;
+}
+
+.admin-theme .admin-sidebar__link {
+  min-height: 46px;
+  padding: 0 16px;
+  border-radius: 999px;
+  color: #ffffff;
+  font-size: 14.5px;
+  font-weight: 600;
+  transition:
+    background-color 180ms var(--dt-ease),
+    color 180ms var(--dt-ease),
+    transform 180ms var(--dt-ease);
+}
+
+.admin-theme .admin-sidebar__link:hover {
+  background: var(--dt-on-accent-surface);
+  color: #ffffff;
+  transform: translateX(2px);
+}
+
+.admin-theme .admin-sidebar__link--active,
+.admin-theme .admin-sidebar__link--active:hover {
+  background: #ffffff;
+  color: var(--color-primary-strong);
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.18);
+  transform: none;
+}
+
+.admin-theme .admin-sidebar__link:focus-visible,
+.admin-theme .admin-sidebar__logout:focus-visible {
+  outline: 2px solid #ffffff;
+  outline-offset: 2px;
+}
+
+.admin-theme .admin-sidebar__badge {
+  background: #dc2626;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.85);
+}
+
+.admin-theme .admin-sidebar__account {
+  margin: auto 0 4px;
+  border-radius: 20px;
+  background: var(--dt-on-accent-surface);
+}
+
+.admin-theme .admin-sidebar__avatar {
+  background: #ffffff;
+  color: var(--color-primary);
+}
+
+.admin-theme .admin-sidebar__account-text strong {
+  color: #ffffff;
+}
+
+.admin-theme .admin-sidebar__account-text span {
+  color: #f5f8ff;
+}
+
+.admin-theme .admin-sidebar__logout {
+  color: #ffffff;
+}
+
+.admin-theme .admin-sidebar__logout:hover {
+  background: var(--dt-on-accent-surface);
+  color: #ffffff;
+}
+
+/* ---------- Topbar ---------- */
+.admin-theme .admin-topbar {
+  height: 72px;
+}
+
+.admin-theme .admin-topbar__sync {
+  height: 40px;
+  padding: 0 16px;
+  background: var(--dt-chip-bg);
+  box-shadow: none;
+  color: var(--color-secondary-text);
+}
+
+.admin-theme .admin-topbar__sync span {
+  background: #059669;
+}
+
+.admin-theme .admin-topbar__icon-button {
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  background: var(--dt-chip-bg);
+  box-shadow: none;
+  color: #6b7280;
+  transition:
+    background-color 160ms var(--dt-ease),
+    color 160ms var(--dt-ease);
+}
+
+.admin-theme .admin-topbar__icon-button:hover {
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
+}
+
+.admin-theme .admin-topbar__profile {
+  width: 40px;
+  height: 40px;
+  background: var(--dt-accent-gradient);
+  box-shadow: 0 6px 16px rgba(37, 99, 235, 0.3);
+}
+
+.admin-theme .admin-topbar__profile:hover {
+  background: var(--color-primary-strong);
+}
+
+/* ---------- Tiêu đề trang ---------- */
+.admin-theme .dashboard-breadcrumb {
+  color: var(--color-muted);
+}
+
+.admin-theme .dashboard-header h1,
+.admin-theme .medications-header h1,
+.admin-theme .interactions-header h1 {
+  color: var(--color-text);
+  font-weight: 700;
+  letter-spacing: -0.8px;
+}
+
+.admin-theme .dashboard-header p,
+.admin-theme .medications-header p,
+.admin-theme .interactions-header p,
+.admin-theme .dashboard-panel__header p {
+  color: var(--color-muted);
+}
+
+.admin-theme .interactions-header__actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+/* ---------- Nút ---------- */
+.admin-theme .dashboard-action {
+  min-height: 42px;
+  border-radius: 999px;
+  font-weight: 600;
+  transition:
+    background-color 160ms var(--dt-ease),
+    box-shadow 160ms var(--dt-ease),
+    transform 160ms var(--dt-ease);
+}
+
+.admin-theme .dashboard-action--primary {
+  background: var(--dt-accent-gradient);
+  color: #ffffff;
+  box-shadow: 0 10px 22px rgba(37, 99, 235, 0.28);
+}
+
+.admin-theme .dashboard-action--primary:hover {
+  background: var(--color-primary-strong);
+  transform: translateY(-1px);
+}
+
+.admin-theme .dashboard-action--secondary {
+  border: 0;
+  background: var(--dt-chip-bg);
+  color: var(--color-secondary-text);
+  box-shadow: none;
+}
+
+.admin-theme .dashboard-action--secondary:hover {
+  background: var(--dt-chip-bg-hover);
+}
+
+.admin-theme .dashboard-action:active {
+  transform: translateY(0) scale(0.98);
+}
+
+/* ---------- Card & panel ---------- */
+.admin-theme .dashboard-kpi,
+.admin-theme .dashboard-panel,
+.admin-theme .medication-stat,
+.admin-theme .medication-filters,
+.admin-theme .medication-table-card,
+.admin-theme .interaction-frame3-card,
+.admin-theme .admin-page-placeholder {
+  border: 0;
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-card);
+}
+
+.admin-theme .dashboard-kpi {
+  transition:
+    box-shadow 200ms var(--dt-ease),
+    transform 200ms var(--dt-ease);
+}
+
+.admin-theme .dashboard-kpi:hover {
+  box-shadow: var(--shadow-elevated);
+  transform: translateY(-2px);
+}
+
+.admin-theme .dashboard-kpi__icon,
+.admin-theme .dashboard-workers__title > span {
+  border-radius: 14px;
+  background: var(--color-primary-soft);
+}
+
+.admin-theme .dashboard-kpi__footer {
+  border-radius: 14px;
+  background: var(--color-shell);
+}
+
+.admin-theme .dashboard-kpi__metric strong {
+  color: var(--color-text);
+}
+
+/* Card tiêu điểm: KPI đầu tiên, nền gradient chữ trắng (như "Solar Power" của ảnh tham chiếu) */
+.admin-theme .dashboard-kpi-grid > .dashboard-kpi:first-child {
+  background: var(--dt-accent-gradient);
+  box-shadow: 0 16px 34px rgba(37, 99, 235, 0.3);
+}
+
+.admin-theme .dashboard-kpi-grid > .dashboard-kpi:first-child :is(strong, span, em) {
+  color: #ffffff;
+}
+
+.admin-theme .dashboard-kpi-grid > .dashboard-kpi:first-child .dashboard-kpi__label span,
+.admin-theme .dashboard-kpi-grid > .dashboard-kpi:first-child .dashboard-kpi__footer span {
+  color: #f5f8ff;
+}
+
+.admin-theme .dashboard-kpi-grid > .dashboard-kpi:first-child .dashboard-kpi__icon {
+  background: var(--dt-on-accent-surface);
+  color: #ffffff;
+}
+
+.admin-theme .dashboard-kpi-grid > .dashboard-kpi:first-child .dashboard-kpi__pill {
+  background: var(--dt-on-accent-surface);
+  color: #ffffff;
+}
+
+.admin-theme .dashboard-kpi-grid > .dashboard-kpi:first-child .dashboard-kpi__footer {
+  background: var(--dt-on-accent-surface);
+}
+
+/* Tabs, thống kê, danh sách chất lượng: nền chip xám nhạt như nhóm "Rooms" */
+.admin-theme .dashboard-tabs {
+  border-radius: 999px;
+  background: var(--dt-chip-bg);
+}
+
+.admin-theme .dashboard-tabs button {
+  border-radius: 999px;
+  color: var(--color-secondary-text);
+}
+
+.admin-theme .dashboard-tabs__active {
+  background: var(--dt-accent-gradient) !important;
+  color: #ffffff !important;
+  box-shadow: 0 6px 14px rgba(37, 99, 235, 0.28);
+}
+
+.admin-theme .dashboard-sync__stats,
+.admin-theme .quality-item,
+.admin-theme .dashboard-workers__footer,
+.admin-theme .dashboard-quality__header span {
+  border-radius: 16px;
+  background: var(--color-shell);
+}
+
+.admin-theme .quality-track {
+  background: #dde7f8;
+}
+
+.admin-theme .workers-table__head {
+  border-radius: 12px;
+  background: var(--color-shell);
+  color: var(--color-muted);
+}
+
+.admin-theme .medication-stat__icon-box {
+  border-radius: 14px;
+}
+
+/* ---------- Thang cỡ trang Tổng quan ----------
+   globals.css đặt trang này lớn gần gấp đôi hai trang bảng (H1 42px, số KPI 58px, dòng 88px);
+   đưa về cùng mật độ với trang Danh mục thuốc / Quy tắc tương tác. */
+.admin-theme .dashboard-page {
+  gap: 18px;
+}
+
+.admin-theme .dashboard-header h1 {
+  margin-top: 6px;
+  font-size: 26px;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -0.5px;
+}
+
+.admin-theme .dashboard-kpi-grid {
+  gap: 16px;
+}
+
+.admin-theme .dashboard-kpi {
+  min-height: 0;
+}
+
+.admin-theme .dashboard-kpi__top {
+  gap: 10px;
+  padding: 16px 18px 0;
+}
+
+.admin-theme .dashboard-kpi__icon,
+.admin-theme .dashboard-workers__title > span {
+  flex-basis: 36px;
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
+}
+
+.admin-theme .dashboard-kpi__icon svg,
+.admin-theme .dashboard-workers__title > span svg {
+  width: 18px;
+  height: 18px;
+}
+
+.admin-theme .dashboard-kpi__label {
+  gap: 2px;
+}
+
+.admin-theme .dashboard-kpi__label span {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+}
+
+.admin-theme .dashboard-kpi__label strong {
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.admin-theme .dashboard-kpi__pill {
+  gap: 4px;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.admin-theme .dashboard-kpi__pill svg {
+  width: 14px;
+  height: 14px;
+}
+
+.admin-theme .dashboard-kpi__metric {
+  gap: 8px;
+  padding: 10px 18px 14px;
+}
+
+.admin-theme .dashboard-kpi__metric strong {
+  font-size: 36px;
+  font-weight: 700;
+  letter-spacing: -0.8px;
+}
+
+.admin-theme .dashboard-kpi__metric span {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.admin-theme .dashboard-kpi__footer {
+  gap: 10px;
+  padding: 10px 18px;
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.admin-theme .dashboard-kpi__footer strong {
+  font-size: 12.5px;
+  font-weight: 700;
+}
+
+.admin-theme .dashboard-kpi__footer svg {
+  width: 16px;
+  height: 16px;
+}
+
+.admin-theme .dashboard-main-grid {
+  gap: 16px;
+}
+
+.admin-theme .dashboard-panel,
+.admin-theme .dashboard-workers {
+  padding: 18px;
+}
+
+.admin-theme .dashboard-title-row h2,
+.admin-theme .dashboard-quality h2,
+.admin-theme .dashboard-workers h2 {
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.admin-theme .dashboard-title-row span {
+  height: 22px;
+  padding: 0 8px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.admin-theme .dashboard-panel__header p {
+  margin-top: 4px;
+  font-size: 13px;
+  font-weight: 400;
+}
+
+.admin-theme .dashboard-tabs {
+  gap: 4px;
+  padding: 4px;
+}
+
+.admin-theme .dashboard-tabs button {
+  min-width: 92px;
+  min-height: 30px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.admin-theme .dashboard-sync__stats {
+  gap: 12px;
+  margin-top: 18px;
+  padding: 12px 16px;
+}
+
+.admin-theme .dashboard-sync__stats span {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.admin-theme .dashboard-sync__stats strong {
+  font-size: 20px;
+}
+
+.admin-theme .dashboard-chart {
+  margin-top: 18px;
+}
+
+.admin-theme .dashboard-chart svg {
+  height: 220px;
+}
+
+.admin-theme .dashboard-chart__labels {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.admin-theme .dashboard-sync__legend {
+  font-size: 12px;
+}
+
+.admin-theme .dashboard-quality {
+  gap: 18px;
+}
+
+.admin-theme .dashboard-quality__header span {
+  width: 34px;
+  height: 34px;
+}
+
+.admin-theme .quality-ring {
+  width: 150px;
+  height: 150px;
+}
+
+.admin-theme .quality-ring span {
+  margin-top: -10px;
+  font-size: 30px;
+  font-weight: 700;
+}
+
+.admin-theme .quality-ring strong {
+  margin-top: 44px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.admin-theme .quality-list {
+  gap: 10px;
+}
+
+.admin-theme .quality-item {
+  gap: 8px;
+  padding: 10px 12px;
+}
+
+.admin-theme .quality-item strong {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.admin-theme .quality-item em {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.admin-theme .dashboard-quality__footer {
+  font-size: 12px;
+}
+
+.admin-theme .dashboard-workers__header button {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.admin-theme .workers-table {
+  margin-top: 14px;
+}
+
+.admin-theme .workers-table__head {
+  min-height: 40px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.admin-theme .workers-table__row {
+  min-height: 56px;
+  font-size: 13px;
+  font-weight: 400;
+}
+
+.admin-theme .workers-table__row strong {
+  gap: 10px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.admin-theme .workers-table__row em {
+  font-weight: 700;
+}
+
+.admin-theme .worker-status {
+  min-height: 26px;
+  gap: 6px;
+  padding: 0 10px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.admin-theme .worker-status svg {
+  width: 14px;
+  height: 14px;
+}
+
+.admin-theme .dashboard-workers__footer {
+  margin-top: 12px;
+  padding: 10px;
+}
+
+.admin-theme .dashboard-workers__footer button {
+  min-height: 34px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+/* ---------- Banner đồng bộ, guideline ---------- */
+.admin-theme .medication-sync-banner,
+.admin-theme .interaction-guideline-card {
+  border: 0;
+  border-radius: var(--radius-card);
+  background: linear-gradient(135deg, #eaf2fe 0%, #f4f8fe 100%);
+}
+
+.admin-theme .medication-sync-banner__actions button {
+  border-radius: 999px;
+}
+
+.admin-theme .medication-sync-banner__actions button.is-primary {
+  background: var(--dt-accent-gradient);
+}
+
+/* ---------- Bộ lọc: ô search & select dạng chip ---------- */
+.admin-theme .medication-search,
+.admin-theme .filter-select,
+.admin-theme .medication-filter-button {
+  border: 1px solid transparent;
+  border-radius: 14px;
+  background: var(--dt-chip-bg);
+}
+
+.admin-theme .medication-search:hover,
+.admin-theme .filter-select:hover {
+  border-color: #d4dbe6;
+  background: var(--dt-chip-bg);
+}
+
+.admin-theme .medication-search:focus-within,
+.admin-theme .filter-select:focus-within {
+  border-color: var(--color-primary);
+  background: #ffffff;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.18);
+}
+
+.admin-theme .filter-reset-btn {
+  border-radius: 999px;
+}
+
+/* ---------- Bảng ---------- */
+.admin-theme .medication-table__head,
+.admin-theme .interaction-frame3-table__head,
+.admin-theme .interaction-table__head,
+.admin-theme .interaction-frame3-table th {
+  background: var(--color-shell);
+  color: var(--color-muted);
+}
+
+.admin-theme .medication-table__row:hover,
+.admin-theme .interaction-table__row:hover,
+.admin-theme .interaction-frame3-table__row:hover,
+.admin-theme .interaction-frame3-table tr:hover td {
+  background: #f3f7ff;
+}
+
+.admin-theme .medication-action-btn,
+.admin-theme .interaction-frame3-action-btn {
+  border-radius: 10px;
+}
+
+.admin-theme .medication-regno,
+.admin-theme .medication-source-tag {
+  border-radius: 6px;
+}
+
+/* ---------- Phân trang ---------- */
+.admin-theme .medication-pagination {
+  background: var(--color-shell);
+}
+
+.admin-theme .medication-pages button {
+  border-radius: 10px;
+}
+
+.admin-theme .medication-pages button:hover:not(:disabled) {
+  background: var(--color-primary-soft);
+}
+
+.admin-theme .medication-pages button.is-active {
+  background: var(--dt-accent-gradient);
+  color: #ffffff;
+  box-shadow: 0 6px 14px rgba(37, 99, 235, 0.28);
+}
+
+.admin-theme .medication-pagination__rows-select select {
+  border-radius: 8px;
+}
+
+/* ---------- Form trong modal ---------- */
+.admin-theme .form-control,
+.admin-theme .form-select,
+.admin-theme .form-textarea,
+.admin-theme .interaction-drawer-input,
+.admin-theme .interaction-drawer-textarea {
+  border-color: #d4dbe6;
+  border-radius: 12px;
+}
+
+.admin-theme .form-control:focus,
+.admin-theme .form-select:focus,
+.admin-theme .form-textarea:focus,
+.admin-theme .interaction-drawer-input:focus,
+.admin-theme .interaction-drawer-textarea:focus {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.18);
+}
+
+.admin-theme .interaction-drawer-save-btn {
+  border-radius: 999px;
+  background: var(--dt-accent-gradient);
+}
+
+.admin-theme .interaction-drawer-cancel-btn,
+.admin-theme .interaction-drawer-delete-btn {
+  border-radius: 999px;
+}
+
+/* ---------- Modal ---------- */
+.admin-theme .modal-backdrop {
+  background: rgba(15, 35, 80, 0.45);
+  backdrop-filter: blur(4px);
+}
+
+.admin-theme .modal-dialog {
+  border: 0;
+  border-radius: 28px;
+  box-shadow: 0 30px 70px rgba(15, 35, 80, 0.3);
+}
+
+.admin-theme .modal-header {
+  position: relative;
+}
+
+.admin-theme .modal-header::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 28px;
+  width: 56px;
+  height: 4px;
+  border-radius: 0 0 4px 4px;
+  background: var(--dt-accent-gradient);
+}
+
+.admin-theme .modal-close-btn {
+  border-radius: 999px;
+}
+
+.admin-theme .modal-close-btn:hover {
+  background: var(--dt-chip-bg);
+}
+
+.admin-theme .modal-footer {
+  background: var(--color-shell);
+}
+
+.admin-theme .medication-detail-banner {
+  border-radius: 18px;
+}
+
+/* ---------- Toast ---------- */
+.admin-theme .toast-item {
+  border: 0;
+  border-radius: 18px;
+  box-shadow: 0 18px 40px rgba(15, 35, 80, 0.18);
+}
+
+.admin-theme .toast-item__action-btn {
+  border-radius: 999px;
+}
+
+/* ---------- Placeholder ---------- */
+.admin-theme .admin-page-placeholder {
+  background:
+    radial-gradient(circle at 100% 0%, rgba(124, 196, 240, 0.25), transparent 45%),
+    var(--color-surface);
+}
+
+/* ---------- Focus (thay outline màu cũ ở globals.css) ---------- */
+.admin-theme button:focus-visible,
+.admin-theme a:focus-visible,
+.admin-theme input:not(.medication-search input):focus-visible,
+.admin-theme select:not(.filter-select select):focus-visible,
+.admin-theme textarea:focus-visible,
+.admin-theme .interaction-editor-radio-card:has(input:focus-visible) {
+  outline: 3px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+/* ---------- Responsive: ≤ 900px bỏ khung, sidebar thành thanh trên ---------- */
+@media (max-width: 900px) {
+  .admin-theme {
+    --dt-frame-gap: 0px;
+  }
+
+  .admin-theme .admin-shell {
+    height: auto;
+    min-height: 100vh;
+    overflow: visible;
+    background: var(--color-surface);
+  }
+
+  .admin-theme .admin-shell::before {
+    display: none;
+  }
+
+  .admin-theme .admin-sidebar {
+    position: relative;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: auto;
+    padding: 16px;
+    border-radius: 0 0 28px 28px;
+  }
+
+  .admin-theme .admin-sidebar__nav {
+    display: flex;
+    gap: 6px;
+    overflow-x: auto;
+    padding-bottom: 4px;
+    scrollbar-width: thin;
+  }
+
+  .admin-theme .admin-sidebar__link {
+    flex: 0 0 auto;
+  }
+
+  .admin-theme .admin-sidebar__account {
+    margin: 12px 0 0;
+  }
+
+  .admin-theme .admin-shell__content {
+    height: auto;
+    margin: 0;
+    padding: 8px 16px 32px;
+    overflow: visible;
+    border-radius: 0;
+  }
+
+  .admin-theme .admin-topbar {
+    height: auto;
+    padding: 8px 0;
+  }
+
+  .admin-theme .admin-topbar__actions {
+    flex: 1 1 auto;
+    flex-wrap: wrap;
+    min-width: 0;
+  }
+
+  .admin-theme .interactions-header__actions {
+    flex-wrap: wrap;
+    white-space: normal;
+  }
+
+  /* globals.css ≤ 900px đặt H1 trang Tổng quan 32px; giữ cùng thang cỡ mới */
+  .admin-theme .dashboard-header h1 {
+    font-size: 24px;
+  }
+
+  .admin-theme .dashboard-sync__stats {
+    margin-top: 14px;
+  }
+}
