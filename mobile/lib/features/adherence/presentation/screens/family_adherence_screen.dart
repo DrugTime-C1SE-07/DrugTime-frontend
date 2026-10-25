@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../../../../app/router.dart';
@@ -19,12 +20,14 @@ class FamilyAdherenceScreen extends StatefulWidget {
     required this.repository,
     this.patientName,
     this.now,
+    this.availability,
   });
 
   final String patientId;
   final String? patientName;
   final AdherenceRepository repository;
   final DateTime Function()? now;
+  final ValueListenable<bool>? availability;
 
   @override
   State<FamilyAdherenceScreen> createState() => _FamilyAdherenceScreenState();
@@ -34,16 +37,31 @@ class _FamilyAdherenceScreenState extends State<FamilyAdherenceScreen>
     with WidgetsBindingObserver, RouteAware {
   late AdherenceController _controller;
   PageRoute<dynamic>? _route;
+  bool _foreground = true;
+
+  bool get _canRead => _foreground && (widget.availability?.value ?? true);
+
+  void _availabilityChanged({bool refresh = false}) {
+    final wasAvailable = _controller.available;
+    _controller.setAvailable(_canRead);
+    if (_canRead && (!wasAvailable || refresh)) {
+      unawaited(_controller.refresh());
+    }
+  }
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    final lifecycle = WidgetsBinding.instance.lifecycleState;
+    _foreground = lifecycle == null || lifecycle == AppLifecycleState.resumed;
     _controller = AdherenceController(
       widget.repository,
       patientId: widget.patientId,
       now: widget.now,
+      available: _canRead,
     );
+    widget.availability?.addListener(_availabilityChanged);
     unawaited(_controller.load());
   }
 
@@ -61,22 +79,31 @@ class _FamilyAdherenceScreenState extends State<FamilyAdherenceScreen>
   @override
   void didUpdateWidget(covariant FamilyAdherenceScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.availability != widget.availability) {
+      oldWidget.availability?.removeListener(_availabilityChanged);
+      widget.availability?.addListener(_availabilityChanged);
+    }
     if (oldWidget.repository != widget.repository) {
       _controller.dispose();
       _controller = AdherenceController(
         widget.repository,
         patientId: widget.patientId,
         now: widget.now,
+        available: _canRead,
       );
       unawaited(_controller.load());
     } else if (oldWidget.patientId != widget.patientId) {
+      _controller.setAvailable(_canRead);
       unawaited(_controller.changePatient(widget.patientId));
+    } else {
+      _availabilityChanged();
     }
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) unawaited(_controller.refresh());
+    _foreground = state == AppLifecycleState.resumed;
+    _availabilityChanged(refresh: _foreground);
   }
 
   @override
@@ -86,6 +113,7 @@ class _FamilyAdherenceScreenState extends State<FamilyAdherenceScreen>
   void dispose() {
     familyAdherenceRouteObserver.unsubscribe(this);
     WidgetsBinding.instance.removeObserver(this);
+    widget.availability?.removeListener(_availabilityChanged);
     _controller.dispose();
     super.dispose();
   }

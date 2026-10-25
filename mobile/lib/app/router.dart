@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../features/adherence/domain/repositories/adherence_repository.dart';
@@ -85,6 +86,7 @@ Route<dynamic>? onGenerateRoute(
   AppTab initialTab = AppTab.medications,
   bool preview = false,
   AdherenceRepository? adherenceRepository,
+  ValueListenable<bool>? familyAdherenceAvailability,
 }) {
   return switch (settings.name) {
     // Kiểm auth/consent cả khi đi vào từ push hoặc điều hướng trực tiếp tới route.
@@ -237,6 +239,7 @@ Route<dynamic>? onGenerateRoute(
             patientId: args.patientId,
             patientName: args.patientName,
             repository: adherenceRepository,
+            availability: familyAdherenceAvailability,
           );
         },
       ),

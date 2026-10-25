@@ -33,13 +33,15 @@ class _Connection implements ConnectivityMonitor {
 }
 
 Widget _screen(PendingFamilyHistory repo,
-        {String patientId = samplePatientId}) =>
+        {String patientId = samplePatientId,
+        ValueNotifier<bool>? availability}) =>
     MaterialApp(
       navigatorObservers: [familyAdherenceRouteObserver],
       home: FamilyAdherenceScreen(
         key: const Key('family-history'),
         patientId: patientId,
         repository: repo,
+        availability: availability,
         now: () => DateTime.utc(2026, 10, 22, 5),
       ),
     );
@@ -119,17 +121,77 @@ void main() {
       (tester) async {
     final repo = PendingFamilyHistory();
     await _loaded(tester, repo);
+    final refresh =
+        tester.widget<RefreshIndicator>(find.byType(RefreshIndicator));
     try {
       tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
       tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
       tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
       await tester.pump();
       expect(find.text('Thuốc A', skipOffstage: false), findsNothing);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await tester.pump();
+      expect(repo.pending, hasLength(2));
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+      repo.pending[1].complete(familyHistory());
+      await tester.pump();
+      expect(find.text('Thuốc A', skipOffstage: false), findsNothing);
+      await refresh.onRefresh();
+      expect(repo.pending, hasLength(2));
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await tester.pump();
+      expect(repo.pending, hasLength(3));
+      expect(find.text('Thuốc A', skipOffstage: false), findsNothing);
+      repo.pending[2]
+          .completeError(const AdherenceFailure(AdherenceFailureKind.denied));
+      await tester.pumpAndSettle();
+      expect(find.text('Không còn quyền xem lịch sử'), findsOneWidget);
     } finally {
       await tester.pumpWidget(const SizedBox.shrink());
       tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
       tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
       tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    }
+  });
+
+  testWidgets(
+      'AC6: unavailable history rejects late reads and reloads on return',
+      (tester) async {
+    final repo = PendingFamilyHistory();
+    final availability = ValueNotifier(false);
+    try {
+      await tester.pumpWidget(_screen(repo, availability: availability));
+      expect(repo.pending, isEmpty);
+      availability.value = true;
+      repo.pending.single.complete(familyHistory());
+      await tester.pumpAndSettle();
+      expect(find.text('Thuốc A'), findsWidgets);
+      final refresh =
+          tester.widget<RefreshIndicator>(find.byType(RefreshIndicator));
+      final pendingRead = refresh.onRefresh();
+      availability.value = false;
+      repo.pending[1].complete(familyHistory());
+      await pendingRead;
+      await tester.pumpAndSettle();
+      expect(find.text('Thuốc A', skipOffstage: false), findsNothing);
+      await refresh.onRefresh();
+      expect(repo.pending, hasLength(2));
+      availability.value = true;
+      await tester.pump();
+      expect(repo.pending, hasLength(3));
+      expect(find.text('Thuốc A', skipOffstage: false), findsNothing);
+      repo.pending[2].complete(familyHistory());
+      await tester.pumpAndSettle();
+      expect(find.text('Thuốc A'), findsWidgets);
+    } finally {
+      await tester.pumpWidget(const SizedBox.shrink());
+      availability.dispose();
     }
   });
 
@@ -175,6 +237,16 @@ void main() {
         await tester.pump();
         await tester.pumpAndSettle();
         expect(find.text('Thuốc A', skipOffstage: false), findsNothing);
+        if (trigger == 'offline') {
+          connection.changes.add(true);
+          await tester.pump();
+          expect(repo.pending, hasLength(2));
+          expect(find.text('Thuốc A', skipOffstage: false), findsNothing);
+          repo.pending[1].completeError(
+              const AdherenceFailure(AdherenceFailureKind.denied));
+          await tester.pumpAndSettle();
+          expect(find.text('Không còn quyền xem lịch sử'), findsOneWidget);
+        }
       } finally {
         await tester.pumpWidget(const SizedBox.shrink());
         auth.dispose();

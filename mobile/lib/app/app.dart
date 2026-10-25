@@ -144,6 +144,7 @@ class DrugTimeApp extends StatefulWidget {
 
 class _DrugTimeAppState extends State<DrugTimeApp> with WidgetsBindingObserver {
   StreamSubscription<bool>? _familyConnection;
+  final _familyAdherenceAvailability = ValueNotifier<bool>(false);
   String? _tokenSession;
   bool _foreground = true, _online = true, _openingFamily = false;
   Timer? _expiryTimer;
@@ -161,6 +162,7 @@ class _DrugTimeAppState extends State<DrugTimeApp> with WidgetsBindingObserver {
   void _familyChanged() {
     final session = _auth.currentSession;
     final ready = _familyReady;
+    _familyAdherenceAvailability.value = ready;
     widget.familyAlertController?.setSession(
         _auth.isAuthenticated ? session?.accessToken : null,
         ready: ready);
@@ -472,6 +474,7 @@ class _DrugTimeAppState extends State<DrugTimeApp> with WidgetsBindingObserver {
     WidgetsBinding.instance.removeObserver(this);
     _expiryTimer?.cancel();
     unawaited(_familyConnection?.cancel());
+    _familyAdherenceAvailability.dispose();
     unawaited(widget.familyConnectivity?.dispose());
     widget.familyPushService?.removeListener(_openPendingFamily);
     widget.notificationService?.onFamilyAction = null;
@@ -524,6 +527,7 @@ class _DrugTimeAppState extends State<DrugTimeApp> with WidgetsBindingObserver {
         initialTab: widget.initialTab,
         preview: widget.preview,
         adherenceRepository: widget.adherenceRepository,
+        familyAdherenceAvailability: _familyAdherenceAvailability,
       );
 
   Widget _buildApp() {
