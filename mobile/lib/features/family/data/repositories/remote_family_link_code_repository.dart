@@ -7,6 +7,8 @@ import '../../domain/repositories/family_link_code_repository.dart';
 class RemoteFamilyLinkCodeRepository implements FamilyLinkCodeRepository {
   RemoteFamilyLinkCodeRepository(this._api);
 
+  static const _linkCodeLength = 10;
+
   final ApiClient _api;
 
   @override
@@ -21,6 +23,7 @@ class RemoteFamilyLinkCodeRepository implements FamilyLinkCodeRepository {
       final qrPayload = json['qr_payload'];
       if (code is! String ||
           code.isEmpty ||
+          code.length != _linkCodeLength ||
           qrPayload is! String ||
           qrPayload.isEmpty) {
         throw const FamilyLinkCodeFailure(

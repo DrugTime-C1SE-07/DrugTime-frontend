@@ -33,7 +33,25 @@ abstract class LocalMedicationStore {
   Future<void> setMeta(String key, String value);
 }
 
-class SqliteLocalMedicationStore implements LocalMedicationStore {
+/// Giao diện cho phép dọn dẹp dữ liệu cục bộ theo bệnh nhân khi liên kết bị gỡ (QD-29).
+abstract interface class PatientDataClearable {
+  Future<void> clearPatient(String patientId);
+}
+
+/// Extension dọn dẹp dữ liệu lịch uống trên [LocalMedicationStore] (QD-29).
+///
+/// Cung cấp mặc định an toàn cho mọi [LocalMedicationStore], bảo đảm tương thích
+/// ngược với các test fake store hiện có.
+extension LocalMedicationStoreClearPatientData on LocalMedicationStore {
+  Future<void> clearPatientData(String patientId) async {
+    final self = this;
+    if (self is PatientDataClearable) {
+      await (self as PatientDataClearable).clearPatient(patientId);
+    }
+  }
+}
+
+class SqliteLocalMedicationStore implements LocalMedicationStore, PatientDataClearable {
   SqliteLocalMedicationStore(this._localDb);
 
   final LocalDb _localDb;
@@ -61,6 +79,20 @@ class SqliteLocalMedicationStore implements LocalMedicationStore {
           conflictAlgorithm: ConflictAlgorithm.replace,
         );
       }
+    });
+  }
+
+  @override
+  Future<void> clearPatient(String patientId) => clearPatientData(patientId);
+
+  Future<void> clearPatientData(String patientId) async {
+    final db = await _localDb.database;
+    await db.transaction((txn) async {
+      await txn.delete(
+        LocalDb.schedulesTable,
+        where: 'patient_user_id = ?',
+        whereArgs: [patientId],
+      );
     });
   }
 
