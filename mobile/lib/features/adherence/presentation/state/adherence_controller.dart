@@ -11,8 +11,10 @@ class AdherenceController extends ChangeNotifier {
     this._repository, {
     required this.patientId,
     DateTime Function()? now,
+    bool available = true,
     this.onPatientRevoked,
-  }) : _now = now ?? DateTime.now {
+  })  : _now = now ?? DateTime.now,
+        _available = available {
     selectedDate = today;
   }
 
@@ -21,6 +23,15 @@ class AdherenceController extends ChangeNotifier {
   final Future<void> Function(String patientId)? onPatientRevoked;
   int _generation = 0;
   bool _disposed = false;
+  bool _available;
+
+  bool get available => _available;
+
+  void setAvailable(bool value) {
+    if (_disposed || _available == value) return;
+    _available = value;
+    if (!value) clear();
+  }
 
   String patientId;
   late DateTime selectedDate;
@@ -55,7 +66,7 @@ class AdherenceController extends ChangeNotifier {
       }.contains(failure?.kind);
 
   Future<void> load() async {
-    if (_disposed) return;
+    if (_disposed || !_available) return;
     final generation = ++_generation;
     final requestedPatient = patientId;
     final from = rangeFrom;
