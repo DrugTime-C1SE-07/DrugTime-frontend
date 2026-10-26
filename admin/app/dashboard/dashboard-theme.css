@@ -32,15 +32,12 @@
   --shadow-card: 0 8px 24px rgba(37, 99, 235, 0.07), 0 1px 2px rgba(17, 24, 39, 0.04);
   --shadow-elevated: 0 14px 36px rgba(37, 99, 235, 0.12);
 
-  --dt-bg-gradient: linear-gradient(135deg, #7cc4f0 0%, #5b8fe0 100%);
   --dt-accent-gradient: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
   --dt-sidebar-gradient: linear-gradient(180deg, #2563eb 0%, #1e40af 100%);
   /* Lớp phủ tối trên nền xanh: giữ chữ trắng ≥ 4.5:1 (lớp phủ trắng làm nền sáng lên, tụt dưới ngưỡng). */
   --dt-on-accent-surface: rgba(15, 23, 80, 0.22);
   --dt-chip-bg: #eef1f5;
   --dt-chip-bg-hover: #e3e8ef;
-  --dt-frame-gap: 20px;
-  --dt-frame-radius: 36px;
   --dt-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
 
   font-family: var(--font-sans);
@@ -51,48 +48,54 @@
   background: #cfe0fd;
 }
 
-/* ---------- Shell: nền gradient + khung trắng bo lớn ---------- */
-/* isolation để khung trắng (z-index -1) nằm trên nền gradient nhưng dưới nội dung;
-   nội dung không có z-index riêng để modal/backdrop vẫn phủ được sidebar. */
-.admin-theme .admin-shell {
-  isolation: isolate;
-  background: var(--dt-bg-gradient);
+/* ---------- Shell: tràn màn hình, một thanh cuộn của trang ----------
+   globals.css cho .admin-shell__content tự cuộn trong khung 100vh (cuộn lồng, thanh cuộn hệ thống
+   lộ ở mép nội dung). Ở đây trả việc cuộn về document; sidebar fixed, topbar sticky. */
+html:has(.admin-theme) {
+  background: var(--color-shell);
+  scrollbar-gutter: stable;
+  /* topbar sticky cao 68px: phần tử được focus/cuộn tới không bị che */
+  scroll-padding-top: 84px;
 }
 
-.admin-theme .admin-shell::before {
-  content: "";
-  position: fixed;
-  inset: var(--dt-frame-gap);
-  z-index: -1;
-  border-radius: var(--dt-frame-radius);
-  background: var(--color-surface);
-  box-shadow: 0 30px 80px rgba(29, 78, 216, 0.25);
+.admin-theme .admin-shell {
+  height: auto;
+  min-height: 100vh;
+  min-height: 100dvh;
+  overflow: visible;
+  background: var(--color-shell);
 }
 
 .admin-theme .admin-shell__content {
-  height: calc(100vh - 2 * var(--dt-frame-gap));
-  margin: var(--dt-frame-gap) var(--dt-frame-gap) var(--dt-frame-gap)
-    calc(var(--sidebar-width) + var(--dt-frame-gap) * 2);
-  padding: 12px 24px 36px 24px;
-  border-radius: 0 var(--dt-frame-radius) var(--dt-frame-radius) 0;
+  height: auto;
+  min-height: 100vh;
+  margin-left: var(--sidebar-width);
+  padding: 0 32px 40px;
+  overflow: visible;
 }
 
 .admin-theme .admin-shell__body {
-  padding-top: 8px;
+  padding-top: 4px;
 }
 
-/* ---------- Sidebar: xanh đậm, bo cong cạnh phải ---------- */
+/* ---------- Sidebar: sát mép trái, cao hết màn hình, bo cong cạnh phải ---------- */
 .admin-theme .admin-sidebar {
-  top: calc(var(--dt-frame-gap) + 12px);
-  left: calc(var(--dt-frame-gap) + 12px);
+  top: 0;
+  left: 0;
   width: var(--sidebar-width);
-  height: calc(100vh - 2 * var(--dt-frame-gap) - 24px);
-  padding: 28px 18px 18px;
+  height: 100vh;
+  height: 100dvh;
+  padding: 28px 18px 20px;
   border: 0;
-  border-radius: 28px 72px 72px 28px;
+  border-radius: 0 36px 36px 0;
   background: var(--dt-sidebar-gradient);
-  box-shadow: 0 18px 40px rgba(30, 64, 175, 0.28);
+  box-shadow: 8px 0 32px rgba(30, 64, 175, 0.18);
   color: #ffffff;
+}
+
+.admin-theme .admin-sidebar__nav {
+  overflow-y: auto;
+  min-height: 0;
 }
 
 .admin-theme .admin-sidebar__brand {
@@ -206,9 +209,19 @@
   color: #ffffff;
 }
 
-/* ---------- Topbar ---------- */
+/* ---------- Topbar: dính đầu trang khi cuộn ---------- */
 .admin-theme .admin-topbar {
-  height: 72px;
+  position: sticky;
+  top: 0;
+  z-index: 15;
+  width: auto;
+  height: 68px;
+  margin: 0 -32px;
+  padding: 0 32px;
+  background: rgba(244, 248, 254, 0.86);
+  backdrop-filter: saturate(160%) blur(10px);
+  -webkit-backdrop-filter: saturate(160%) blur(10px);
+  border-bottom: 1px solid transparent;
 }
 
 .admin-theme .admin-topbar__sync {
@@ -755,6 +768,22 @@
   color: var(--color-muted);
 }
 
+/* globals.css: 7 cột tối thiểu ~1170px > card ở 1440px nên cột "Thao tác" bị cắt; thu min-width cột,
+   dưới ~1000px bảng vẫn cuộn ngang trong .medication-table-scroll. */
+.admin-theme .medication-table {
+  min-width: 920px;
+}
+
+/* globals.css đặt 960px, dư 2px ở viewport 1280 */
+.admin-theme .interaction-frame3-table {
+  min-width: 900px;
+}
+
+.admin-theme .medication-table__head,
+.admin-theme .medication-table__row {
+  grid-template-columns: minmax(170px, 1.6fr) minmax(180px, 1.6fr) 112px 128px minmax(112px, 1fr) 124px 104px;
+}
+
 .admin-theme .medication-table__row:hover,
 .admin-theme .interaction-table__row:hover,
 .admin-theme .interaction-frame3-table__row:hover,
@@ -885,6 +914,42 @@
     var(--color-surface);
 }
 
+/* ---------- Thanh cuộn mảnh theo tông theme ----------
+   html:has(.admin-theme) để chỉ đổi thanh cuộn trang dashboard, Login giữ mặc định.
+   Chrome/Edge/Firefox dùng chuẩn scrollbar-*; ::-webkit-scrollbar là fallback cho Safari. */
+html:has(.admin-theme),
+.admin-theme * {
+  scrollbar-width: thin;
+  scrollbar-color: #b6c4da transparent;
+}
+
+.admin-theme .admin-sidebar * {
+  scrollbar-color: rgba(255, 255, 255, 0.45) transparent;
+}
+
+html:has(.admin-theme)::-webkit-scrollbar,
+.admin-theme ::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+html:has(.admin-theme)::-webkit-scrollbar-thumb,
+.admin-theme ::-webkit-scrollbar-thumb {
+  border: 3px solid transparent;
+  border-radius: 999px;
+  background: #b6c4da padding-box;
+}
+
+html:has(.admin-theme)::-webkit-scrollbar-thumb:hover,
+.admin-theme ::-webkit-scrollbar-thumb:hover {
+  background-color: #8fa3c2;
+}
+
+html:has(.admin-theme)::-webkit-scrollbar-track,
+.admin-theme ::-webkit-scrollbar-track {
+  background: transparent;
+}
+
 /* ---------- Focus (thay outline màu cũ ở globals.css) ---------- */
 .admin-theme button:focus-visible,
 .admin-theme a:focus-visible,
@@ -896,23 +961,8 @@
   outline-offset: 2px;
 }
 
-/* ---------- Responsive: ≤ 900px bỏ khung, sidebar thành thanh trên ---------- */
+/* ---------- Responsive: ≤ 900px sidebar thành thanh trên, nav cuộn ngang ---------- */
 @media (max-width: 900px) {
-  .admin-theme {
-    --dt-frame-gap: 0px;
-  }
-
-  .admin-theme .admin-shell {
-    height: auto;
-    min-height: 100vh;
-    overflow: visible;
-    background: var(--color-surface);
-  }
-
-  .admin-theme .admin-shell::before {
-    display: none;
-  }
-
   .admin-theme .admin-sidebar {
     position: relative;
     top: 0;
@@ -940,16 +990,14 @@
   }
 
   .admin-theme .admin-shell__content {
-    height: auto;
     margin: 0;
-    padding: 8px 16px 32px;
-    overflow: visible;
-    border-radius: 0;
+    padding: 0 16px 32px;
   }
 
   .admin-theme .admin-topbar {
     height: auto;
-    padding: 8px 0;
+    margin: 0 -16px;
+    padding: 10px 16px;
   }
 
   .admin-theme .admin-topbar__actions {
