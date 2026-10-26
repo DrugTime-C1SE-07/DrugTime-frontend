@@ -111,19 +111,28 @@ void main() {
     });
   });
 
-  for (final action in ['reject', 'revoke']) {
-    test('$action: POST không body, không Content-Type', () async {
-      replies.add((200, {'ok': true}));
+  test('reject: POST không body, không Content-Type', () async {
+    replies.add((200, {'ok': true}));
 
-      await (action == 'reject' ? repo.reject(42) : repo.revoke(42));
+    await repo.reject(42);
 
-      final request = requests.single;
-      expect(request.method, 'POST');
-      expect(request.uri.path, '/family/links/42/$action');
-      expect(request.body, isEmpty);
-      expect(request.contentType, isNull);
-    });
-  }
+    final request = requests.single;
+    expect(request.method, 'POST');
+    expect(request.uri.path, '/family/links/42/reject');
+    expect(request.body, isEmpty);
+    expect(request.contentType, isNull);
+  });
+
+  test('revoke: DELETE /family/links/42 không body, trả về 204', () async {
+    replies.add((204, null));
+
+    await repo.revoke(42);
+
+    final request = requests.single;
+    expect(request.method, 'DELETE');
+    expect(request.uri.path, '/family/links/42');
+    expect(request.body, isEmpty);
+  });
 
   test('listCaregivers: GET /family/caregivers không query, approved_at null giữ null', () async {
     replies.add((200, {
