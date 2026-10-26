@@ -31,6 +31,7 @@ import '../features/family_link/domain/entities/link_code.dart';
 import '../features/family_link/domain/repositories/caregiver_repository.dart';
 import '../features/family_link/domain/repositories/family_link_repository.dart';
 import '../features/family_link/presentation/state/family_link_scope.dart';
+import '../features/family_link/presentation/state/incoming_requests_controller.dart';
 import '../features/family_link/presentation/state/invite_link_controller.dart';
 import '../features/medication/data/repositories/in_memory_medication_repository.dart';
 import '../features/medication/domain/repositories/medication_repository.dart';
@@ -217,6 +218,9 @@ class _DrugTimeAppState extends State<DrugTimeApp> with WidgetsBindingObserver {
     if (_foreground && _auth.currentSession?.isExpired == true) {
       unawaited(_auth.handleUnauthorized().catchError((Object _) {}));
     }
+    if (_foreground) {
+      unawaited(_incomingRequests.load());
+    }
     _familyChanged();
   }
 
@@ -242,6 +246,8 @@ class _DrugTimeAppState extends State<DrugTimeApp> with WidgetsBindingObserver {
       widget.familyLinkRepository ?? InMemoryFamilyLinkRepository();
   late final CaregiverRepository _caregivers =
       widget.caregiverRepository ?? InMemoryCaregiverRepository();
+  late final IncomingRequestsController _incomingRequests =
+      IncomingRequestsController(_caregivers);
   final InviteLinkController _invites = InviteLinkController();
   StreamSubscription<Uri>? _inviteLinks;
 
@@ -403,7 +409,10 @@ class _DrugTimeAppState extends State<DrugTimeApp> with WidgetsBindingObserver {
       _profileUser =
           _auth.isAuthenticated ? _auth.currentSession?.userId : null;
     });
-    if (_auth.isAuthenticated) unawaited(_medications.load());
+    if (_auth.isAuthenticated) {
+      unawaited(_medications.load());
+      unawaited(_incomingRequests.load());
+    }
     _familyChanged();
   }
 
@@ -426,12 +435,14 @@ class _DrugTimeAppState extends State<DrugTimeApp> with WidgetsBindingObserver {
           ?.pushNamedAndRemoveUntil(AppRoutes.login, (_) => false);
     } else if (!_wasAuthenticated && authenticated) {
       unawaited(_medications.load());
+      unawaited(_incomingRequests.load());
     } else if (switchedUser && authenticated) {
       _medications.clear();
       _consents.clear();
       _navigatorKey.currentState
           ?.pushNamedAndRemoveUntil(AppRoutes.home, (_) => false);
       unawaited(_medications.load());
+      unawaited(_incomingRequests.load());
     }
     _wasAuthenticated = authenticated;
   }
@@ -459,6 +470,7 @@ class _DrugTimeAppState extends State<DrugTimeApp> with WidgetsBindingObserver {
     _medications.dispose();
     _consents.dispose();
     _familyLinkCode.dispose();
+    _incomingRequests.dispose();
     unawaited(_inviteLinks?.cancel());
     _invites.dispose();
     super.dispose();
@@ -478,6 +490,7 @@ class _DrugTimeAppState extends State<DrugTimeApp> with WidgetsBindingObserver {
               repository: _familyLinks,
               caregivers: _caregivers,
               invites: _invites,
+              incomingRequests: _incomingRequests,
               child: ProfileScope(
                 controller: _profiles,
                 child:

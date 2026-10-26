@@ -27,9 +27,20 @@ class FamilyTabScreen extends StatefulWidget {
 
 class _FamilyTabScreenState extends State<FamilyTabScreen> {
   IncomingRequestsController? _requests;
+  bool _ownsController = false;
 
-  IncomingRequestsController get _controller =>
-      _requests ??= IncomingRequestsController(FamilyLinkScope.read(context).caregivers);
+  IncomingRequestsController get _controller {
+    if (_requests != null) return _requests!;
+    final shared = FamilyLinkScope.maybeOf(context)?.incomingRequests;
+    if (shared != null) {
+      _requests = shared;
+      _ownsController = false;
+      return shared;
+    }
+    _ownsController = true;
+    return _requests =
+        IncomingRequestsController(FamilyLinkScope.read(context).caregivers);
+  }
 
   @override
   void initState() {
@@ -49,13 +60,15 @@ class _FamilyTabScreenState extends State<FamilyTabScreen> {
 
   @override
   void dispose() {
-    _requests?.dispose();
+    if (_ownsController) {
+      _requests?.dispose();
+    }
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
- final unread = FamilyAlertScope.maybeOf(context)?.unreadCount;
+    final unread = FamilyAlertScope.maybeOf(context)?.unreadCount;
     final sharingGranted =
         ConsentScope.of(context).isGranted(ConsentPurpose.familySharing);
     return Scaffold(

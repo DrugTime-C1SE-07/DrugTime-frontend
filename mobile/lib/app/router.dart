@@ -12,6 +12,7 @@ import '../features/auth/presentation/state/auth_controller.dart';
 import '../features/family/domain/entities/family_alert.dart';
 import '../features/family_link/presentation/screens/caregivers_screen.dart';
 import '../features/family_link/presentation/screens/enter_link_code_screen.dart';
+import '../features/family_link/presentation/screens/link_consent_confirmation_screen.dart';
 import '../features/family_link/presentation/screens/link_request_result_screen.dart';
 import '../features/family_link/presentation/screens/scan_link_qr_screen.dart';
 import '../features/family_link/presentation/screens/share_invite_link_screen.dart';
@@ -59,6 +60,7 @@ abstract final class AppRoutes {
   static const familyEnterCode = '/family/follow/enter';
   static const familyLinkResult = '/family/follow/result';
   static const familyShareLink = '/family/share-link';
+  static const linkConsentConfirmation = '/family/requests/confirm';
 }
 
 Route<dynamic>? onGenerateRoute(RouteSettings settings) {
@@ -196,6 +198,18 @@ Route<dynamic>? onGenerateRoute(RouteSettings settings) {
           outcome: settings.arguments as LinkSubmitOutcome? ??
               LinkSubmitOutcome.waiting,
         ),
+      ),
+    AppRoutes.linkConsentConfirmation => MaterialPageRoute<bool>(
+        settings: settings,
+        builder: (context) {
+          final args = settings.arguments;
+          if (args is! LinkConsentConfirmationArgs) {
+            return const Scaffold(
+              body: Center(child: Text('Yêu cầu không hợp lệ')),
+            );
+          }
+          return LinkConsentConfirmationScreen(args: args);
+        },
       ),
     _ => null,
   };

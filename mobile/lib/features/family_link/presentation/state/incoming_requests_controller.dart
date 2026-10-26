@@ -7,26 +7,42 @@ import '../../domain/repositories/caregiver_repository.dart';
 
 /// Yêu cầu theo dõi đang chờ gửi tới người dùng (vai patient), trên tab Người thân.
 ///
-/// Không giữ danh sách làm căn cứ: tải lại khi mở tab, khi kéo xuống và sau mỗi thao tác.
-/// Mỗi thao tác trả `null` khi thành công, hoặc loại lỗi để màn hiện câu báo.
+/// Không cache ngoại tuyến: cần kết nối mạng để tải và cập nhật.
+/// Tải lại khi mở app, vào foreground, khi mở tab, kéo xuống và sau mỗi thao tác.
+/// Mỗi thao tác trả `null` khi thành công, hoặc loại lỗi để màn hiện câu báo tiếng Việt.
 class IncomingRequestsController extends ChangeNotifier {
-  IncomingRequestsController(this._repository);
+  IncomingRequestsController(
+    this._repository, {
+    this.onLinkedCaregiversChanged,
+  });
 
   final CaregiverRepository _repository;
 
+  /// Gọi khi một yêu cầu được chấp thuận hoặc từ chối để làm mới danh sách người giám sát.
+  final VoidCallback? onLinkedCaregiversChanged;
+
   List<IncomingLinkRequest> _items = const [];
   bool _loading = false;
+  bool _isLoaded = false;
   CaregiverFailureKind? _loadError;
   final Set<int> _busy = {};
   bool _disposed = false;
 
   List<IncomingLinkRequest> get items => _items;
+  int get pendingCount => _items.length;
   bool get isLoading => _loading;
+  bool get isLoaded => _isLoaded;
 
-  /// Lỗi của lần tải gần nhất; danh sách cũ vẫn được giữ để hiển thị.
+  /// Đã tải thành công ít nhất một lần và danh sách rỗng.
+  bool get isEmpty => _isLoaded && _items.isEmpty && _loadError == null;
+
+  /// Gặp lỗi kết nối mạng (cần kết nối mạng, không cache ngoại tuyến).
+  bool get isOffline => _loadError == CaregiverFailureKind.network;
+
+  /// Lỗi của lần tải gần nhất; danh sách cũ vẫn được giữ để hiển thị nếu có.
   CaregiverFailureKind? get loadError => _loadError;
 
-  /// Đang gửi thao tác cho yêu cầu [linkId]: khóa hai nút của mục đó.
+  /// Đang gửi thao tác cho yêu cầu [linkId]: khóa các nút thao tác của mục đó.
   bool isBusy(int linkId) => _busy.contains(linkId);
 
   Future<void> load() async {
@@ -35,35 +51,52 @@ class IncomingRequestsController extends ChangeNotifier {
     try {
       _items = await _repository.listPendingRequests();
       _loadError = null;
+      _isLoaded = true;
     } on CaregiverFailure catch (failure) {
       _loadError = failure.kind;
+    } catch (_) {
+      _loadError = CaregiverFailureKind.unknown;
     } finally {
       _loading = false;
       _notify();
     }
   }
 
-  /// Chỉ gọi sau khi người dùng đã tick xác nhận đồng ý chia sẻ cho đúng người này.
-  Future<CaregiverFailureKind?> approve(IncomingLinkRequest request) => _run(
-        request.linkId,
-        () => _repository.approve(
-          linkId: request.linkId,
-          familyUserId: request.familyUserId,
-          documentVersion: ConsentPurpose.familySharing.documentVersion,
-        ),
-      );
+  /// Chấp thuận yêu cầu liên kết với phiên bản văn bản đồng ý chia sẻ hiện tại.
+  Future<CaregiverFailureKind?> approve(IncomingLinkRequest request) async {
+    final error = await _run(
+      request.linkId,
+      () => _repository.approve(
+        linkId: request.linkId,
+        familyUserId: request.familyUserId,
+        documentVersion: ConsentPurpose.familySharing.documentVersion,
+      ),
+    );
+    if (error == null) {
+      onLinkedCaregiversChanged?.call();
+    }
+    return error;
+  }
 
-  Future<CaregiverFailureKind?> reject(IncomingLinkRequest request) =>
-      _run(request.linkId, () => _repository.reject(request.linkId));
+  /// Từ chối yêu cầu liên kết.
+  Future<CaregiverFailureKind?> reject(IncomingLinkRequest request) async {
+    final error = await _run(request.linkId, () => _repository.reject(request.linkId));
+    if (error == null) {
+      onLinkedCaregiversChanged?.call();
+    }
+    return error;
+  }
 
-  /// Lối tắt "Bật chia sẻ ngay" sau khi chấp thuận; liên kết đã rời danh sách chờ nên không tải
-  /// lại danh sách này.
+  /// Lối tắt "Bật chia sẻ ngay" sau khi chấp thuận.
   Future<CaregiverFailureKind?> enableSharing(int linkId) async {
     try {
       await _repository.setSharing(linkId, enabled: true);
+      onLinkedCaregiversChanged?.call();
       return null;
     } on CaregiverFailure catch (failure) {
       return failure.kind;
+    } catch (_) {
+      return CaregiverFailureKind.unknown;
     }
   }
 
@@ -76,10 +109,12 @@ class IncomingRequestsController extends ChangeNotifier {
       await action();
     } on CaregiverFailure catch (failure) {
       error = failure.kind;
+    } catch (_) {
+      error = CaregiverFailureKind.unknown;
     } finally {
       _busy.remove(linkId);
     }
-    // Thành công hay lỗi đều đọc lại từ server: trạng thái thật có thể đã khác danh sách đang có.
+    // Thành công hay lỗi đều đọc lại từ server để đồng bộ trạng thái thực tế.
     await load();
     return error;
   }
