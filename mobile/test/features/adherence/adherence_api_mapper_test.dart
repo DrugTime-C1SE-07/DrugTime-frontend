@@ -56,8 +56,13 @@ void main() {
     final history = AdherenceApiMapper.history(sampleHistoryJson());
     expect(history.patientId, samplePatientId);
     expect(history.summary.rate, 66.67);
-    expect(history.groups.single.doses.map((d) => d.status),
-        AdherenceDoseStatus.values);
+    expect(history.groups.single.doses.map((d) => d.status), [
+      AdherenceDoseStatus.taken,
+      AdherenceDoseStatus.late,
+      AdherenceDoseStatus.missed,
+      AdherenceDoseStatus.pending,
+    ]);
+    expect(history.summary.unverified, 0);
     expect(history.groups.single.doses.first.scheduledAt.toUtc().hour, 1);
     expect(vietnamWallTime(history.groups.single.doses.first.takenAt!).hour, 8);
     expect(history.groups.single.doses.last.takenAt, isNull);
@@ -81,5 +86,60 @@ void main() {
     final first = (group['doses'] as List).first as Map<String, Object?>;
     first['taken_at'] = null;
     expect(() => AdherenceApiMapper.history(badStatus), throwsFormatException);
+  });
+
+  group('chua_xac_minh (3.19, AC50)', () {
+    Map<String, Object?> unverifiedJson() {
+      final json = sampleHistoryJson();
+      final group = (json['groups'] as List).single as Map<String, Object?>;
+      final doses = group['doses'] as List;
+      (doses.last as Map<String, Object?>)['status'] = 'chua_xac_minh';
+      for (final summary in [json['summary'], group['summary']]) {
+        (summary as Map<String, Object?>)
+          ..['pending'] = 0
+          ..['unverified'] = 1;
+      }
+      json['patient_last_synced_at'] = null;
+      return json;
+    }
+
+    test('parses chua_xac_minh + unverified', () {
+      final history = AdherenceApiMapper.history(unverifiedJson());
+
+      final doses = history.groups.single.doses;
+      expect(doses.last.status, AdherenceDoseStatus.unverified);
+      expect(doses.last.status.label, 'Chưa xác minh');
+      expect(doses.last.takenAt, isNull);
+      expect(doses.first.status, AdherenceDoseStatus.taken);
+      expect(history.summary.unverified, 1);
+      expect(history.summary.total, 4);
+      expect(history.summary.rate, 66.67);
+    });
+
+    test('missing unverified defaults to 0', () {
+      final json = sampleHistoryJson();
+      (json['summary'] as Map<String, Object?>).remove('unverified');
+
+      expect(AdherenceApiMapper.history(json).summary.unverified, 0);
+    });
+
+    test('rejects chua_xac_minh with taken_at or recorded source', () {
+      for (final change in <void Function(Map<String, Object?>)>[
+        (dose) => dose['taken_at'] = '2026-10-22T08:05:00+07:00',
+        (dose) => dose['status_source'] = 'recorded',
+      ]) {
+        final json = unverifiedJson();
+        final group = (json['groups'] as List).single as Map<String, Object?>;
+        change((group['doses'] as List).last as Map<String, Object?>);
+        expect(() => AdherenceApiMapper.history(json), throwsFormatException);
+      }
+    });
+
+    test('rejects total mismatch with unverified', () {
+      final json = unverifiedJson();
+      (json['summary'] as Map<String, Object?>)['unverified'] = 0;
+
+      expect(() => AdherenceApiMapper.history(json), throwsFormatException);
+    });
   });
 }

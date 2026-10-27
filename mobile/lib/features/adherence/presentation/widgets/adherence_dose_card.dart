@@ -31,6 +31,11 @@ class AdherenceDoseCard extends StatelessWidget {
           AppColors.inkMuted,
           AppColors.surfaceMuted
         ),
+      AdherenceDoseStatus.unverified => (
+          Icons.cloud_off_outlined,
+          AppColors.inkMuted,
+          AppColors.surfaceMuted
+        ),
     };
     final scheduled = _time(dose.scheduledAt);
     final taken = dose.takenAt == null ? null : _time(dose.takenAt!);

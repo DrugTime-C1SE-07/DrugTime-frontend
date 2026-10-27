@@ -34,6 +34,11 @@ class DoseHistoryTile extends StatelessWidget {
           AppColors.surfaceMuted,
           Icons.hourglass_empty
         ),
+      HistoryDoseStatus.unverified => (
+          AppColors.inkMuted,
+          AppColors.surfaceMuted,
+          Icons.cloud_off_outlined
+        ),
     };
     final taken = dose.takenAt;
     final actualDay = taken == null ||
