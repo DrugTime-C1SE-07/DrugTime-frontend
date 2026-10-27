@@ -39,7 +39,13 @@ void main() {
           : result.medications.single.doses;
       expect(result.summary.rate, 66.67);
       expect(result.summary.pending, 1);
-      expect(doses.map((d) => d.status), HistoryDoseStatus.values);
+      expect(doses.map((d) => d.status), [
+        HistoryDoseStatus.taken,
+        HistoryDoseStatus.late,
+        HistoryDoseStatus.missed,
+        HistoryDoseStatus.pending,
+      ]);
+      expect(result.summary.unverified, 0);
       expect(doses.last.takenAt, isNull);
       expect(doses.first.scheduleId, 1);
       expect(() => doses.clear(), throwsUnsupportedError);
@@ -74,5 +80,57 @@ void main() {
       change(j);
       expect(() => AdherenceHistoryApiMapper.parse(j), throwsFormatException);
     }
+  });
+
+  group('chua_xac_minh (3.19, AC50)', () {
+    Map<String, dynamic> unverified() {
+      final j = copyFixture(historyFixture());
+      final dose = j['groups'][0]['doses'].last as Map<String, dynamic>;
+      expect(dose['status'], 'cho_xac_nhan');
+      dose['status'] = 'chua_xac_minh';
+      for (final summary in [j['summary'], j['groups'][0]['summary']]) {
+        summary['pending'] = 0;
+        summary['unverified'] = 1;
+      }
+      j['patient_last_synced_at'] = null;
+      return j;
+    }
+
+    test('parses chua_xac_minh + unverified', () {
+      final result = AdherenceHistoryApiMapper.parse(unverified());
+
+      final doses = result.dates.single.doses;
+      expect(doses.last.status, HistoryDoseStatus.unverified);
+      expect(doses.last.statusSource, 'inferred');
+      expect(doses.first.status, HistoryDoseStatus.taken);
+      expect(result.summary.unverified, 1);
+      expect(result.summary.pending, 0);
+      expect(result.summary.rate, 66.67);
+    });
+
+    test('missing unverified defaults to 0', () {
+      final j = copyFixture(historyFixture());
+      j['summary'].remove('unverified');
+      j['groups'][0]['summary'].remove('unverified');
+
+      expect(AdherenceHistoryApiMapper.parse(j).summary.unverified, 0);
+    });
+
+    test('rejects chua_xac_minh with taken_at, recorded or bad totals', () {
+      final changes = <void Function(Map<String, dynamic>)>[
+        (j) => j['groups'][0]['doses'].last['taken_at'] =
+            '2026-10-19T08:05:00+07:00',
+        (j) => j['groups'][0]['doses'].last['status_source'] = 'recorded',
+        (j) => j['summary']['unverified'] = 0,
+        (j) => j['groups'][0]['summary']
+          ..['unverified'] = 0
+          ..['pending'] = 1,
+      ];
+      for (final change in changes) {
+        final j = unverified();
+        change(j);
+        expect(() => AdherenceHistoryApiMapper.parse(j), throwsFormatException);
+      }
+    });
   });
 }

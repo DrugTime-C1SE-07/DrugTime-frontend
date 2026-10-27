@@ -62,12 +62,11 @@ Future<void> main() async {
 
   final apiClient = _buildApiClient(authController);
 
-  final alerts =
-      FamilyAlertController(RemoteFamilyAlertRepository(apiClient));
+  final alerts = FamilyAlertController(RemoteFamilyAlertRepository(apiClient));
 
-  final android =
-      !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
+  final android = !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
   final pushEnabled = android && await initializeFamilyFirebase();
+  final doseSync = _buildDoseOutboxSyncEngine(apiClient, authController);
 
   final push = FamilyPushService(
     android: pushEnabled,
@@ -76,6 +75,7 @@ Future<void> main() async {
         await notificationService.showFamily(id, body);
       }
     },
+    onSyncRequest: doseSync.syncNow,
   );
 
   DeviceTokenCoordinator? tokens;
@@ -126,7 +126,7 @@ Future<void> main() async {
     adherenceRepository: RemoteAdherenceRepository(apiClient),
     medicationRepository: RemoteMedicationRepository(apiClient),
     consentRepository: RemoteConsentRepository(apiClient),
-    doseOutboxSyncEngine: _buildDoseOutboxSyncEngine(apiClient),
+    doseOutboxSyncEngine: doseSync,
     familyLinkCodeRepository: RemoteFamilyLinkCodeRepository(apiClient),
     familyLinkRepository: RemoteFamilyLinkRepository(apiClient),
     caregiverRepository: RemoteCaregiverRepository(apiClient),
@@ -144,7 +144,8 @@ ApiClient _buildApiClient(AuthController auth) => ApiClient(
       onUnauthorized: auth.handleUnauthorized,
     );
 
-DoseOutboxSyncEngine _buildDoseOutboxSyncEngine(ApiClient apiClient) {
+DoseOutboxSyncEngine _buildDoseOutboxSyncEngine(
+    ApiClient apiClient, AuthController auth) {
   final secureStorage = SecureStorage();
   final localDb = LocalDb(secureStorage);
   final localStore = SqliteLocalMedicationStore(localDb);
@@ -152,5 +153,9 @@ DoseOutboxSyncEngine _buildDoseOutboxSyncEngine(ApiClient apiClient) {
     localStore: localStore,
     remoteDataSource: DoseApiRemoteDataSource(apiClient),
     connectivityMonitor: PollingConnectivityMonitor(),
+    checkpointSource: ApiDoseSyncCheckpointSource(
+      apiClient,
+      isSignedIn: () => auth.isAuthenticated && !auth.isSigningOut,
+    ),
   );
 }

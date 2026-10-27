@@ -41,10 +41,13 @@ abstract final class AdherenceApiMapper {
       late: _integer(json, 'late'),
       missed: _integer(json, 'missed'),
       pending: _integer(json, 'pending'),
+      // Backend trước 3.19 không có trường này.
+      unverified:
+          json.containsKey('unverified') ? _integer(json, 'unverified') : 0,
       counted: _integer(json, 'counted'),
       rate: (rateValue as num?)?.toDouble(),
     );
-    if (result.total != result.counted + result.pending ||
+    if (result.total != result.counted + result.pending + result.unverified ||
         result.counted != result.taken + result.late + result.missed ||
         (result.counted == 0) != (result.rate == null) ||
         (result.rate != null && (result.rate! < 0 || result.rate! > 100))) {
@@ -69,7 +72,9 @@ abstract final class AdherenceApiMapper {
         status.first == AdherenceDoseStatus.late;
     if ((confirmed && (takenValue == null || source != 'recorded')) ||
         (!confirmed && takenValue != null) ||
-        (status.first == AdherenceDoseStatus.pending && source != 'inferred')) {
+        ((status.first == AdherenceDoseStatus.pending ||
+                status.first == AdherenceDoseStatus.unverified) &&
+            source != 'inferred')) {
       throw const FormatException('Inconsistent dose status');
     }
     return AdherenceDose(

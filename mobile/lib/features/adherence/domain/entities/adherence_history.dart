@@ -3,7 +3,10 @@ enum AdherenceDoseStatus {
   taken('da_uong', 'Đã uống'),
   late('uong_tre', 'Uống trễ'),
   missed('bo_lo', 'Bỏ lỡ'),
-  pending('cho_xac_nhan', 'Chờ xác nhận');
+  pending('cho_xac_nhan', 'Chờ xác nhận'),
+
+  /// Quá hạn chót nhưng điện thoại bệnh nhân chưa đồng bộ lại (task 3.19). Đặt cuối enum.
+  unverified('chua_xac_minh', 'Chưa xác minh');
 
   const AdherenceDoseStatus(this.apiValue, this.label);
   final String apiValue;
@@ -17,6 +20,7 @@ class AdherenceSummary {
     required this.late,
     required this.missed,
     required this.pending,
+    this.unverified = 0,
     required this.counted,
     required this.rate,
   });
@@ -26,6 +30,9 @@ class AdherenceSummary {
   final int late;
   final int missed;
   final int pending;
+
+  /// Liều `chua_xac_minh`; không vào tỷ lệ. total = counted + pending + unverified.
+  final int unverified;
   final int counted;
   final double? rate;
 }
