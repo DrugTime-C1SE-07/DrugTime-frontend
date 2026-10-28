@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 
 import 'package:drugtime_mobile/features/medication/data/repositories/in_memory_medication_repository.dart';
 import 'package:drugtime_mobile/features/medication/domain/entities/medication.dart';
@@ -154,7 +154,8 @@ Future<void> _scrollIntoView(WidgetTester tester, Finder finder) async {
 
 void main() {
   group('Subtask 4.a — Debounce tìm kiếm danh mục thuốc', () {
-    testWidgets('gõ nhanh liên tiếp nhiều ký tự chỉ gọi API đúng 1 lần sau 300ms',
+    testWidgets(
+        'gõ nhanh liên tiếp nhiều ký tự chỉ gọi API đúng 1 lần sau 300ms',
         (tester) async {
       final (repo, _) = await _mountCatalogSheet(tester);
 
@@ -177,7 +178,8 @@ void main() {
 
       // Đến đúng 300ms debounce
       await tester.pump(const Duration(milliseconds: 1));
-      expect(repo.queries, ['Para'], reason: 'Chỉ gọi đúng 1 lần với chuỗi cuối');
+      expect(repo.queries, ['Para'],
+          reason: 'Chỉ gọi đúng 1 lần với chuỗi cuối');
 
       // Trả về kết quả và kiểm tra hiển thị
       repo.pendingSearchRequests.single.complete([
@@ -187,7 +189,8 @@ void main() {
       expect(find.text('Paracetamol 500mg'), findsOneWidget);
     });
 
-    testWidgets('gõ chậm hơn debounce gọi repository nhiều lần theo đúng số lần',
+    testWidgets(
+        'gõ chậm hơn debounce gọi repository nhiều lần theo đúng số lần',
         (tester) async {
       final (repo, _) = await _mountCatalogSheet(tester);
 
@@ -216,7 +219,8 @@ void main() {
       expect(find.text('Panadol'), findsOneWidget);
     });
 
-    testWidgets('xóa hết ô tìm trong lúc đang debounce huỷ timer và không gọi API',
+    testWidgets(
+        'xóa hết ô tìm trong lúc đang debounce huỷ timer và không gọi API',
         (tester) async {
       final (repo, _) = await _mountCatalogSheet(tester);
 
@@ -267,7 +271,9 @@ void main() {
     });
   });
 
-  group('Subtask 4.c — Các trạng thái tìm kiếm (rỗng, đang tải, lỗi mạng / offline)', () {
+  group(
+      'Subtask 4.c — Các trạng thái tìm kiếm (rỗng, đang tải, lỗi mạng / offline)',
+      () {
     testWidgets('trạng thái ban đầu rỗng hiện hướng dẫn và không gọi API',
         (tester) async {
       final (repo, _) = await _mountCatalogSheet(tester);
@@ -298,7 +304,8 @@ void main() {
       expect(find.byType(CircularProgressIndicator), findsNothing);
     });
 
-    testWidgets('trạng thái rỗng không có kết quả hiển thị thông báo không tìm thấy',
+    testWidgets(
+        'trạng thái rỗng không có kết quả hiển thị thông báo không tìm thấy',
         (tester) async {
       final (repo, _) = await _mountCatalogSheet(tester);
 
@@ -314,6 +321,12 @@ void main() {
         ),
         findsOneWidget,
       );
+      await tester.tap(find.text('Tìm kiếm thủ công'));
+      await tester.pump();
+      expect(
+          tester.widget<TextField>(find.byType(TextField)).focusNode!.hasFocus,
+          isTrue);
+      expect(find.byType(DrugCatalogSheet), findsOneWidget);
     });
 
     testWidgets('từ khoá vượt quá 100 ký tự hiển thị cảnh báo và không gọi API',
@@ -339,8 +352,8 @@ void main() {
 
       await tester.enterText(find.byType(TextField), 'Para');
       await tester.pump(const Duration(milliseconds: 300));
-      repo.pendingSearchRequests[0]
-          .completeError(const MedicationFailure(MedicationFailureKind.network));
+      repo.pendingSearchRequests[0].completeError(
+          const MedicationFailure(MedicationFailureKind.network));
       await tester.pump();
 
       expect(find.text('Chưa tìm được'), findsOneWidget);
@@ -372,8 +385,8 @@ void main() {
 
       await tester.enterText(find.byType(TextField), 'Para');
       await tester.pump(const Duration(milliseconds: 300));
-      repo.pendingSearchRequests.single
-          .completeError(const MedicationFailure(MedicationFailureKind.unauthorized));
+      repo.pendingSearchRequests.single.completeError(
+          const MedicationFailure(MedicationFailureKind.unauthorized));
       await tester.pump();
 
       expect(find.text('Chưa tìm được'), findsOneWidget);
@@ -385,8 +398,11 @@ void main() {
     });
   });
 
-  group('Subtask 4.b — Màn chi tiết thuốc hiển thị ĐỦ các trường theo model thực tế', () {
-    testWidgets('hiển thị đầy đủ mọi trường dữ liệu: tên, dạng bào chế, hoạt chất, hàm lượng, liều, tần suất, giờ, tồn kho',
+  group(
+      'Subtask 4.b — Màn chi tiết thuốc hiển thị ĐỦ các trường theo model thực tế',
+      () {
+    testWidgets(
+        'hiển thị đầy đủ mọi trường dữ liệu: tên, dạng bào chế, hoạt chất, hàm lượng, liều, tần suất, giờ, tồn kho',
         (tester) async {
       final med = _medication(
         name: 'Amoxicillin 500mg',
@@ -443,7 +459,8 @@ void main() {
       expect(find.text('Còn 30 viên'), findsOneWidget);
 
       // 5. Lưu ý an toàn
-      await _scrollIntoView(tester, find.textContaining('Luôn uống thuốc đúng giờ'));
+      await _scrollIntoView(
+          tester, find.textContaining('Luôn uống thuốc đúng giờ'));
       expect(
         find.textContaining('Luôn uống thuốc đúng giờ và theo đúng liều lượng'),
         findsOneWidget,
@@ -454,11 +471,14 @@ void main() {
       expect(find.text('Tạm ngừng thuốc này'), findsOneWidget);
 
       // Xác minh KHÔNG có trường nhà sản xuất (hợp đồng API và model không hỗ trợ)
-      expect(find.textContaining('nhà sản xuất', findRichText: true), findsNothing);
-      expect(find.textContaining('Nhà sản xuất', findRichText: true), findsNothing);
+      expect(find.textContaining('nhà sản xuất', findRichText: true),
+          findsNothing);
+      expect(find.textContaining('Nhà sản xuất', findRichText: true),
+          findsNothing);
     });
 
-    testWidgets('trường hoạt chất trống hiển thị Chưa có thông tin', (tester) async {
+    testWidgets('trường hoạt chất trống hiển thị Chưa có thông tin',
+        (tester) async {
       final med = _medication(
         name: 'Thuốc Không Rõ Hoạt Chất',
         activeIngredient: '',
@@ -518,7 +538,8 @@ void main() {
       );
     });
 
-    testWidgets('thuốc đã ngừng hiển thị badge Đã ngừng và nút Tiếp tục dùng thuốc này',
+    testWidgets(
+        'thuốc đã ngừng hiển thị badge Đã ngừng và nút Tiếp tục dùng thuốc này',
         (tester) async {
       final med = _medication(
         name: 'Thuốc Cũ',
@@ -542,7 +563,8 @@ void main() {
 
       expect(find.text('Ngừng dùng thuốc?'), findsOneWidget);
       expect(
-        find.textContaining('Thuốc "Thuốc Đang Dùng" sẽ chuyển vào danh sách Đã ngừng'),
+        find.textContaining(
+            'Thuốc "Thuốc Đang Dùng" sẽ chuyển vào danh sách Đã ngừng'),
         findsOneWidget,
       );
 

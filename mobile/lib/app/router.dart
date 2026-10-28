@@ -24,6 +24,7 @@ import '../features/medication/domain/entities/medication.dart';
 import '../features/medication/presentation/screens/edit_medication_screen.dart';
 import '../features/medication/presentation/screens/medication_detail_screen.dart';
 import '../features/medication/presentation/screens/add_medication_screen.dart';
+import '../features/medication/presentation/screens/drug_selection_demo_screen.dart';
 import '../features/reminder/domain/entities/dose_reminder.dart';
 import '../features/reminder/presentation/screens/dose_reminder_screen.dart';
 import '../features/reminder/presentation/widgets/lockscreen_privacy_gate.dart';
@@ -42,6 +43,7 @@ abstract final class AppRoutes {
   static const familyAlertDetail = '/family/alerts/detail';
   static const home = '/';
   static const addMedication = '/medications/add';
+  static const drugSelectionDemo = '/medications/selection-demo';
   static const medicationDetail = '/medications/detail';
   static const editMedication = '/medications/edit';
   static const login = '/login';
@@ -89,6 +91,13 @@ Route<dynamic>? onGenerateRoute(
   ValueListenable<bool>? familyAdherenceAvailability,
 }) {
   return switch (settings.name) {
+    AppRoutes.drugSelectionDemo => MaterialPageRoute<void>(
+        settings: settings,
+        builder: (_) => preview && kDebugMode
+            ? const DrugSelectionDemoScreen()
+            : const Scaffold(
+                body: Center(child: Text('Bản xem thử không khả dụng'))),
+      ),
     // Kiểm auth/consent cả khi đi vào từ push hoặc điều hướng trực tiếp tới route.
     AppRoutes.familyAlerts => MaterialPageRoute<void>(
         settings: settings,

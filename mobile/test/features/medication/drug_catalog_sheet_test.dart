@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui' show Tristate;
 import 'package:drugtime_mobile/features/medication/data/repositories/in_memory_medication_repository.dart';
 import 'package:drugtime_mobile/features/medication/domain/entities/medication.dart';
 import 'package:drugtime_mobile/features/medication/domain/entities/medication_failure.dart';
@@ -107,11 +108,15 @@ void main() {
     testWidgets('trimmed Unicode limit 100 allowed, 101 blocked: $symbol',
         (tester) async {
       final repo = await mount(tester);
+      await search(tester, symbol * 99);
+      expect(repo.queries, [symbol * 99]);
+      repo.pending[0].complete([]);
+      await tester.pump();
       await search(tester, ' ${symbol * 100} ');
-      expect(repo.queries, [symbol * 100]);
+      expect(repo.queries, [symbol * 99, symbol * 100]);
       await search(tester, symbol * 101);
-      expect(repo.queries, hasLength(1));
-      repo.pending[0].complete([drug('stale')]);
+      expect(repo.queries, hasLength(2));
+      repo.pending[1].complete([drug('stale')]);
       await tester.pump();
       expect(find.text('stale'), findsNothing);
       expect(
@@ -119,7 +124,7 @@ void main() {
               'Nhập tối đa 100 ký tự sau khi bỏ khoảng trắng đầu và cuối.'),
           findsOneWidget);
       await search(tester, 'valid');
-      repo.pending[1].complete([]);
+      repo.pending[2].complete([]);
       await tester.pump();
       expect(find.text('Không tìm thấy thuốc phù hợp'), findsOneWidget);
     });
@@ -190,6 +195,121 @@ void main() {
   });
 
   testWidgets(
+      'query change removes selection immediately; stale response cannot restore it',
+      (tester) async {
+    final repo = await mount(tester);
+    await search(tester, 'A');
+    repo.pending[0].complete([drug('current')]);
+    await tester.pump();
+    await tester.tap(find.text('current'));
+    await tester.pumpAndSettle();
+    final confirm = find.widgetWithText(FilledButton, 'Xác nhận thuốc');
+    expect(tester.widget<FilledButton>(confirm).onPressed, isNotNull);
+    await tester.enterText(find.byType(TextField), 'B');
+    await tester.pump();
+    expect(confirm, findsNothing);
+    await tester.pump(catalogSearchDebounce);
+    await search(tester, 'A');
+    repo.pending[2].complete([drug('new-current')]);
+    await tester.pump();
+    repo.pending[1].complete([drug('stale')]);
+    await tester.pump();
+    expect(find.text('stale'), findsNothing);
+    expect(tester.widget<FilledButton>(confirm).onPressed, isNull);
+    expect(find.byKey(const ValueKey('drug-selection-review')), findsNothing);
+  });
+
+  testWidgets('empty action focuses and selects current query on same route',
+      (tester) async {
+    final repo = await mount(tester);
+    await search(tester, 'unknown');
+    repo.pending.single.complete([]);
+    await tester.pump();
+    await tester.tap(find.text('Tìm kiếm thủ công'));
+    await tester.pump();
+    final field = tester.widget<TextField>(find.byType(TextField));
+    expect(field.focusNode!.hasFocus, isTrue);
+    expect(field.controller!.selection,
+        const TextSelection(baseOffset: 0, extentOffset: 7));
+    expect(find.byType(DrugCatalogSheet), findsOneWidget);
+  });
+
+  for (final size in [const Size(320, 568), const Size(375, 812)]) {
+    for (final scale in [1.0, 1.5, 2.0]) {
+      testWidgets('keyboard selection and semantics $size text $scale',
+          (tester) async {
+        tester.view.physicalSize = size;
+        tester.view.devicePixelRatio = 1;
+        tester.view.viewInsets = const FakeViewPadding(bottom: 220);
+        tester.platformDispatcher.textScaleFactorTestValue = scale;
+        addTearDown(tester.view.reset);
+        addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+        final semantics = tester.ensureSemantics();
+        final repo = await mount(tester);
+        await search(tester, 'long');
+        repo.pending.single.complete([
+          drug('long-name', name: 'Tên thuốc dài để thử khả năng cuộn và đọc'),
+        ]);
+        await tester.pump();
+        final name = find.text('Tên thuốc dài để thử khả năng cuộn và đọc');
+        await tester.scrollUntilVisible(name, 80,
+            scrollable: find.byType(Scrollable).last);
+        await tester.ensureVisible(name);
+        await tester.pumpAndSettle();
+        await tester.tapAt(tester.getTopLeft(name) + const Offset(10, 10));
+        await tester.pumpAndSettle();
+        final confirm = find.widgetWithText(FilledButton, 'Xác nhận thuốc');
+        expect(confirm.hitTestable(), findsOneWidget);
+        expect(tester.getSemantics(confirm).flagsCollection.isEnabled,
+            Tristate.isTrue);
+        expect(tester.takeException(), isNull);
+        semantics.dispose();
+      });
+    }
+  }
+
+  testWidgets('modal host places query and confirm above the keyboard',
+      (tester) async {
+    tester.view.physicalSize = const Size(320, 568);
+    tester.view.devicePixelRatio = 1;
+    tester.view.viewInsets = const FakeViewPadding(bottom: 220);
+    tester.platformDispatcher.textScaleFactorTestValue = 2;
+    addTearDown(tester.view.reset);
+    addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+    DrugCatalogItem? result;
+    await tester.pumpWidget(MaterialApp(
+        home: Builder(
+      builder: (context) => Scaffold(
+          body: TextButton(
+              onPressed: () async {
+                result = await showDrugCatalogSheet(context,
+                    search: (_) async => [drug('modal-item')],
+                    isInUse: (_) => false);
+              },
+              child: const Text('Mở'))),
+    )));
+    await tester.tap(find.text('Mở'));
+    await tester.pumpAndSettle();
+    expect(tester.getBottomRight(find.byType(TextField)).dy,
+        lessThanOrEqualTo(348));
+    await tester.enterText(find.byType(TextField), 'modal');
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(find.text('modal-item'), 80,
+        scrollable: find.byType(Scrollable).last);
+    await tester.ensureVisible(find.text('modal-item'));
+    await tester.pumpAndSettle();
+    await tester.tapAt(
+        tester.getTopLeft(find.text('modal-item')) + const Offset(10, 10));
+    await tester.pumpAndSettle();
+    final confirm = find.widgetWithText(FilledButton, 'Xác nhận thuốc');
+    expect(tester.getBottomRight(confirm).dy, lessThanOrEqualTo(348));
+    await tester.tap(confirm);
+    await tester.pumpAndSettle();
+    expect(result!.id, 'modal-item');
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
       'small screen large text with keyboard: states scroll and retry remains reachable',
       (tester) async {
     tester.view.physicalSize = const Size(320, 640);
@@ -214,7 +334,8 @@ void main() {
     await search(tester, 'B');
     repo.pending[2].complete([drug('result')]);
     await tester.pump();
-    await tester.ensureVisible(find.text('result'));
+    await tester.scrollUntilVisible(find.text('result'), 80,
+        scrollable: find.byType(Scrollable).last);
     expect(tester.takeException(), isNull);
   });
 }
