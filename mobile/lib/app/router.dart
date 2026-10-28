@@ -1,5 +1,8 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
+import '../features/adherence/domain/repositories/adherence_repository.dart';
+import '../features/adherence/presentation/screens/family_adherence_screen.dart';
 import '../features/consent/presentation/screens/consent_screen.dart';
 import '../features/consent/presentation/screens/legal_document_screen.dart';
 import '../features/consent/presentation/screens/privacy_settings_screen.dart';
@@ -22,6 +25,7 @@ import '../features/medication/domain/entities/medication.dart';
 import '../features/medication/presentation/screens/edit_medication_screen.dart';
 import '../features/medication/presentation/screens/medication_detail_screen.dart';
 import '../features/medication/presentation/screens/add_medication_screen.dart';
+import '../features/medication/presentation/screens/drug_selection_demo_screen.dart';
 import '../features/reminder/domain/entities/dose_reminder.dart';
 import '../features/reminder/presentation/screens/dose_reminder_screen.dart';
 import '../features/reminder/presentation/widgets/lockscreen_privacy_gate.dart';
@@ -40,6 +44,7 @@ abstract final class AppRoutes {
   static const familyAlertDetail = '/family/alerts/detail';
   static const home = '/';
   static const addMedication = '/medications/add';
+  static const drugSelectionDemo = '/medications/selection-demo';
   static const medicationDetail = '/medications/detail';
   static const editMedication = '/medications/edit';
   static const login = '/login';
@@ -61,10 +66,40 @@ abstract final class AppRoutes {
   static const familyLinkResult = '/family/follow/result';
   static const familyShareLink = '/family/share-link';
   static const linkConsentConfirmation = '/family/requests/confirm';
+  static const familyAdherence = '/family/adherence';
 }
 
-Route<dynamic>? onGenerateRoute(RouteSettings settings) {
+final RouteObserver<PageRoute<dynamic>> familyAdherenceRouteObserver =
+    RouteObserver<PageRoute<dynamic>>();
+
+class FamilyAdherenceRouteArgs {
+  const FamilyAdherenceRouteArgs({
+    required this.patientId,
+    this.patientName,
+  });
+
+  final String patientId;
+  final String? patientName;
+}
+
+final _patientUuid = RegExp(
+    r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$');
+
+Route<dynamic>? onGenerateRoute(
+  RouteSettings settings, {
+  AppTab initialTab = AppTab.medications,
+  bool preview = false,
+  AdherenceRepository? adherenceRepository,
+  ValueListenable<bool>? familyAdherenceAvailability,
+}) {
   return switch (settings.name) {
+    AppRoutes.drugSelectionDemo => MaterialPageRoute<void>(
+        settings: settings,
+        builder: (_) => preview && kDebugMode
+            ? const DrugSelectionDemoScreen()
+            : const Scaffold(
+                body: Center(child: Text('Bản xem thử không khả dụng'))),
+      ),
     // Kiểm auth/consent cả khi đi vào từ push hoặc điều hướng trực tiếp tới route.
     AppRoutes.familyAlerts => MaterialPageRoute<void>(
         settings: settings,
@@ -96,7 +131,7 @@ Route<dynamic>? onGenerateRoute(RouteSettings settings) {
     // Mọi đường vào Trang chủ đi qua cổng consent (chưa có health_data thì hiện màn đồng ý).
     AppRoutes.home => MaterialPageRoute<void>(
         settings: settings,
-        builder: (_) => const ConsentGate(child: AppShell()),
+        builder: (_) => ConsentGate(child: AppShell(initialTab: initialTab)),
       ),
     AppRoutes.consent => MaterialPageRoute<bool>(
         settings: settings,
@@ -178,12 +213,15 @@ Route<dynamic>? onGenerateRoute(RouteSettings settings) {
       ),
     AppRoutes.familyShareLink => MaterialPageRoute<void>(
         settings: settings,
-        builder: (_) => const ShareInviteLinkScreen(),
+        builder: (_) => preview
+            ? const FamilyLinkCodeScreen()
+            : const ShareInviteLinkScreen(),
       ),
     AppRoutes.familyScanCode => MaterialPageRoute<void>(
         settings: settings,
         fullscreenDialog: true,
-        builder: (_) => const ScanLinkQrScreen(),
+        builder: (_) =>
+            preview ? const EnterLinkCodeScreen() : const ScanLinkQrScreen(),
       ),
     AppRoutes.familyEnterCode => MaterialPageRoute<void>(
         settings: settings,
@@ -211,8 +249,44 @@ Route<dynamic>? onGenerateRoute(RouteSettings settings) {
           return LinkConsentConfirmationScreen(args: args);
         },
       ),
+    AppRoutes.familyAdherence => MaterialPageRoute<void>(
+        settings: settings,
+        builder: (_) {
+          final args = settings.arguments;
+          if (args is! FamilyAdherenceRouteArgs ||
+              !_patientUuid.hasMatch(args.patientId) ||
+              adherenceRepository == null) {
+            return const _InvalidFamilyAdherenceRouteScreen();
+          }
+          return FamilyAdherenceScreen(
+            patientId: args.patientId,
+            patientName: args.patientName,
+            repository: adherenceRepository,
+            availability: familyAdherenceAvailability,
+          );
+        },
+      ),
     _ => null,
   };
+}
+
+class _InvalidFamilyAdherenceRouteScreen extends StatelessWidget {
+  const _InvalidFamilyAdherenceRouteScreen();
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+        appBar: AppBar(title: const Text('Lịch sử tuân thủ')),
+        body: const Center(
+          child: Padding(
+            padding: EdgeInsets.all(AppSpacing.xl),
+            child: Text(
+              'Chưa thể mở lịch sử của người bệnh này.',
+              style: AppTextStyles.body,
+              textAlign: TextAlign.center,
+            ),
+          ),
+        ),
+      );
 }
 
 /// Safe fallback when a notification opens the route without typed arguments.

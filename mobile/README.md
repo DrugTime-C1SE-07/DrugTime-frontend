@@ -143,26 +143,58 @@ flutter test
 
 ### Cấu hình địa chỉ Backend API (`.env`)
 
-App không có địa chỉ backend mặc định: chạy thiếu cấu hình sẽ hiện màn "Thiếu cấu hình máy chủ".
+Trong chế độ Backend (`DRUGTIME_PREVIEW=false`), app không có địa chỉ mặc định: thiếu cấu hình hiện màn "Thiếu cấu hình máy chủ".
 Địa chỉ được đóng vào app lúc build qua `--dart-define-from-file` (Flutter không tự đọc `.env`).
 
 1. Copy file mẫu (các file `.env.*` khác đã có trong `.gitignore`, không commit):
    ```bash
    cp .env.example .env.android   # DRUGTIME_API_BASE_URL=http://10.0.2.2:8000
-   cp .env.example .env.web       # sửa thành DRUGTIME_API_BASE_URL=http://127.0.0.1:8001
    ```
 2. Chạy:
 
    | Thiết bị | File | Lệnh |
    |---|---|---|
-   | Android emulator | `.env.android` = `http://10.0.2.2:8000` | `flutter run -d emulator-5554 --dart-define-from-file=.env.android` |
-   | Chrome | `.env.web` = địa chỉ backend có CORS cho `http://localhost:5000` | `flutter run -d chrome --web-port 5000 --dart-define-from-file=.env.web` |
-   | Điện thoại thật (USB) | `http://127.0.0.1:8000` | `adb reverse tcp:8000 tcp:8000` rồi `flutter run --dart-define-from-file=<file>` |
+   | Android emulator | `.env.android` = `http://10.0.2.2:8000` | `flutter run -d emulator-5554 --dart-define=DRUGTIME_PREVIEW=false --dart-define-from-file=.env.android` |
+   | Chrome | `.env.web` = địa chỉ backend có CORS cho `http://localhost:5000` | Chỉ preview: `flutter run -d chrome`; Backend web chưa hỗ trợ |
+   | Điện thoại thật (USB) | `http://127.0.0.1:8000` | `adb reverse tcp:8000 tcp:8000` rồi `flutter run --dart-define=DRUGTIME_PREVIEW=false --dart-define-from-file=<file>` |
 
    - Emulator: `10.0.2.2` là máy tính chạy backend (`127.0.0.1` là chính emulator).
-   - Chrome: backend phải có `CORS_ALLOWED_ORIGINS=http://localhost:5000,http://127.0.0.1:5000`, và phải giữ `--web-port 5000`.
-3. Nút Run của IDE: thêm `--dart-define-from-file=.env.android` vào *Additional run args* (Android Studio)
-   hoặc `"args": ["--dart-define-from-file=.env.android"]` trong `.vscode/launch.json` (VS Code).
+3. Nút Run của IDE: thêm `--dart-define=DRUGTIME_PREVIEW=false --dart-define-from-file=.env.android` vào *Additional run args* (Android Studio)
+   hoặc `"args": ["--dart-define=DRUGTIME_PREVIEW=false", "--dart-define-from-file=.env.android"]` trong `.vscode/launch.json` (VS Code).
 
 File `.env.*` chỉ được chứa địa chỉ Backend API. Không ghi key hay secret: giá trị bị đóng vào app và đọc được từ file cài đặt.
 
+### Xem thử UI ngay trong app
+
+`flutter run` (debug) mở thẳng **Lịch nhắc** trong app 5 tab, không cần Backend,
+Supabase, Docker, API config hoặc OTP thật. Có nhãn **Mẫu**, một bộ dữ liệu hỗn hợp;
+không có welcome, chọn tình trạng hoặc toolbar demo. Thuốc, consent, hồ sơ và thao tác
+thử chỉ ở bộ nhớ. Tab Trang chủ vẫn là màn chờ hiện có.
+
+```powershell
+flutter run
+flutter run -d chrome
+# Kết nối Backend thật trên Android:
+flutter run --dart-define=DRUGTIME_PREVIEW=false --dart-define-from-file=.env.android
+```
+
+Preview giữ **14:00 ngày mở app theo giờ Việt Nam** trong cả phiên. ⓘ giải thích
+trạng thái/tỷ lệ và hiển thị giờ mẫu; restart lấy ngày mới/reset dữ liệu. Ngày chính
+có **4/6 đã uống · 80% · 1 chờ**, với ít nhất 24 liều trên 7 ngày và tháng trước.
+
+- Chọn ngày trong tuần; nút lịch mở tháng → **Xem ngày**; menu mở **Theo thuốc**.
+- Chú giải/metadata cùng hàng, màn hẹp hoặc chữ lớn cho cuộn ngang có thanh cuộn.
+- ⓘ/Back đóng bảng thông tin; Back trang tháng/thuốc giữ ngày chọn.
+- Preview không mở camera/chia sẻ link thật; các route này dùng màn mã/nhập mã mẫu.
+- Đăng xuất xóa phiên; restart mở lại mẫu mặc định. Không lưu dữ liệu thử.
+- Chế độ Backend không tự chuyển mẫu khi thiếu cấu hình, lỗi, 401/403 hoặc rỗng.
+  Build profile/release luôn tắt mẫu; cờ DRUGTIME_ADHERENCE_DEMO cũ không chọn nguồn.
+  PROFILE_PREVIEW không thay repository khi main chạy Backend thật.
+- Backend web hiện chưa hỗ trợ dart:io: app báo rõ, không thay bằng dữ liệu mẫu.
+  Chrome chỉ dùng preview debug. Đổi DRUGTIME_PREVIEW cần restart, không hot reload.
+
+Kiểm manual Android/TalkBack do người kiểm thực hiện: 5 tab, chọn ngày/cuộn tuần,
+đổi tháng, progress, sáu thẻ hiện lần lượt, badge, bung/thu nhóm, route, press/ⓘ và
+loading; thử thao tác nhanh/logout, chữ 200%, ngang và giảm chuyển động. Reduced
+motion hiện đích ngay, shimmer dừng khi ẩn. Ghi thiết bị/build/kết quả; widget test
+hoặc PNG không thay kiểm chuyển động/focus thực tế trên thiết bị.

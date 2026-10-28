@@ -1,9 +1,18 @@
 import 'dart:async';
+import 'dart:ui' show DartPluginRegistrant;
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import '../../features/family/domain/entities/family_alert.dart';
+import '../sync/background_sync.dart';
+
+/// Push ẩn "gõ cửa" của task 3.19: data message, không có khối notification. Push cảnh báo
+/// người thân không có trường `type`.
+const syncRequestPushType = 'sync_request';
+
+bool isSyncRequest(Map<String, dynamic> data) =>
+    data['type'] == syncRequestPushType;
 
 /// Android đọc cấu hình native từ google-services.json, không import file Dart cá nhân.
 /// Thiếu cấu hình chỉ tắt push; các lỗi khởi tạo khác vẫn được báo ra.
@@ -52,14 +61,27 @@ class AndroidFamilyMessaging implements FamilyMessaging {
 
 @pragma('vm:entry-point')
 Future<void> familyPushBackgroundHandler(RemoteMessage message) async {
+  if (isSyncRequest(message.data)) {
+    // Isolate nền cần plugin (secure storage, SQLCipher) trước khi gửi hàng chờ và checkpoint.
+    DartPluginRegistrant.ensureInitialized();
+    await runBackgroundSync();
+    return;
+  }
   // The OS displays the remote notification. Do not fetch/store patient data in an isolate.
   familyNotificationId(message.data['notification_id']);
 }
 
 class FamilyPushService extends ChangeNotifier {
-  FamilyPushService({required this.android, required this.showForeground});
+  FamilyPushService({
+    required this.android,
+    required this.showForeground,
+    this.onSyncRequest,
+  });
   final bool android;
   final Future<void> Function(int, String) showForeground;
+
+  /// Gọi khi nhận `sync_request` lúc app đang mở: đồng bộ hàng chờ liều rồi gửi checkpoint.
+  final Future<Object?> Function()? onSyncRequest;
   final List<StreamSubscription<RemoteMessage>> _subscriptions = [];
   // Push chỉ giữ ID trong RAM; chi tiết luôn lấy qua API sau kiểm quyền.
   int? pendingId;
@@ -82,6 +104,11 @@ class FamilyPushService extends ChangeNotifier {
   Future<void> receive(Map<String, dynamic> data,
       {bool foreground = false, String? body}) async {
     if (!android || !_accepting) return;
+    // Không phải cảnh báo người thân: không mở hộp thư, không hiện thông báo.
+    if (isSyncRequest(data)) {
+      await onSyncRequest?.call();
+      return;
+    }
     final id = familyNotificationId(data['notification_id']);
     if (id == null) {
       offer(null);

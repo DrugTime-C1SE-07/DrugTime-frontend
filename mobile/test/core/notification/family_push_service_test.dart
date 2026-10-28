@@ -110,6 +110,54 @@ void main() {
     expect(push.invalid, true);
     push.dispose();
   });
+  test('sync_request ignored by family flow (foreground) and triggers sync',
+      () async {
+    final shown = <int>[];
+    var syncs = 0;
+    final push = FamilyPushService(
+      android: true,
+      showForeground: (id, _) async => shown.add(id),
+      onSyncRequest: () async => syncs++,
+    );
+    var notified = 0;
+    push.addListener(() => notified++);
+
+    await push.receive({'type': 'sync_request'}, foreground: true);
+
+    expect(syncs, 1);
+    expect(shown, isEmpty);
+    expect(push.hasPending, isFalse);
+    expect(push.invalid, isFalse);
+    expect(notified, 0);
+
+    // Hết phiên: không đồng bộ theo push cũ.
+    push.clear();
+    await push.receive({'type': 'sync_request'}, foreground: true);
+    expect(syncs, 1);
+    push.dispose();
+  });
+  test('family push unchanged when onSyncRequest is set', () async {
+    final shown = <int>[];
+    var syncs = 0;
+    final push = FamilyPushService(
+      android: true,
+      showForeground: (id, _) async => shown.add(id),
+      onSyncRequest: () async => syncs++,
+    );
+
+    await push.receive({'notification_id': '9'}, foreground: true);
+    await push.receive({}, foreground: true);
+
+    expect(shown, [9]);
+    expect(syncs, 0);
+    expect(push.invalid, isTrue);
+    push.dispose();
+  });
+  test('isSyncRequest only matches the data type', () {
+    expect(isSyncRequest({'type': 'sync_request'}), isTrue);
+    expect(isSyncRequest({'notification_id': '1'}), isFalse);
+    expect(isSyncRequest({'type': 'other'}), isFalse);
+  });
   test('iOS does not touch Firebase or foreground Android path', () async {
     final push = FamilyPushService(
         android: false,

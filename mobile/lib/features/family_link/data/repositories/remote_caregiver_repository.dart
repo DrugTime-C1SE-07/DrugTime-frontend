@@ -52,7 +52,7 @@ class RemoteCaregiverRepository implements CaregiverRepository {
       });
 
   @override
-  Future<void> revoke(int linkId) => _call(() => _api.post('/family/links/$linkId/revoke'));
+  Future<void> revoke(int linkId) => _call(() => _api.delete('/family/links/$linkId'));
 
   Future<T> _call<T>(Future<T> Function() request) async {
     try {

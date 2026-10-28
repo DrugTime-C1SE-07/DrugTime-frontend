@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../features/family_link/presentation/screens/enter_link_code_screen.dart';
+import '../features/adherence_history/presentation/screens/adherence_history_screen.dart';
 import '../features/family_link/presentation/screens/family_tab_screen.dart';
 import '../features/family_link/presentation/state/family_link_scope.dart';
 import '../features/family_link/presentation/state/incoming_requests_controller.dart';
@@ -12,6 +13,7 @@ import '../features/profile/presentation/screens/profile_screen.dart';
 import '../shared/widgets/coming_soon_view.dart';
 import '../shared/widgets/pill_icon.dart';
 import 'router.dart';
+import '../core/preview/app_preview_scope.dart';
 import 'theme/app_theme.dart';
 
 enum AppTab { home, medications, reminders, family, profile }
@@ -45,7 +47,8 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     // trước khi đăng nhập) được xử lý tại đây.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      _invites = FamilyLinkScope.read(context).invites..addListener(_openPendingInvite);
+      _invites = FamilyLinkScope.read(context).invites
+        ..addListener(_openPendingInvite);
       _openPendingInvite();
       _refreshPendingRequests();
     });
@@ -106,13 +109,24 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      appBar:
+          AppPreviewScope.maybeOf(context) != null && _tab != AppTab.reminders
+              ? const PreferredSize(
+                  preferredSize: Size.fromHeight(28),
+                  child: SafeArea(
+                      bottom: false,
+                      child: Align(
+                          alignment: Alignment.centerRight,
+                          child: Padding(
+                              padding: EdgeInsets.only(right: 16),
+                              child: AppPreviewBadge()))))
+              : null,
       body: IndexedStack(
         index: _tab.index,
         children: [
           const ComingSoonView(title: 'Trang chủ', icon: Icons.home_outlined),
           const MyMedicationsScreen(),
-          const ComingSoonView(
-              title: 'Lịch nhắc', icon: Icons.calendar_month_outlined),
+          AdherenceHistoryScreen(active: _tab == AppTab.reminders),
           FamilyTabScreen(active: _tab == AppTab.family),
           ProfileScreen(active: _tab == AppTab.profile),
         ],

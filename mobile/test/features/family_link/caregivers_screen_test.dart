@@ -167,12 +167,16 @@ void main() {
     expect(find.textContaining('Không kết nối được máy chủ.'), findsOneWidget);
   });
 
-  testWidgets('AC21: hủy liên kết có xác nhận; giữ liên kết thì không gọi API', (tester) async {
+  testWidgets('AC21: gỡ liên kết có xác nhận; giữ liên kết thì không gọi API', (tester) async {
     final repo = await pumpScreen(tester, caregivers: [caregiver(1, sharing: true)]);
 
+    expect(find.text('Gỡ liên kết'), findsOneWidget);
     await tester.tap(find.byKey(const Key('revoke-1')));
     await tester.pumpAndSettle();
-    expect(find.textContaining('mất quyền xem dữ liệu'), findsOneWidget);
+    expect(find.text('Gỡ liên kết với người thân?'), findsOneWidget);
+    expect(find.textContaining('mất quyền xem thông tin của bạn ngay sau khi liên kết bị gỡ'), findsOneWidget);
+    expect(find.text('Hủy'), findsOneWidget);
+
     await tester.tap(find.byKey(const Key('revoke-cancel')));
     await tester.pumpAndSettle();
     expect(repo.calls.where((c) => c.startsWith('revoke')), isEmpty);
@@ -184,7 +188,7 @@ void main() {
 
     expect(repo.calls, ['listCaregivers', 'revoke:1', 'listCaregivers']);
     expect(find.byKey(const Key('caregiver-1')), findsNothing);
-    expect(find.text('Đã hủy liên kết với Nguyễn Văn An.'), findsOneWidget);
+    expect(find.text('Đã gỡ liên kết với Nguyễn Văn An.'), findsOneWidget);
   });
 
   testWidgets('AC19: chưa bật family_sharing: có dải nhắc, không bật được nhưng tắt được',
