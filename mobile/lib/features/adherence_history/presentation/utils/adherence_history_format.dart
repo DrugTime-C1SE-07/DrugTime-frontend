@@ -42,6 +42,7 @@ abstract final class HistoryFormat {
         HistoryDoseStatus.late => 'Trễ',
         HistoryDoseStatus.missed => 'Bỏ lỡ',
         HistoryDoseStatus.pending => 'Chờ',
+        HistoryDoseStatus.unverified => 'Chưa xác minh',
       };
   static String time(DateTime instant) {
     final vn = vietnam(instant);
@@ -63,6 +64,9 @@ abstract final class HistoryFormat {
     if (summary == null) return null;
     if (summary.missed > 0) return HistoryDayMarker.missed;
     if (summary.counted > 0) return HistoryDayMarker.complete;
-    return summary.pending > 0 ? HistoryDayMarker.pending : null;
+    // Liều chưa xác minh hiển thị trung tính như liều đang chờ (3.19).
+    return summary.pending > 0 || summary.unverified > 0
+        ? HistoryDayMarker.pending
+        : null;
   }
 }

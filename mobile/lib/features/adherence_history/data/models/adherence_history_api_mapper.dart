@@ -50,10 +50,12 @@ abstract final class AdherenceHistoryApiMapper {
       late: _count(j['late']),
       missed: _count(j['missed']),
       pending: _count(j['pending']),
+      // Backend trước 3.19 không có trường này.
+      unverified: j.containsKey('unverified') ? _count(j['unverified']) : 0,
       counted: _count(j['counted']),
       rate: (value as num?)?.toDouble(),
     );
-    if (result.total != result.counted + result.pending ||
+    if (result.total != result.counted + result.pending + result.unverified ||
         result.counted != result.taken + result.late + result.missed ||
         (result.counted == 0) != (result.rate == null)) {
       return _invalid();
@@ -73,7 +75,9 @@ abstract final class AdherenceHistoryApiMapper {
     if (confirmed != (actual != null) ||
         !{'recorded', 'inferred'}.contains(source) ||
         (confirmed && source != 'recorded') ||
-        (status == HistoryDoseStatus.pending && source != 'inferred')) {
+        ((status == HistoryDoseStatus.pending ||
+                status == HistoryDoseStatus.unverified) &&
+            source != 'inferred')) {
       return _invalid();
     }
     return HistoryDose(
@@ -99,7 +103,8 @@ abstract final class AdherenceHistoryApiMapper {
     final medications = <MedicationHistoryGroup>[];
     final keys = <String>{};
     final groupKeys = <String>{};
-    final sums = List<int>.filled(5, 0);
+    final statusCount = HistoryDoseStatus.values.length;
+    final sums = List<int>.filled(statusCount + 1, 0);
     final from = _date(j['from']);
     final to = _date(j['to']);
     final asOf = _instant(j['as_of']);
@@ -108,7 +113,7 @@ abstract final class AdherenceHistoryApiMapper {
       final group = _object(rawGroup);
       final groupSummary = _summary(group['summary']);
       final doses = _list(group['doses']).map(_dose).toList();
-      final counts = List<int>.filled(4, 0);
+      final counts = List<int>.filled(statusCount, 0);
       if (doses.isEmpty || doses.length != groupSummary.total) {
         return _invalid();
       }
@@ -134,13 +139,14 @@ abstract final class AdherenceHistoryApiMapper {
         groupSummary.taken,
         groupSummary.late,
         groupSummary.missed,
-        groupSummary.pending
+        groupSummary.pending,
+        groupSummary.unverified
       ];
-      for (var i = 0; i < 4; i++) {
+      for (var i = 0; i < statusCount; i++) {
         if (counts[i] != expected[i]) return _invalid();
         sums[i] += counts[i];
       }
-      sums[4] += doses.length;
+      sums[statusCount] += doses.length;
       if (mode == HistoryMode.date) {
         final date = _date(group['date']);
         if (!groupKeys.add(dateString(date))) return _invalid();
@@ -157,9 +163,10 @@ abstract final class AdherenceHistoryApiMapper {
       summary.late,
       summary.missed,
       summary.pending,
+      summary.unverified,
       summary.total
     ];
-    for (var i = 0; i < 5; i++) {
+    for (var i = 0; i <= statusCount; i++) {
       if (sums[i] != expected[i]) return _invalid();
     }
     return AdherenceHistory(

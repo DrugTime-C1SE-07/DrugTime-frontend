@@ -40,8 +40,10 @@ abstract final class AdherenceDemoFixtures {
           _ => null,
         },
         'status': status.wire,
-        'status_source':
-            status == HistoryDoseStatus.pending ? 'inferred' : 'recorded',
+        'status_source': status == HistoryDoseStatus.pending ||
+                status == HistoryDoseStatus.unverified
+            ? 'inferred'
+            : 'recorded',
       };
 
   static List<Map<String, dynamic>> _rows(
@@ -137,6 +139,7 @@ abstract final class AdherenceDemoFixtures {
       'late': counts[1],
       'missed': counts[2],
       'pending': counts[3],
+      'unverified': counts[4],
       'counted': counted,
       'adherence_rate': counted == 0
           ? null

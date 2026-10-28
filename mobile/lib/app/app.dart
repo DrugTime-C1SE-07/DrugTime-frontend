@@ -232,6 +232,9 @@ class _DrugTimeAppState extends State<DrugTimeApp> with WidgetsBindingObserver {
     if (!_foreground) widget.familyAlertController?.clear();
     if (_foreground && _auth.currentSession?.isExpired == true) {
       unawaited(_auth.handleUnauthorized().catchError((Object _) {}));
+    } else if (_foreground && _auth.isAuthenticated) {
+      // Quay lại app: gửi hàng chờ liều và checkpoint (task 3.19).
+      unawaited(widget.doseOutboxSyncEngine?.syncNow());
     }
     _familyChanged();
   }
@@ -453,6 +456,7 @@ class _DrugTimeAppState extends State<DrugTimeApp> with WidgetsBindingObserver {
           ?.pushNamedAndRemoveUntil(AppRoutes.login, (_) => false);
     } else if (!_wasAuthenticated && authenticated) {
       unawaited(_medications.load());
+      unawaited(widget.doseOutboxSyncEngine?.syncNow());
     } else if (switchedUser && authenticated) {
       _medications.clear();
       _consents.clear();
