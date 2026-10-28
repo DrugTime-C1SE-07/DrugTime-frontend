@@ -18,6 +18,8 @@ abstract final class CaregiverApiMapper {
             familyUserId: item['family_user_id'] as String,
             familyName: item['family_full_name'] as String?,
             requestedAt: DateTime.parse(item['requested_at'] as String),
+            familyPhone: (item['family_phone'] ?? item['phone'] ?? item['phone_number']) as String?,
+            familyEmail: (item['family_email'] ?? item['email']) as String?,
           ),
       ];
 
@@ -58,7 +60,8 @@ abstract final class CaregiverApiMapper {
     if (status == null || status == 408 || status >= 500) {
       return const CaregiverFailure(CaregiverFailureKind.network);
     }
-    final kind = switch ((status, _detail(error.message))) {
+    final detail = _detail(error.message);
+    final kind = switch ((status, detail)) {
       (401, _) => CaregiverFailureKind.unauthorized,
       (403, 'consent_revoked') => CaregiverFailureKind.consentRequired,
       (403, _) => CaregiverFailureKind.forbidden,

@@ -6,6 +6,8 @@ class IncomingLinkRequest {
     required this.familyUserId,
     required this.familyName,
     required this.requestedAt,
+    this.familyPhone,
+    this.familyEmail,
   });
 
   final int linkId;
@@ -14,4 +16,10 @@ class IncomingLinkRequest {
   /// `null` khi người gửi chưa có tên hiển thị; giao diện dùng tên thay thế.
   final String? familyName;
   final DateTime requestedAt;
+
+  /// SĐT người thân nếu API trả về (chỉ hiển thị khi có, không tự suy ra).
+  final String? familyPhone;
+
+  /// Email người thân nếu API trả về (chỉ hiển thị khi có, không tự suy ra).
+  final String? familyEmail;
 }

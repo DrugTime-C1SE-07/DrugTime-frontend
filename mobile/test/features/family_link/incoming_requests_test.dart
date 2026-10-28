@@ -15,13 +15,15 @@ import 'family_link_test_helpers.dart';
 const _an = 'b7dd501a-4ebe-4564-a171-d317710effaa';
 const _binh = '3f0c2a9e-7b1d-4e58-9c6a-2d4b8e1f0a73';
 
-IncomingLinkRequest request(int id, {String familyUserId = _an, String? name = 'Nguyễn Văn An'}) =>
+IncomingLinkRequest request(int id, {String familyUserId = _an, String? name = 'Nguyễn Văn An', String? phone, String? email}) =>
     IncomingLinkRequest(
       linkId: id,
       familyUserId: familyUserId,
       familyName: name,
       // 02:00 UTC = 09:00 giờ Việt Nam.
       requestedAt: DateTime.utc(2026, 10, 15, 2),
+      familyPhone: phone,
+      familyEmail: email,
     );
 
 void main() {
@@ -50,9 +52,7 @@ void main() {
   }
 
   Future<void> confirmApprove(WidgetTester tester) async {
-    await tester.tap(find.byKey(const Key('approve-consent-checkbox')));
-    await tester.pump();
-    await tester.tap(find.byKey(const Key('approve-confirm')));
+    await tester.tap(find.byKey(const Key('consent-confirm-approve')));
     await tester.pumpAndSettle();
   }
 
@@ -85,21 +85,16 @@ void main() {
     expect(repo.calls, ['listPendingRequests', 'listPendingRequests']);
   });
 
-  testWidgets('AC17: bước xác nhận: chưa tick thì nút Chấp thuận bị khóa', (tester) async {
-    await pumpTab(tester, pending: [request(1)]);
-    await openApprove(tester, 1);
-
-    expect(find.byKey(const Key('approve-consent-text')), findsOneWidget);
-    expect(find.text('Chia sẻ với: Nguyễn Văn An'), findsOneWidget);
-    final button = tester.widget<FilledButton>(find.byKey(const Key('approve-confirm')));
-    expect(button.onPressed, isNull);
-  });
-
-  testWidgets('AC17: hủy ở bước xác nhận thì không gọi API', (tester) async {
+  testWidgets('AC17: mở màn xác nhận hiển thị thông tin và hủy thì không gọi API', (tester) async {
     final repo = await pumpTab(tester, pending: [request(1)]);
     await openApprove(tester, 1);
 
-    await tester.tap(find.byKey(const Key('approve-cancel')));
+    expect(find.byKey(const Key('consent-requester-name')), findsOneWidget);
+    expect(find.text('Nguyễn Văn An'), findsWidgets);
+    expect(find.byKey(const Key('consent-confirm-approve')), findsOneWidget);
+    expect(find.byKey(const Key('consent-confirm-reject')), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('consent-confirm-close')));
     await tester.pumpAndSettle();
 
     expect(repo.approvals, isEmpty);
