@@ -429,6 +429,8 @@ class _SnoozeCall {
 
 class _FakeReminderScheduler implements ReminderScheduler {
   final List<_SnoozeCall> calls = [];
+  final List<Map<String, dynamic>> cancelledOccurrences = [];
+  final List<int> cancelledSchedules = [];
 
   @override
   Future<void> snooze({
@@ -437,5 +439,22 @@ class _FakeReminderScheduler implements ReminderScheduler {
     required DateTime remindAt,
   }) async {
     calls.add(_SnoozeCall(remindAt));
+  }
+
+  @override
+  Future<void> cancelOccurrence({
+    int? scheduleId,
+    int? medicationScheduleId,
+    required DateTime scheduledAt,
+  }) async {
+    cancelledOccurrences.add({
+      'scheduleId': scheduleId ?? medicationScheduleId,
+      'scheduledAt': scheduledAt,
+    });
+  }
+
+  @override
+  Future<void> cancelAllForSchedule(int scheduleId) async {
+    cancelledSchedules.add(scheduleId);
   }
 }

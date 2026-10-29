@@ -3,6 +3,8 @@ import 'package:sqflite_sqlcipher/sqflite.dart';
 
 import '../secure_storage.dart';
 
+typedef LocalDatabase = LocalDb;
+
 class LocalDb {
   LocalDb(this._secureStorage);
 

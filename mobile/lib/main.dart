@@ -13,7 +13,11 @@ import 'app/missing_config_app.dart';
 import 'core/api/api_client.dart';
 import 'core/config/app_config.dart';
 import 'core/storage/local_db/local_db.dart';
+import 'core/contracts/dose_outbox.dart';
+import 'core/notification/reminder_notification_scheduler.dart';
+import 'core/notification/reminder_occurrence_generator.dart';
 import 'core/storage/local_db/local_medication_store.dart';
+import 'core/storage/local_db/sqlite_dose_outbox.dart';
 import 'core/storage/secure_storage.dart';
 import 'core/sync/sync_engine.dart';
 import 'features/auth/data/repositories/remote_auth_repository.dart';
@@ -60,13 +64,49 @@ Future<void> main() async {
   final notificationService = NotificationService();
   await notificationService.init();
 
+  // Khởi tạo cơ sở dữ liệu cục bộ và hàng đợi outbox (Task 2.07 & 2.24)
+  final secureStorage = SecureStorage();
+  final localDb = LocalDb(secureStorage);
+  final localStore = SqliteLocalMedicationStore(localDb);
+  final doseOutbox = SqliteDoseOutbox(localDb: localDb);
+
+  // Khởi tạo dịch vụ lên lịch thông báo nhắc uống thuốc
+  final scheduler = ReminderNotificationScheduler(
+    platform: notificationService.platform,
+    location: notificationService.location,
+    targetPlatform: defaultTargetPlatform,
+  );
+
+  // Quét và lập lịch lại toàn bộ các đơn thuốc đang kích hoạt khi khởi động ứng dụng
+  if (!kIsWeb) {
+    try {
+      final activeSchedules = await localStore.getActiveSchedules();
+      if (activeSchedules.isNotEmpty) {
+        final now = DateTime.now().toUtc();
+        final occurrences = generateOccurrences(
+          schedules: activeSchedules,
+          from: now,
+          to: now.add(const Duration(days: 7)),
+        );
+        await scheduler.scheduleOccurrences(occurrences);
+      }
+    } catch (e) {
+      debugPrint('Lỗi quét lập lịch lại đơn thuốc khi khởi động: $e');
+    }
+  }
+
   final apiClient = _buildApiClient(authController);
 
   final alerts = FamilyAlertController(RemoteFamilyAlertRepository(apiClient));
 
   final android = !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
   final pushEnabled = android && await initializeFamilyFirebase();
-  final doseSync = _buildDoseOutboxSyncEngine(apiClient, authController);
+  final doseSync = _buildDoseOutboxSyncEngine(
+    apiClient,
+    authController,
+    localStore,
+    doseOutbox,
+  );
 
   final push = FamilyPushService(
     android: pushEnabled,
@@ -127,6 +167,9 @@ Future<void> main() async {
     medicationRepository: RemoteMedicationRepository(apiClient),
     consentRepository: RemoteConsentRepository(apiClient),
     doseOutboxSyncEngine: doseSync,
+    localMedicationStore: localStore,
+    doseOutbox: doseOutbox,
+    reminderScheduler: scheduler,
     familyLinkCodeRepository: RemoteFamilyLinkCodeRepository(apiClient),
     familyLinkRepository: RemoteFamilyLinkRepository(apiClient),
     caregiverRepository: RemoteCaregiverRepository(apiClient),
@@ -145,12 +188,14 @@ ApiClient _buildApiClient(AuthController auth) => ApiClient(
     );
 
 DoseOutboxSyncEngine _buildDoseOutboxSyncEngine(
-    ApiClient apiClient, AuthController auth) {
-  final secureStorage = SecureStorage();
-  final localDb = LocalDb(secureStorage);
-  final localStore = SqliteLocalMedicationStore(localDb);
+  ApiClient apiClient,
+  AuthController auth,
+  LocalMedicationStore localStore,
+  DoseOutbox doseOutbox,
+) {
   return DoseOutboxSyncEngine(
     localStore: localStore,
+    outbox: doseOutbox,
     remoteDataSource: DoseApiRemoteDataSource(apiClient),
     connectivityMonitor: PollingConnectivityMonitor(),
     checkpointSource: ApiDoseSyncCheckpointSource(

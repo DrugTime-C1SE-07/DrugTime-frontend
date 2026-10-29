@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'dart:ui';
+import 'package:flutter/foundation.dart';
 
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -219,6 +220,32 @@ void main() {
       expect(mockPlatform.zonedScheduleCalls.length, 1);
       expect(mockPlatform.zonedScheduleCalls.first.id,
           notificationIdFor(12, futureOcc.scheduledAt));
+    });
+
+    test('iOS 64-cap (Task 2.07 / SCRUM-58): limits scheduled notifications to closest 64 on iOS', () async {
+      final nowUtc = DateTime.utc(2026, 10, 8, 7, 0, 0);
+      final scheduler = ReminderNotificationScheduler(
+        platform: mockPlatform,
+        location: vnLocation,
+        clockProvider: () => nowUtc,
+        targetPlatform: TargetPlatform.iOS,
+      );
+
+      final occurrences = List.generate(
+        100,
+        (i) => ReminderOccurrence(
+          medicationScheduleId: 10 + i,
+          scheduledAt: nowUtc.add(Duration(hours: i + 1)),
+        ),
+      );
+
+      await scheduler.scheduleOccurrences(occurrences);
+
+      expect(mockPlatform.zonedScheduleCalls.length, 64);
+      expect(
+        mockPlatform.zonedScheduleCalls.last.scheduledDate,
+        tz.TZDateTime.from(nowUtc.add(const Duration(hours: 64)), vnLocation),
+      );
     });
 
     test(

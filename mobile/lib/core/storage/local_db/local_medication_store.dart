@@ -9,7 +9,7 @@ abstract class LocalMedicationStore {
     required List<LocalMedicationSchedule> schedules,
   });
   Future<List<LocalMedicationSchedule>> getActiveSchedules({
-    required String patientId,
+    String? patientId,
   });
   Future<LocalMedicationSchedule?> getScheduleById(int scheduleId);
   Future<bool> hasDoseLog({
@@ -98,16 +98,25 @@ class SqliteLocalMedicationStore implements LocalMedicationStore, PatientDataCle
 
   @override
   Future<List<LocalMedicationSchedule>> getActiveSchedules({
-    required String patientId,
+    String? patientId,
   }) async {
     final db = await _localDb.database;
-    final rows = await db.query(
-      LocalDb.schedulesTable,
-      where:
-          'patient_user_id = ? AND reminder_enabled = 1 AND ended_at IS NULL',
-      whereArgs: [patientId],
-      orderBy: 'intake_time ASC',
-    );
+    final List<Map<String, Object?>> rows;
+    if (patientId != null) {
+      rows = await db.query(
+        LocalDb.schedulesTable,
+        where:
+            'patient_user_id = ? AND reminder_enabled = 1 AND ended_at IS NULL',
+        whereArgs: [patientId],
+        orderBy: 'intake_time ASC',
+      );
+    } else {
+      rows = await db.query(
+        LocalDb.schedulesTable,
+        where: 'reminder_enabled = 1 AND ended_at IS NULL',
+        orderBy: 'intake_time ASC',
+      );
+    }
 
     return rows.map(LocalMedicationSchedule.fromDbMap).toList(growable: false);
   }
