@@ -20,6 +20,8 @@ import '../features/family_link/presentation/screens/link_request_result_screen.
 import '../features/family_link/presentation/screens/scan_link_qr_screen.dart';
 import '../features/family_link/presentation/screens/share_invite_link_screen.dart';
 import '../features/family_link/presentation/state/link_request_controller.dart';
+import '../features/interaction/domain/entities/drug_interaction_result.dart';
+import '../features/interaction/presentation/screens/drug_interaction_warning_screen.dart';
 import '../features/medication/data/repositories/in_memory_medication_repository.dart';
 import '../features/medication/domain/entities/medication.dart';
 import '../features/medication/presentation/screens/edit_medication_screen.dart';
@@ -67,6 +69,7 @@ abstract final class AppRoutes {
   static const familyShareLink = '/family/share-link';
   static const linkConsentConfirmation = '/family/requests/confirm';
   static const familyAdherence = '/family/adherence';
+  static const interactionWarning = '/interaction-warning';
 }
 
 final RouteObserver<PageRoute<dynamic>> familyAdherenceRouteObserver =
@@ -266,8 +269,57 @@ Route<dynamic>? onGenerateRoute(
           );
         },
       ),
+    AppRoutes.interactionWarning => MaterialPageRoute<bool>(
+        settings: settings,
+        builder: (_) {
+          final args = settings.arguments;
+          if (args is DrugInteractionWarningArgs) {
+            return DrugInteractionWarningScreen(args: args);
+          } else if (args is DrugInteractionReport) {
+            return DrugInteractionWarningScreen(
+              args: DrugInteractionWarningArgs(report: args),
+            );
+          }
+          return const _InvalidInteractionWarningRouteScreen();
+        },
+      ),
     _ => null,
   };
+}
+
+class _InvalidInteractionWarningRouteScreen extends StatelessWidget {
+  const _InvalidInteractionWarningRouteScreen();
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+        appBar: AppBar(title: const Text('Kiểm tra tương tác thuốc')),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(AppSpacing.xl),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(
+                  Icons.error_outline,
+                  size: 48,
+                  color: AppColors.danger,
+                ),
+                const SizedBox(height: AppSpacing.md),
+                const Text(
+                  'Không có dữ liệu báo cáo tương tác thuốc.',
+                  style: AppTextStyles.bodyStrong,
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: AppSpacing.lg),
+                FilledButton(
+                  onPressed: () => Navigator.of(context).maybePop(),
+                  child: const Text('Quay lại'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
 }
 
 class _InvalidFamilyAdherenceRouteScreen extends StatelessWidget {
