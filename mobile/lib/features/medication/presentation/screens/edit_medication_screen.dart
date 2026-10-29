@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../app/theme/app_theme.dart';
+import '../../../../core/notification/reminder_scheduler.dart';
 import '../../../../shared/widgets/pill_icon.dart';
 import '../../domain/entities/medication.dart';
 import '../../domain/entities/medication_failure.dart';
@@ -18,12 +19,15 @@ class EditMedicationScreen extends StatefulWidget {
     super.key,
     required this.medication,
     this.dosageForm,
+    this.reminderScheduler,
   });
 
   final Medication medication;
 
   /// Dạng bào chế hiển thị; mặc định lấy từ [medication].
   final String? dosageForm;
+
+  final ReminderScheduler? reminderScheduler;
 
   @override
   State<EditMedicationScreen> createState() => _EditMedicationScreenState();
@@ -35,6 +39,7 @@ class _EditMedicationScreenState extends State<EditMedicationScreen> {
   late DoseFrequency _frequency;
   late List<DoseTime> _times;
   late IntakeTiming _timing;
+  late bool _reminderEnabled;
 
   bool _dirty = false;
   bool _saving = false;
@@ -47,6 +52,7 @@ class _EditMedicationScreenState extends State<EditMedicationScreen> {
     _frequency = widget.medication.frequency;
     _times = List<DoseTime>.from(widget.medication.times);
     _timing = widget.medication.timing;
+    _reminderEnabled = widget.medication.reminderEnabled;
   }
 
   void _markDirty() {
@@ -238,12 +244,19 @@ class _EditMedicationScreenState extends State<EditMedicationScreen> {
       timing: _timing,
       times: _frequency.isAsNeeded ? const [] : _times,
       maxDosesPerDay: _frequency.isAsNeeded ? _maxDoses : null,
+      reminderEnabled: _reminderEnabled,
     );
 
     final Medication updated;
     try {
       // Chỉ phần khác bản gốc được gửi lên (PATCH).
       updated = await controller.update(widget.medication, edited);
+      if (!_reminderEnabled) {
+        final scheduleId = int.tryParse(widget.medication.id);
+        if (scheduleId != null) {
+          await widget.reminderScheduler?.cancelAllForSchedule(scheduleId);
+        }
+      }
     } on MedicationFailure catch (failure) {
       if (!mounted) return;
       setState(() => _saving = false);
@@ -491,6 +504,29 @@ class _EditMedicationScreenState extends State<EditMedicationScreen> {
                   });
                 }
               },
+            ),
+            const SizedBox(height: AppSpacing.xl),
+
+            // 5. Bật / Tắt nhắc nhở (Task 2.08)
+            Card(
+              elevation: 0,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(AppRadius.card),
+                side: const BorderSide(color: AppColors.border),
+              ),
+              child: SwitchListTile(
+                key: const Key('edit_medication_reminder_switch'),
+                title: const Text('Bật nhắc nhở', style: AppTextStyles.bodyStrong),
+                subtitle: const Text('Nhận thông báo khi đến cữ uống thuốc'),
+                value: _reminderEnabled,
+                activeColor: AppColors.brand,
+                onChanged: (val) {
+                  setState(() {
+                    _reminderEnabled = val;
+                    _markDirty();
+                  });
+                },
+              ),
             ),
             const SizedBox(height: AppSpacing.xxl),
           ],

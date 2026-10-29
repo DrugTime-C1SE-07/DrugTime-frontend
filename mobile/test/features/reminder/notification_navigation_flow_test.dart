@@ -76,10 +76,12 @@ class FakeTestLocalMedicationStore implements LocalMedicationStore {
 
   @override
   Future<List<LocalMedicationSchedule>> getActiveSchedules({
-    required String patientId,
+    String? patientId,
   }) async {
     return schedules.values
-        .where((s) => s.patientUserId == patientId && s.reminderEnabled)
+        .where((s) =>
+            (patientId == null || s.patientUserId == patientId) &&
+            s.reminderEnabled)
         .toList();
   }
 
@@ -132,6 +134,16 @@ class FakeTestReminderScheduler implements ReminderScheduler {
     required DateTime scheduledAt,
     required DateTime remindAt,
   }) async {}
+
+  @override
+  Future<void> cancelOccurrence({
+    int? scheduleId,
+    int? medicationScheduleId,
+    required DateTime scheduledAt,
+  }) async {}
+
+  @override
+  Future<void> cancelAllForSchedule(int scheduleId) async {}
 }
 
 class FakeTestKeyguardPlatform implements KeyguardPlatform {

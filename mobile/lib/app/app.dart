@@ -670,4 +670,14 @@ class _FallbackReminderScheduler implements ReminderScheduler {
     required DateTime scheduledAt,
     required DateTime remindAt,
   }) async {}
+
+  @override
+  Future<void> cancelOccurrence({
+    int? scheduleId,
+    int? medicationScheduleId,
+    required DateTime scheduledAt,
+  }) async {}
+
+  @override
+  Future<void> cancelAllForSchedule(int scheduleId) async {}
 }

@@ -272,6 +272,8 @@ typedef PeriodicTimerFactory = Timer Function(
 /// Mã lỗi của một mục được coi là kết quả cuối: mục bị giữ lại, không gửi lại (QD-07).
 const finalItemErrorStatuses = {404, 409, 422};
 
+typedef SyncEngine = DoseOutboxSyncEngine;
+
 class DoseOutboxSyncEngine {
   DoseOutboxSyncEngine({
     required LocalMedicationStore localStore,
@@ -347,6 +349,8 @@ class DoseOutboxSyncEngine {
 
   /// Trả `true` khi hàng chờ đã cạn: không còn mục chờ gửi và mọi mục trong lượt này đã có kết
   /// quả cuối. Chỉ khi đó mới gửi checkpoint.
+  Future<bool> syncPendingDoses() => syncPendingDoseLogs();
+
   Future<bool> syncPendingDoseLogs() {
     final currentSync = _activeSync;
     if (currentSync != null) {

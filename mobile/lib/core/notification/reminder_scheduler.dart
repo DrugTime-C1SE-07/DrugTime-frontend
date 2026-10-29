@@ -8,4 +8,12 @@ abstract interface class ReminderScheduler {
     required DateTime scheduledAt,
     required DateTime remindAt,
   });
+
+  Future<void> cancelOccurrence({
+    int? scheduleId,
+    int? medicationScheduleId,
+    required DateTime scheduledAt,
+  });
+
+  Future<void> cancelAllForSchedule(int scheduleId);
 }

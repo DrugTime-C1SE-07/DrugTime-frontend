@@ -1,4 +1,5 @@
 import 'dart:ui';
+import 'package:flutter/foundation.dart';
 
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/timezone.dart' as tz;
@@ -21,11 +22,15 @@ class ReminderNotificationScheduler implements ReminderScheduler {
     DateTime Function()? clockProvider,
     this.onTakeDose,
     this.onLog,
+    this.targetPlatform,
   }) : _clock = clockProvider ?? DateTime.timestamp;
+
+  static const int maxIosScheduledNotifications = 64;
 
   final NotificationPlatform platform;
   final tz.Location location;
   final DateTime Function() _clock;
+  final TargetPlatform? targetPlatform;
 
   /// Callback xử lý khi người dùng nhấn nút hành động "Đã uống".
   final Future<void> Function(NotificationPayload payload)? onTakeDose;
@@ -72,10 +77,16 @@ class ReminderNotificationScheduler implements ReminderScheduler {
         occurrences.where((occ) => occ.scheduledAt.isAfter(now));
 
     // Khử trùng lặp va chạm ID
-    final deduplicated = detectIdCollisions(
+    var deduplicated = detectIdCollisions(
       futureOccurrences,
       onCollision: onLog,
     );
+
+    final isIos = (targetPlatform ?? defaultTargetPlatform) == TargetPlatform.iOS;
+    if (isIos && deduplicated.length > maxIosScheduledNotifications) {
+      final sorted = List<ReminderOccurrence>.from(deduplicated)..sort();
+      deduplicated = sorted.take(maxIosScheduledNotifications).toList(growable: false);
+    }
 
     for (final occ in deduplicated) {
       final id = notificationIdFor(occ.medicationScheduleId, occ.scheduledAt);
@@ -173,25 +184,34 @@ class ReminderNotificationScheduler implements ReminderScheduler {
   }
 
   /// Hủy một lượt thông báo cụ thể (idempotent).
+  @override
   Future<void> cancelOccurrence({
-    required int medicationScheduleId,
+    int? scheduleId,
+    int? medicationScheduleId,
     required DateTime scheduledAt,
   }) async {
-    final id = notificationIdFor(medicationScheduleId, scheduledAt);
+    final targetId = scheduleId ?? medicationScheduleId;
+    if (targetId == null) {
+      throw ArgumentError(
+        'Either scheduleId or medicationScheduleId must be provided',
+      );
+    }
+    final id = notificationIdFor(targetId, scheduledAt.toUtc());
     await platform.cancel(id);
   }
 
-  /// Hủy toàn bộ các thông báo đang chờ thuộc về [medicationScheduleId].
+  /// Hủy toàn bộ các thông báo đang chờ thuộc về [scheduleId].
   ///
   /// Đọc danh sách pending notifications từ plugin, trích xuất payload và
   /// chỉ hủy các thông báo có đúng ID lịch tương ứng.
-  Future<void> cancelAllForSchedule(int medicationScheduleId) async {
+  @override
+  Future<void> cancelAllForSchedule(int scheduleId) async {
     final pendingRequests = await platform.pendingNotificationRequests();
 
     for (final request in pendingRequests) {
       final payload = NotificationPayload.tryParse(request.payload);
       if (payload != null &&
-          payload.medicationScheduleId == medicationScheduleId) {
+          payload.medicationScheduleId == scheduleId) {
         await platform.cancel(request.id);
       }
     }
