@@ -1,4 +1,5 @@
 import 'package:drugtime_mobile/app/app.dart';
+import 'package:drugtime_mobile/features/medication_capture/domain/capture_models.dart';
 import 'package:drugtime_mobile/features/auth/data/repositories/in_memory_auth_repository.dart';
 import 'package:drugtime_mobile/features/auth/domain/entities/auth_session.dart';
 import 'package:drugtime_mobile/features/auth/presentation/state/auth_controller.dart';
@@ -6,6 +7,7 @@ import 'package:drugtime_mobile/features/medication/data/repositories/in_memory_
 import 'package:drugtime_mobile/features/medication/domain/entities/medication.dart';
 import 'package:drugtime_mobile/features/medication/domain/entities/medication_failure.dart';
 import 'package:drugtime_mobile/features/medication/presentation/screens/add_medication_screen.dart';
+import 'package:drugtime_mobile/features/medication/presentation/state/medication_controller.dart';
 import 'package:drugtime_mobile/features/medication/presentation/widgets/medication_filter_bar.dart';
 import 'package:drugtime_mobile/features/medication/presentation/widgets/medication_form_fields.dart';
 import 'package:flutter/material.dart';
@@ -152,6 +154,26 @@ Future<void> tapVisible(WidgetTester tester, Finder finder) async {
 }
 
 void main() {
+  testWidgets('camera cancellation leaves existing add form intact',
+      (tester) async {
+    final repository = RecordingRepository();
+    final controller = MedicationController(repository);
+    var captures = 0;
+    await tester.pumpWidget(MaterialApp(
+        home: MedicationScope(
+            controller: controller,
+            child: AddMedicationScreen(captureLauncher: (_) async {
+              captures++;
+              return const CaptureResult.aborted();
+            }))));
+    await tester.tap(find.text('Quét vỏ thuốc'));
+    await tester.pumpAndSettle();
+    expect(captures, 1);
+    expect(find.text('Thêm thuốc mới'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox());
+    expect(repository.addCalls, isEmpty);
+    controller.dispose();
+  });
   group('S06 · Thuốc của tôi', () {
     testWidgets('hiện danh sách, cảnh báo sắp hết và lọc theo trạng thái',
         (tester) async {

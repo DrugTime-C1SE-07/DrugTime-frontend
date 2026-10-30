@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
@@ -46,6 +47,8 @@ import 'router.dart';
 import 'app_shell.dart';
 import '../core/utils/app_assets.dart';
 import 'theme/app_theme.dart';
+import '../features/medication_capture/data/capture_services.dart';
+import '../features/medication_capture/presentation/state/capture_scope.dart';
 
 class DrugTimeApp extends StatefulWidget {
   const DrugTimeApp({
@@ -70,6 +73,7 @@ class DrugTimeApp extends StatefulWidget {
     this.navigatorKey,
     this.scaffoldMessengerKey,
     this.notificationService,
+    this.captureServices,
     this.initialTab = AppTab.medications,
     this.preview = false,
     this.familyAlertController,
@@ -138,12 +142,16 @@ class DrugTimeApp extends StatefulWidget {
 
   /// Dịch vụ thông báo để tiếp nhận sự kiện click thông báo và điều hướng cold start.
   final NotificationService? notificationService;
+  final CaptureServices? captureServices;
 
   @override
   State<DrugTimeApp> createState() => _DrugTimeAppState();
 }
 
 class _DrugTimeAppState extends State<DrugTimeApp> with WidgetsBindingObserver {
+  late final CaptureServices _captures =
+      widget.captureServices ?? CaptureServices.native();
+
   StreamSubscription<bool>? _familyConnection;
   final _familyAdherenceAvailability = ValueNotifier<bool>(false);
   String? _tokenSession;
@@ -297,6 +305,12 @@ class _DrugTimeAppState extends State<DrugTimeApp> with WidgetsBindingObserver {
   @override
   void initState() {
     super.initState();
+    if (widget.captureServices != null ||
+        (!kIsWeb && defaultTargetPlatform == TargetPlatform.android)) {
+      unawaited(_captures.initialize().catchError((Object e) {
+        _captures.cleanupError = 'Chưa khởi tạo được kho ảnh an toàn.';
+      }));
+    }
     WidgetsBinding.instance.addObserver(this);
     widget.familyPushService?.addListener(_openPendingFamily);
     widget.notificationService?.onFamilyAction =
@@ -452,6 +466,7 @@ class _DrugTimeAppState extends State<DrugTimeApp> with WidgetsBindingObserver {
     final user = authenticated ? _auth.currentSession?.userId : null;
     final switchedUser = user != _profileUser;
     if (switchedUser) {
+      unawaited(_captures.invalidate());
       _history.setPatient(user);
       _profiles.clear();
       _profileUser = user;
@@ -486,6 +501,8 @@ class _DrugTimeAppState extends State<DrugTimeApp> with WidgetsBindingObserver {
 
   @override
   void dispose() {
+    unawaited(_captures.invalidate());
+    if (widget.captureServices == null) _captures.dispose();
     WidgetsBinding.instance.removeObserver(this);
     _expiryTimer?.cancel();
     unawaited(_familyConnection?.cancel());
@@ -553,6 +570,8 @@ class _DrugTimeAppState extends State<DrugTimeApp> with WidgetsBindingObserver {
       scaffoldMessengerKey: _scaffoldMessengerKey,
       title: 'DrugTime',
       debugShowCheckedModeBanner: false,
+      builder: (context, child) =>
+          CaptureScope(services: _captures, child: child!),
       theme: buildAppTheme(),
       locale: const Locale('vi'),
       supportedLocales: const [Locale('vi'), Locale('en')],

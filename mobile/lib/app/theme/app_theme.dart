@@ -5,6 +5,15 @@ import 'package:flutter/material.dart';
 /// Nhóm màu lâm sàng (safe / caution / danger) chỉ dùng đúng nghĩa lâm sàng,
 /// luôn đi kèm icon + chữ, không bao giờ truyền đạt trạng thái bằng màu đơn thuần.
 abstract final class AppColors {
+  static const cameraCanvas = Color(0xFF0C1716);
+  static const cameraScrim = Color(0xA6061512);
+  static const onCamera = Color(0xFFFFFFFF);
+  static const cameraControl = Color(0xFF263D38);
+  static const cameraSurface = Color(0xFF172A27);
+  static const cameraAccent = Color(0xFFBFE7D8);
+  static const onCameraAccent = Color(0xFF103A31);
+  static const cameraMuted = Color(0xFFCBD5D1);
+  static const cameraOutline = Color(0xFF54726A);
   // Nền & chữ
   static const canvas = Color(0xFFFCFCFC);
   static const surface = Color(0xFFFFFFFF);

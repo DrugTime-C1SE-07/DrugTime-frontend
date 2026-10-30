@@ -1,5 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import '../features/medication_capture/presentation/screens/capture_flow_screen.dart';
+import '../features/medication_capture/domain/capture_models.dart';
 
 import '../features/adherence/domain/repositories/adherence_repository.dart';
 import '../features/adherence/presentation/screens/family_adherence_screen.dart';
@@ -44,6 +46,7 @@ abstract final class AppRoutes {
   static const familyAlertDetail = '/family/alerts/detail';
   static const home = '/';
   static const addMedication = '/medications/add';
+  static const captureMedication = '/medications/capture';
   static const drugSelectionDemo = '/medications/selection-demo';
   static const medicationDetail = '/medications/detail';
   static const editMedication = '/medications/edit';
@@ -93,6 +96,12 @@ Route<dynamic>? onGenerateRoute(
   ValueListenable<bool>? familyAdherenceAvailability,
 }) {
   return switch (settings.name) {
+    AppRoutes.captureMedication => MaterialPageRoute<CaptureResult>(
+        settings: settings,
+        fullscreenDialog: true,
+        builder: (_) =>
+            CaptureFlowScreen(initialImage: settings.arguments as Uint8List?),
+      ),
     AppRoutes.drugSelectionDemo => MaterialPageRoute<void>(
         settings: settings,
         builder: (_) => preview && kDebugMode
