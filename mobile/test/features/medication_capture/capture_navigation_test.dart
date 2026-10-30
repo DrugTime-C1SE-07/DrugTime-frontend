@@ -53,7 +53,8 @@ void main() {
     await tester.tap(find.byTooltip('Bỏ ảnh'));
     await tester.pumpAndSettle();
     expect(store.live, isEmpty);
-    await tester.pageBack();
+    // Exercise system Back independently of the app's localized back tooltip.
+    await tester.binding.handlePopRoute();
     await tester.pumpAndSettle();
     expect(find.byType(AddMedicationScreen), findsNothing);
     final navigation = tester.widget<NavigationBar>(find.byType(NavigationBar));
