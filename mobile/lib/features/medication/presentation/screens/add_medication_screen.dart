@@ -356,8 +356,6 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
                     .pushNamed(AppRoutes.drugSelectionDemo),
                 child: const Text('Mẫu · Xem thử chọn và xác nhận thuốc'),
               ),
-            ScanEntryCard(
-                onTap: () => _toast('Quét vỏ thuốc đang được phát triển')),
             const SizedBox(height: AppSpacing.xl),
             const OrDivider(label: 'hoặc nhập thủ công'),
             const SizedBox(height: AppSpacing.xl),
