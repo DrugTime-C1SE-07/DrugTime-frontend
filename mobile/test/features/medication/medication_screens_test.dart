@@ -93,6 +93,8 @@ Future<void> pickDrug(WidgetTester tester, String query, String name) async {
   await tester.pumpAndSettle();
   await tester.tap(find.text(name));
   await tester.pumpAndSettle();
+  await tester.tap(find.text('Xác nhận thuốc'));
+  await tester.pumpAndSettle();
 }
 
 /// Người dùng đã đăng nhập và có hồ sơ: app mở thẳng Trang chủ như trước khi có màn đăng nhập.
@@ -288,6 +290,12 @@ void main() {
               .first);
       await tester.tap(find.byType(DrugPickerField));
       await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField).last, 'losartan');
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Losartan 50mg'));
+      await tester.pumpAndSettle();
+      // Selecting without confirming cannot replace the existing form or save.
+      expect(repository.addCalls, isEmpty);
       Navigator.of(tester.element(find.byType(TextField).last)).pop();
       await tester.pumpAndSettle();
       final original =
@@ -306,6 +314,9 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Đang dùng'), findsOneWidget);
       await tester.tap(find.text('Losartan 50mg'));
+      await tester.pumpAndSettle();
+      expect(repository.addCalls, isEmpty);
+      await tester.tap(find.text('Xác nhận thuốc'));
       await tester.pumpAndSettle();
       final picked =
           tester.widget<DrugPickerField>(find.byType(DrugPickerField)).value!;
@@ -341,6 +352,9 @@ void main() {
       expect(find.text('Cùng tên'), findsNWidgets(2));
       expect(find.text('5 mg'), findsOneWidget);
       await tester.tap(find.text('Cùng tên').last);
+      await tester.pumpAndSettle();
+      expect(repository.addCalls, isEmpty);
+      await tester.tap(find.text('Xác nhận thuốc'));
       await tester.pumpAndSettle();
       final picked =
           tester.widget<DrugPickerField>(find.byType(DrugPickerField)).value;
@@ -378,6 +392,8 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.text('Amlodipin 5mg'));
       await tester.pumpAndSettle();
+      await tester.tap(find.text('Xác nhận thuốc'));
+      await tester.pumpAndSettle();
 
       // Hàm lượng tự điền từ danh mục.
       expect(find.text('5 mg'), findsOneWidget);
@@ -412,6 +428,8 @@ void main() {
       expect(find.text('Đang dùng'), findsOneWidget);
       await tester.tap(find.text('Losartan 50mg'));
       await tester.pumpAndSettle();
+      await tester.tap(find.text('Xác nhận thuốc'));
+      await tester.pumpAndSettle();
 
       expect(find.textContaining('đã có trong danh sách đang dùng'),
           findsOneWidget);
@@ -429,6 +447,8 @@ void main() {
       await tester.enterText(find.byType(TextField).last, 'amlo');
       await tester.pumpAndSettle();
       await tester.tap(find.text('Amlodipin 5mg'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Xác nhận thuốc'));
       await tester.pumpAndSettle();
 
       // Hai lần nhấn trước khi frame kế tiếp kịp vô hiệu nút. Gọi thẳng onPressed

@@ -83,6 +83,7 @@ class DoseUploadResult {
     this.syncedAt,
     this.errorCode,
     this.errorMessage,
+    this.httpStatus,
   });
 
   final String clientUuid;
@@ -91,6 +92,9 @@ class DoseUploadResult {
   final DateTime? syncedAt;
   final String? errorCode;
   final String? errorMessage;
+
+  /// `error.http_status` của mục lỗi; 404/409/422 là kết quả cuối (contract 3.19).
+  final int? httpStatus;
 
   bool get isSynced => status == DoseUploadResultStatus.synced;
   bool get isFailed => status == DoseUploadResultStatus.failed;
@@ -187,6 +191,7 @@ class DoseApiRemoteDataSource implements DoseRemoteDataSource {
         status: DoseUploadResultStatus.failed,
         errorCode: code,
         errorMessage: _formatItemError(code: code, detail: detail),
+        httpStatus: _tryParseInt(errorMap['http_status']),
       );
     }
 
@@ -235,8 +240,37 @@ class DoseApiRemoteDataSource implements DoseRemoteDataSource {
   }
 }
 
+/// Báo server "mọi mục trong hàng chờ liều đã có kết quả cuối" (task 3.19). Server dùng giờ của
+/// nó làm checkpoint; Worker chỉ cảnh báo người thân khi checkpoint >= hạn chót của liều.
+abstract class DoseSyncCheckpointSource {
+  Future<void> recordCheckpoint();
+}
+
+class ApiDoseSyncCheckpointSource implements DoseSyncCheckpointSource {
+  ApiDoseSyncCheckpointSource(this._apiClient, {bool Function()? isSignedIn})
+      : _isSignedIn = isSignedIn;
+
+  final ApiClient _apiClient;
+
+  /// Contract chỉ yêu cầu gửi khi đã đăng nhập; chưa đăng nhập thì không gọi để tránh 401.
+  final bool Function()? _isSignedIn;
+
+  @override
+  Future<void> recordCheckpoint() async {
+    if (_isSignedIn?.call() == false) {
+      return;
+    }
+    await _apiClient.post('/doses/sync-checkpoints');
+  }
+}
+
 typedef SyncDelay = Future<void> Function(Duration duration);
 typedef Clock = DateTime Function();
+typedef PeriodicTimerFactory = Timer Function(
+    Duration interval, void Function(Timer timer) callback);
+
+/// Mã lỗi của một mục được coi là kết quả cuối: mục bị giữ lại, không gửi lại (QD-07).
+const finalItemErrorStatuses = {404, 409, 422};
 
 class DoseOutboxSyncEngine {
   DoseOutboxSyncEngine({
@@ -253,6 +287,9 @@ class DoseOutboxSyncEngine {
     ],
     SyncDelay delay = Future<void>.delayed,
     Clock? clock,
+    DoseSyncCheckpointSource? checkpointSource,
+    Duration checkpointInterval = const Duration(minutes: 15),
+    PeriodicTimerFactory periodicTimer = Timer.periodic,
   })  : _localStore = localStore,
         _remoteDataSource = remoteDataSource,
         _connectivityMonitor = connectivityMonitor,
@@ -261,7 +298,10 @@ class DoseOutboxSyncEngine {
         _batchSize = batchSize,
         _backoffSchedule = backoffSchedule,
         _delay = delay,
-        _clock = clock ?? (() => DateTime.now().toUtc());
+        _clock = clock ?? (() => DateTime.now().toUtc()),
+        _checkpointSource = checkpointSource,
+        _checkpointInterval = checkpointInterval,
+        _periodicTimer = periodicTimer;
 
   final LocalMedicationStore _localStore;
   final DoseRemoteDataSource _remoteDataSource;
@@ -272,10 +312,17 @@ class DoseOutboxSyncEngine {
   final List<Duration> _backoffSchedule;
   final SyncDelay _delay;
   final Clock _clock;
+  final DoseSyncCheckpointSource? _checkpointSource;
+  final Duration _checkpointInterval;
+  final PeriodicTimerFactory _periodicTimer;
 
   StreamSubscription<bool>? _connectivitySubscription;
-  Future<void>? _activeSync;
+  Timer? _checkpointTimer;
+  Future<bool>? _activeSync;
   bool _disposed = false;
+
+  /// Một mục trong lượt đồng bộ đang chạy có lỗi không phải kết quả cuối.
+  bool _blocked = false;
 
   Future<void> start() async {
     _connectivitySubscription ??=
@@ -284,13 +331,23 @@ class DoseOutboxSyncEngine {
         unawaited(syncPendingDoseLogs());
       }
     });
+    // Mỗi 15 phút khi app đang mở, kể cả khi hàng chờ trống (contract 3.19).
+    if (_checkpointSource != null) {
+      _checkpointTimer ??= _periodicTimer(
+          _checkpointInterval, (_) => unawaited(syncPendingDoseLogs()));
+    }
 
     if (await _connectivityMonitor.isOnline) {
       await syncPendingDoseLogs();
     }
   }
 
-  Future<void> syncPendingDoseLogs() {
+  /// Đồng bộ ngay (quay lại app, vừa đăng nhập, nhận push `sync_request`).
+  Future<bool> syncNow() => syncPendingDoseLogs();
+
+  /// Trả `true` khi hàng chờ đã cạn: không còn mục chờ gửi và mọi mục trong lượt này đã có kết
+  /// quả cuối. Chỉ khi đó mới gửi checkpoint.
+  Future<bool> syncPendingDoseLogs() {
     final currentSync = _activeSync;
     if (currentSync != null) {
       return currentSync;
@@ -303,30 +360,50 @@ class DoseOutboxSyncEngine {
 
   Future<void> dispose() async {
     _disposed = true;
+    _checkpointTimer?.cancel();
+    _checkpointTimer = null;
     await _connectivitySubscription?.cancel();
     _connectivitySubscription = null;
     await _connectivityMonitor.dispose();
   }
 
-  Future<void> _syncPendingDoseLogs() async {
+  Future<bool> _syncPendingDoseLogs() async {
     if (_disposed || !await _connectivityMonitor.isOnline) {
-      return;
+      return false;
     }
 
+    _blocked = false;
     while (!_disposed && await _connectivityMonitor.isOnline) {
       final pendingLogs = _outbox != null
           ? await _outbox.getPendingLogs()
           : await _localStore.getPendingDoseLogs();
       if (pendingLogs.isEmpty) {
-        return;
+        if (_blocked) {
+          return false;
+        }
+        await _recordCheckpoint();
+        return true;
       }
 
       final batch = pendingLogs.take(_batchSize).toList(growable: false);
       final uploaded = await _uploadBatchWithRetry(batch);
 
       if (!uploaded) {
-        return;
+        return false;
       }
+    }
+    return false;
+  }
+
+  Future<void> _recordCheckpoint() async {
+    final source = _checkpointSource;
+    if (source == null || _disposed) {
+      return;
+    }
+    try {
+      await source.recordCheckpoint();
+    } on ApiException {
+      // Checkpoint chỉ là bằng chứng đồng bộ: lần đồng bộ kế tiếp gửi lại, không cần xử lý thêm.
     }
   }
 
@@ -399,6 +476,9 @@ class DoseOutboxSyncEngine {
           }
 
           if (result.isFailed) {
+            if (!finalItemErrorStatuses.contains(result.httpStatus)) {
+              _blocked = true;
+            }
             await _markDoseLogFailed(
               clientUuid: doseLog.clientUuid,
               errorMessage: result.errorMessage ?? 'Dose upload failed',

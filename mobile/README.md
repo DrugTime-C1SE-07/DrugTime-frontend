@@ -143,60 +143,23 @@ flutter test
 
 ### Cấu hình địa chỉ Backend API (`.env`)
 
-App không có địa chỉ backend mặc định: chạy thiếu cấu hình sẽ hiện màn "Thiếu cấu hình máy chủ".
+Trong chế độ Backend (`DRUGTIME_PREVIEW=false`), app không có địa chỉ mặc định: thiếu cấu hình hiện màn "Thiếu cấu hình máy chủ".
 Địa chỉ được đóng vào app lúc build qua `--dart-define-from-file` (Flutter không tự đọc `.env`).
 
 1. Copy file mẫu (các file `.env.*` khác đã có trong `.gitignore`, không commit):
    ```bash
    cp .env.example .env.android   # DRUGTIME_API_BASE_URL=http://10.0.2.2:8000
-   cp .env.example .env.web       # sửa thành DRUGTIME_API_BASE_URL=http://127.0.0.1:8001
    ```
 2. Chạy:
 
    | Thiết bị | File | Lệnh |
    |---|---|---|
-   | Android emulator | `.env.android` = `http://10.0.2.2:8000` | `flutter run -d emulator-5554 --dart-define-from-file=.env.android` |
-   | Chrome | `.env.web` = địa chỉ backend có CORS cho `http://localhost:5000` | `flutter run -d chrome --web-port 5000 --dart-define-from-file=.env.web` |
-   | Điện thoại thật (USB) | `http://127.0.0.1:8000` | `adb reverse tcp:8000 tcp:8000` rồi `flutter run --dart-define-from-file=<file>` |
+   | Android emulator | `.env.android` = `http://10.0.2.2:8000` | `flutter run -d emulator-5554 --dart-define=DRUGTIME_PREVIEW=false --dart-define-from-file=.env.android` |
+   | Chrome | `.env.web` = địa chỉ backend có CORS cho `http://localhost:5000` | Chỉ preview: `flutter run -d chrome`; Backend web chưa hỗ trợ |
+   | Điện thoại thật (USB) | `http://127.0.0.1:8000` | `adb reverse tcp:8000 tcp:8000` rồi `flutter run --dart-define=DRUGTIME_PREVIEW=false --dart-define-from-file=<file>` |
 
    - Emulator: `10.0.2.2` là máy tính chạy backend (`127.0.0.1` là chính emulator).
-   - Chrome: backend phải có `CORS_ALLOWED_ORIGINS=http://localhost:5000,http://127.0.0.1:5000`, và phải giữ `--web-port 5000`.
-3. Nút Run của IDE: thêm `--dart-define-from-file=.env.android` vào *Additional run args* (Android Studio)
-   hoặc `"args": ["--dart-define-from-file=.env.android"]` trong `.vscode/launch.json` (VS Code).
+3. Nút Run của IDE: thêm `--dart-define=DRUGTIME_PREVIEW=false --dart-define-from-file=.env.android` vào *Additional run args* (Android Studio)
+   hoặc `"args": ["--dart-define=DRUGTIME_PREVIEW=false", "--dart-define-from-file=.env.android"]` trong `.vscode/launch.json` (VS Code).
 
 File `.env.*` chỉ được chứa địa chỉ Backend API. Không ghi key hay secret: giá trị bị đóng vào app và đọc được từ file cài đặt.
-
-# Camera thuốc — task 4.10
-
-Camera nằm trong app chính: **Thêm thuốc → Quét vỏ thuốc**. Chạy entry mặc định
-`lib/main.dart` với cấu hình backend và đăng nhập đang dùng, ví dụ trên Android emulator:
-
-```powershell
-flutter run --dart-define-from-file=.env.android
-```
-
-Trong app Android, chụp hoặc chọn ảnh rồi xem lại toàn ảnh, không cần chọn Hộp/Vỉ.
-Màn xem lại chỉ có ảnh, thông báo ngắn, **Dùng ảnh này** và **Chụp lại**;
-không có crop, chỉnh vùng, xoay hoặc chỉnh màu.
-Nhấn **Dùng ảnh này** để quay về form với ảnh đã chuẩn bị; các chức năng khác của app
-vẫn dùng như trước. Camera chưa tự điền thuốc: OCR/matching sẽ nối ở task 4.11.
-Component S07b/S07c đã có cho bước tích hợp đó, dữ liệu minh họa chỉ ở test.
-
-**Cho phép camera** mở hộp thoại xin quyền Android. Nếu đã từ chối vĩnh viễn,
-**Mở cài đặt** mở trang cài đặt DrugTime trên điện thoại để người dùng bật quyền Camera.
-Quay lại app sẽ đọc lại quyền và mở camera nếu được cấp. Có thể chọn ảnh hoặc đóng
-camera để quay về form khi chưa cấp quyền. Không có nút Nhập thủ công trong camera;
-form/danh mục ngoài camera vẫn dùng được. Phần camera native hiện hỗ trợ Android; Chrome không kiểm chứng
-camera/đèn/cài đặt của điện thoại.
-
-```powershell
-flutter test test/features/medication_capture test/features/medication
-flutter analyze
-flutter build apk --debug
-```
-
-Kiểm thêm trên Android thật: quyền từ chối/Settings, đèn, chụp và chọn ảnh, chuyển nền,
-ảnh mờ/tối/chói, đủ nội dung toàn ảnh/hướng ảnh tự động, hủy form/đăng xuất và dọn ảnh tạm. Widget test không xác nhận
-phần cứng hoặc native cache được mã hóa. Ảnh do app giữ được mã hóa, hết hạn tối đa 24h;
-không xóa ảnh thư viện gốc. Chi tiết evidence/task chỉ local trong `work/`, không đưa lên GitHub.
-

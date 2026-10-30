@@ -8,8 +8,10 @@ import 'package:drugtime_mobile/features/family/domain/entities/family_link_code
 import 'package:drugtime_mobile/features/family/domain/entities/family_link_code_failure.dart';
 import 'package:drugtime_mobile/features/family/domain/repositories/family_link_code_repository.dart';
 import 'package:drugtime_mobile/features/family/presentation/state/family_link_code_controller.dart';
+import 'package:drugtime_mobile/features/family_link/data/repositories/in_memory_caregiver_repository.dart';
 import 'package:drugtime_mobile/features/family_link/data/sources/camera_permission.dart';
 import 'package:drugtime_mobile/features/family_link/data/sources/invite_link_sharer.dart';
+import 'package:drugtime_mobile/features/family_link/domain/repositories/caregiver_repository.dart';
 import 'package:drugtime_mobile/features/family_link/domain/repositories/family_link_repository.dart';
 import 'package:drugtime_mobile/features/family_link/presentation/state/family_link_scope.dart';
 import 'package:drugtime_mobile/features/family_link/presentation/state/invite_link_controller.dart';
@@ -69,11 +71,13 @@ class FakeFamilyLinkCodeRepository implements FamilyLinkCodeRepository {
 }
 
 /// Dựng [home] trong `MaterialApp` dùng router thật, bọc các scope mà luồng người thân cần:
-/// `FamilyLinkScope`, scope mã của 3.11 và `ConsentScope`.
+/// `FamilyLinkScope`, scope mã của 3.11 và `ConsentScope`. Không truyền [caregivers] thì dùng
+/// repository trong bộ nhớ rỗng (không có yêu cầu đang chờ, không có người giám sát).
 Future<void> pumpFamilyLink(
   WidgetTester tester,
   Widget home, {
   required FamilyLinkRepository repository,
+  CaregiverRepository? caregivers,
   CameraPermission? cameraPermission,
   InviteLinkSharer? sharer,
   FamilyLinkCodeRepository? codeRepository,
@@ -102,6 +106,7 @@ Future<void> pumpFamilyLink(
       controller: codes,
       child: FamilyLinkScope(
         repository: repository,
+        caregivers: caregivers ?? InMemoryCaregiverRepository(),
         invites: invites,
         cameraPermission: cameraPermission ?? FakeCameraPermission(CameraPermissionStatus.granted),
         sharer: sharer ?? FakeInviteLinkSharer(),

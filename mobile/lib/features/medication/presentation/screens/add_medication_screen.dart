@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
 import '../../../../app/theme/app_theme.dart';
@@ -7,6 +8,7 @@ import '../../../../app/router.dart';
 import '../../../medication_capture/domain/capture_models.dart';
 import '../../../medication_capture/data/capture_services.dart';
 import '../../../medication_capture/presentation/state/capture_scope.dart';
+import '../../../../core/preview/app_preview_scope.dart';
 import '../../../../core/storage/local_db/client_uuid.dart';
 import '../../../../shared/widgets/selectable_pill.dart';
 import '../../../../shared/widgets/two_column_grid.dart';
@@ -348,6 +350,14 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
                     ])
                   ])),
             ],
+            if (kDebugMode && AppPreviewScope.maybeOf(context) != null)
+              TextButton(
+                onPressed: () => Navigator.of(context)
+                    .pushNamed(AppRoutes.drugSelectionDemo),
+                child: const Text('Mẫu · Xem thử chọn và xác nhận thuốc'),
+              ),
+            ScanEntryCard(
+                onTap: () => _toast('Quét vỏ thuốc đang được phát triển')),
             const SizedBox(height: AppSpacing.xl),
             const OrDivider(label: 'hoặc nhập thủ công'),
             const SizedBox(height: AppSpacing.xl),
