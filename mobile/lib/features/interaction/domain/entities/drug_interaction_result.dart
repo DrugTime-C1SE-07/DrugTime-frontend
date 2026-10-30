@@ -129,7 +129,7 @@ class DrugInteractionReport {
 
   /// Kiểm tra xem danh sách thuốc đối soát có được truyền tường minh hay không.
   bool get hasExplicitCheckedMedications =>
-      _checkedMedications != null && _checkedMedications!.isNotEmpty;
+      _checkedMedications != null && _checkedMedications.isNotEmpty;
 
   /// Danh sách các thuốc/hoạt chất đã đối soát.
   List<String> get checkedMedications {

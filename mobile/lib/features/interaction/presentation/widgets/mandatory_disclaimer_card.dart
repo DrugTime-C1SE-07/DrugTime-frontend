@@ -1,16 +1,14 @@
 import 'package:flutter/material.dart';
 
-import '../../../../app/theme/app_theme.dart';
-
 /// Thẻ tuyên bố miễn trừ trách nhiệm y tế bắt buộc (Mandatory Disclaimer).
 ///
-/// Bắt buộc xuất hiện trên 100% màn hình cảnh báo tương tác thuốc (DoD & QA.04).
-/// Cố định ở chân màn hình, TUYỆT ĐỐI không có nút tắt/đóng (X) hay thao tác ẩn.
-/// Thiết kế chuẩn theo Figma prototype `page_127_Image556.png`.
+/// Thiết kế tinh gọn, thanh lịch (Clean UX) theo chuẩn Figma prototype mới nhất:
+/// - Xuất hiện 100% ở chân màn hình, TUYỆT ĐỐI không có nút tắt/đóng (X).
+/// - Dạng dải banner mỏng màu hổ phách/vàng ấm, chữ ngắn gọn, giảm tải nhận thức.
 class MandatoryDisclaimerCard extends StatelessWidget {
   const MandatoryDisclaimerCard({
     super.key,
-    this.padding = const EdgeInsets.all(AppSpacing.md),
+    this.padding = const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
   });
 
   /// Câu chữ tuyên bố miễn trừ trách nhiệm chuẩn theo yêu cầu dự án (DoD & QA.04).
@@ -25,47 +23,34 @@ class MandatoryDisclaimerCard extends StatelessWidget {
     return Container(
       key: const Key('mandatory_disclaimer_card'),
       padding: padding,
-      decoration: BoxDecoration(
-        color: const Color(0xFFFEEBD9), // Nền màu cam đào chuẩn Figma Prototype
-        borderRadius: BorderRadius.circular(AppRadius.card),
-        border: Border.all(
-          color: const Color(0xFFFAD2B0),
-          width: 1.2,
+      decoration: const BoxDecoration(
+        color: Color(0xFFFEF3E2),
+        borderRadius: BorderRadius.all(Radius.circular(10)),
+        border: Border.fromBorderSide(
+          BorderSide(
+            color: Color(0xFFFDE68A),
+            width: 1,
+          ),
         ),
       ),
-      child: const Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
+      child: const Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Row(
-            children: [
-              Icon(
-                Icons.health_and_safety_rounded,
-                color: Color(0xFF8A4500),
-                size: 20,
-              ),
-              SizedBox(width: AppSpacing.sm),
-              Expanded(
-                child: Text(
-                  'LƯU Ý Y TẾ BẮT BUỘC',
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 0.5,
-                    color: Color(0xFF8A4500),
-                  ),
-                ),
-              ),
-            ],
+          Icon(
+            Icons.shield_outlined,
+            color: Color(0xFFD97706),
+            size: 16,
           ),
-          SizedBox(height: AppSpacing.xs),
-          Text(
-            disclaimerText,
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w400,
-              height: 1.45,
-              color: Color(0xFF7A3E00),
+          SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              disclaimerText,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w400,
+                height: 1.35,
+                color: Color(0xFF92400E),
+              ),
             ),
           ),
         ],

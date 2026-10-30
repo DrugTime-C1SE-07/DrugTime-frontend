@@ -3,7 +3,12 @@ import 'package:flutter/material.dart';
 import '../../../../app/theme/app_theme.dart';
 import '../../domain/entities/drug_interaction_result.dart';
 
-/// Card hiển thị chi tiết một cặp tương tác thuốc–thuốc theo phong cách Figma Prototype.
+/// Card hiển thị chi tiết cặp tương tác thuốc–thuốc theo phong cách Clean UI/UX.
+///
+/// Tinh gọn, giảm tải nhận thức:
+/// - Header phân cấp mức độ Chống chỉ định / Nghiêm trọng / Trung bình / Nhẹ.
+/// - Khối capsule 2 tên thuốc trực quan với biểu tượng hoán đổi.
+/// - 2 dòng bullet points cốt lõi (Nguy cơ + Khuyến nghị) đọc được trong 3 giây.
 class InteractionPairCard extends StatelessWidget {
   const InteractionPairCard({
     super.key,
@@ -16,218 +21,215 @@ class InteractionPairCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final severity = pair.severity;
 
+    // Phối màu theo mức độ nghiêm trọng
+    final isDanger = severity == InteractionSeverity.contraindicated ||
+        severity == InteractionSeverity.severe;
+    final isCaution = severity == InteractionSeverity.moderate;
+
+    final cardBg = isDanger
+        ? const Color(0xFFFDECEC)
+        : (isCaution ? const Color(0xFFFFFBEB) : const Color(0xFFF0FDF4));
+
+    final cardBorder = isDanger
+        ? const Color(0xFFF4C7C7)
+        : (isCaution ? const Color(0xFFFDE68A) : const Color(0xFFBBF7D0));
+
+    final iconBg = isDanger
+        ? const Color(0xFFDC2626)
+        : (isCaution ? const Color(0xFFD97706) : const Color(0xFF16A34A));
+
+    final badgeBg = isDanger
+        ? const Color(0xFFBA1A1A)
+        : (isCaution ? const Color(0xFFB45309) : const Color(0xFF15803D));
+
+    final subtitleText = isDanger
+        ? 'Phát hiện tương tác nguy hiểm'
+        : (isCaution ? 'Cần theo dõi khi dùng chung' : 'Tương tác mức độ nhẹ');
+
+    final subtitleColor = isDanger
+        ? const Color(0xFF7A0000)
+        : (isCaution ? const Color(0xFF92400E) : const Color(0xFF166534));
+
     return Container(
-      margin: const EdgeInsets.only(bottom: AppSpacing.md),
+      margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(AppRadius.card),
+        color: cardBg,
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: AppColors.border,
+          color: cardBorder,
           width: 1,
         ),
-        boxShadow: AppShadows.cardElevation,
       ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(AppRadius.card),
+      child: Padding(
+        padding: const EdgeInsets.all(14),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // 1. Dải băng Header mức độ nghiêm trọng (Chuẩn màu & Icon từ Figma Prototype)
-            _buildSeverityHeader(severity),
-
-            // 2. Nội dung chi tiết cặp tương tác
-            Padding(
-              padding: const EdgeInsets.all(AppSpacing.md),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  // Hàng hiển thị 2 tên thuốc
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: AppSpacing.md,
-                      vertical: AppSpacing.sm,
-                    ),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFF0F4FC),
-                      borderRadius: BorderRadius.circular(AppRadius.field),
-                      border: Border.all(color: const Color(0xFFDCE5F5)),
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(
-                          Icons.medication_rounded,
-                          size: 18,
-                          color: AppColors.brand,
-                        ),
-                        const SizedBox(width: AppSpacing.xs),
-                        Expanded(
-                          child: Text(
-                            pair.firstDrugName,
-                            style: AppTextStyles.bodyStrong.copyWith(
-                              fontSize: 14,
-                              color: AppColors.ink,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                        const Padding(
-                          padding: EdgeInsets.symmetric(horizontal: 6),
-                          child: Icon(
-                            Icons.swap_horiz_rounded,
-                            size: 20,
-                            color: AppColors.brand,
-                          ),
-                        ),
-                        const Icon(
-                          Icons.medication_rounded,
-                          size: 18,
-                          color: AppColors.brand,
-                        ),
-                        const SizedBox(width: AppSpacing.xs),
-                        Expanded(
-                          child: Text(
-                            pair.secondDrugName,
-                            style: AppTextStyles.bodyStrong.copyWith(
-                              fontSize: 14,
-                              color: AppColors.ink,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ],
-                    ),
+            // 1. Header: Icon tròn cảnh báo + Badge mức độ
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Container(
+                  width: 38,
+                  height: 38,
+                  decoration: BoxDecoration(
+                    color: iconBg,
+                    shape: BoxShape.circle,
                   ),
-                  const SizedBox(height: AppSpacing.md),
-
-                  // Khối Cơ chế tương tác dược lý / lâm sàng
-                  Container(
-                    padding: const EdgeInsets.all(AppSpacing.md),
-                    decoration: BoxDecoration(
-                      color: severity == InteractionSeverity.contraindicated ||
-                              severity == InteractionSeverity.severe
-                          ? const Color(0xFFFDF2F2)
-                          : const Color(0xFFFEF9EE),
-                      borderRadius: BorderRadius.circular(AppRadius.field),
-                      border: Border.all(
-                        color: severity == InteractionSeverity.contraindicated ||
-                                severity == InteractionSeverity.severe
-                            ? const Color(0xFFFDE2E2)
-                            : const Color(0xFFFDE8C7),
-                      ),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Icon(
-                              Icons.science_outlined,
-                              size: 16,
-                              color: severity == InteractionSeverity.contraindicated ||
-                                      severity == InteractionSeverity.severe
-                                  ? AppColors.danger
-                                  : AppColors.cautionText,
-                            ),
-                            const SizedBox(width: AppSpacing.xs),
-                            Text(
-                              'Cơ chế dược lực học & lâm sàng:',
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w700,
-                                color: severity == InteractionSeverity.contraindicated ||
-                                        severity == InteractionSeverity.severe
-                                    ? AppColors.danger
-                                    : AppColors.cautionText,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: AppSpacing.xs),
-                        Text(
-                          pair.description,
-                          style: AppTextStyles.body.copyWith(
-                            fontSize: 13.5,
-                            height: 1.45,
-                            color: AppColors.ink,
-                          ),
-                        ),
-                      ],
-                    ),
+                  child: Icon(
+                    isDanger
+                        ? Icons.warning_amber_rounded
+                        : (isCaution ? Icons.info_outline_rounded : Icons.check_circle_outline_rounded),
+                    color: Colors.white,
+                    size: 22,
                   ),
-
-                  // Khối Hướng dẫn xử trí lâm sàng (nếu có)
-                  if (pair.recommendation != null &&
-                      pair.recommendation!.trim().isNotEmpty) ...[
-                    const SizedBox(height: AppSpacing.sm),
-                    Container(
-                      padding: const EdgeInsets.all(AppSpacing.md),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFE8F6F4),
-                        borderRadius: BorderRadius.circular(AppRadius.field),
-                        border: Border.all(color: const Color(0xFFCCECE7)),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Row(
-                            children: [
-                              Icon(
-                                Icons.medical_services_outlined,
-                                size: 16,
-                                color: AppColors.brand,
-                              ),
-                              SizedBox(width: AppSpacing.xs),
-                              Text(
-                                'Hướng dẫn xử trí lâm sàng:',
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w700,
-                                  color: AppColors.brandStrong,
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: AppSpacing.xs),
-                          Text(
-                            pair.recommendation!,
-                            style: AppTextStyles.body.copyWith(
-                              fontSize: 13.5,
-                              height: 1.45,
-                              color: AppColors.ink,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-
-                  // Nguồn tra cứu chuẩn Dược thư / Bộ Y Tế
-                  const SizedBox(height: AppSpacing.sm),
-                  Row(
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Icon(
-                        Icons.menu_book_outlined,
-                        size: 13,
-                        color: AppColors.inkMuted,
-                      ),
-                      const SizedBox(width: 4),
-                      Expanded(
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: badgeBg,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
                         child: Text(
-                          pair.referenceSource ??
-                              'Căn cứ: Quyết định 5948/QĐ-BYT & Dược thư Quốc gia Việt Nam',
+                          severity.label,
                           style: const TextStyle(
-                            fontSize: 11.5,
-                            fontStyle: FontStyle.italic,
-                            color: AppColors.inkMuted,
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white,
+                            letterSpacing: 0.3,
                           ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        subtitleText,
+                        style: TextStyle(
+                          fontSize: 13.5,
+                          fontWeight: FontWeight.w700,
+                          color: subtitleColor,
                         ),
                       ),
                     ],
                   ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+
+            // 2. Khối Capsule 2 tên thuốc
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: cardBorder),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.medication_outlined, size: 15, color: AppColors.inkMuted),
+                        const SizedBox(width: 4),
+                        Flexible(
+                          child: Text(
+                            pair.firstDrugName,
+                            style: const TextStyle(
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.ink,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 6),
+                    child: Text(
+                      '⇄',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: iconBg,
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        Flexible(
+                          child: Text(
+                            pair.secondDrugName,
+                            style: const TextStyle(
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.ink,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                            textAlign: TextAlign.end,
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        const Icon(Icons.medication_outlined, size: 15, color: AppColors.inkMuted),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 8),
+
+            // 3. Hai gạch đầu dòng súc tích (Nguy cơ + Khuyến nghị)
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.6),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: cardBorder.withValues(alpha: 0.6)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  RichText(
+                    text: TextSpan(
+                      style: const TextStyle(fontSize: 12, color: AppColors.ink, height: 1.4),
+                      children: [
+                        TextSpan(
+                          text: '• Nguy cơ: ',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w700,
+                            color: isDanger ? const Color(0xFFBA1A1A) : subtitleColor,
+                          ),
+                        ),
+                        TextSpan(text: pair.description),
+                      ],
+                    ),
+                  ),
+                  if (pair.recommendation != null && pair.recommendation!.trim().isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    RichText(
+                      text: TextSpan(
+                        style: const TextStyle(fontSize: 12, color: AppColors.ink, height: 1.4),
+                        children: [
+                          const TextSpan(
+                            text: '• Khuyến nghị: ',
+                            style: TextStyle(fontWeight: FontWeight.w700, color: AppColors.brand),
+                          ),
+                          TextSpan(text: pair.recommendation!),
+                        ],
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -236,78 +238,5 @@ class InteractionPairCard extends StatelessWidget {
       ),
     );
   }
-
-  /// Xây dựng banner header tương ứng với 4 mức nghiêm trọng từ Figma Prototype.
-  Widget _buildSeverityHeader(InteractionSeverity severity) {
-    final (bgColor, icon, title, badgeColor, badgeLabel) = switch (severity) {
-      InteractionSeverity.contraindicated => (
-          const Color(0xFFBA1A1A),
-          Icons.do_not_disturb_on_rounded,
-          'CHỐNG CHỈ ĐỊNH PHỐI HỢP',
-          const Color(0xFF8E1414),
-          severity.label,
-        ),
-      InteractionSeverity.severe => (
-          const Color(0xFFDC2626),
-          Icons.warning_rounded,
-          'TƯƠNG TÁC NGHIÊM TRỌNG',
-          const Color(0xFF991B1B),
-          severity.label,
-        ),
-      InteractionSeverity.moderate => (
-          const Color(0xFFD97706),
-          Icons.report_problem_rounded,
-          'THẬN TRỌNG KHI KẾT HỢP',
-          const Color(0xFFB45309),
-          severity.label,
-        ),
-      InteractionSeverity.mild => (
-          const Color(0xFF4B5563),
-          Icons.info_rounded,
-          'THEO DÕI THÊM',
-          const Color(0xFF374151),
-          severity.label,
-        ),
-    };
-
-    return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.md,
-        vertical: AppSpacing.sm,
-      ),
-      color: bgColor,
-      child: Row(
-        children: [
-          Icon(icon, size: 18, color: Colors.white),
-          const SizedBox(width: AppSpacing.xs),
-          Expanded(
-            child: Text(
-              title,
-              style: const TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w700,
-                color: Colors.white,
-                letterSpacing: 0.3,
-              ),
-            ),
-          ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-            decoration: BoxDecoration(
-              color: badgeColor,
-              borderRadius: BorderRadius.circular(6),
-            ),
-            child: Text(
-              badgeLabel,
-              style: const TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w700,
-                color: Colors.white,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 }
+
