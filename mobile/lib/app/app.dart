@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
@@ -35,6 +36,8 @@ import '../features/profile/presentation/state/profile_controller.dart';
 import 'router.dart';
 import '../core/utils/app_assets.dart';
 import 'theme/app_theme.dart';
+import '../features/medication_capture/data/capture_services.dart';
+import '../features/medication_capture/presentation/state/capture_scope.dart';
 
 class DrugTimeApp extends StatefulWidget {
   const DrugTimeApp({
@@ -56,6 +59,7 @@ class DrugTimeApp extends StatefulWidget {
     this.navigatorKey,
     this.scaffoldMessengerKey,
     this.notificationService,
+    this.captureServices,
   });
 
   /// Trạng thái đăng nhập; app chạy thật dựng với RemoteAuthRepository (xem main.dart).
@@ -104,12 +108,15 @@ class DrugTimeApp extends StatefulWidget {
 
   /// Dịch vụ thông báo để tiếp nhận sự kiện click thông báo và điều hướng cold start.
   final NotificationService? notificationService;
+  final CaptureServices? captureServices;
 
   @override
   State<DrugTimeApp> createState() => _DrugTimeAppState();
 }
 
 class _DrugTimeAppState extends State<DrugTimeApp> {
+  late final CaptureServices _captures =
+      widget.captureServices ?? CaptureServices.native();
   late final GlobalKey<NavigatorState> _navigatorKey =
       widget.navigatorKey ?? GlobalKey<NavigatorState>();
   late final GlobalKey<ScaffoldMessengerState> _scaffoldMessengerKey =
@@ -151,15 +158,22 @@ class _DrugTimeAppState extends State<DrugTimeApp> {
   @override
   void initState() {
     super.initState();
+    if (widget.captureServices != null ||
+        (!kIsWeb && defaultTargetPlatform == TargetPlatform.android)) {
+      unawaited(_captures.initialize().catchError((Object e) {
+        _captures.cleanupError = 'Chưa khởi tạo được kho ảnh an toàn.';
+      }));
+    }
     final syncEngine = widget.doseOutboxSyncEngine;
     if (syncEngine != null) unawaited(syncEngine.start());
     _auth.addListener(_onAuthChanged);
     _setupNotificationHandling();
     _consents.addListener(_onConsentChanged);
     // Link chỉ được giữ chờ; AppShell mở màn nhập mã khi người dùng đã đăng nhập xong.
-    _inviteLinks = widget.inviteLinkSource?.links.listen((uri) => _invites.offer(
-          code: linkCodeFromInviteUri(uri, host: AppConfig.inviteLinkHost),
-        ));
+    _inviteLinks =
+        widget.inviteLinkSource?.links.listen((uri) => _invites.offer(
+              code: linkCodeFromInviteUri(uri, host: AppConfig.inviteLinkHost),
+            ));
     unawaited(_loadSession());
   }
 
@@ -283,6 +297,7 @@ class _DrugTimeAppState extends State<DrugTimeApp> {
     final user = authenticated ? _auth.currentSession?.userId : null;
     final switchedUser = user != _profileUser;
     if (switchedUser) {
+      unawaited(_captures.invalidate());
       _profiles.clear();
       _profileUser = user;
     }
@@ -313,6 +328,8 @@ class _DrugTimeAppState extends State<DrugTimeApp> {
 
   @override
   void dispose() {
+    unawaited(_captures.invalidate());
+    if (widget.captureServices == null) _captures.dispose();
     _auth.removeListener(_onAuthChanged);
     _consents.removeListener(_onConsentChanged);
     _profiles.dispose();
@@ -341,7 +358,8 @@ class _DrugTimeAppState extends State<DrugTimeApp> {
               invites: _invites,
               child: ProfileScope(
                 controller: _profiles,
-                child: _sessionLoaded ? _buildApp() : const _SessionLoadingApp(),
+                child:
+                    _sessionLoaded ? _buildApp() : const _SessionLoadingApp(),
               ),
             ),
           ),
@@ -356,6 +374,8 @@ class _DrugTimeAppState extends State<DrugTimeApp> {
       scaffoldMessengerKey: _scaffoldMessengerKey,
       title: 'DrugTime',
       debugShowCheckedModeBanner: false,
+      builder: (context, child) =>
+          CaptureScope(services: _captures, child: child!),
       theme: buildAppTheme(),
       locale: const Locale('vi'),
       supportedLocales: const [Locale('vi'), Locale('en')],

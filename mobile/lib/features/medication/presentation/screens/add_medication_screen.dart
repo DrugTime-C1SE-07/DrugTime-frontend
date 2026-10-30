@@ -1,7 +1,12 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../../../app/theme/app_theme.dart';
+import '../../../../app/router.dart';
+import '../../../medication_capture/domain/capture_models.dart';
+import '../../../medication_capture/data/capture_services.dart';
+import '../../../medication_capture/presentation/state/capture_scope.dart';
 import '../../../../core/storage/local_db/client_uuid.dart';
 import '../../../../shared/widgets/selectable_pill.dart';
 import '../../../../shared/widgets/two_column_grid.dart';
@@ -17,7 +22,8 @@ import '../widgets/medication_labels.dart';
 ///
 /// Trả về [Medication] vừa lưu qua `Navigator.pop` để màn trước xác nhận.
 class AddMedicationScreen extends StatefulWidget {
-  const AddMedicationScreen({super.key});
+  const AddMedicationScreen({super.key, this.captureLauncher});
+  final Future<CaptureResult?> Function(BuildContext)? captureLauncher;
 
   @override
   State<AddMedicationScreen> createState() => _AddMedicationScreenState();
@@ -41,9 +47,92 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
   bool _dirty = false;
   bool _showDrugError = false;
   bool _saving = false;
+  bool _openingCapture = false;
+  PreparedMedicationImage? _capture;
+  Uint8List? _captureBytes;
+  Timer? _captureExpiry;
+  CaptureServices? _captureServices;
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _captureServices = CaptureScope.maybeOf(context);
+  }
+
+  Future<void> _releaseImage(PreparedMedicationImage lease) async {
+    try {
+      await lease.release();
+    } catch (_) {
+      _captureServices?.cleanupError = 'Chưa dọn được ảnh tạm.';
+      if (mounted) {
+        _toast('Chưa dọn được ảnh tạm. Hãy thử lại.');
+      }
+    }
+  }
+
+  Future<void> _openCapture({bool edit = false}) async {
+    if (_openingCapture) return;
+    _openingCapture = true;
+    PreparedMedicationImage? incoming;
+    try {
+      final result = widget.captureLauncher != null
+          ? await widget.captureLauncher!(context)
+          : await Navigator.of(context).pushNamed<CaptureResult>(
+              AppRoutes.captureMedication,
+              arguments: edit ? _captureBytes : null);
+      if (result?.kind == CaptureResultKind.prepared && result?.image != null) {
+        final lease = result!.image!;
+        incoming = lease;
+        if (!mounted) {
+          await lease.release();
+          return;
+        }
+        final bytes = await lease.read();
+        if (!mounted) {
+          await lease.release();
+          return;
+        }
+        await _discardCapture();
+        if (!mounted) {
+          await lease.release();
+          return;
+        }
+        setState(() {
+          _capture = lease;
+          _captureBytes = bytes;
+        });
+        incoming = null;
+        _captureExpiry = Timer(lease.expiresAt.difference(DateTime.now()),
+            () => unawaited(_discardCapture()));
+      }
+    } catch (_) {
+      if (incoming != null) {
+        await _releaseImage(incoming);
+      }
+      if (mounted) _toast('Không mở được ảnh. Hãy thử lại.');
+    } finally {
+      _openingCapture = false;
+    }
+  }
+
+  Future<void> _discardCapture() async {
+    _captureExpiry?.cancel();
+    _captureExpiry = null;
+    final lease = _capture;
+    _capture = null;
+    _captureBytes = null;
+    if (mounted) setState(() {});
+    if (lease != null) {
+      await _releaseImage(lease);
+    }
+  }
 
   @override
   void dispose() {
+    _captureExpiry?.cancel();
+    final capture = _capture;
+    _capture = null;
+    _captureBytes = null;
+    if (capture != null) unawaited(_releaseImage(capture));
     _stockController.dispose();
     super.dispose();
   }
@@ -145,7 +234,8 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
       showMedicationFailure(context, failure);
       return;
     }
-    navigator.pop(created);
+    await _discardCapture();
+    if (mounted) navigator.pop(created);
   }
 
   Future<bool> _confirmDiscard() async {
@@ -196,8 +286,68 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
             AppSpacing.xl,
           ),
           children: [
-            ScanEntryCard(
-                onTap: () => _toast('Quét vỏ thuốc đang được phát triển')),
+            Material(
+                color: AppColors.brandTint,
+                borderRadius: BorderRadius.circular(AppRadius.card),
+                clipBehavior: Clip.antiAlias,
+                child: InkWell(
+                    onTap: _openCapture,
+                    child: const Padding(
+                        padding: EdgeInsets.all(16),
+                        child: Row(children: [
+                          Icon(Icons.document_scanner_outlined,
+                              color: AppColors.brand, size: 32),
+                          SizedBox(width: 16),
+                          Expanded(
+                              child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                Text('Quét vỏ thuốc',
+                                    style: AppTextStyles.bodyStrong),
+                                SizedBox(height: 4),
+                                Text('Chụp hộp hoặc vỉ thuốc',
+                                    style: AppTextStyles.caption)
+                              ])),
+                          Icon(Icons.chevron_right, color: AppColors.brand)
+                        ])))),
+            if (_captureBytes case final bytes?) ...[
+              const SizedBox(height: AppSpacing.md),
+              Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                      color: AppColors.brandTint,
+                      borderRadius: BorderRadius.circular(AppRadius.card)),
+                  child: Column(children: [
+                    Row(children: [
+                      ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: Image.memory(bytes,
+                              width: 56,
+                              height: 56,
+                              fit: BoxFit.cover,
+                              excludeFromSemantics: true)),
+                      const SizedBox(width: 12),
+                      const Expanded(
+                          child: Text('Ảnh đã sẵn sàng',
+                              style: AppTextStyles.bodyStrong)),
+                      IconButton(
+                          tooltip: 'Bỏ ảnh',
+                          onPressed: _discardCapture,
+                          icon: const Icon(Icons.close)),
+                    ]),
+                    Wrap(spacing: 8, children: [
+                      TextButton(
+                          onPressed: () => _openCapture(edit: true),
+                          child: const Text('Xem ảnh')),
+                      TextButton(
+                          onPressed: _openCapture,
+                          child: const Text('Chụp lại')),
+                      TextButton(
+                          onPressed: _pickDrug,
+                          child: const Text('Nhập thủ công'))
+                    ])
+                  ])),
+            ],
             const SizedBox(height: AppSpacing.xl),
             const OrDivider(label: 'hoặc nhập thủ công'),
             const SizedBox(height: AppSpacing.xl),

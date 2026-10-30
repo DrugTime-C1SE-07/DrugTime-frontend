@@ -166,3 +166,37 @@ App không có địa chỉ backend mặc định: chạy thiếu cấu hình s�
 
 File `.env.*` chỉ được chứa địa chỉ Backend API. Không ghi key hay secret: giá trị bị đóng vào app và đọc được từ file cài đặt.
 
+# Camera thuốc — task 4.10
+
+Camera nằm trong app chính: **Thêm thuốc → Quét vỏ thuốc**. Chạy entry mặc định
+`lib/main.dart` với cấu hình backend và đăng nhập đang dùng, ví dụ trên Android emulator:
+
+```powershell
+flutter run --dart-define-from-file=.env.android
+```
+
+Trong app Android, chụp hoặc chọn ảnh rồi xem lại toàn ảnh, không cần chọn Hộp/Vỉ.
+Màn xem lại chỉ có ảnh, thông báo ngắn, **Dùng ảnh này** và **Chụp lại**;
+không có crop, chỉnh vùng, xoay hoặc chỉnh màu.
+Nhấn **Dùng ảnh này** để quay về form với ảnh đã chuẩn bị; các chức năng khác của app
+vẫn dùng như trước. Camera chưa tự điền thuốc: OCR/matching sẽ nối ở task 4.11.
+Component S07b/S07c đã có cho bước tích hợp đó, dữ liệu minh họa chỉ ở test.
+
+**Cho phép camera** mở hộp thoại xin quyền Android. Nếu đã từ chối vĩnh viễn,
+**Mở cài đặt** mở trang cài đặt DrugTime trên điện thoại để người dùng bật quyền Camera.
+Quay lại app sẽ đọc lại quyền và mở camera nếu được cấp. Có thể chọn ảnh hoặc đóng
+camera để quay về form khi chưa cấp quyền. Không có nút Nhập thủ công trong camera;
+form/danh mục ngoài camera vẫn dùng được. Phần camera native hiện hỗ trợ Android; Chrome không kiểm chứng
+camera/đèn/cài đặt của điện thoại.
+
+```powershell
+flutter test test/features/medication_capture test/features/medication
+flutter analyze
+flutter build apk --debug
+```
+
+Kiểm thêm trên Android thật: quyền từ chối/Settings, đèn, chụp và chọn ảnh, chuyển nền,
+ảnh mờ/tối/chói, đủ nội dung toàn ảnh/hướng ảnh tự động, hủy form/đăng xuất và dọn ảnh tạm. Widget test không xác nhận
+phần cứng hoặc native cache được mã hóa. Ảnh do app giữ được mã hóa, hết hạn tối đa 24h;
+không xóa ảnh thư viện gốc. Chi tiết evidence/task chỉ local trong `work/`, không đưa lên GitHub.
+

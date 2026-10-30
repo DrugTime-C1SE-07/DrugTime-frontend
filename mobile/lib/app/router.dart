@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'dart:typed_data';
+import '../features/medication_capture/presentation/screens/capture_flow_screen.dart';
+import '../features/medication_capture/domain/capture_models.dart';
 
 import '../features/consent/presentation/screens/consent_screen.dart';
 import '../features/consent/presentation/screens/legal_document_screen.dart';
@@ -32,6 +35,7 @@ import 'theme/app_theme.dart';
 abstract final class AppRoutes {
   static const home = '/';
   static const addMedication = '/medications/add';
+  static const captureMedication = '/medications/capture';
   static const medicationDetail = '/medications/detail';
   static const editMedication = '/medications/edit';
   static const login = '/login';
@@ -55,6 +59,12 @@ abstract final class AppRoutes {
 
 Route<dynamic>? onGenerateRoute(RouteSettings settings) {
   return switch (settings.name) {
+    AppRoutes.captureMedication => MaterialPageRoute<CaptureResult>(
+        settings: settings,
+        fullscreenDialog: true,
+        builder: (_) =>
+            CaptureFlowScreen(initialImage: settings.arguments as Uint8List?),
+      ),
     AppRoutes.profile => MaterialPageRoute<void>(
         settings: settings,
         builder: (_) => const Scaffold(body: ProfileScreen())),
@@ -157,13 +167,15 @@ Route<dynamic>? onGenerateRoute(RouteSettings settings) {
     AppRoutes.familyEnterCode => MaterialPageRoute<void>(
         settings: settings,
         builder: (_) => EnterLinkCodeScreen(
-          args: settings.arguments as EnterLinkCodeArgs? ?? const EnterLinkCodeArgs(),
+          args: settings.arguments as EnterLinkCodeArgs? ??
+              const EnterLinkCodeArgs(),
         ),
       ),
     AppRoutes.familyLinkResult => MaterialPageRoute<void>(
         settings: settings,
         builder: (_) => LinkRequestResultScreen(
-          outcome: settings.arguments as LinkSubmitOutcome? ?? LinkSubmitOutcome.waiting,
+          outcome: settings.arguments as LinkSubmitOutcome? ??
+              LinkSubmitOutcome.waiting,
         ),
       ),
     _ => null,
