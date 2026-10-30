@@ -1,7 +1,14 @@
 import { ArrowRight, TrendingUp, type LucideIcon } from "lucide-react";
 
+import CountUp from "./CountUp";
+
+/** accent: số liệu chung; warning: cần xử lý; danger: lỗi. Màu lấy từ lớp .tone-* trong globals.css. */
+export type KpiTone = "accent" | "warning" | "danger";
+
 type KpiCardProps = {
-  tone: "blue" | "red";
+  tone: KpiTone;
+  /** Thẻ nổi bật nền đặc; chỉ một thẻ mỗi trang. */
+  featured?: boolean;
   icon: LucideIcon;
   eyebrow: string;
   title: string;
@@ -14,6 +21,7 @@ type KpiCardProps = {
 
 export default function KpiCard({
   tone,
+  featured = false,
   icon: Icon,
   eyebrow,
   title,
@@ -24,7 +32,7 @@ export default function KpiCard({
   footerSecondary,
 }: KpiCardProps) {
   return (
-    <article className={`dashboard-kpi dashboard-kpi--${tone}`}>
+    <article className={`dashboard-kpi tone-${tone}${featured ? " dashboard-kpi--featured" : ""}`}>
       <div className="dashboard-kpi__top">
         <div className="dashboard-kpi__icon" aria-hidden="true">
           <Icon size={25} strokeWidth={2.4} />
@@ -42,7 +50,9 @@ export default function KpiCard({
       </div>
 
       <div className="dashboard-kpi__metric">
-        <strong>{value}</strong>
+        <strong>
+          <CountUp value={value} />
+        </strong>
         <span>{unit}</span>
       </div>
 

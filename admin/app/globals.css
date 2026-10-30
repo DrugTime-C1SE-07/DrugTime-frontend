@@ -1,43 +1,131 @@
-@import url('https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500;1,600;1,700&family=Liberation+Mono:wght@400;600;700&display=swap');
-
 :root {
+  /* Nguồn token duy nhất cho Login và Dashboard. dashboard-theme.css không định nghĩa lại token màu.
+     Contrast đã kiểm bằng `npm run audit:ui` (WCAG 2.2 AA). */
+
+  /* Trung tính */
+  --color-text: #0B1C30;
+  --color-secondary-text: #3B4651;
+  --color-muted: #56606B;
+  --color-surface: #ffffff;
+  --color-shell: #F4F5F7;
+  --color-surface-muted: #F8F9FA;
+  --color-border: #E1E5EA;
+  --color-border-subtle: #EDF0F3;
+  --color-border-control: #868F99;
+  --color-hover: #EEF1F4;
+
+  /* Thương hiệu */
   --color-primary: #006194;
   --color-primary-strong: #004B74;
-  --color-primary-soft: #EFF4FF;
-  --color-text: #0B1C30;
-  --color-muted: #707881;
-  --color-secondary-text: #3F4850;
-  --color-border: #EFF4FF;
-  --color-border-subtle: #edf2f7;
-  --color-danger: #BA1A1A;
-  --color-danger-dark: #93000A;
-  --color-danger-soft: #FFDAD6;
-  --color-success: #006C49;
-  --color-success-soft: rgba(111, 251, 190, 0.3);
-  --color-info: #006195;
-  --color-info-accent: #287AB3;
-  --color-info-soft: #CDE5FF;
-  --color-surface: #ffffff;
-  --color-shell: #F8F9FF;
-  --font-sans:
-    "Be Vietnam Pro", -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Helvetica Neue", Arial,
-    sans-serif;
-  --font-mono:
-    "Liberation Mono", SFMono-Regular, Consolas, "Courier New", monospace;
-  --font-main: var(--font-sans);
+  --color-primary-soft: #E3EFF6;
+  --color-on-primary: #ffffff;
   --color-primary-dark: var(--color-primary-strong);
-  --severity-contraindicated: #BA1A1A;
-  --severity-contraindicated-soft: #FFDAD6;
-  --severity-major: #006195;
-  --severity-major-soft: #D3E4FE;
-  --severity-caution: #006194;
-  --severity-caution-soft: #DCE9FF;
-  --sidebar-width: 256px;
-  --radius-card: 16px;
-  --radius-control: 12px;
+
+  /* Màu nhấn xanh ngọc: điểm nhấn không mang nghĩa cảnh báo (nét biểu đồ, chỉ báo đang chọn).
+     Không dùng họ đỏ/cam/hổ phách để màu ấm luôn mang nghĩa nguy cơ. */
+  --color-accent: #0E8C8C;
+  --color-accent-strong: #0A6E6E;
+  --color-accent-soft: #DDF3F1;
+  --color-accent-bright: #5EEAD4;
+  --color-accent-deep: #085757;
+  --color-on-accent-muted: #D5F0EC;
+
+  /* Sidebar teal đậm (hover/active là trắng 8% / 14% trộn sẵn trên nền sidebar) */
+  --color-sidebar: #0B3A53;
+  --color-sidebar-text: #DCE8EF;
+  --color-sidebar-muted: #B8D0DD;
+  --color-sidebar-hover: #1F4A61;
+  --color-sidebar-active: #2D566B;
+  --color-sidebar-border: #1A4862;
+
+  /* Biểu đồ và tooltip */
+  --chart-error: #C0262D;
+  --chart-grid: #E1E5EA;
+  --color-tooltip: #0B1C30;
+  --color-tooltip-muted: #C3CDD8;
+  /* Login panel tối (bản mẫu C). Contrast: evidence/plan5-tokens.log */
+  --login-scrim: rgba(11, 28, 48, 0.3);
+  --login-panel: #0B1C30;
+  --login-panel-border: #1E3A55;
+  --login-field: #13283E;
+  --login-field-border: #6B8299;
+  --login-label: #E6EDF3;
+  --login-text-muted: #C3CDD8;
+  --login-text-subtle: #AFC0D0;
+  --login-accent-hover: #99F6E4;
+  --login-error: #FCA5A5;
+  --login-plate: rgba(11, 28, 48, 0.86);
+
+  /* Ngữ nghĩa: chữ / nền nhạt */
+  --color-success: #0B6B45;
+  --color-success-soft: #DCF2E6;
+  --color-danger: #A4161A;
+  --color-danger-dark: #8E1414;
+  --color-danger-soft: #FCE4E2;
+  --color-warning: #8A4B00;
+  --color-warning-soft: #FCEFD2;
+  --color-warning-icon: #B45309;
+  --color-info: var(--color-primary);
+  --color-info-accent: var(--color-primary);
+  --color-info-soft: var(--color-primary-soft);
+  --color-neutral-badge: #3E5163;
+  --color-neutral-badge-soft: #E7ECF1;
+
+  /* Mức độ tương tác thuốc: chữ / nền / chấm. Không mức nào dùng màu primary. */
+  --sev-contraindicated-fg: #8E1414;
+  --sev-contraindicated-bg: #FBE0DE;
+  --sev-contraindicated-dot: #C0262D;
+  --sev-major-fg: #9A3412;
+  --sev-major-bg: #FFE7D1;
+  --sev-major-dot: #D9580E;
+  --sev-moderate-fg: #7A4E00;
+  --sev-moderate-bg: #FBF0C9;
+  --sev-moderate-dot: #B7791F;
+  --sev-minor-fg: #3E5163;
+  --sev-minor-bg: #E7ECF1;
+  --sev-minor-dot: #64748B;
+  /* Tên cũ, giữ cho các rule chưa đổi tên */
+  --severity-contraindicated: var(--sev-contraindicated-fg);
+  --severity-contraindicated-soft: var(--sev-contraindicated-bg);
+  --severity-major: var(--sev-major-fg);
+  --severity-major-soft: var(--sev-major-bg);
+  --severity-caution: var(--sev-moderate-fg);
+  --severity-caution-soft: var(--sev-moderate-bg);
+
+  /* Chữ */
+  --font-sans:
+    var(--font-be-vietnam), "Be Vietnam Pro", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial,
+    sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", "Courier New", monospace;
+  --font-main: var(--font-sans);
+  --fs-meta: 12px;
+  --fs-secondary: 13px;
+  --fs-body: 14px;
+  --fs-lead: 16px;
+  --fs-title-sm: 18px;
+  --fs-title: 22px;
+  --fs-display: 28px;
+  --lh-text: 1.5;
+  /* 1ch = bề rộng chữ "0" của Be Vietnam Pro; chữ tiếng Việt hẹp hơn nên 54ch ≈ 70 ký tự/dòng (72ch từng ra 91–95) */
+  --measure: 54ch;
+
+  /* Hình khối */
+  --sidebar-width: 248px;
+  --radius-card: 12px;
+  --radius-control: 8px;
   --radius-pill: 9999px;
-  --shadow-card: 0px 1px 2px rgba(0, 0, 0, 0.05);
-  --shadow-elevated: 0px 1px 8px rgba(0, 0, 0, 0.04);
+  --shadow-card: 0 1px 2px rgba(11, 28, 48, 0.06);
+  --shadow-elevated: 0 4px 12px rgba(11, 28, 48, 0.08);
+  --shadow-overlay: 0 12px 32px rgba(11, 28, 48, 0.18);
+  --shadow-hover: 0 6px 16px rgba(11, 28, 48, 0.1);
+  --focus-ring: 2px solid var(--color-primary);
+
+  /* Chuyển động: chỉ transform/opacity/màu; tắt theo prefers-reduced-motion (cuối file) */
+  --dur-fast: 120ms;
+  --dur-base: 180ms;
+  --dur-slow: 240ms;
+  --dur-chart: 800ms;
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
 * {
@@ -147,11 +235,11 @@ button {
   display: inline-flex;
   align-items: center;
   min-height: 20px;
-  padding: 2px 6px;
+  padding: 2px 8px;
   border-radius: 6px;
-  background: #007bb9;
-  color: #fdfcff;
-  font-size: 11px;
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+  font-size: var(--fs-meta);
   font-weight: 700;
   letter-spacing: 0.5px;
   line-height: 1;
@@ -353,10 +441,9 @@ button {
   height: 36px;
   gap: 8px;
   padding: 0 14px;
-  border: 0;
-  border-radius: var(--radius-pill);
-  background: #ffffff;
-  box-shadow: var(--shadow-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: var(--color-surface);
   color: var(--color-secondary-text);
 }
 
@@ -378,13 +465,14 @@ button {
   width: 36px;
   height: 36px;
   place-items: center;
-  border: 0;
+  border: 1px solid var(--color-border);
   border-radius: var(--radius-control);
-  background: #ffffff;
-  box-shadow: var(--shadow-elevated);
+  background: var(--color-surface);
   color: var(--color-secondary-text);
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease;
 }
 
 .admin-topbar__icon-button:hover {
@@ -437,19 +525,6 @@ button {
   gap: 24px;
 }
 
-.dashboard-breadcrumb {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  color: #6d7680;
-  font-size: 14px;
-  font-weight: 700;
-}
-
-.dashboard-breadcrumb strong {
-  color: var(--color-primary);
-}
-
 .dashboard-header h1 {
   margin: 8px 0 0;
   color: #06182d;
@@ -474,7 +549,7 @@ button {
   padding: 0 20px;
   border: 1px solid var(--color-border);
   border-radius: 8px;
-  font-size: 16px;
+  font-size: var(--fs-body);
   font-weight: 750;
   cursor: pointer;
 }
@@ -482,14 +557,14 @@ button {
 .dashboard-action--secondary {
   background: #ffffff;
   color: #1b2838;
-  box-shadow: 0 10px 26px rgba(18, 38, 63, 0.07);
+  box-shadow: var(--shadow-card);
 }
 
 .dashboard-action--primary {
   border-color: var(--color-primary);
   background: var(--color-primary);
-  color: #ffffff;
-  box-shadow: 0 10px 26px rgba(8, 118, 166, 0.2);
+  color: var(--color-on-primary);
+  box-shadow: none;
 }
 
 .dashboard-kpi-grid {
@@ -504,12 +579,56 @@ button {
   border: 1px solid var(--color-border);
   border-radius: 8px;
   background: #ffffff;
-  box-shadow: 0 12px 30px rgba(18, 38, 63, 0.06);
+  box-shadow: var(--shadow-card);
 }
 
 .dashboard-kpi {
   display: grid;
   min-height: 180px;
+}
+
+/* Hệ tone dùng chung cho thẻ KPI và thẻ thống kê: --tone (vạch, thanh tỉ lệ), --tone-strong (ô icon, chữ), --tone-soft (nền nhạt) */
+.tone-primary {
+  --tone: var(--color-primary);
+  --tone-strong: var(--color-primary-strong);
+  --tone-soft: var(--color-primary-soft);
+}
+
+.tone-accent {
+  --tone: var(--color-accent);
+  --tone-strong: var(--color-accent-strong);
+  --tone-soft: var(--color-accent-soft);
+}
+
+.tone-success {
+  --tone: var(--color-success);
+  --tone-strong: var(--color-success);
+  --tone-soft: var(--color-success-soft);
+}
+
+.tone-warning {
+  --tone: var(--color-warning-icon);
+  --tone-strong: var(--color-warning);
+  --tone-soft: var(--color-warning-soft);
+}
+
+.tone-danger {
+  --tone: var(--chart-error);
+  --tone-strong: var(--color-danger);
+  --tone-soft: var(--color-danger-soft);
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.count-up {
+  font-variant-numeric: tabular-nums;
 }
 
 .dashboard-kpi__top {
@@ -531,11 +650,6 @@ button {
   color: var(--color-primary);
 }
 
-.dashboard-kpi--red .dashboard-kpi__icon {
-  background: #ffe8e8;
-  color: var(--color-danger);
-}
-
 .dashboard-kpi__label {
   display: grid;
   min-width: 0;
@@ -543,7 +657,7 @@ button {
 }
 
 .dashboard-kpi__label span {
-  color: #8a929c;
+  color: var(--color-muted);
   font-size: 14px;
   font-weight: 800;
   text-transform: uppercase;
@@ -562,8 +676,8 @@ button {
   margin-left: auto;
   padding: 8px 12px;
   border-radius: 999px;
-  background: #62e6ad;
-  color: #087f5b;
+  background: var(--color-success-soft);
+  color: var(--color-success);
   font-size: 14px;
   font-weight: 800;
   white-space: nowrap;
@@ -577,21 +691,17 @@ button {
 }
 
 .dashboard-kpi__metric strong {
-  color: #07182d;
+  color: var(--color-text);
   font-size: 58px;
   font-weight: 800;
   line-height: 1;
 }
 
-.dashboard-kpi__metric span {
-  color: #4f5863;
+/* Chỉ chữ đơn vị (con trực tiếp); không ăn vào các span bên trong CountUp của số chính */
+.dashboard-kpi__metric > span {
+  color: var(--color-secondary-text);
   font-size: 18px;
   font-weight: 650;
-}
-
-.dashboard-kpi--red .dashboard-kpi__metric span,
-.dashboard-kpi--red .dashboard-kpi__label span {
-  color: var(--color-danger);
 }
 
 .dashboard-kpi__footer {
@@ -606,10 +716,6 @@ button {
   font-weight: 650;
 }
 
-.dashboard-kpi--red .dashboard-kpi__footer {
-  background: #fff4f4;
-}
-
 .dashboard-kpi__footer strong {
   display: inline-flex;
   align-items: center;
@@ -617,10 +723,6 @@ button {
   color: var(--color-primary);
   font-weight: 800;
   text-align: right;
-}
-
-.dashboard-kpi--red .dashboard-kpi__footer strong {
-  color: var(--color-danger);
 }
 
 .dashboard-main-grid {
@@ -665,16 +767,16 @@ button {
   height: 26px;
   padding: 0 10px;
   border-radius: 7px;
-  background: #65e9ad;
-  color: #057a55;
+  background: var(--color-success-soft);
+  color: var(--color-success);
   font-size: 13px;
   font-weight: 800;
 }
 
 .dashboard-panel__header p {
-  max-width: 520px;
+  max-width: var(--measure);
   margin: 8px 0 0;
-  color: #59636f;
+  color: var(--color-muted);
   font-size: 16px;
   font-weight: 500;
 }
@@ -684,7 +786,7 @@ button {
   gap: 8px;
   padding: 8px;
   border-radius: 14px;
-  background: #eef4ff;
+  background: var(--color-surface-muted);
 }
 
 .dashboard-tabs button {
@@ -701,7 +803,7 @@ button {
 .dashboard-tabs__active {
   background: #ffffff !important;
   color: var(--color-primary) !important;
-  box-shadow: 0 6px 16px rgba(18, 38, 63, 0.06);
+  box-shadow: var(--shadow-card);
 }
 
 .dashboard-sync__stats {
@@ -711,7 +813,7 @@ button {
   margin-top: 48px;
   padding: 18px;
   border-radius: 12px;
-  background: #eef4ff;
+  background: var(--color-surface-muted);
 }
 
 .dashboard-sync__stats div {
@@ -720,7 +822,7 @@ button {
 }
 
 .dashboard-sync__stats span {
-  color: #7a838d;
+  color: var(--color-muted);
   font-size: 14px;
   font-weight: 700;
 }
@@ -731,7 +833,7 @@ button {
 }
 
 .text-green {
-  color: #087f5b !important;
+  color: var(--color-success) !important;
 }
 
 .text-blue {
@@ -742,68 +844,193 @@ button {
   color: var(--color-danger) !important;
 }
 
+/* Biểu đồ đồng bộ (SyncStatusPanel.tsx): SVG vẽ theo pixel thật của khung, điểm sinh từ dữ liệu
+   (lib/chart/geometry.ts) nên luôn nằm trên đường, thẳng hàng với nhãn ngày, không méo. */
 .dashboard-chart {
-  margin-top: 36px;
+  position: relative;
+  margin-top: 24px;
 }
 
 .dashboard-chart svg {
   display: block;
   width: 100%;
-  height: 280px;
+  overflow: visible;
+}
+
+.dashboard-chart__placeholder,
+.dashboard-chart__empty {
+  display: grid;
+  place-items: center;
+  height: 300px;
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius-control);
+  color: var(--color-muted);
+  font-size: var(--fs-body);
+}
+
+.dashboard-chart__placeholder {
+  border-color: transparent;
 }
 
 .chart-grid {
-  fill: none;
-  stroke: #e8eef7;
+  stroke: var(--chart-grid);
   stroke-width: 1;
 }
 
+.chart-axis-label {
+  fill: var(--color-muted);
+  font-size: var(--fs-meta);
+  font-variant-numeric: tabular-nums;
+}
+
+.chart-axis-label--error {
+  fill: var(--color-danger);
+}
+
+.chart-x-label {
+  fill: var(--color-muted);
+  font-size: var(--fs-meta);
+  font-weight: 600;
+}
+
+.chart-x-label--today {
+  fill: var(--color-accent-strong);
+  font-weight: 700;
+}
+
+.chart-x-label.is-active {
+  fill: var(--color-text);
+}
+
 .chart-area {
-  fill: url("#syncArea");
+  animation: chart-fade var(--dur-chart) var(--ease-out) both;
 }
 
 .chart-line {
   fill: none;
-  stroke-width: 4;
+  stroke-width: 3;
   stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
+/* Vẽ dần một lần khi tải: pathLength = 1 nên dasharray/offset tính theo tỉ lệ */
 .chart-line--success {
-  stroke: var(--color-primary);
+  stroke: var(--color-accent);
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: chart-draw var(--dur-chart) var(--ease-out) forwards;
 }
 
 .chart-line--error {
-  stroke: var(--color-danger);
-  stroke-dasharray: 6 8;
+  stroke: var(--chart-error);
+  stroke-width: 2;
+  stroke-dasharray: 6 6;
+  animation: chart-fade var(--dur-chart) var(--ease-out) both;
 }
 
-.dashboard-chart circle {
-  fill: var(--color-primary);
+.chart-point {
+  fill: var(--color-surface);
+  stroke-width: 2.5;
+  transform-box: fill-box;
+  transform-origin: center;
+  transition: transform var(--dur-fast) var(--ease-out);
+  animation: chart-fade var(--dur-chart) var(--ease-out) both;
 }
 
-.dashboard-chart__labels {
-  display: grid;
-  grid-template-columns: repeat(7, minmax(0, 1fr));
-  gap: 8px;
-  color: #8a929c;
-  font-size: 13px;
+.chart-point--success {
+  stroke: var(--color-accent);
+}
+
+.chart-point--error {
+  stroke: var(--chart-error);
+}
+
+.chart-point.is-active {
+  transform: scale(1.5);
+}
+
+.chart-crosshair {
+  stroke: var(--color-border-control);
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+}
+
+.chart-hit {
+  fill: transparent;
+  cursor: crosshair;
+  outline: none;
+}
+
+/* Tab vào một ngày: viền cột (ngoài đường dóng + tooltip) để thấy rõ đang focus ở đâu */
+.chart-hit:focus-visible {
+  stroke: var(--color-primary);
+  stroke-width: 2;
+}
+
+.dashboard-chart__tooltip {
+  position: absolute;
+  z-index: 2;
+  min-width: 168px;
+  padding: 8px 12px;
+  border-radius: var(--radius-control);
+  background: var(--color-tooltip);
+  box-shadow: var(--shadow-overlay);
+  color: #ffffff;
+  font-size: var(--fs-secondary);
+  line-height: 1.45;
+  pointer-events: none;
+  transform: translate(-50%, calc(-100% - 14px));
+  animation: chart-tooltip-in var(--dur-fast) var(--ease-out);
+}
+
+.dashboard-chart__tooltip strong {
+  display: block;
+  margin-bottom: 4px;
+  font-size: var(--fs-secondary);
+}
+
+.dashboard-chart__tooltip span {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--color-tooltip-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.dashboard-chart__tooltip b {
+  color: #ffffff;
   font-weight: 700;
 }
 
-.dashboard-chart__labels span:last-child {
-  color: var(--color-primary);
-  font-weight: 800;
+@keyframes chart-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes chart-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes chart-tooltip-in {
+  from {
+    opacity: 0;
+  }
 }
 
 .dashboard-sync__legend {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
   gap: 12px;
-  margin-top: 22px;
-  color: #626c77;
-  font-size: 14px;
-  font-weight: 700;
+  margin-top: 16px;
+  color: var(--color-secondary-text);
+  font-size: var(--fs-secondary);
+  font-weight: 600;
 }
 
 .dashboard-sync__legend span {
@@ -813,22 +1040,17 @@ button {
 }
 
 .legend-dot {
-  width: 14px;
-  height: 14px;
+  width: 12px;
+  height: 12px;
+  border: 2.5px solid var(--color-accent);
   border-radius: 999px;
-}
-
-.legend-dot--blue {
-  background: var(--color-primary);
+  background: var(--color-surface);
 }
 
 .legend-line {
   width: 18px;
-  height: 4px;
-}
-
-.legend-line--red {
-  background: var(--color-danger);
+  height: 0;
+  border-top: 2px dashed var(--chart-error);
 }
 
 .dashboard-quality {
@@ -843,40 +1065,80 @@ button {
   height: 40px;
   place-items: center;
   border-radius: 12px;
-  background: #eef4ff;
-  color: #7b8794;
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
 }
 
+/* Vòng chất lượng (DataQualityPanel.tsx): cung SVG vẽ theo dữ liệu, không cứng trong CSS */
 .quality-ring {
+  position: relative;
   display: grid;
   width: 188px;
   height: 188px;
   place-items: center;
   justify-self: center;
-  border-radius: 999px;
-  background:
-    radial-gradient(circle at center, #ffffff 0 54%, transparent 55%),
-    conic-gradient(#087f5b 0 84%, #2b83ba 84% 98%, #c91f2e 98% 100%);
 }
 
-.quality-ring span,
-.quality-ring strong {
+.quality-ring svg {
   grid-area: 1 / 1;
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);
 }
 
-.quality-ring span {
-  margin-top: -12px;
-  color: #07182d;
+.quality-ring__track,
+.quality-ring__segment {
+  fill: none;
+  stroke-width: 12;
+}
+
+.quality-ring__track {
+  stroke: var(--chart-grid);
+}
+
+.quality-ring__segment {
+  animation: ring-draw var(--dur-chart) var(--ease-out) both;
+}
+
+.quality-ring__segment--green {
+  stroke: var(--color-success);
+}
+
+.quality-ring__segment--blue {
+  stroke: var(--color-primary);
+}
+
+.quality-ring__segment--red {
+  stroke: var(--chart-error);
+}
+
+@keyframes ring-draw {
+  from {
+    stroke-dasharray: 0 400;
+  }
+}
+
+.quality-ring__label {
+  display: grid;
+  grid-area: 1 / 1;
+  justify-items: center;
+  gap: 2px;
+}
+
+.quality-ring__label span {
+  color: var(--color-text);
   font-size: 42px;
-  font-weight: 800;
+  font-weight: 700;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
 }
 
-.quality-ring strong {
-  margin-top: 56px;
-  color: #087f5b;
-  font-size: 14px;
-  font-weight: 800;
+.quality-ring__label strong {
+  color: var(--color-success);
+  font-size: var(--fs-meta);
+  font-weight: 700;
   text-transform: uppercase;
+  letter-spacing: 0.4px;
 }
 
 .quality-list {
@@ -889,7 +1151,7 @@ button {
   gap: 10px;
   padding: 14px;
   border-radius: 12px;
-  background: #eef4ff;
+  background: var(--color-surface-muted);
 }
 
 .quality-item > div {
@@ -918,17 +1180,17 @@ button {
 
 .quality-dot--green,
 .quality-fill--green {
-  background: #087f5b;
+  background: var(--color-success);
 }
 
 .quality-dot--blue,
 .quality-fill--blue {
-  background: #2b83ba;
+  background: var(--color-primary);
 }
 
 .quality-dot--red,
 .quality-fill--red {
-  background: #c91f2e;
+  background: var(--color-danger);
 }
 
 .quality-track {
@@ -937,13 +1199,22 @@ button {
   height: 7px;
   overflow: hidden;
   border-radius: 999px;
-  background: #dfeafc;
+  background: var(--chart-grid);
 }
 
+/* Thanh mọc từ trái sang một lần khi tải (scaleX, không đổi width) */
 .quality-fill {
   display: block;
   height: 100%;
   border-radius: inherit;
+  transform-origin: left center;
+  animation: bar-grow var(--dur-chart) var(--ease-out) both;
+}
+
+@keyframes bar-grow {
+  from {
+    transform: scaleX(0);
+  }
 }
 
 .dashboard-quality__footer {
@@ -999,8 +1270,8 @@ button {
 .workers-table__head {
   min-height: 58px;
   padding: 0 20px;
-  background: #eef4ff;
-  color: #59636f;
+  background: var(--color-surface-muted);
+  color: var(--color-muted);
   font-size: 13px;
   font-weight: 800;
   text-transform: uppercase;
@@ -1024,7 +1295,7 @@ button {
 }
 
 .workers-table__row em {
-  color: #087f5b;
+  color: var(--color-success);
   font-style: normal;
   font-weight: 800;
 }
@@ -1037,7 +1308,7 @@ button {
 }
 
 .worker-source-dot--green {
-  background: #087f5b;
+  background: var(--color-success);
 }
 
 .worker-source-dot--blue {
@@ -1062,12 +1333,12 @@ button {
 }
 
 .worker-status--green {
-  background: #65e9ad;
-  color: #087f5b;
+  background: var(--color-success-soft);
+  color: var(--color-success);
 }
 
 .worker-status--red {
-  background: #ffe3e3;
+  background: var(--color-danger-soft);
   color: var(--color-danger);
 }
 
@@ -1075,7 +1346,7 @@ button {
   margin-top: 18px;
   padding: 14px;
   border-radius: 12px;
-  background: #eef4ff;
+  background: var(--color-surface-muted);
 }
 
 .dashboard-workers__footer button {
@@ -1104,21 +1375,6 @@ button {
   gap: 20px;
 }
 
-.dashboard-breadcrumb {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: var(--color-muted);
-  font-size: 12px;
-  font-weight: 500;
-  line-height: 16px;
-}
-
-.dashboard-breadcrumb strong {
-  color: var(--color-primary);
-  font-weight: 500;
-}
-
 .medications-header h1 {
   margin: 4px 0 0;
   color: var(--color-text);
@@ -1131,9 +1387,10 @@ button {
 .medications-header p {
   margin: 4px 0 0;
   color: var(--color-muted);
-  font-size: 13px;
+  font-size: var(--fs-body);
   font-weight: 400;
-  line-height: 18px;
+  line-height: var(--lh-text);
+  max-width: var(--measure);
 }
 
 .medications-header__actions {
@@ -1157,7 +1414,12 @@ button {
   line-height: 18px;
   cursor: pointer;
   box-shadow: var(--shadow-card);
-  transition: all 0.15s ease;
+  transition:
+    background-color var(--dur-fast) ease,
+    border-color var(--dur-fast) ease,
+    color var(--dur-fast) ease,
+    box-shadow var(--dur-fast) ease,
+    transform var(--dur-fast) ease;
 }
 
 .dashboard-action--secondary {
@@ -1167,7 +1429,7 @@ button {
 }
 
 .dashboard-action--secondary:hover {
-  background: #e2edff;
+  background: var(--color-hover);
 }
 
 .dashboard-action--primary {
@@ -1180,132 +1442,119 @@ button {
   background: var(--color-primary-strong);
 }
 
+/* Thẻ thống kê (MedicationStatsGrid, InteractionStatsGrid): tone qua lớp .tone-* (biến --tone*),
+   vạch trái màu tone, ô icon nền đặc, số lớn, thanh tỉ lệ khi có phần trăm (AC18) */
 .medication-stats-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 14px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
 }
 
 .medication-stat {
   display: flex;
-  flex-direction: row;
-  justify-content: space-between;
-  align-items: center;
-  padding: 14px 18px;
-  min-height: 80px;
-  background: #ffffff;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 18px 18px 16px;
+  min-height: 116px;
+  background: var(--color-surface);
   box-shadow: var(--shadow-card);
   border-radius: var(--radius-card);
-  border: 0;
+  border: 1px solid var(--color-border);
+  border-left: 4px solid var(--tone, var(--color-border));
+}
+
+.medication-stat__icon-box {
+  display: grid;
+  flex: 0 0 40px;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-control);
+  background: var(--tone-strong, var(--color-primary-strong));
+  color: #ffffff;
 }
 
 .medication-stat__content {
   display: flex;
+  flex: 1 1 auto;
   flex-direction: column;
-  gap: 2px;
+  gap: 4px;
+  min-width: 0;
 }
 
+/* Chữ thường 13px: nhãn dài ("Dữ liệu cào / Cần duyệt") vẫn một dòng nên số các thẻ thẳng hàng */
 .medication-stat span.medication-stat__label {
-  font-size: 11px;
+  font-size: var(--fs-secondary);
   font-weight: 600;
-  line-height: 14px;
-  letter-spacing: 0.5px;
-  text-transform: uppercase;
-  color: var(--color-secondary-text);
+  line-height: 18px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--tone-strong, var(--color-secondary-text));
 }
 
 .medication-stat strong {
   display: block;
-  font-size: 22px;
+  font-size: 32px;
   font-weight: 700;
-  line-height: 28px;
+  line-height: 1.1;
+  letter-spacing: -0.5px;
   color: var(--color-text);
+  font-variant-numeric: tabular-nums;
 }
 
-.medication-stat__side {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+/* Thanh tỉ lệ: chữ phần trăm luôn đi kèm, màu không phải kênh duy nhất */
+.stat-meter {
+  display: grid;
+  gap: 6px;
+  margin-top: 6px;
 }
 
-.medication-stat__icon-box {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  width: 40px;
-  height: 40px;
-  border-radius: 10px;
-  background: var(--color-primary-soft);
-  color: var(--color-primary);
+.stat-meter__track {
+  display: block;
+  height: 6px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--chart-grid);
 }
 
-.medication-stat--green .medication-stat__label,
-.medication-stat--green strong {
-  color: var(--color-success);
+.stat-meter__fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--tone, var(--color-primary));
+  transform-origin: left center;
+  animation: bar-grow var(--dur-chart) var(--ease-out) both;
 }
 
-.medication-stat--green .medication-stat__icon-box {
-  background: var(--color-success-soft);
-  color: var(--color-success);
-}
-
-.medication-stat--green em.medication-stat__badge {
-  background: rgba(108, 248, 187, 0.4);
-  color: var(--color-success);
-}
-
-.medication-stat--blue .medication-stat__label {
-  color: var(--color-info);
-}
-
-.medication-stat--blue strong {
-  color: var(--color-info-accent);
-}
-
-.medication-stat--blue .medication-stat__icon-box {
-  background: var(--color-info-soft);
-  color: var(--color-info);
-}
-
-.medication-stat--blue em.medication-stat__badge {
-  background: var(--color-info-soft);
-  color: var(--color-info-accent);
-}
-
-.medication-stat--red .medication-stat__label,
-.medication-stat--red strong {
-  color: var(--color-danger);
-}
-
-.medication-stat--red .medication-stat__icon-box {
-  background: var(--color-danger-soft);
-  color: var(--color-danger);
-}
-
-.medication-stat--red em.medication-stat__badge {
-  background: var(--color-danger-soft);
-  color: var(--color-danger-dark);
+.stat-meter__text {
+  color: var(--color-secondary-text);
+  font-size: var(--fs-meta);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
 }
 
 .medication-stat em.medication-stat__badge {
+  align-self: flex-start;
+  margin-top: 6px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: var(--tone-soft, var(--color-primary-soft));
+  color: var(--tone-strong, var(--color-primary-strong));
   font-style: normal;
   font-weight: 700;
-  font-size: 11px;
-  line-height: 16px;
-  padding: 0 6px;
-  border-radius: 4px;
+  font-size: var(--fs-meta);
+  line-height: 18px;
 }
 
 .medication-filters {
   display: flex;
   flex-direction: row;
   align-items: center;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   gap: 10px;
-  padding: 0 16px;
-  height: 56px !important;
-  min-height: 56px !important;
-  max-height: 56px !important;
+  padding: 8px 16px;
+  min-height: 56px;
   background: #ffffff;
   box-shadow: var(--shadow-card);
   border-radius: var(--radius-card);
@@ -1313,18 +1562,19 @@ button {
   box-sizing: border-box !important;
 }
 
+/* Thanh lọc 2 hàng có chủ đích: tìm kiếm chiếm cả hàng trên, ô lọc + "Đặt lại" ở hàng dưới */
 .medication-search {
-  flex: 1 1 auto;
-  min-width: 160px;
+  flex: 1 1 100%;
+  min-width: 220px;
   display: flex;
   flex-direction: row;
   align-items: center;
   padding: 0 12px;
   gap: 8px;
   height: 38px !important;
-  background: var(--color-shell);
+  background: var(--color-surface);
   border-radius: var(--radius-control);
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--color-border-control);
   color: var(--color-muted);
   transition: border-color 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease;
   box-sizing: border-box !important;
@@ -1332,14 +1582,15 @@ button {
 }
 
 .medication-search:hover {
-  border-color: #cbd5e1;
+  border-color: var(--color-border-control);
   background: #ffffff;
 }
 
 .medication-search:focus-within {
   border-color: var(--color-primary);
-  background: #ffffff;
-  box-shadow: 0 0 0 3px rgba(0, 97, 148, 0.12);
+  background: var(--color-surface);
+  outline: var(--focus-ring);
+  outline-offset: 1px;
 }
 
 .medication-search input {
@@ -1349,7 +1600,7 @@ button {
   box-shadow: none !important;
   background: transparent;
   font-family: var(--font-sans);
-  font-size: 13px;
+  font-size: var(--fs-body);
   line-height: 18px;
   color: var(--color-text);
 }
@@ -1375,12 +1626,12 @@ button {
   padding: 0 12px 0 14px;
   gap: 6px;
   height: 38px;
-  background: var(--color-shell);
+  background: var(--color-surface);
   border-radius: var(--radius-control);
-  border: 0;
+  border: 1px solid var(--color-border-control);
   font-family: var(--font-sans);
   font-weight: 500;
-  font-size: 13px;
+  font-size: var(--fs-body);
   line-height: 18px;
   color: var(--color-text);
   cursor: pointer;
@@ -1420,10 +1671,10 @@ button {
   padding: 0 16px;
   background: var(--color-primary-soft);
   color: var(--color-secondary-text);
-  font-size: 11px;
+  font-size: var(--fs-meta);
   font-weight: 700;
   line-height: 16px;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.4px;
   text-transform: uppercase;
 }
 
@@ -1435,15 +1686,15 @@ button {
   display: grid;
   grid-template-columns: minmax(220px, 1.8fr) minmax(220px, 1.8fr) 130px 170px 150px 150px 130px;
   align-items: center;
-  min-height: 52px;
-  padding: 6px 16px;
+  min-height: 56px;
+  padding: 10px 16px;
   border-top: 1px solid var(--color-border);
   background: #ffffff;
   transition: background 0.15s ease;
 }
 
 .medication-table__row:hover {
-  background: #fbfdff;
+  background: var(--color-surface-muted);
 }
 
 .medication-table__row--pending {
@@ -1476,7 +1727,7 @@ button {
 }
 
 .medication-name-form {
-  font-size: 12px;
+  font-size: var(--fs-secondary);
   font-weight: 500;
   line-height: 16px;
   color: var(--color-secondary-text);
@@ -1486,7 +1737,7 @@ button {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  font-size: 12px;
+  font-size: var(--fs-secondary);
   font-weight: 500;
   line-height: 16px;
   color: var(--color-danger);
@@ -1505,8 +1756,16 @@ button {
   color: var(--color-text);
 }
 
+.medication-ingredient-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  margin-top: 2px;
+}
+
 .medication-ingredient-strength {
-  font-size: 12px;
+  font-size: var(--fs-secondary);
   font-weight: 500;
   line-height: 16px;
   color: var(--color-muted);
@@ -1517,7 +1776,7 @@ button {
   align-items: center;
   padding: 2px 8px;
   border-radius: 4px;
-  background: #E5EEFF;
+  background: var(--color-neutral-badge-soft);
   font-family: var(--font-mono);
   font-size: 12px;
   font-weight: 600;
@@ -1545,14 +1804,14 @@ button {
 .medication-source-tag {
   display: inline-flex;
   align-items: center;
-  padding: 0 6px;
-  height: 20px;
-  background: #DCE9FF;
+  padding: 0 8px;
+  height: 22px;
+  background: var(--color-neutral-badge-soft);
   border-radius: 4px;
   font-family: var(--font-mono);
-  font-size: 11px;
-  line-height: 20px;
-  color: var(--color-secondary-text);
+  font-size: var(--fs-meta);
+  line-height: 22px;
+  color: var(--color-neutral-badge);
 }
 
 .medication-group-badge {
@@ -1560,13 +1819,23 @@ button {
   align-items: center;
   gap: 4px;
   padding: 4px 10px;
-  background: #E5EEFF;
+  background: var(--color-neutral-badge-soft);
   border-radius: var(--radius-pill);
   font-size: 12px;
   font-weight: 500;
   line-height: 16px;
   color: var(--color-secondary-text);
   width: fit-content;
+  max-width: 100%;
+  min-width: 0;
+}
+
+/* Tên nhóm dài cắt bằng "…" trong cột; title trên badge hiện đủ */
+.medication-group-badge__text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .medication-quality-badge {
@@ -1582,7 +1851,7 @@ button {
 }
 
 .medication-quality-badge--verified {
-  background: rgba(111, 251, 190, 0.4);
+  background: var(--color-success-soft);
   color: var(--color-success);
 }
 
@@ -1601,15 +1870,15 @@ button {
   flex-direction: row;
   justify-content: flex-end;
   align-items: center;
-  gap: 4px;
+  gap: 2px;
 }
 
 .medication-action-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
+  width: 32px;
+  height: 32px;
   padding: 0;
   border: 0;
   border-radius: 8px;
@@ -1642,15 +1911,38 @@ button {
   background: #ffc4be;
 }
 
+/* Trạng thái rỗng của bảng thuốc (trước là inline style) */
+.medication-empty-title {
+  color: var(--color-text);
+  font-size: var(--fs-lead);
+}
+
+.medication-empty-text {
+  margin: 0;
+  max-width: var(--measure);
+  font-size: var(--fs-body);
+  line-height: var(--lh-text);
+  text-align: center;
+}
+
+/* Ghi chú phụ trong modal xác nhận xóa */
+.modal-confirm-note {
+  display: block;
+  margin-top: 6px;
+  color: var(--color-muted);
+  font-size: var(--fs-secondary);
+  line-height: var(--lh-text);
+}
+
 .medication-pagination {
   display: flex;
   flex-direction: row;
   justify-content: space-between;
   align-items: center;
   padding: 8px 16px;
-  height: 52px;
-  background: var(--color-primary-soft);
+  background: var(--color-surface-muted);
   border-top: 1px solid var(--color-border);
+  min-height: 56px;
 }
 
 .medication-pagination__info {
@@ -1674,7 +1966,7 @@ button {
   flex-direction: row;
   align-items: center;
   gap: 8px;
-  font-size: 12px;
+  font-size: var(--fs-secondary);
   font-weight: 500;
   color: var(--color-secondary-text);
 }
@@ -1686,7 +1978,7 @@ button {
   border: 0;
   border-radius: 6px;
   font-family: var(--font-sans);
-  font-size: 12px;
+  font-size: var(--fs-secondary);
   font-weight: 500;
   color: var(--color-text);
   cursor: pointer;
@@ -1704,21 +1996,22 @@ button {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 30px;
-  height: 30px;
+  height: 32px;
   background: #ffffff;
-  border: 0;
+  border: 1px solid var(--color-border);
   border-radius: 6px;
   font-family: var(--font-sans);
-  font-size: 12px;
+  font-size: var(--fs-secondary);
   font-weight: 500;
   color: var(--color-text);
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: background-color 0.15s ease, color 0.15s ease;
+  min-width: 32px;
+  padding: 0 6px;
 }
 
 .medication-pages button:hover:not(:disabled) {
-  background: #e2edff;
+  background: var(--color-hover);
 }
 
 .medication-pages button:disabled {
@@ -1739,7 +2032,7 @@ button {
   align-items: center;
   justify-content: center;
   width: 16px;
-  font-size: 12px;
+  font-size: var(--fs-secondary);
   color: var(--color-muted);
 }
 
@@ -1786,8 +2079,9 @@ button {
   margin: 0;
   font-size: 14px;
   font-weight: 400;
-  line-height: 20px;
+  line-height: var(--lh-text);
   color: var(--color-secondary-text);
+  max-width: var(--measure);
 }
 
 .medication-sync-banner__actions {
@@ -1803,16 +2097,15 @@ button {
   height: 36px;
   gap: 6px;
   padding: 0 14px;
-  border: 0;
+  border: 1px solid var(--color-border-control);
   border-radius: var(--radius-control);
-  background: #ffffff;
-  box-shadow: var(--shadow-card);
+  background: var(--color-surface);
   font-family: var(--font-sans);
-  font-size: 12px;
+  font-size: var(--fs-secondary);
   font-weight: 500;
   color: var(--color-text);
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: background-color 0.15s ease;
 }
 
 .medication-sync-banner__actions button:hover {
@@ -1848,258 +2141,229 @@ button {
   margin: 0;
   color: var(--color-muted);
   font-size: 16px;
-  line-height: 1.5;
+  line-height: var(--lh-text);
+  max-width: var(--measure);
 }
 
 /* ==========================================================================
-   AUTHENTICATION & LOGIN PORTAL (HỆ THỐNG Y TẾ QUỐC GIA)
+   AUTHENTICATION & LOGIN — bản mẫu C "Panel tối" (work/.../mockups/login.html#c)
+   Video hiện rõ (phủ 30%), panel navy đặc cố định bên phải chứa form tối, nút xanh ngọc sáng.
+   Không có chữ đặt thẳng lên video: tagline nằm trong viên nền đặc --login-plate.
+   Không gradient, không kính mờ (AC5). Contrast đã kiểm bằng `npm run audit:ui`.
    ========================================================================== */
 .admin-login-page {
-  min-height: 100vh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: radial-gradient(circle at 10% 20%, #eff4ff 0%, #f8f9ff 90%);
-  padding: 24px 16px;
-}
-
-.admin-login-layout {
-  width: 100%;
-  max-width: 1040px;
-  min-height: 620px;
-  display: grid;
-  grid-template-columns: 1.1fr 1fr;
-  background: #ffffff;
-  border-radius: 20px;
-  overflow: hidden;
-  box-shadow: 0 20px 50px rgba(15, 23, 42, 0.1);
-  border: 1px solid #e2e8f0;
-}
-
-/* Cột trái: Hero & Chuẩn Y tế */
-.admin-login-hero {
-  background: linear-gradient(145deg, #004b74 0%, #002d47 100%);
-  color: #ffffff;
-  padding: 44px 40px;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
   position: relative;
+  min-height: 100vh;
+  min-height: 100dvh;
   overflow: hidden;
+  background: var(--login-panel);
 }
 
-.admin-login-hero::before {
+.admin-login-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  background: var(--login-panel) url("/media/login-background-poster.jpg") center / cover no-repeat;
+}
+
+.admin-login-backdrop__video {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.admin-login-backdrop::after {
   content: "";
   position: absolute;
-  top: -80px;
-  right: -80px;
-  width: 240px;
-  height: 240px;
-  background: radial-gradient(circle, rgba(0, 163, 255, 0.18) 0%, transparent 70%);
-  border-radius: 50%;
-  pointer-events: none;
+  inset: 0;
+  background: var(--login-scrim);
 }
 
-.admin-login-hero-inner {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  justify-content: space-between;
-  position: relative;
+/* Panel cố định bên phải, cao hết màn hình; cuộn dọc khi màn thấp */
+.admin-login-stage {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
   z-index: 1;
-}
-
-.admin-login-hero-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  background: rgba(255, 255, 255, 0.12);
-  backdrop-filter: blur(8px);
-  padding: 6px 12px;
-  border-radius: 20px;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.6px;
-  color: #a5f3fc;
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  align-self: flex-start;
-  margin-bottom: 20px;
-}
-
-.admin-login-hero-title {
-  font-size: 26px;
-  font-weight: 750;
-  line-height: 1.3;
-  margin: 0 0 12px 0;
-  color: #ffffff;
-  letter-spacing: -0.3px;
-}
-
-.admin-login-hero-desc {
-  font-size: 13.5px;
-  line-height: 1.6;
-  color: #cbd5e1;
-  margin: 0 0 28px 0;
-}
-
-.admin-login-features {
   display: flex;
   flex-direction: column;
-  gap: 18px;
-  margin-bottom: 28px;
-}
-
-.admin-login-feature-item {
-  display: flex;
-  align-items: flex-start;
-  gap: 14px;
-}
-
-.admin-login-feature-icon {
-  width: 36px;
-  height: 36px;
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.1);
-  color: #38bdf8;
-  display: grid;
-  place-items: center;
-  flex-shrink: 0;
-  border: 1px solid rgba(255, 255, 255, 0.15);
-}
-
-.admin-login-feature-item strong {
-  display: block;
-  font-size: 13.5px;
-  font-weight: 700;
-  color: #ffffff;
-  margin-bottom: 2px;
-}
-
-.admin-login-feature-item p {
-  margin: 0;
-  font-size: 12px;
-  color: #94a3b8;
-  line-height: 1.45;
-}
-
-.admin-login-hero-status {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 12px;
-  color: #94a3b8;
-  padding-top: 18px;
-  border-top: 1px solid rgba(255, 255, 255, 0.12);
-}
-
-.admin-login-hero-status-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: #10b981;
-  box-shadow: 0 0 8px #10b981;
-}
-
-/* Cột phải: Form Panel */
-.admin-login-panel {
-  padding: 40px 36px;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  background: #ffffff;
+  width: min(480px, 100%);
+  padding: 56px;
+  overflow-y: auto;
+  border-left: 1px solid var(--login-panel-border);
+  background: var(--login-panel);
+  color: var(--color-on-primary);
 }
 
 .admin-login-card {
   width: 100%;
+  max-width: 368px;
+  margin: auto 0;
+  animation: rise-in var(--dur-slow) var(--ease-out) backwards;
 }
 
-.admin-login-header {
+/* Khối hiện dần khi vào trang (Login, thẻ và panel Dashboard) */
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+.admin-login-brand {
   display: flex;
-  align-items: flex-start;
-  gap: 14px;
-  margin-bottom: 24px;
+  align-items: center;
+  gap: 12px;
 }
 
-.admin-login-header-icon {
+.admin-login-brand__icon {
+  display: grid;
   width: 44px;
   height: 44px;
-  border-radius: 12px;
-  background: var(--color-primary-soft);
-  color: var(--color-primary);
-  display: grid;
   place-items: center;
-  flex-shrink: 0;
+  border-radius: 10px;
+  background: var(--color-accent-bright);
+  color: var(--login-panel);
+}
+
+.admin-login-brand__name {
+  color: var(--color-on-primary);
+  font-size: 20px;
+  font-weight: 700;
 }
 
 .admin-login-heading {
-  font-size: 22px;
-  font-weight: 750;
-  color: var(--color-text);
-  margin: 0 0 4px 0;
+  margin: 40px 0 8px;
+  color: var(--color-on-primary);
+  font-size: 32px;
+  font-weight: 700;
+  line-height: 1.2;
 }
 
 .admin-login-subheading {
-  font-size: 13px;
-  color: var(--color-muted);
-  margin: 0;
-  line-height: 1.4;
+  margin: 0 0 32px;
+  color: var(--login-text-muted);
+  font-size: var(--fs-body);
+  line-height: var(--lh-text);
 }
 
-/* Lockout Banner */
+.admin-login-footnote {
+  margin: 40px 0 0;
+  color: var(--login-text-subtle);
+  font-size: var(--fs-secondary);
+}
+
+/* Tagline + nút tạm dừng: viên nền đặc ở góc dưới trái, tránh vùng panel */
+.admin-login-caption {
+  position: fixed;
+  left: clamp(16px, 4vw, 48px);
+  bottom: clamp(16px, 4vh, 44px);
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: calc(100vw - min(480px, 100%) - 64px);
+}
+
+.admin-login-caption__text {
+  margin: 0;
+  padding: 9px 14px;
+  border-radius: var(--radius-control);
+  background: var(--login-plate);
+  color: var(--color-on-primary);
+  font-size: var(--fs-body);
+  font-weight: 600;
+}
+
+.admin-login-video-toggle {
+  display: grid;
+  flex: 0 0 40px;
+  width: 40px;
+  height: 40px;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  border-radius: 999px;
+  background: var(--login-plate);
+  color: var(--color-on-primary);
+  cursor: pointer;
+  transition:
+    background-color var(--dur-fast) ease,
+    border-color var(--dur-fast) ease;
+}
+
+.admin-login-video-toggle:hover {
+  border-color: #ffffff;
+  background: var(--login-panel);
+}
+
+.admin-login-video-toggle:focus-visible {
+  outline: 2px solid var(--color-accent-bright);
+  outline-offset: 2px;
+}
+
+/* Lockout Banner + Alert: nền sáng để nổi trên panel tối */
 .admin-login-lockout-banner {
   display: flex;
   align-items: flex-start;
   gap: 12px;
   padding: 14px 16px;
-  background: #fef2f2;
-  border: 1px solid #fecaca;
-  border-radius: 10px;
-  color: #991b1b;
+  background: var(--color-danger-soft);
+  border: 1px solid #F3B8B3;
+  border-radius: var(--radius-control);
+  color: var(--color-danger-dark);
   margin-bottom: 20px;
 }
 
 .admin-login-lockout-icon {
-  color: #dc2626;
+  color: var(--color-danger);
   flex-shrink: 0;
   margin-top: 2px;
 }
 
 .admin-login-lockout-banner strong {
   display: block;
-  font-size: 13px;
+  font-size: var(--fs-body);
   font-weight: 700;
   margin-bottom: 2px;
 }
 
 .admin-login-lockout-banner p {
-  font-size: 12.5px;
+  font-size: var(--fs-secondary);
   margin: 0;
-  line-height: 1.45;
-  color: #7f1d1d;
+  line-height: var(--lh-text);
+  color: var(--color-danger-dark);
 }
 
 .admin-login-countdown {
-  font-weight: 800;
-  color: #b91c1c;
+  font-weight: 700;
+  color: var(--color-danger-dark);
   font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
 }
 
-/* Alert */
 .admin-login-alert {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 10px;
   padding: 12px 14px;
-  border-radius: 8px;
+  border-radius: var(--radius-control);
   background: var(--color-danger-soft);
-  border: 1px solid #ffb4ab;
+  border: 1px solid #F3B8B3;
   color: var(--color-danger-dark);
-  font-size: 13px;
+  font-size: var(--fs-body);
   font-weight: 500;
+  line-height: var(--lh-text);
   margin-bottom: 20px;
 }
 
-/* Form Fields */
+.admin-login-alert__icon {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+/* Form trên nền tối */
 .admin-login-form {
   display: flex;
   flex-direction: column;
@@ -2113,35 +2377,9 @@ button {
 }
 
 .admin-login-label {
-  font-size: 13px;
+  font-size: var(--fs-body);
   font-weight: 600;
-  color: var(--color-text);
-}
-
-.admin-login-required {
-  color: var(--color-danger);
-}
-
-.admin-login-label-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.admin-login-forgot-btn {
-  background: transparent;
-  border: none;
-  color: var(--color-primary);
-  font-size: 12.5px;
-  font-weight: 600;
-  cursor: pointer;
-  padding: 0;
-  transition: color 0.15s ease;
-}
-
-.admin-login-forgot-btn:hover {
-  color: var(--color-primary-strong);
-  text-decoration: underline;
+  color: var(--login-label);
 }
 
 .admin-login-input-wrap {
@@ -2151,202 +2389,156 @@ button {
 }
 
 .admin-login-input-wrap--error .admin-login-input {
-  border-color: #ef4444;
-  background: #fffcfc;
+  border-color: var(--login-error);
 }
 
 .admin-login-input-wrap--error .admin-login-input:focus {
-  border-color: #dc2626;
-  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.15);
+  border-color: var(--login-error);
+  outline-color: var(--login-error);
 }
 
 .admin-login-input-icon {
   position: absolute;
   left: 14px;
-  color: var(--color-muted);
+  color: var(--login-text-subtle);
   pointer-events: none;
 }
 
 .admin-login-input {
   width: 100%;
-  height: 44px;
-  padding: 0 42px 0 42px;
-  border: 1px solid #cbd5e1;
+  height: 48px;
+  padding: 0 44px 0 44px;
+  border: 1px solid var(--login-field-border);
   border-radius: 10px;
-  font-size: 14px;
+  background: var(--login-field);
+  color: var(--color-on-primary);
   font-family: inherit;
-  color: var(--color-text);
-  background: #ffffff;
-  transition: all 0.15s ease;
+  font-size: 15px;
+  transition: border-color var(--dur-fast) ease;
+}
+
+.admin-login-input::placeholder {
+  color: var(--login-text-subtle);
+  opacity: 1;
 }
 
 .admin-login-input:focus {
-  outline: none;
-  border-color: var(--color-primary);
-  box-shadow: 0 0 0 3px rgba(0, 97, 148, 0.14);
+  outline: 2px solid var(--color-accent-bright);
+  outline-offset: 1px;
+  border-color: var(--color-accent-bright);
+}
+
+/* Chrome tô nền sáng khi tự điền: giữ nền tối, chữ trắng */
+.admin-login-input:-webkit-autofill,
+.admin-login-input:-webkit-autofill:hover,
+.admin-login-input:-webkit-autofill:focus {
+  -webkit-text-fill-color: var(--color-on-primary);
+  caret-color: var(--color-on-primary);
+  box-shadow: inset 0 0 0 1000px var(--login-field);
 }
 
 .admin-login-input:disabled {
-  background: #f1f5f9;
+  opacity: 0.6;
   cursor: not-allowed;
-  opacity: 0.7;
 }
 
 .admin-login-field-error {
   display: flex;
   align-items: center;
-  gap: 5px;
-  font-size: 12px;
-  color: #dc2626;
+  gap: 6px;
+  font-size: var(--fs-secondary);
+  color: var(--login-error);
   font-weight: 500;
-  margin-top: 2px;
 }
 
 .admin-login-password-toggle {
   position: absolute;
-  right: 12px;
-  background: transparent;
-  border: none;
-  color: var(--color-muted);
-  cursor: pointer;
-  padding: 4px;
+  right: 8px;
   display: grid;
+  width: 32px;
+  height: 32px;
   place-items: center;
-  border-radius: 4px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--login-text-subtle);
+  cursor: pointer;
 }
 
 .admin-login-password-toggle:hover {
-  color: var(--color-text);
+  color: var(--color-on-primary);
+  background: var(--login-panel);
 }
 
-.admin-login-options {
-  display: flex;
-  align-items: center;
-  justifyContent: space-between;
-  font-size: 13px;
-}
-
-.admin-login-checkbox-label {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  cursor: pointer;
-  color: var(--color-secondary-text);
-  user-select: none;
-}
-
-.admin-login-checkbox-label input[type="checkbox"] {
-  width: 16px;
-  height: 16px;
-  accent-color: var(--color-primary);
-  cursor: pointer;
+.admin-login-password-toggle:focus-visible {
+  outline: 2px solid var(--color-accent-bright);
+  outline-offset: 1px;
 }
 
 .admin-login-submit-btn {
-  width: 100%;
-  height: 46px;
-  border: none;
-  border-radius: 10px;
-  background: var(--color-primary);
-  color: #ffffff;
-  font-size: 14.5px;
-  font-weight: 700;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 10px;
-  cursor: pointer;
-  box-shadow: 0 4px 14px rgba(0, 97, 148, 0.25);
-  transition: all 0.15s ease;
+  width: 100%;
+  height: 48px;
   margin-top: 4px;
+  border: none;
+  border-radius: 10px;
+  background: var(--color-accent-bright);
+  color: var(--login-panel);
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  transition:
+    background-color var(--dur-fast) ease,
+    transform var(--dur-fast) ease;
 }
 
 .admin-login-submit-btn:hover:not(:disabled) {
-  background: var(--color-primary-strong);
-  box-shadow: 0 6px 18px rgba(0, 97, 148, 0.32);
-  transform: translateY(-1px);
+  background: var(--login-accent-hover);
+}
+
+.admin-login-submit-btn:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.admin-login-submit-btn:focus-visible {
+  outline: 2px solid var(--color-on-primary);
+  outline-offset: 2px;
 }
 
 .admin-login-submit-btn:disabled {
   opacity: 0.65;
   cursor: not-allowed;
-  transform: none;
-}
-
-/* Security Trust Box */
-.admin-login-trust {
-  margin-top: 24px;
-  padding-top: 18px;
-  border-top: 1px solid #f1f5f9;
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-}
-
-.admin-login-trust__icon {
-  color: var(--color-success);
-  flex-shrink: 0;
-  margin-top: 2px;
-}
-
-.admin-login-trust__text strong {
-  display: block;
-  font-size: 12px;
-  color: var(--color-text);
-  margin-bottom: 2px;
-}
-
-.admin-login-trust__text p {
-  margin: 0;
-  font-size: 11.5px;
-  color: var(--color-muted);
-  line-height: 1.45;
-}
-
-/* Forgot Password Modal Content */
-.admin-forgot-modal-body {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.admin-forgot-success-box {
-  display: flex;
-  align-items: flex-start;
-  gap: 14px;
-  padding: 16px;
-  background: #f0fdf4;
-  border: 1px solid #bbf7d0;
-  border-radius: 10px;
-}
-
-.admin-forgot-support-box {
-  padding: 12px 14px;
-  background: var(--color-shell);
-  border: 1px dashed #cbd5e1;
-  border-radius: 8px;
-  margin-top: 6px;
-}
-
-/* Responsive Breakpoints */
-@media (max-width: 900px) {
-  .admin-login-layout {
-    grid-template-columns: 1fr;
-    max-width: 500px;
-  }
-  .admin-login-hero {
-    display: none;
-  }
-  .admin-login-panel {
-    padding: 36px 28px;
-  }
 }
 
 .admin-login-loading {
-  font-size: 14px;
-  color: var(--color-muted);
-  text-align: center;
-  padding: 40px;
+  margin: auto 0;
+  color: var(--login-text-muted);
+  font-size: var(--fs-body);
+}
+
+/* Màn hẹp: panel chiếm hết bề rộng; tagline ẩn, nút dừng vẫn ở góc dưới trái trên panel */
+@media (max-width: 760px) {
+  .admin-login-stage {
+    width: 100%;
+    padding: 32px 24px 88px;
+    border-left: 0;
+  }
+
+  .admin-login-card {
+    max-width: none;
+  }
+
+  .admin-login-caption {
+    z-index: 2;
+    max-width: none;
+  }
+
+  .admin-login-caption__text {
+    display: none;
+  }
 }
 
 /* Cross-Navigation between Medication and Interaction */
@@ -2363,8 +2555,8 @@ button {
   align-items: center;
   gap: 8px;
   margin-bottom: 10px;
-  color: #ba1a1a;
-  font-size: 13.5px;
+  color: var(--color-danger);
+  font-size: var(--fs-body);
   font-weight: 700;
 }
 
@@ -2393,14 +2585,15 @@ button {
 
 .medication-interaction-pair {
   font-weight: 700;
-  font-size: 13px;
+  font-size: var(--fs-body);
   color: var(--color-text);
 }
 
 .medication-interaction-effect {
-  font-size: 12px;
+  font-size: var(--fs-body);
   color: var(--color-secondary-text);
-  line-height: 1.4;
+  line-height: var(--lh-text);
+  max-width: var(--measure);
 }
 
 .medication-interaction-btn {
@@ -2408,9 +2601,9 @@ button {
   align-items: center;
   gap: 6px;
   padding: 8px 14px;
-  background: #ba1a1a;
+  background: var(--color-danger);
   color: #ffffff;
-  font-size: 12.5px;
+  font-size: var(--fs-secondary);
   font-weight: 600;
   border-radius: 6px;
   text-decoration: none;
@@ -2427,20 +2620,21 @@ button {
   gap: 4px;
   padding: 3px 8px;
   border-radius: 6px;
-  font-size: 11px;
+  font-size: var(--fs-meta);
   font-weight: 700;
-  background: #fee2e2;
-  color: #991b1b;
-  border: 1px solid #fca5a5;
+  background: var(--sev-contraindicated-bg);
+  color: var(--sev-contraindicated-fg);
+  border: 1px solid #F0B2AD;
   text-decoration: none;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease;
 }
 
 .medication-table-interaction-badge:hover {
-  background: #fecaca;
-  border-color: #f87171;
-  transform: translateY(-1px);
+  background: #F8CFCB;
+  border-color: var(--sev-contraindicated-dot);
 }
 
 .interaction-find-med-link {
@@ -2450,13 +2644,18 @@ button {
   margin-top: 6px;
   padding: 4px 10px;
   border-radius: 6px;
-  font-size: 11.5px;
+  font-size: var(--fs-meta);
   font-weight: 600;
   background: var(--color-primary-soft);
-  color: var(--color-primary);
-  border: 1px solid #c2daf8;
+  color: var(--color-primary-strong);
+  border: 1px solid #B9D4E5;
   text-decoration: none;
-  transition: all 0.15s ease;
+  transition:
+    background-color var(--dur-fast) ease,
+    border-color var(--dur-fast) ease,
+    color var(--dur-fast) ease,
+    box-shadow var(--dur-fast) ease,
+    transform var(--dur-fast) ease;
 }
 
 .interaction-find-med-link:hover {
@@ -2492,7 +2691,7 @@ button {
   box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.08);
   border: 1px solid #dce4ed;
   overflow: hidden;
-  animation: toastSlideIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  animation: toastSlideIn var(--dur-slow) var(--ease-out);
 }
 
 @keyframes toastSlideIn {
@@ -2544,7 +2743,7 @@ button {
 }
 
 .toast-icon--warning {
-  color: #d97706;
+  color: var(--color-warning);
 }
 
 .toast-icon--info {
@@ -2566,26 +2765,27 @@ button {
 
 .toast-item__message {
   margin: 3px 0 0;
-  font-size: 12.5px;
+  font-size: var(--fs-body);
   color: var(--color-secondary-text);
-  line-height: 17px;
+  line-height: var(--lh-text);
 }
 
 .toast-item__action-btn {
-  background: #f1f5f9;
-  border: 1px solid #cbd5e1;
-  border-radius: 6px;
-  padding: 4px 10px;
-  font-size: 12px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-control);
+  border-radius: var(--radius-control);
+  padding: 6px 12px;
+  font-size: var(--fs-secondary);
   font-weight: 600;
   color: var(--color-text);
   cursor: pointer;
   white-space: nowrap;
   align-self: center;
+  min-height: 32px;
 }
 
 .toast-item__action-btn:hover {
-  background: #e2e8f0;
+  background: var(--color-border);
 }
 
 .toast-item__close-btn {
@@ -2614,12 +2814,11 @@ button {
   inset: 0;
   z-index: 1000;
   background: rgba(11, 28, 48, 0.5);
-  backdrop-filter: blur(4px);
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 16px;
-  animation: modalFadeIn 0.2s ease-out;
+  animation: modalFadeIn var(--dur-base) ease-out;
 }
 
 @keyframes modalFadeIn {
@@ -2636,8 +2835,8 @@ button {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  animation: modalScaleIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-  border: 1px solid rgba(0, 97, 148, 0.08);
+  animation: modalScaleIn var(--dur-base) var(--ease-out);
+  border: 1px solid var(--color-border);
 }
 
 @keyframes modalScaleIn {
@@ -2655,6 +2854,54 @@ button {
 .modal-dialog--md { max-width: 580px; }
 .modal-dialog--lg { max-width: 760px; }
 .modal-dialog--xl { max-width: 960px; }
+
+/* Hiệu ứng đóng: Modal.tsx giữ phần tử thêm 160ms với class is-closing rồi mới gỡ */
+.modal-backdrop.is-closing {
+  pointer-events: none;
+  animation: modalFadeOut 160ms ease-in forwards;
+}
+
+.modal-backdrop.is-closing .modal-dialog {
+  animation: modalScaleOut 160ms ease-in forwards;
+}
+
+@keyframes modalFadeOut {
+  to { opacity: 0; }
+}
+
+@keyframes modalScaleOut {
+  to {
+    transform: scale(0.97) translateY(6px);
+    opacity: 0;
+  }
+}
+
+/* Biến thể drawer: tấm neo cạnh phải, cao hết màn hình, trượt vào/ra; thân tự cuộn, footer cố định */
+.modal-backdrop--drawer {
+  justify-content: flex-end;
+  padding: 0;
+}
+
+.modal-dialog--drawer {
+  max-width: min(760px, 100vw);
+  height: 100vh;
+  height: 100dvh;
+  max-height: none;
+  border-radius: var(--radius-card) 0 0 var(--radius-card);
+  animation: drawerSlideIn var(--dur-slow) var(--ease-out);
+}
+
+.modal-backdrop.is-closing .modal-dialog--drawer {
+  animation: drawerSlideOut 160ms ease-in forwards;
+}
+
+@keyframes drawerSlideIn {
+  from { transform: translateX(100%); }
+}
+
+@keyframes drawerSlideOut {
+  to { transform: translateX(100%); }
+}
 
 .modal-header {
   display: flex;
@@ -2680,9 +2927,10 @@ button {
 
 .modal-subtitle {
   margin: 4px 0 0;
-  font-size: 13px;
+  font-size: var(--fs-body);
   color: var(--color-muted);
-  line-height: 18px;
+  line-height: var(--lh-text);
+  max-width: var(--measure);
 }
 
 .modal-close-btn {
@@ -2696,7 +2944,12 @@ button {
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.15s ease;
+  transition:
+    background-color var(--dur-fast) ease,
+    border-color var(--dur-fast) ease,
+    color var(--dur-fast) ease,
+    box-shadow var(--dur-fast) ease,
+    transform var(--dur-fast) ease;
 }
 
 .modal-close-btn:hover {
@@ -2731,7 +2984,7 @@ button {
 }
 
 .form-label {
-  font-size: 12px;
+  font-size: var(--fs-body);
   font-weight: 600;
   color: var(--color-secondary-text);
   display: flex;
@@ -2750,10 +3003,10 @@ button {
 .form-textarea {
   width: 100%;
   padding: 9px 12px;
-  border: 1px solid #d2dbe5;
+  border: 1px solid var(--color-border-control);
   border-radius: 8px;
   font-family: var(--font-sans);
-  font-size: 13px;
+  font-size: var(--fs-body);
   color: var(--color-text);
   background: #ffffff;
   transition: border-color 0.15s, box-shadow 0.15s;
@@ -2764,7 +3017,8 @@ button {
 .form-select:focus,
 .form-textarea:focus {
   border-color: var(--color-primary);
-  box-shadow: 0 0 0 3px rgba(0, 97, 148, 0.15);
+  outline: var(--focus-ring);
+  outline-offset: 1px;
 }
 
 .form-textarea {
@@ -2780,13 +3034,13 @@ button {
 }
 
 .form-error {
-  font-size: 12px;
+  font-size: var(--fs-secondary);
   color: var(--color-danger);
   margin-top: 2px;
 }
 
 .form-hint {
-  font-size: 11.5px;
+  font-size: var(--fs-secondary);
   color: var(--color-muted);
   margin-top: 2px;
 }
@@ -2794,22 +3048,23 @@ button {
 /* ==========================================================================
    INTERACTIVE FILTERS & ACTIONS (STRICT ZERO-LAYOUT-SHIFT)
    ========================================================================== */
+/* Ô lọc (MedicationFilters, InteractionFilters): <label> gồm nhãn hiện + select chỉ chứa giá trị.
+   Rộng theo nội dung (không khóa bề rộng); select dài quá 240px thì cắt và có title chứa đủ giá trị (AC19). */
 .filter-select {
   position: relative;
-  display: flex;
+  display: inline-flex;
+  flex: 0 0 auto;
   align-items: center;
-  background: var(--color-shell);
+  gap: 6px;
+  height: 38px;
+  padding: 0 30px 0 12px;
+  border: 1px solid var(--color-border-control);
   border-radius: var(--radius-control);
-  padding: 0 28px 0 10px !important;
-  height: 38px !important;
-  border: 1px solid #e2e8f0;
-  transition: border-color 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease;
-  flex: 0 0 165px !important;
-  width: 165px !important;
-  min-width: 165px !important;
-  max-width: 165px !important;
-  box-sizing: border-box !important;
-  overflow: hidden !important;
+  background: var(--color-surface);
+  cursor: pointer;
+  transition:
+    border-color var(--dur-fast) ease,
+    background-color var(--dur-fast) ease;
 }
 
 .filter-select::after {
@@ -2821,107 +3076,63 @@ button {
   width: 14px;
   height: 14px;
   pointer-events: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%2356606B' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: center;
   background-size: 14px;
 }
 
 .filter-select:hover {
-  border-color: #cbd5e1;
-  background: #ffffff;
+  border-color: var(--color-secondary-text);
 }
 
 .filter-select:focus-within {
   border-color: var(--color-primary);
-  background: #ffffff;
-  box-shadow: 0 0 0 3px rgba(0, 97, 148, 0.12);
+  outline: var(--focus-ring);
+  outline-offset: 1px;
+}
+
+.filter-select__label {
+  flex: 0 0 auto;
+  color: var(--color-muted);
+  font-size: var(--fs-secondary);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.filter-select__label::after {
+  content: ":";
 }
 
 .filter-select select {
-  appearance: none !important;
-  -webkit-appearance: none !important;
-  -moz-appearance: none !important;
-  width: 100% !important;
-  max-width: 100% !important;
-  min-width: 0 !important;
-  height: 100% !important;
-  background: transparent !important;
-  border: 0 !important;
-  outline: none !important;
-  box-shadow: none !important;
-  font-family: var(--font-sans);
-  font-size: 13px;
-  font-weight: 500;
+  appearance: none;
+  -webkit-appearance: none;
+  width: auto;
+  max-width: 240px;
+  height: 100%;
+  padding: 0;
+  margin: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  box-shadow: none;
   color: var(--color-text);
+  font-family: var(--font-sans);
+  font-size: var(--fs-body);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   cursor: pointer;
-  padding: 0 !important;
-  margin: 0 !important;
-  text-overflow: ellipsis !important;
-  white-space: nowrap !important;
-  overflow: hidden !important;
-  display: block !important;
-  box-sizing: border-box !important;
 }
 
 .filter-select select:focus,
 .filter-select select:focus-visible {
-  outline: none !important;
-  outline-offset: 0 !important;
-  box-shadow: none !important;
-  border: 0 !important;
-}
-
-.filter-select--severity {
-  flex: 0 0 165px !important;
-  width: 165px !important;
-  min-width: 165px !important;
-  max-width: 165px !important;
-}
-
-.filter-select--target-type {
-  flex: 0 0 165px !important;
-  width: 165px !important;
-  min-width: 165px !important;
-  max-width: 165px !important;
-}
-
-.filter-select--mechanism {
-  flex: 0 0 180px !important;
-  width: 180px !important;
-  min-width: 180px !important;
-  max-width: 180px !important;
-}
-
-.filter-select--status {
-  flex: 0 0 150px !important;
-  width: 150px !important;
-  min-width: 150px !important;
-  max-width: 150px !important;
-}
-
-.filter-select--source {
-  flex: 0 0 165px !important;
-  width: 165px !important;
-  min-width: 165px !important;
-  max-width: 165px !important;
-}
-
-.filter-select--quality {
-  flex: 0 0 160px !important;
-  width: 160px !important;
-  min-width: 160px !important;
-  max-width: 160px !important;
-}
-
-.filter-select--group {
-  flex: 0 0 170px !important;
-  width: 170px !important;
-  min-width: 170px !important;
-  max-width: 170px !important;
+  outline: none;
+  box-shadow: none;
 }
 
 .filter-reset-btn {
+  margin-left: auto;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -2934,9 +3145,14 @@ button {
   padding: 0 8px;
   border-radius: var(--radius-control);
   font-family: var(--font-sans);
-  font-size: 13px;
+  font-size: var(--fs-body);
   font-weight: 500;
-  transition: all 0.15s ease;
+  transition:
+    background-color var(--dur-fast) ease,
+    border-color var(--dur-fast) ease,
+    color var(--dur-fast) ease,
+    box-shadow var(--dur-fast) ease,
+    transform var(--dur-fast) ease;
   white-space: nowrap;
   box-sizing: border-box !important;
   overflow: hidden !important;
@@ -2945,7 +3161,7 @@ button {
 
 .filter-reset-btn--disabled {
   background: transparent;
-  border: 1px dashed #cbd5e1;
+  border: 1px dashed var(--color-border-control);
   color: var(--color-muted);
   opacity: 0.45;
   cursor: not-allowed;
@@ -2953,23 +3169,22 @@ button {
 }
 
 .filter-reset-btn--active {
-  background: #fff1f2;
-  border: 1px solid #fecdd3;
-  color: #e11d48;
+  background: var(--color-danger-soft);
+  border: 1px solid #F0B2AD;
+  color: var(--color-danger);
   opacity: 1;
   cursor: pointer;
   font-weight: 600;
 }
 
 .filter-reset-btn--active:hover {
-  background: #fee2e2;
-  border-color: #fca5a5;
-  color: #be123c;
-  box-shadow: 0 1px 3px rgba(225, 29, 72, 0.12);
+  background: #F8CFCB;
+  border-color: var(--sev-contraindicated-dot);
+  color: var(--color-danger);
 }
 
 .filter-reset-btn--active:active {
-  transform: scale(0.98);
+  background: #F8CFCB;
 }
 
 .medication-action-btn--delete {
@@ -3011,86 +3226,73 @@ button {
 .interactions-header p {
   margin: 4px 0 0;
   color: var(--color-muted);
-  font-size: 13px;
+  font-size: var(--fs-body);
   font-weight: 400;
-  line-height: 18px;
+  line-height: var(--lh-text);
+  max-width: var(--measure);
 }
 
-.interaction-stat--contraindicated strong,
-.interaction-stat--contraindicated .medication-stat__label {
-  color: var(--color-danger-dark);
-}
-
-.interaction-stat--contraindicated .medication-stat__icon-box {
-  background: var(--color-danger-soft);
-  color: var(--color-danger);
-}
-
-.interaction-stat--major strong,
-.interaction-stat--major .medication-stat__label {
-  color: #c2410c;
-}
-
-.interaction-stat--major .medication-stat__icon-box {
-  background: #ffedd5;
-  color: #c2410c;
-}
-
-.interaction-stat--moderate strong,
-.interaction-stat--moderate .medication-stat__label {
-  color: #b45309;
-}
-
-.interaction-stat--moderate .medication-stat__icon-box {
-  background: #fef3c7;
-  color: #b45309;
-}
-
-.interaction-stat--minor strong,
-.interaction-stat--minor .medication-stat__label {
-  color: var(--color-info);
-}
-
-.interaction-stat--minor .medication-stat__icon-box {
-  background: var(--color-info-soft);
-  color: var(--color-info);
-}
-
-/* Interaction Severity Badges */
+/* Mức độ tương tác: một bộ class cho bảng Quy tắc tương tác và các modal chi tiết.
+   Màu lấy từ token --sev-* (đỏ đậm / cam / hổ phách / xám-xanh); luôn kèm nhãn chữ. */
 .interaction-severity-badge {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 4px 10px;
+  min-height: 24px;
+  padding: 3px 10px;
+  border: 1px solid transparent;
   border-radius: var(--radius-pill);
-  font-size: 12px;
+  font-size: var(--fs-meta);
   font-weight: 700;
   line-height: 16px;
   white-space: nowrap;
 }
 
+.interaction-severity-badge .pill-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 9999px;
+  flex-shrink: 0;
+}
+
 .interaction-severity-badge--contraindicated {
-  background: var(--color-danger-soft);
-  color: var(--color-danger-dark);
-  border: 1px solid #ffb4ab;
+  background: var(--sev-contraindicated-bg);
+  color: var(--sev-contraindicated-fg);
+  border-color: #F0B2AD;
+}
+
+.interaction-severity-badge--contraindicated .pill-dot {
+  background: var(--sev-contraindicated-dot);
 }
 
 .interaction-severity-badge--major {
-  background: #ffedd5;
-  color: #c2410c;
-  border: 1px solid #fed7aa;
+  background: var(--sev-major-bg);
+  color: var(--sev-major-fg);
+  border-color: #F6C29A;
+}
+
+.interaction-severity-badge--major .pill-dot {
+  background: var(--sev-major-dot);
 }
 
 .interaction-severity-badge--moderate {
-  background: #fef3c7;
-  color: #b45309;
-  border: 1px solid #fde68a;
+  background: var(--sev-moderate-bg);
+  color: var(--sev-moderate-fg);
+  border-color: #EBD48A;
+}
+
+.interaction-severity-badge--moderate .pill-dot {
+  background: var(--sev-moderate-dot);
 }
 
 .interaction-severity-badge--minor {
-  background: #eff6ff;
-  color: #1d4ed8;
-  border: 1px solid #bfdbfe;
+  background: var(--sev-minor-bg);
+  color: var(--sev-minor-fg);
+  border-color: #CBD4DD;
+}
+
+.interaction-severity-badge--minor .pill-dot {
+  background: var(--sev-minor-dot);
 }
 
 /* ==========================================================================
@@ -3103,7 +3305,6 @@ button {
   gap: 20px;
   align-items: flex-start;
   width: 100%;
-  transition: grid-template-columns 0.25s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .interaction-split-layout--full {
@@ -3125,9 +3326,9 @@ button {
 }
 
 .interaction-frame3-card {
-  background: #ffffff;
-  border-radius: 16px;
-  box-shadow: 0px 1px 2px rgba(0, 0, 0, 0.05);
+  background: var(--color-surface);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
   overflow: hidden;
 }
 
@@ -3144,11 +3345,11 @@ button {
   align-items: center;
   height: 44px;
   padding: 0 16px;
-  background: rgba(239, 244, 255, 0.7);
+  background: var(--color-surface-muted);
   color: var(--color-muted);
-  font-size: 11px;
+  font-size: var(--fs-meta);
   font-weight: 700;
-  letter-spacing: 0.6px;
+  letter-spacing: 0.4px;
   text-transform: uppercase;
 }
 
@@ -3169,7 +3370,7 @@ button {
 }
 
 .interaction-frame3-table__row:hover {
-  background: #f8fbff;
+  background: var(--color-surface-muted);
 }
 
 .interaction-frame3-table__row--active {
@@ -3187,7 +3388,7 @@ button {
   width: 6px;
   height: 40px;
   border-radius: 9999px;
-  background: #e2e8f0;
+  background: var(--color-border);
   flex-shrink: 0;
   transition: background 0.2s ease;
 }
@@ -3214,7 +3415,7 @@ button {
 }
 
 .interaction-frame3-pair-subtitle {
-  font-size: 12px;
+  font-size: var(--fs-secondary);
   color: var(--color-muted);
   white-space: nowrap;
   overflow: hidden;
@@ -3228,55 +3429,11 @@ button {
   gap: 4px;
   padding: 4px 10px;
   border-radius: 9999px;
-  background: #e5eeff;
+  background: var(--color-neutral-badge-soft);
   font-size: 12px;
   font-weight: 500;
   color: var(--color-secondary-text);
   white-space: nowrap;
-}
-
-.interaction-frame3-badge-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 10px;
-  border-radius: 9999px;
-  font-size: 12px;
-  font-weight: 600;
-  white-space: nowrap;
-}
-
-.interaction-frame3-badge-pill .pill-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 9999px;
-  flex-shrink: 0;
-}
-
-.interaction-frame3-badge-pill--contraindicated {
-  background: var(--severity-contraindicated-soft);
-  color: var(--color-danger-dark);
-}
-.interaction-frame3-badge-pill--contraindicated .pill-dot {
-  background: var(--severity-contraindicated);
-}
-
-.interaction-frame3-badge-pill--major {
-  background: var(--severity-major-soft);
-  color: var(--color-primary-strong);
-}
-.interaction-frame3-badge-pill--major .pill-dot {
-  background: var(--severity-major);
-}
-
-.interaction-frame3-badge-pill--moderate,
-.interaction-frame3-badge-pill--minor {
-  background: var(--severity-caution-soft);
-  color: var(--severity-caution);
-}
-.interaction-frame3-badge-pill--moderate .pill-dot,
-.interaction-frame3-badge-pill--minor .pill-dot {
-  background: var(--severity-caution);
 }
 
 .interaction-frame3-atc-pill {
@@ -3284,7 +3441,7 @@ button {
   align-items: center;
   padding: 2px 8px;
   border-radius: 4px;
-  background: #eff4ff;
+  background: var(--color-surface-muted);
   font-family: var(--font-mono);
   font-size: 12px;
   font-weight: 500;
@@ -3292,26 +3449,8 @@ button {
   white-space: nowrap;
 }
 
-.interaction-frame3-action-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  min-height: 40px;
-  padding: 0 12px;
-  border-radius: 8px;
-  font-size: 12px;
-  font-weight: 500;
-  cursor: pointer;
-  border: none;
-  background: #eff4ff;
-  color: var(--color-text);
-  transition: all 0.15s ease;
-  margin-left: auto;
-}
-
 .interaction-frame3-action-btn:hover {
-  background: #e2ecfc;
+  background: var(--color-hover);
 }
 
 .interaction-frame3-action-btn--active {
@@ -3327,9 +3466,9 @@ button {
   align-items: flex-start;
   gap: 12px;
   padding: 16px;
-  background: #ffffff;
-  border-radius: 16px;
-  box-shadow: 0px 1px 2px rgba(0, 0, 0, 0.05);
+  background: var(--color-surface);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
 }
 
 .interaction-guideline-card__icon {
@@ -3359,9 +3498,10 @@ button {
 
 .interaction-guideline-card__content p {
   margin: 0;
-  font-size: 13.5px;
-  line-height: 20px;
+  font-size: var(--fs-body);
+  line-height: var(--lh-text);
   color: var(--color-secondary-text);
+  max-width: var(--measure);
 }
 
 /* Right Editor Drawer (Frame 3) */
@@ -3408,8 +3548,8 @@ button {
   gap: 4px;
   padding: 2px 8px;
   border-radius: 9999px;
-  background: rgba(108, 248, 187, 0.4);
-  color: #006c49;
+  background: var(--color-success-soft);
+  color: var(--color-success);
   font-size: 12px;
   font-weight: 500;
 }
@@ -3418,9 +3558,9 @@ button {
   width: 40px;
   height: 40px;
   border-radius: 8px;
-  background: #eff4ff;
-  border: none;
-  color: var(--color-muted);
+  background: var(--color-surface-muted);
+  border: 1px solid var(--color-border);
+  color: var(--color-secondary-text);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -3429,7 +3569,7 @@ button {
 }
 
 .interaction-drawer-close-btn:hover {
-  background: #e2ecfc;
+  background: var(--color-hover);
   color: var(--color-text);
 }
 
@@ -3452,9 +3592,9 @@ button {
   align-items: center;
   justify-content: space-between;
   padding: 10px 12px;
-  background: #eff4ff;
+  background: var(--color-surface-muted);
   border-radius: 12px;
-  font-size: 12px;
+  font-size: var(--fs-secondary);
   color: var(--color-secondary-text);
 }
 
@@ -3479,7 +3619,7 @@ button {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  font-size: 12px;
+  font-size: var(--fs-body);
   font-weight: 600;
   color: var(--color-text);
 }
@@ -3487,7 +3627,7 @@ button {
 .interaction-drawer-field__label-row span.mono {
   font-family: var(--font-mono);
   font-weight: 400;
-  font-size: 11px;
+  font-size: var(--fs-meta);
   color: var(--color-muted);
 }
 
@@ -3495,7 +3635,7 @@ button {
   width: 100%;
   height: 42px;
   border-radius: 12px;
-  background: #eff4ff;
+  background: var(--color-surface-muted);
   border: 1px solid transparent;
   padding: 10px 14px;
   font-family: var(--font-main);
@@ -3514,12 +3654,12 @@ button {
   width: 100%;
   min-height: 84px;
   border-radius: 12px;
-  background: #eff4ff;
+  background: var(--color-surface-muted);
   border: 1px solid transparent;
   padding: 10px 14px;
   font-family: var(--font-main);
-  font-size: 13.5px;
-  line-height: 20px;
+  font-size: var(--fs-body);
+  line-height: var(--lh-text);
   color: var(--color-text);
   outline: none;
   resize: vertical;
@@ -3542,27 +3682,26 @@ button {
   align-items: flex-start;
   gap: 12px;
   padding: 12px;
-  border-radius: 12px;
-  background: #eff4ff;
+  border-radius: var(--radius-control);
+  background: var(--color-surface);
   cursor: pointer;
-  border: 1.5px solid transparent;
+  border: 1px solid var(--color-border-control);
   transition: background-color 0.15s ease, border-color 0.15s ease;
 }
 
-.interaction-drawer-radio-card--contraindicated {
-  background: rgba(255, 218, 214, 0.4);
-}
-
 .interaction-drawer-radio-card--contraindicated.is-selected {
-  border-color: #ba1a1a;
+  border: 2px solid var(--sev-contraindicated-dot);
+  background: var(--sev-contraindicated-bg);
 }
 
 .interaction-drawer-radio-card--serious.is-selected {
-  border-color: var(--color-primary);
+  border: 2px solid var(--sev-major-dot);
+  background: var(--sev-major-bg);
 }
 
 .interaction-drawer-radio-card--caution.is-selected {
-  border-color: #007bb9;
+  border: 2px solid var(--sev-moderate-dot);
+  background: var(--sev-moderate-bg);
 }
 
 .interaction-drawer-radio-card input[type="radio"] {
@@ -3571,7 +3710,7 @@ button {
 }
 
 .interaction-drawer-radio-card--contraindicated input[type="radio"] {
-  accent-color: #ba1a1a;
+  accent-color: var(--sev-contraindicated-dot);
 }
 
 .interaction-drawer-radio-body {
@@ -3594,9 +3733,9 @@ button {
 }
 
 .interaction-drawer-radio-head .badge {
-  padding: 2px 6px;
+  padding: 2px 8px;
   border-radius: 4px;
-  font-size: 10px;
+  font-size: var(--fs-meta);
   font-weight: 700;
   letter-spacing: 0.5px;
   text-transform: uppercase;
@@ -3613,16 +3752,16 @@ button {
   align-items: center;
   gap: 10px;
   padding: 10px 12px;
-  background: #eff4ff;
+  background: var(--color-surface-muted);
   border-radius: 12px;
-  font-size: 13px;
+  font-size: var(--fs-body);
   font-weight: 500;
   color: var(--color-text);
   cursor: pointer;
 }
 
 .interaction-drawer-check-box input[type="checkbox"] {
-  accent-color: #006c49;
+  accent-color: var(--color-success);
   width: 16px;
   height: 16px;
 }
@@ -3666,7 +3805,7 @@ button {
   flex: 1;
   height: 40px;
   border-radius: 12px;
-  background: #eff4ff;
+  background: var(--color-surface-muted);
   color: var(--color-text);
   font-size: 14px;
   font-weight: 500;
@@ -3676,7 +3815,7 @@ button {
 }
 
 .interaction-drawer-cancel-btn:hover {
-  background: #e2ecfc;
+  background: var(--color-hover);
 }
 
 .interaction-drawer-delete-btn {
@@ -3700,32 +3839,13 @@ button {
   background: rgba(186, 26, 26, 0.18);
 }
 
-
-.interaction-severity-badge--major {
-  background: #ffedd5;
-  color: #c2410c;
-  border: 1px solid #fed7aa;
-}
-
-.interaction-severity-badge--moderate {
-  background: #fef3c7;
-  color: #b45309;
-  border: 1px solid #fde68a;
-}
-
-.interaction-severity-badge--minor {
-  background: #eff6ff;
-  color: #1d4ed8;
-  border: 1px solid #bfdbfe;
-}
-
 .interaction-mech-badge {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  padding: 2px 7px;
+  padding: 2px 8px;
   border-radius: 4px;
-  font-size: 11px;
+  font-size: var(--fs-meta);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.3px;
@@ -3739,8 +3859,8 @@ button {
 
 .interaction-mech-badge--pd {
   background: #dcfce7;
-  color: #15803d;
-  border: 1px solid #bbf7d0;
+  color: var(--color-success);
+  border: 1px solid #A9DCC0;
 }
 
 .interaction-mech-badge--both {
@@ -3750,9 +3870,9 @@ button {
 }
 
 .interaction-mech-badge--unknown {
-  background: #f1f5f9;
-  color: #64748b;
-  border: 1px solid #e2e8f0;
+  background: var(--color-neutral-badge-soft);
+  color: var(--color-neutral-badge);
+  border: 1px solid #D3DAE1;
 }
 
 /* Interaction Table */
@@ -3772,10 +3892,10 @@ button {
   padding: 0 16px;
   background: var(--color-primary-soft);
   color: var(--color-secondary-text);
-  font-size: 11px;
+  font-size: var(--fs-meta);
   font-weight: 700;
   line-height: 16px;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.4px;
   text-transform: uppercase;
 }
 
@@ -3795,7 +3915,7 @@ button {
 }
 
 .interaction-table__row:hover {
-  background: #fbfdff;
+  background: var(--color-surface-muted);
 }
 
 .interaction-table__row--contraindicated {
@@ -3816,7 +3936,7 @@ button {
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 13.5px;
+  font-size: var(--fs-body);
   font-weight: 700;
   color: var(--color-text);
   flex-wrap: wrap;
@@ -3828,7 +3948,7 @@ button {
 }
 
 .interaction-pair__sub {
-  font-size: 11.5px;
+  font-size: var(--fs-secondary);
   color: var(--color-muted);
 }
 
@@ -3836,23 +3956,24 @@ button {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  font-size: 12.5px;
-  line-height: 17px;
+  font-size: var(--fs-body);
+  line-height: var(--lh-text);
   color: var(--color-secondary-text);
 }
 
 .interaction-clinical-effect {
-  font-size: 12px;
+  font-size: var(--fs-body);
   font-weight: 600;
   color: #b91c1c;
   display: flex;
   align-items: flex-start;
   gap: 4px;
+  line-height: var(--lh-text);
 }
 
 .interaction-management-text {
-  font-size: 12.5px;
-  line-height: 17px;
+  font-size: var(--fs-body);
+  line-height: var(--lh-text);
   color: var(--color-secondary-text);
 }
 
@@ -3881,7 +4002,7 @@ button {
 }
 
 .interaction-detail-drug-box span.drug-tag {
-  font-size: 11px;
+  font-size: var(--fs-meta);
   font-weight: 700;
   color: var(--color-primary);
   text-transform: uppercase;
@@ -3896,7 +4017,7 @@ button {
 
 .interaction-detail-drug-box p {
   margin: 0;
-  font-size: 12px;
+  font-size: var(--fs-secondary);
   color: var(--color-muted);
 }
 
@@ -3914,6 +4035,96 @@ button {
   color: var(--color-danger);
 }
 
+.interaction-detail-food-note {
+  display: inline-block;
+  margin-top: 4px;
+  color: var(--color-muted);
+  font-size: var(--fs-meta);
+}
+
+/* Thanh trạng thái + mức độ trong modal chi tiết (trước là inline style) */
+.interaction-detail-status-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 12px 18px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: var(--color-surface);
+}
+
+.interaction-detail-status-bar__group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.interaction-detail-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--fs-body);
+}
+
+.interaction-detail-status__label {
+  color: var(--color-muted);
+}
+
+.interaction-detail-status__value {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 700;
+}
+
+.interaction-detail-status__value--verified {
+  color: var(--color-success);
+}
+
+.interaction-detail-status__value--pending {
+  color: var(--color-primary);
+}
+
+.interaction-detail-notes {
+  padding: 10px 14px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: var(--color-surface-muted);
+  color: var(--color-secondary-text);
+  font-size: var(--fs-body);
+  line-height: var(--lh-text);
+}
+
+/* Modal chi tiết thuốc (trước là inline style) */
+.medication-note-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  height: 24px;
+  padding: 0 6px;
+  border-radius: 4px;
+  background: var(--sev-contraindicated-bg);
+  color: var(--sev-contraindicated-fg);
+  font-size: var(--fs-secondary);
+  font-weight: 700;
+}
+
+.medication-detail-warning {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border: 1px solid #F0B2AD;
+  border-radius: var(--radius-control);
+  background: var(--color-danger-soft);
+  color: var(--color-danger-dark);
+  font-size: var(--fs-body);
+  line-height: var(--lh-text);
+}
+
 .interaction-detail-section {
   display: flex;
   flex-direction: column;
@@ -3921,22 +4132,23 @@ button {
   padding: 14px 16px;
   border-radius: var(--radius-control);
   background: #ffffff;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--color-border);
 }
 
 .interaction-detail-section__header {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 13px;
+  font-size: var(--fs-body);
   font-weight: 700;
   color: var(--color-text);
 }
 
 .interaction-detail-section__body {
-  font-size: 13px;
-  line-height: 1.6;
+  font-size: var(--fs-body);
+  line-height: var(--lh-text);
   color: var(--color-secondary-text);
+  max-width: var(--measure);
 }
 
 .interaction-detail-section--alert {
@@ -3945,16 +4157,16 @@ button {
 }
 
 .interaction-detail-section--alert .interaction-detail-section__header {
-  color: #be123c;
+  color: var(--color-danger);
 }
 
 .interaction-detail-section--guide {
   background: #f0fdf4;
-  border-color: #bbf7d0;
+  border-color: #A9DCC0;
 }
 
 .interaction-detail-section--guide .interaction-detail-section__header {
-  color: #15803d;
+  color: var(--color-success);
 }
 
 .interaction-detail-grid-meta {
@@ -3964,12 +4176,12 @@ button {
   padding: 12px 16px;
   background: var(--color-shell);
   border-radius: 10px;
-  font-size: 12px;
+  font-size: var(--fs-secondary);
 }
 
 .interaction-detail-grid-meta strong {
   display: block;
-  font-size: 11px;
+  font-size: var(--fs-meta);
   color: var(--color-muted);
   text-transform: uppercase;
   margin-bottom: 2px;
@@ -4002,8 +4214,10 @@ button {
 
 .medication-detail-banner p {
   margin: 4px 0 0;
-  font-size: 13px;
+  font-size: var(--fs-body);
   color: var(--color-muted);
+  line-height: var(--lh-text);
+  max-width: var(--measure);
 }
 
 .medication-detail-grid {
@@ -4018,12 +4232,12 @@ button {
   gap: 4px;
   padding: 12px 14px;
   background: #ffffff;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--color-border);
   border-radius: 10px;
 }
 
 .medication-detail-item label {
-  font-size: 11px;
+  font-size: var(--fs-meta);
   font-weight: 600;
   color: var(--color-muted);
   text-transform: uppercase;
@@ -4031,7 +4245,7 @@ button {
 }
 
 .medication-detail-item span {
-  font-size: 13.5px;
+  font-size: var(--fs-body);
   font-weight: 600;
   color: var(--color-text);
 }
@@ -4141,14 +4355,6 @@ button {
     margin-top: 24px;
   }
 
-  .dashboard-chart svg {
-    height: 220px;
-  }
-
-  .dashboard-chart__labels {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
   .dashboard-sync__legend {
     align-items: flex-start;
     flex-direction: column;
@@ -4186,19 +4392,21 @@ button {
   }
 
   .medication-search,
-  .filter-select,
-  .filter-select--severity,
-  .filter-select--target-type,
-  .filter-select--mechanism,
-  .filter-select--status,
-  .filter-select--source,
-  .filter-select--quality,
-  .filter-select--group,
   .filter-reset-btn {
     flex: 1 1 auto !important;
     width: 100% !important;
     max-width: 100% !important;
     min-width: 0 !important;
+  }
+
+  /* Màn hẹp: ô lọc giãn đều và xuống dòng; select lấp phần còn lại của ô */
+  .filter-select {
+    flex: 1 1 auto;
+  }
+
+  .filter-select select {
+    flex: 1 1 auto;
+    max-width: none;
   }
 
   .medications-header__actions {
@@ -4298,10 +4506,10 @@ button {
 .interaction-frame3-table th {
   height: 46px;
   padding: 0 16px;
-  background: rgba(239, 244, 255, 0.7);
+  background: var(--color-surface-muted);
   color: var(--color-muted);
-  font-size: 11px;
-  letter-spacing: 0.6px;
+  font-size: var(--fs-meta);
+  letter-spacing: 0.4px;
   text-transform: uppercase;
   font-weight: 700;
 }
@@ -4313,7 +4521,7 @@ button {
 }
 
 .interaction-frame3-table tr:hover td {
-  background: #f8fbff;
+  background: var(--color-surface-muted);
 }
 
 .interaction-frame3-table__row--active td {
@@ -4344,11 +4552,12 @@ button {
   color: var(--color-primary);
   border: 1px solid rgba(0, 97, 148, 0.2);
   border-radius: 8px;
-  font-size: 12px;
+  font-size: var(--fs-secondary);
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
   white-space: nowrap;
+  margin-left: auto;
 }
 
 .interaction-frame3-action-btn:hover {
@@ -4366,7 +4575,12 @@ button {
   background: rgba(186, 26, 26, 0.08);
   color: var(--color-danger);
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition:
+    background-color var(--dur-fast) ease,
+    border-color var(--dur-fast) ease,
+    color var(--dur-fast) ease,
+    box-shadow var(--dur-fast) ease,
+    transform var(--dur-fast) ease;
   flex-shrink: 0;
 }
 
@@ -4407,7 +4621,7 @@ button {
 }
 
 .interaction-confirm-content span {
-  font-size: 12px;
+  font-size: var(--fs-secondary);
   color: var(--color-muted);
   line-height: 1.5;
 }
@@ -4437,7 +4651,7 @@ button {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 13px;
+  font-size: var(--fs-body);
   font-weight: 500;
   color: var(--color-secondary-text);
 }
@@ -4451,7 +4665,7 @@ button {
 .interaction-editor-meta-item--right {
   margin-left: auto;
   color: var(--color-primary);
-  font-size: 12.5px;
+  font-size: var(--fs-secondary);
   font-weight: 600;
 }
 
@@ -4463,7 +4677,7 @@ button {
 }
 
 .interaction-editor-section__title {
-  font-size: 13px;
+  font-size: var(--fs-body);
   font-weight: 700;
   color: var(--color-primary-strong);
   letter-spacing: 0.5px;
@@ -4486,13 +4700,13 @@ button {
   align-items: start;
   gap: 14px;
   padding: 14px 16px;
-  border-radius: 12px;
-  background: #eff4ff;
+  border-radius: var(--radius-control);
+  background: var(--color-surface);
   cursor: pointer;
-  border: 1.5px solid transparent;
+  border: 1px solid var(--color-border-control);
   min-height: 76px;
   box-sizing: border-box;
-  transition: background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
 }
 
 .interaction-editor-radio-card input[type="radio"] {
@@ -4503,28 +4717,37 @@ button {
   cursor: pointer;
 }
 
+/* Thẻ được chọn: viền 2px màu chấm + nền nhạt của mức độ (contraindicated / major / moderate) */
 .interaction-editor-radio-card.is-selected {
-  background: #ffffff;
-  box-shadow: 0 2px 8px rgba(0, 97, 148, 0.08);
+  border-width: 2px;
+  padding: 13px 15px;
 }
 
 .interaction-editor-radio-card--contraindicated input[type="radio"] {
-  accent-color: var(--severity-contraindicated);
+  accent-color: var(--sev-contraindicated-dot);
+}
+
+.interaction-editor-radio-card--serious input[type="radio"] {
+  accent-color: var(--sev-major-dot);
+}
+
+.interaction-editor-radio-card--caution input[type="radio"] {
+  accent-color: var(--sev-moderate-dot);
 }
 
 .interaction-editor-radio-card--contraindicated.is-selected {
-  border-color: var(--severity-contraindicated);
-  background: rgba(255, 218, 214, 0.25);
+  border-color: var(--sev-contraindicated-dot);
+  background: var(--sev-contraindicated-bg);
 }
 
 .interaction-editor-radio-card--serious.is-selected {
-  border-color: var(--severity-major);
-  background: rgba(211, 228, 254, 0.3);
+  border-color: var(--sev-major-dot);
+  background: var(--sev-major-bg);
 }
 
 .interaction-editor-radio-card--caution.is-selected {
-  border-color: var(--severity-caution);
-  background: rgba(220, 233, 255, 0.3);
+  border-color: var(--sev-moderate-dot);
+  background: var(--sev-moderate-bg);
 }
 
 .interaction-editor-radio-body {
@@ -4551,39 +4774,39 @@ button {
   align-self: start;
   padding: 3px 8px;
   border-radius: 4px;
-  font-size: 10px;
+  font-size: var(--fs-meta);
   font-weight: 700;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.4px;
   text-transform: uppercase;
   white-space: nowrap;
 }
 
 .interaction-editor-radio-card--contraindicated .interaction-editor-radio-badge {
-  background: var(--severity-contraindicated);
+  background: var(--sev-contraindicated-fg);
   color: #ffffff;
 }
 
 .interaction-editor-radio-card--serious .interaction-editor-radio-badge {
-  background: var(--severity-major);
+  background: var(--sev-major-fg);
   color: #ffffff;
 }
 
 .interaction-editor-radio-card--caution .interaction-editor-radio-badge {
-  background: var(--severity-caution-soft);
-  color: var(--severity-caution);
-  border: 1px solid var(--severity-caution);
+  background: var(--sev-moderate-bg);
+  color: var(--sev-moderate-fg);
+  border: 1px solid var(--sev-moderate-dot);
 }
 
 .interaction-editor-radio-card--contraindicated .interaction-editor-radio-title {
-  color: var(--severity-contraindicated);
+  color: var(--sev-contraindicated-fg);
 }
 
 .interaction-editor-radio-card--serious .interaction-editor-radio-title {
-  color: var(--severity-major);
+  color: var(--sev-major-fg);
 }
 
 .interaction-editor-radio-card--caution .interaction-editor-radio-title {
-  color: var(--severity-caution);
+  color: var(--sev-moderate-fg);
 }
 
 .interaction-editor-verify-box {
@@ -4626,6 +4849,19 @@ textarea:focus-visible,
     scroll-behavior: auto !important;
     transition-duration: 0.01ms !important;
     animation-duration: 0.01ms !important;
+    animation-delay: 0ms !important;
     animation-iteration-count: 1 !important;
+  }
+
+  /* Không dịch/phóng khi hover, bấm hay chọn điểm biểu đồ (AC13) */
+  .dashboard-kpi:hover,
+  .medication-stat:hover,
+  .dashboard-action:active,
+  .interaction-drawer-save-btn:active,
+  .medication-pages button:active,
+  .admin-topbar__icon-button:active,
+  .chart-point.is-active,
+  .admin-login-submit-btn:active {
+    transform: none !important;
   }
 }

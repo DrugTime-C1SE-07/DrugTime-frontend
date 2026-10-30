@@ -1,14 +1,9 @@
-import { ChevronRight, Download, RefreshCw } from "lucide-react";
+import { Download, RefreshCw } from "lucide-react";
 
 export default function DashboardHeader() {
   return (
     <header className="dashboard-header">
       <div>
-        <nav className="dashboard-breadcrumb" aria-label="Đường dẫn">
-          <span>DrugTime Admin</span>
-          <ChevronRight size={16} strokeWidth={2.4} aria-hidden="true" />
-          <strong>Giám sát Hệ thống</strong>
-        </nav>
         <h1>Tổng quan dữ liệu</h1>
       </div>
 

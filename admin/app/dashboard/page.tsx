@@ -12,7 +12,8 @@ export default function DashboardPage() {
 
       <div className="dashboard-kpi-grid">
         <KpiCard
-          tone="blue"
+          tone="accent"
+          featured
           icon={Database}
           eyebrow="Tập dữ liệu"
           title="Tổng số thuốc"
@@ -23,7 +24,7 @@ export default function DashboardPage() {
           footerSecondary="Kho Dược DAV"
         />
         <KpiCard
-          tone="blue"
+          tone="warning"
           icon={ClipboardCheck}
           eyebrow="Cần xử lý"
           title="Bản ghi cần thẩm định"
@@ -33,7 +34,7 @@ export default function DashboardPage() {
           footerSecondary="Xem hàng đợi duyệt"
         />
         <KpiCard
-          tone="red"
+          tone="danger"
           icon={AlertTriangle}
           eyebrow="Đơn thuốc tải lên"
           title="Chuỗi quét OCR chưa khớp"

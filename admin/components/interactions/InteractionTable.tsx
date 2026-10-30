@@ -12,6 +12,7 @@ import {
   Trash2,
   Utensils,
 } from "lucide-react";
+import { SEVERITY_LABELS } from "../../lib/constants/severity";
 import { Interaction } from "../../lib/types/interaction";
 import { Modal } from "../ui/Modal";
 
@@ -22,13 +23,6 @@ interface InteractionTableProps {
   onDelete?: (interaction: Interaction) => void;
   onResetFilters?: () => void;
 }
-
-const severityLabel: Record<Interaction["severity"], string> = {
-  contraindicated: "Chống chỉ định",
-  major: "Nghiêm trọng",
-  moderate: "Thận trọng",
-  minor: "Thận trọng",
-};
 
 export default function InteractionTable({
   interactions,
@@ -161,10 +155,10 @@ export default function InteractionTable({
                       </td>
                       <td>
                         <span
-                          className={`interaction-frame3-badge-pill interaction-frame3-badge-pill--${item.severity}`}
+                          className={`interaction-severity-badge interaction-severity-badge--${item.severity}`}
                         >
                           <span className="pill-dot" aria-hidden="true" />
-                          {severityLabel[item.severity]}
+                          {SEVERITY_LABELS[item.severity]}
                         </span>
                       </td>
                       <td>
