@@ -85,12 +85,6 @@ class DrugInteractionWarningScreen extends StatelessWidget {
                       const SizedBox(height: 12),
                       _buildCheckedDrugsCard(context),
                     ],
-
-                    // 3. Card Hồ sơ bệnh nhân (Subtle - chỉ hiển thị khi có thông tin bệnh nhân)
-                    if (report.patientName != null && report.patientName!.isNotEmpty) ...[
-                      const SizedBox(height: 12),
-                      _buildPatientCard(context),
-                    ],
                   ],
                 ),
               ),
@@ -347,53 +341,7 @@ class DrugInteractionWarningScreen extends StatelessWidget {
     );
   }
 
-  /// 3. Card Hồ sơ bệnh nhân (Subtle)
-  Widget _buildPatientCard(BuildContext context) {
-    final patientName = report.patientName ?? '';
-    if (patientName.isEmpty) return const SizedBox.shrink();
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Row(
-            children: [
-              const Icon(
-                Icons.account_circle_outlined,
-                size: 20,
-                color: AppColors.brand,
-              ),
-              const SizedBox(width: 8),
-              Text(
-                'Hồ sơ: $patientName',
-                style: const TextStyle(
-                  fontSize: 12.5,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.ink,
-                ),
-              ),
-            ],
-          ),
-          const Text(
-            'Đổi hồ sơ',
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              color: AppColors.brand,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// 4. Khối chân màn hình cố định
+  /// 3. Khối chân màn hình cố định
   Widget _buildBottomBar(BuildContext context) {
     final hasInteractions = report.hasInteractions;
 
@@ -409,11 +357,11 @@ class DrugInteractionWarningScreen extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // 4.1 Mandatory Disclaimer Card (Gọn gàng 1 dòng, không thể tắt/ẩn)
+          // 3.1 Mandatory Disclaimer Card (Gọn gàng, không thể tắt/ẩn)
           const MandatoryDisclaimerCard(),
           const SizedBox(height: 10),
 
-          // 4.2 Nút hành động
+          // 3.2 Nút hành động
           if (hasInteractions) ...[
             FilledButton.icon(
               key: const Key('interaction_consult_doctor_button'),
@@ -444,8 +392,9 @@ class DrugInteractionWarningScreen extends StatelessWidget {
                 ),
               ),
             ),
-            const SizedBox(height: 6),
-            TextButton(
+            const SizedBox(height: 8),
+            // Nút "Tôi đã hiểu và tiếp tục" dạng hộp viền đỏ cảnh báo nguy hiểm theo yêu cầu
+            OutlinedButton(
               key: const Key('interaction_acknowledge_button'),
               onPressed: () {
                 if (args.onAcknowledge != null) {
@@ -454,13 +403,22 @@ class DrugInteractionWarningScreen extends StatelessWidget {
                   Navigator.of(context).pop(true);
                 }
               },
-              style: TextButton.styleFrom(
-                foregroundColor: AppColors.inkMuted,
-                minimumSize: const Size.fromHeight(40),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.danger,
+                backgroundColor: const Color(0xFFFFF5F5),
+                side: const BorderSide(color: AppColors.danger, width: 1.5),
+                minimumSize: const Size.fromHeight(44),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
               ),
               child: const Text(
                 'Tôi đã hiểu và tiếp tục',
-                style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600),
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.danger,
+                ),
               ),
             ),
           ] else ...[

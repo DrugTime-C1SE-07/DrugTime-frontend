@@ -189,45 +189,72 @@ class InteractionPairCard extends StatelessWidget {
             ),
             const SizedBox(height: 8),
 
-            // 3. Hai gạch đầu dòng súc tích (Nguy cơ + Khuyến nghị)
+            // 3. Cân bằng chữ (2 cột: Label cố định bên trái + Nội dung thẳng hàng bên phải, không thụt thò)
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.6),
+                color: Colors.white.withValues(alpha: 0.7),
                 borderRadius: BorderRadius.circular(10),
                 border: Border.all(color: cardBorder.withValues(alpha: 0.6)),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  RichText(
-                    text: TextSpan(
-                      style: const TextStyle(fontSize: 12, color: AppColors.ink, height: 1.4),
-                      children: [
-                        TextSpan(
-                          text: '• Nguy cơ: ',
+                  // Dòng 1: Nguy cơ
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      SizedBox(
+                        width: 90,
+                        child: Text(
+                          '• Nguy cơ:',
                           style: TextStyle(
+                            fontSize: 12,
                             fontWeight: FontWeight.w700,
                             color: isDanger ? const Color(0xFFBA1A1A) : subtitleColor,
                           ),
                         ),
-                        TextSpan(text: pair.description),
-                      ],
-                    ),
+                      ),
+                      Expanded(
+                        child: Text(
+                          pair.description,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: AppColors.ink,
+                            height: 1.35,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                   if (pair.recommendation != null && pair.recommendation!.trim().isNotEmpty) ...[
-                    const SizedBox(height: 4),
-                    RichText(
-                      text: TextSpan(
-                        style: const TextStyle(fontSize: 12, color: AppColors.ink, height: 1.4),
-                        children: [
-                          const TextSpan(
-                            text: '• Khuyến nghị: ',
-                            style: TextStyle(fontWeight: FontWeight.w700, color: AppColors.brand),
+                    const SizedBox(height: 6),
+                    // Dòng 2: Khuyến nghị
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const SizedBox(
+                          width: 90,
+                          child: Text(
+                            '• Khuyến nghị:',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.brand,
+                            ),
                           ),
-                          TextSpan(text: pair.recommendation!),
-                        ],
-                      ),
+                        ),
+                        Expanded(
+                          child: Text(
+                            pair.recommendation!,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: AppColors.ink,
+                              height: 1.35,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ],
