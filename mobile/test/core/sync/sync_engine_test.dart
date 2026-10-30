@@ -8,6 +8,8 @@ import 'package:drugtime_mobile/core/storage/local_db/local_medication_store.dar
 import 'package:drugtime_mobile/core/storage/local_db/local_models.dart';
 import 'package:drugtime_mobile/core/sync/sync_engine.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 
 void main() {
   test('start syncs pending dose logs immediately when already online',
@@ -360,6 +362,211 @@ void main() {
       'taken_at_out_of_window: taken_at must be within 1 hour of scheduled_at',
     );
   });
+  group('sync checkpoint (3.19, AC15)', () {
+    test('checkpoint after all final results', () async {
+      final store = _FakeLocalMedicationStore(
+          [_doseLog('dose-1'), _doseLog('dose-2'), _doseLog('dose-3')]);
+      final checkpoints = _FakeCheckpointSource();
+      final engine = _engine(
+        store: store,
+        remote: _FakeDoseRemoteDataSource(),
+        network: _FakeConnectivityMonitor(isOnline: true),
+        checkpoints: checkpoints,
+      );
+
+      expect(await engine.syncPendingDoseLogs(), isTrue);
+
+      expect(store.syncedClientUuids, ['dose-1', 'dose-2', 'dose-3']);
+      expect(checkpoints.calls, 1);
+    });
+
+    for (final status in [404, 409, 422]) {
+      test('$status item failure counts as final', () async {
+        final checkpoints = _FakeCheckpointSource();
+        final engine = _engine(
+          store: _FakeLocalMedicationStore([_doseLog('dose-1')]),
+          remote: _FakeDoseRemoteDataSource(results: [
+            DoseUploadResult(
+              clientUuid: 'dose-1',
+              status: DoseUploadResultStatus.failed,
+              errorCode: 'final',
+              httpStatus: status,
+            ),
+          ]),
+          network: _FakeConnectivityMonitor(isOnline: true),
+          checkpoints: checkpoints,
+        );
+
+        expect(await engine.syncPendingDoseLogs(), isTrue);
+        expect(checkpoints.calls, 1);
+      });
+    }
+
+    test('403 item failure is not final', () async {
+      final checkpoints = _FakeCheckpointSource();
+      final engine = _engine(
+        store: _FakeLocalMedicationStore([_doseLog('dose-1')]),
+        remote: _FakeDoseRemoteDataSource(results: const [
+          DoseUploadResult(
+            clientUuid: 'dose-1',
+            status: DoseUploadResultStatus.failed,
+            errorCode: 'forbidden_schedule',
+            httpStatus: 403,
+          ),
+        ]),
+        network: _FakeConnectivityMonitor(isOnline: true),
+        checkpoints: checkpoints,
+      );
+
+      expect(await engine.syncPendingDoseLogs(), isFalse);
+      expect(checkpoints.calls, 0);
+    });
+
+    for (final failure in const [
+      ApiException('offline', isTransient: true),
+      ApiException('server', statusCode: 500, isTransient: true),
+      ApiException('timeout', statusCode: 408, isTransient: true),
+      ApiException('throttled', statusCode: 429, isTransient: true),
+      ApiException('unauthorized', statusCode: 401),
+      ApiException('forbidden', statusCode: 403),
+    ]) {
+      test('no checkpoint on ${failure.statusCode ?? 'network'} failure',
+          () async {
+        final checkpoints = _FakeCheckpointSource();
+        final engine = _engine(
+          store: _FakeLocalMedicationStore([_doseLog('dose-1')]),
+          remote: _FakeDoseRemoteDataSource(
+              failuresBeforeSuccess: 5, failure: failure),
+          network: _FakeConnectivityMonitor(isOnline: true),
+          checkpoints: checkpoints,
+        );
+
+        expect(await engine.syncPendingDoseLogs(), isFalse);
+        expect(checkpoints.calls, 0);
+      });
+    }
+
+    test('checkpoint when outbox empty, on start and syncNow', () async {
+      final checkpoints = _FakeCheckpointSource();
+      final remote = _FakeDoseRemoteDataSource();
+      final engine = _engine(
+        store: _FakeLocalMedicationStore(const []),
+        remote: remote,
+        network: _FakeConnectivityMonitor(isOnline: true),
+        checkpoints: checkpoints,
+      );
+
+      await engine.start();
+      expect(await engine.syncNow(), isTrue);
+
+      expect(remote.uploadedClientUuids, isEmpty);
+      expect(checkpoints.calls, 2);
+    });
+
+    test('no checkpoint while offline; checkpoint when network returns',
+        () async {
+      final checkpoints = _FakeCheckpointSource();
+      final network = _FakeConnectivityMonitor(isOnline: false);
+      final engine = _engine(
+        store: _FakeLocalMedicationStore(const []),
+        remote: _FakeDoseRemoteDataSource(),
+        network: network,
+        checkpoints: checkpoints,
+      );
+
+      await engine.start();
+      expect(checkpoints.calls, 0);
+
+      network.goOnline();
+      await Future<void>.delayed(Duration.zero);
+      await engine.syncPendingDoseLogs();
+      expect(checkpoints.calls, greaterThanOrEqualTo(1));
+    });
+
+    test('periodic 15 minutes while app is open', () async {
+      final checkpoints = _FakeCheckpointSource();
+      final timers = _FakeTimers();
+      final engine = _engine(
+        store: _FakeLocalMedicationStore(const []),
+        remote: _FakeDoseRemoteDataSource(),
+        network: _FakeConnectivityMonitor(isOnline: true),
+        checkpoints: checkpoints,
+        periodicTimer: timers.create,
+      );
+
+      await engine.start();
+      expect(timers.intervals, [const Duration(minutes: 15)]);
+      expect(checkpoints.calls, 1);
+
+      timers.fire();
+      await engine.syncPendingDoseLogs();
+      expect(checkpoints.calls, greaterThanOrEqualTo(2));
+
+      await engine.dispose();
+      expect(timers.cancelled, isTrue);
+    });
+
+    test('checkpoint failure is retried on next sync', () async {
+      final checkpoints = _FakeCheckpointSource(failures: 1);
+      final engine = _engine(
+        store: _FakeLocalMedicationStore(const []),
+        remote: _FakeDoseRemoteDataSource(),
+        network: _FakeConnectivityMonitor(isOnline: true),
+        checkpoints: checkpoints,
+      );
+
+      expect(await engine.syncPendingDoseLogs(), isTrue);
+      expect(await engine.syncPendingDoseLogs(), isTrue);
+      expect(checkpoints.calls, 2);
+    });
+
+    test('DoseApiRemoteDataSource parses item http_status', () async {
+      final client = ApiClient(
+        baseUrl: Uri.parse('https://api.example.test/'),
+        httpClient: MockClient((request) async => http.Response(
+              jsonEncode({
+                'items': [
+                  {
+                    'client_uuid': 'dose-1',
+                    'result': 'failed',
+                    'error': {
+                      'code': 'schedule_not_found',
+                      'http_status': 404,
+                      'detail': 'schedule_id was not found',
+                    },
+                  },
+                ],
+                'summary': {'total': 1, 'synced': 0, 'failed': 1},
+              }),
+              200,
+            )),
+      );
+
+      final results = await DoseApiRemoteDataSource(client)
+          .uploadDoses([_doseLog('dose-1')]);
+
+      expect(results.single.isFailed, isTrue);
+      expect(results.single.httpStatus, 404);
+    });
+
+    test('ApiDoseSyncCheckpointSource posts without body', () async {
+      late http.Request captured;
+      final client = ApiClient(
+        baseUrl: Uri.parse('https://api.example.test/'),
+        httpClient: MockClient((request) async {
+          captured = request;
+          return http.Response('', 204);
+        }),
+      );
+
+      await ApiDoseSyncCheckpointSource(client).recordCheckpoint();
+
+      expect(captured.method, 'POST');
+      expect(captured.url.path, '/doses/sync-checkpoints');
+      expect(captured.body, isEmpty);
+      expect(captured.headers.containsKey('Content-Type'), isFalse);
+    });
+  });
 }
 
 DoseOutboxSyncEngine _engine({
@@ -368,6 +575,8 @@ DoseOutboxSyncEngine _engine({
   required _FakeConnectivityMonitor network,
   SyncDelay delay = _noDelay,
   int batchSize = 10,
+  _FakeCheckpointSource? checkpoints,
+  PeriodicTimerFactory? periodicTimer,
 }) {
   return DoseOutboxSyncEngine(
     localStore: store,
@@ -376,7 +585,60 @@ DoseOutboxSyncEngine _engine({
     batchSize: batchSize,
     delay: delay,
     clock: () => DateTime.utc(2026, 9, 30),
+    checkpointSource: checkpoints,
+    periodicTimer: periodicTimer ?? _FakeTimers().create,
   );
+}
+
+class _FakeCheckpointSource implements DoseSyncCheckpointSource {
+  _FakeCheckpointSource({this.failures = 0});
+
+  int failures;
+  int calls = 0;
+
+  @override
+  Future<void> recordCheckpoint() async {
+    calls++;
+    if (failures > 0) {
+      failures--;
+      throw const ApiException('offline', isTransient: true);
+    }
+  }
+}
+
+class _FakeTimers {
+  final intervals = <Duration>[];
+  final _callbacks = <void Function(Timer)>[];
+  final _timers = <_FakeTimer>[];
+
+  bool get cancelled => _timers.every((timer) => !timer.isActive);
+
+  Timer create(Duration interval, void Function(Timer) callback) {
+    intervals.add(interval);
+    _callbacks.add(callback);
+    final timer = _FakeTimer();
+    _timers.add(timer);
+    return timer;
+  }
+
+  void fire() {
+    for (var i = 0; i < _callbacks.length; i++) {
+      _callbacks[i](_timers[i]);
+    }
+  }
+}
+
+class _FakeTimer implements Timer {
+  bool _active = true;
+
+  @override
+  bool get isActive => _active;
+
+  @override
+  int get tick => 0;
+
+  @override
+  void cancel() => _active = false;
 }
 
 Future<void> _noDelay(Duration duration) async {}
@@ -525,7 +787,8 @@ class _FakeLocalMedicationStore implements LocalMedicationStore {
   Future<bool> hasDoseLog({
     required int medicationScheduleId,
     required DateTime scheduledAt,
-  }) async => false;
+  }) async =>
+      false;
 
   @override
   Future<void> replaceSchedules({

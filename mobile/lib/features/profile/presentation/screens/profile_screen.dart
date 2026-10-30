@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import '../../../../app/app_shell.dart';
 import '../../../../app/router.dart';
 import '../../../../app/theme/app_theme.dart';
 import '../../../../shared/widgets/coming_soon_view.dart';
 import '../../../auth/presentation/state/auth_controller.dart';
+import '../../../family_link/presentation/screens/caregivers_screen.dart';
 import '../state/profile_controller.dart';
 import '../widgets/profile_avatar.dart';
 import '../widgets/profile_icons.dart';
@@ -17,6 +19,24 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen>
     with WidgetsBindingObserver {
+  bool _loggingOut = false;
+  // Chờ cleanup token, khóa thao tác lặp và cho thử lại nếu đăng xuất thất bại.
+  Future<void> _logout() async {
+    if (_loggingOut) return;
+    setState(() => _loggingOut = true);
+    try {
+      await AuthScope.read(context).signOut();
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: const Text('Chưa hoàn tất đăng xuất. Vui lòng thử lại'),
+            action: SnackBarAction(label: 'Thử lại', onPressed: _logout)));
+      }
+    } finally {
+      if (mounted) setState(() => _loggingOut = false);
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -54,6 +74,18 @@ class _ProfileScreenState extends State<ProfileScreen>
     if (mounted && widget.active) await ProfileScope.read(context).load();
   }
 
+  /// Màn Người giám sát trống có nút "Mở tab Người thân": khi đó chuyển tab của shell.
+  Future<void> _openCaregivers() async {
+    final result =
+        await Navigator.pushNamed<CaregiversScreenResult>(context, AppRoutes.caregivers);
+    if (!mounted) return;
+    if (result == CaregiversScreen.openFamilyTab) {
+      AppShell.showTab(context, AppTab.family);
+      return;
+    }
+    if (widget.active) await ProfileScope.read(context).load();
+  }
+
   void _openComingSoon(String title, IconData icon) {
     Navigator.of(context).push(MaterialPageRoute<void>(
       builder: (_) => Scaffold(body: ComingSoonView(title: title, icon: icon)),
@@ -82,8 +114,9 @@ class _ProfileScreenState extends State<ProfileScreen>
                   padding: EdgeInsets.zero,
                 ),
                 onSelected: (value) {
-                  if (value == 'logout') AuthScope.read(context).signOut();
+                  if (value == 'logout') _logout();
                 },
+                enabled: !_loggingOut,
                 itemBuilder: (_) => const [
                   PopupMenuItem(value: 'logout', child: Text('Đăng xuất')),
                 ],
@@ -150,7 +183,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                   'Người giám sát',
                   'Quản lý người giám sát',
                   'h-users',
-                  () => _openComingSoon('Người giám sát', Icons.people_outline),
+                  _openCaregivers,
                   key: const Key('supervisors-tile'),
                 ),
                 _divider(),

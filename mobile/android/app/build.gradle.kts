@@ -1,8 +1,16 @@
 plugins {
     id("com.android.application")
+    // START: FlutterFire Configuration
+    id("com.google.gms.google-services") apply false
+    // END: FlutterFire Configuration
     id("kotlin-android")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
+}
+
+// Firebase là tùy chọn; checkout mới vẫn build được khi chưa có cấu hình cá nhân.
+if (file("google-services.json").isFile) {
+    apply(plugin = "com.google.gms.google-services")
 }
 
 android {
