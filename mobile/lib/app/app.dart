@@ -151,7 +151,7 @@ class DrugTimeApp extends StatefulWidget {
 class _DrugTimeAppState extends State<DrugTimeApp> with WidgetsBindingObserver {
   late final CaptureServices _captures =
       widget.captureServices ?? CaptureServices.native();
-  
+
   StreamSubscription<bool>? _familyConnection;
   final _familyAdherenceAvailability = ValueNotifier<bool>(false);
   String? _tokenSession;
@@ -543,8 +543,6 @@ class _DrugTimeAppState extends State<DrugTimeApp> with WidgetsBindingObserver {
               incomingRequests: _incomingRequests,
               child: ProfileScope(
                 controller: _profiles,
-                child:
-                    _sessionLoaded ? _buildApp() : const _SessionLoadingApp(),
                 child: AdherenceHistoryScope(
                   controller: _history,
                   child:
