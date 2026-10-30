@@ -1,4 +1,3 @@
-import { Open_Sans } from "next/font/google";
 import { cookies } from "next/headers";
 import type { ReactNode } from "react";
 
@@ -8,13 +7,6 @@ import Topbar from "../../components/layout/Topbar";
 import { ToastProvider } from "../../components/ui/Toast";
 import { SESSION_COOKIE, readExpiry } from "../../lib/auth/session";
 import "./dashboard-theme.css";
-
-const openSans = Open_Sans({
-  subsets: ["latin", "vietnamese"],
-  weight: ["400", "600", "700"],
-  display: "swap",
-  variable: "--font-open-sans",
-});
 
 export default function DashboardLayout({
   children,
@@ -26,7 +18,7 @@ export default function DashboardLayout({
 
   return (
     // Theme chỉ áp trong .admin-theme để trang Login (dùng chung globals.css) không đổi; bọc ngoài ToastProvider để toast cũng nhận theme.
-    <div className={`admin-theme ${openSans.variable}`}>
+    <div className="admin-theme">
       <ToastProvider>
         <div className="admin-shell">
           <SessionKeepAlive expiresAt={expiresAt} />

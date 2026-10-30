@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo } from "react";
+import React, { useMemo, useRef } from "react";
 import Link from "next/link";
 import {
   AlertCircle,
@@ -17,6 +17,7 @@ import {
   Tag,
 } from "lucide-react";
 import { Modal } from "../ui/Modal";
+import { SEVERITY_LABELS } from "../../lib/constants/severity";
 import { Medication } from "../../lib/types/medication";
 import { initialInteractions } from "../../lib/data/mock-interactions";
 
@@ -49,10 +50,15 @@ const qualityConfig = {
 export default function MedicationDetailModal({
   isOpen,
   onClose,
-  medication,
+  medication: selectedMedication,
   onEdit,
   onApprove,
 }: MedicationDetailModalProps) {
+  // Trang xóa thuốc đang chọn ngay khi đóng; giữ thuốc gần nhất để Modal còn chạy hiệu ứng đóng.
+  const lastMedication = useRef(selectedMedication);
+  if (selectedMedication) lastMedication.current = selectedMedication;
+  const medication = selectedMedication ?? lastMedication.current;
+
   const relatedInteractions = useMemo(() => {
     if (!medication) return [];
     const ingWords = medication.ingredient.toLowerCase().split(/[\s+,/]+/).filter((w) => w.length > 3);
@@ -137,18 +143,7 @@ export default function MedicationDetailModal({
               <h3>{medication.name}</h3>
               {medication.noteBadge ? (
                 <span
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    width: 22,
-                    height: 22,
-                    borderRadius: 4,
-                    background: "#fee2e2",
-                    color: "#b91c1c",
-                    fontWeight: 800,
-                    fontSize: 13,
-                  }}
+                  className="medication-note-badge"
                   title="Thuốc cần kiểm soát đặc biệt theo quy định Bộ Y tế"
                 >
                   {medication.noteBadge}
@@ -165,19 +160,7 @@ export default function MedicationDetailModal({
         </div>
 
         {medication.formWarning || medication.isRegNoMissing ? (
-          <div
-            style={{
-              padding: "10px 14px",
-              background: "var(--color-danger-soft)",
-              borderRadius: 8,
-              border: "1px solid #ffb4ab",
-              color: "var(--color-danger-dark)",
-              fontSize: 13,
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-            }}
-          >
+          <div className="medication-detail-warning">
             <AlertTriangle size={18} strokeWidth={2.2} />
             <span>
               <strong>Cảnh báo dữ liệu:</strong>{" "}
@@ -198,11 +181,7 @@ export default function MedicationDetailModal({
                 <div key={rule.id} className="medication-interaction-item">
                   <div className="medication-interaction-item-head">
                     <span className={`interaction-severity-badge interaction-severity-badge--${rule.severity}`}>
-                      {rule.severity === "contraindicated"
-                        ? "Chống chỉ định"
-                        : rule.severity === "major"
-                        ? "Nghiêm trọng"
-                        : "Thận trọng"}
+                      {SEVERITY_LABELS[rule.severity]}
                     </span>
                     <span className="medication-interaction-pair">
                       {rule.drugA} ↔ {rule.drugB}

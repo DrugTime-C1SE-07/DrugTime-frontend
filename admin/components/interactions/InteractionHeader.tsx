@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronRight, Download, Plus } from "lucide-react";
+import { Download, Plus } from "lucide-react";
 
 interface InteractionHeaderProps {
   onOpenCreateModal: () => void;
@@ -14,13 +14,6 @@ export default function InteractionHeader({
   return (
     <header className="interactions-header">
       <div>
-        <nav className="dashboard-breadcrumb" aria-label="Đường dẫn">
-          <span>DrugTime Admin</span>
-          <ChevronRight size={14} strokeWidth={2} aria-hidden="true" />
-          <span>Danh mục CSDL</span>
-          <ChevronRight size={14} strokeWidth={2} aria-hidden="true" />
-          <strong>Quy tắc tương tác</strong>
-        </nav>
         <h1>Quy tắc tương tác thuốc</h1>
         <p>
           Cơ sở tri thức cảnh báo tương tác thuốc Dược thư Quốc gia, DrugBank &amp; FDA phục vụ kê đơn và nhắc uống an toàn
