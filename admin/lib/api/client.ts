@@ -1,3 +1,4 @@
+import { NextResponse, type NextRequest } from "next/server";
 import { cookies } from "next/headers";
 
 import { SESSION_COOKIE } from "../auth/session";
@@ -101,5 +102,39 @@ export function toBrowserError(
       return { status, code: "rate_limited" };
     default:
       return { status: 503, code: "unavailable" };
+  }
+}
+
+
+/** Proxy giới hạn resource, giữ token và chi tiết lỗi hạ tầng ở server. */
+export async function adminRoute(
+  request: NextRequest,
+  path: string,
+  method: "GET" | "POST" | "PATCH" | "DELETE",
+  queryKeys: string[] = [],
+  id?: string,
+): Promise<NextResponse> {
+  try {
+    if (id !== undefined && (!/^-?\d+$/.test(id) || !Number.isSafeInteger(Number(id)))) {
+      throw new ApiError(422, null);
+    }
+    const origin = request.headers.get("origin");
+    if (method !== "GET" && origin && origin !== request.nextUrl.origin) throw new ApiError(403, null);
+    const query = new URLSearchParams();
+    for (const key of queryKeys) {
+      const value = request.nextUrl.searchParams.get(key);
+      if (value !== null) query.set(key, value);
+    }
+    let body: unknown;
+    if (method === "POST" || method === "PATCH") {
+      try { body = await request.json(); }
+      catch { throw new ApiError(422, null); }
+    }
+    const result = await apiFetchWithSession<unknown>(`${path}${query.size ? `?${query}` : ""}`, { method, body });
+    if (method === "DELETE") return new NextResponse(null, { status: 204 });
+    return NextResponse.json(result, { status: method === "POST" ? 201 : 200, headers: { "Cache-Control": "no-store" } });
+  } catch (error) {
+    const status = error instanceof ApiError && [401, 403, 404, 409, 422, 429].includes(error.status) ? error.status : 503;
+    return NextResponse.json({ error: "request_failed" }, { status, headers: { "Cache-Control": "no-store" } });
   }
 }

@@ -2,123 +2,47 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import {
-  ClipboardCheck,
-  Database,
-  LayoutDashboard,
-  Notebook,
-  PillIcon,
-  ScanText,
-  UserRound,
-  type LucideIcon,
-} from "lucide-react";
-
+import { ClipboardCheck, LayoutDashboard, Notebook, PillIcon, ScanText } from "lucide-react";
 import LogoutButton from "../auth/LogoutButton";
 
-type SidebarItem = {
-  label: string;
-  href: string;
-  icon: LucideIcon;
-  badge?: number;
-};
-
-const sidebarItems: SidebarItem[] = [
-  {
-    label: "Tổng quan dữ liệu",
-    href: "/dashboard",
-    icon: LayoutDashboard,
-  },
-  {
-    label: "Danh mục thuốc",
-    href: "/dashboard/medications",
-    icon: PillIcon,
-  },
-  {
-    label: "Quy tắc tương tác",
-    href: "/dashboard/interactions",
-    icon: ClipboardCheck,
-  },
-  {
-    label: "Nhật ký",
-    href: "/dashboard/scraper-logs",
-    icon: Notebook,
-  },
-  {
-    label: "Đối soát OCR",
-    href: "/dashboard/ocr-review",
-    icon: ScanText,
-    badge: 3,
-  },
+const items = [
+  { label: "Tổng quan dữ liệu", href: "/dashboard", icon: LayoutDashboard },
+  { label: "Danh mục thuốc", href: "/dashboard/medications", icon: PillIcon },
+  { label: "Quy tắc tương tác", href: "/dashboard/interactions", icon: ClipboardCheck },
+  { label: "Nhật ký đồng bộ", href: "/dashboard/scraper-logs", icon: Notebook },
+  { label: "Đối soát OCR", href: "/dashboard/ocr-review", icon: ScanText },
 ];
 
-function isActivePath(pathname: string, href: string) {
-  if (href === "/dashboard") {
-    return pathname === href;
-  }
-
-  return pathname === href || pathname.startsWith(`${href}/`);
-}
-
+/** Thanh điều hướng ngang của khu quản trị (tên file giữ nguyên để không đổi chỗ import). */
 export default function Sidebar() {
   const pathname = usePathname();
-
+  const isActive = (href: string) => (href === "/dashboard" ? pathname === href : pathname === href || pathname.startsWith(`${href}/`));
+  const current = items.find(item => isActive(item.href));
   return (
-    <aside className="admin-sidebar" aria-label="Menu quản trị">
-      <div className="admin-sidebar__brand">
-        <div className="admin-sidebar__brand-icon" aria-hidden="true">
-          <Database size={20} strokeWidth={2.4} />
-        </div>
-        <div className="admin-sidebar__brand-text">
-          <div className="admin-sidebar__brand-row">
-            <span className="admin-sidebar__brand-name">DrugTime</span>
-            <span className="admin-sidebar__brand-badge">ADMIN</span>
-          </div>
-          <span className="admin-sidebar__subtitle">Hệ thống nhắc uống thuốc</span>
-        </div>
-      </div>
-
-      <div className="admin-sidebar__status" aria-label="Trạng thái hệ thống: Hoạt động v1.2">
-        <div className="admin-sidebar__status-left">
-          <span className="admin-sidebar__status-dot" aria-hidden="true" />
-          <span>Hệ thống hoạt động</span>
-        </div>
-        <span className="admin-sidebar__status-version">v1.2</span>
-      </div>
-
-      <nav className="admin-sidebar__nav">
-        {sidebarItems.map((item) => {
+    <header className="admin-navbar">
+      <nav className="admin-navbar__nav" aria-label="Menu quản trị">
+        {items.map(item => {
+          const active = isActive(item.href);
           const Icon = item.icon;
-          const active = isActivePath(pathname, item.href);
-
           return (
             <Link
               key={item.href}
-              className={`admin-sidebar__link${active ? " admin-sidebar__link--active" : ""}`}
               href={item.href}
+              title={item.label}
+              aria-label={active ? undefined : item.label}
               aria-current={active ? "page" : undefined}
+              className={`admin-navbar__link${active ? " admin-navbar__link--active" : ""}`}
             >
-              <Icon size={18} strokeWidth={2} />
-              <span>{item.label}</span>
-              {item.badge ? (
-                <span className="admin-sidebar__badge" aria-label={`${item.badge} mục cần xử lý`}>
-                  {item.badge}
-                </span>
-              ) : null}
+              <Icon size={20} aria-hidden="true" />
+              {active ? <span>{item.label}</span> : null}
             </Link>
           );
         })}
       </nav>
-
-      <div className="admin-sidebar__account">
-        <div className="admin-sidebar__avatar" aria-hidden="true">
-          <UserRound size={16} strokeWidth={2.2} />
-        </div>
-        <div className="admin-sidebar__account-text">
-          <strong>Quản trị viên</strong>
-          <span>DrugTime Admin</span>
-        </div>
-        <LogoutButton className="admin-sidebar__logout" iconSize={16} />
-      </div>
-    </aside>
+      <p className="admin-navbar__title">
+        DrugTime Admin<span aria-hidden="true"> / </span><span className="visually-hidden">, </span>{current?.label ?? "Quản trị dữ liệu"}
+      </p>
+      <LogoutButton className="admin-navbar__logout" iconSize={20} />
+    </header>
   );
 }

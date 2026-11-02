@@ -1,55 +1,57 @@
-import DashboardHeader from "../../components/dashboard/DashboardHeader";
-import DataQualityPanel from "../../components/dashboard/DataQualityPanel";
-import KpiCard from "../../components/dashboard/KpiCard";
-import SyncStatusPanel from "../../components/dashboard/SyncStatusPanel";
-import WorkersTable from "../../components/dashboard/WorkersTable";
-import { AlertTriangle, ClipboardCheck, Database } from "lucide-react";
+import CatalogGaugeCard, { type CatalogCounts } from "../../components/dashboard/CatalogGaugeCard";
+import CatalogMixCard from "../../components/dashboard/CatalogMixCard";
+import FailedTrendCard from "../../components/dashboard/FailedTrendCard";
+import InsertedTrendCard from "../../components/dashboard/InsertedTrendCard";
+import LatestRunCard from "../../components/dashboard/LatestRunCard";
+import RecordShareCard from "../../components/dashboard/RecordShareCard";
+import RecordsAreaCard from "../../components/dashboard/RecordsAreaCard";
+import RunDurationCard from "../../components/dashboard/RunDurationCard";
+import SyncOverviewCard from "../../components/dashboard/SyncOverviewCard";
+import { apiFetchWithSession } from "../../lib/api/client";
+import type { SyncPage } from "../../lib/types/catalog-sync";
 
-export default function DashboardPage() {
+const SYNC_RUNS = 20;
+const SYNC_ERROR = "Không tải được lịch sử đồng bộ. Hãy kiểm tra phiên đăng nhập hoặc thử tải lại.";
+
+type Total = { total: number };
+const count = (path: string) => apiFetchWithSession<Total>(`${path}?skip=0&limit=1`, { method: "GET" });
+const totalOf = (result: PromiseSettledResult<Total>) => (result.status === "fulfilled" ? result.value.total : null);
+
+export default async function DashboardPage() {
+  const [sync, medications, ingredients, drugInteractions, foodInteractions] = await Promise.allSettled([
+    apiFetchWithSession<SyncPage>(`/admin/catalog/sync-runs?offset=0&limit=${SYNC_RUNS}`, { method: "GET" }),
+    count("/admin/medications"),
+    count("/admin/active-ingredients"),
+    count("/admin/drug-interactions"),
+    count("/admin/drug-food-interactions"),
+  ]);
+  const runs = sync.status === "fulfilled" ? sync.value.items : [];
+  const error = sync.status === "rejected" ? SYNC_ERROR : undefined;
+  const counts: CatalogCounts = {
+    medications: totalOf(medications),
+    ingredients: totalOf(ingredients),
+    drugInteractions: totalOf(drugInteractions),
+    foodInteractions: totalOf(foodInteractions),
+  };
+
   return (
-    <section className="dashboard-page">
-      <DashboardHeader />
-
-      <div className="dashboard-kpi-grid">
-        <KpiCard
-          tone="blue"
-          icon={Database}
-          eyebrow="Tập dữ liệu"
-          title="Tổng số thuốc"
-          value="14,850"
-          unit="biệt dược"
-          pill="+142 tuần này"
-          footerPrimary="98.2% kiểm duyệt dược lý"
-          footerSecondary="Kho Dược DAV"
-        />
-        <KpiCard
-          tone="blue"
-          icon={ClipboardCheck}
-          eyebrow="Cần xử lý"
-          title="Bản ghi cần thẩm định"
-          value="286"
-          unit="bản ghi mới"
-          footerPrimary="Cần chuyên viên dược đối soát & duyệt nhãn"
-          footerSecondary="Xem hàng đợi duyệt"
-        />
-        <KpiCard
-          tone="red"
-          icon={AlertTriangle}
-          eyebrow="Đơn thuốc tải lên"
-          title="Chuỗi quét OCR chưa khớp"
-          value="42"
-          unit="chuỗi quét mờ/lỗi"
-          footerPrimary="Ảnh quét người dùng cần map"
-          footerSecondary="Mở bàn đối soát"
-        />
+    <section className="bento" aria-labelledby="bento-title">
+      <h1 id="bento-title" className="visually-hidden">Tổng quan dữ liệu</h1>
+      <div className="bento__col bento__col--left">
+        <InsertedTrendCard runs={runs} error={error} />
+        <FailedTrendCard runs={runs} error={error} />
       </div>
-
-      <div className="dashboard-main-grid">
-        <SyncStatusPanel />
-        <DataQualityPanel />
+      <div className="bento__col bento__col--center">
+        <SyncOverviewCard runs={runs} error={error} />
+        <RecordsAreaCard runs={runs} error={error} />
+        <RunDurationCard runs={runs} error={error} />
       </div>
-
-      <WorkersTable />
+      <div className="bento__col bento__col--right">
+        <CatalogGaugeCard counts={counts} runs={runs} runsError={error} />
+        <LatestRunCard runs={runs} error={error} />
+        <RecordShareCard runs={runs} error={error} />
+        <CatalogMixCard counts={counts} />
+      </div>
     </section>
   );
 }

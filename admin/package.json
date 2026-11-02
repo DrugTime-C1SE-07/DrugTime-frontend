@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint . --ext .ts,.tsx"
+    "lint": "eslint . --ext .ts,.tsx",
+    "test:unit": "tsc -p tsconfig.test.json && node --test .test-build/tests/unit/*.test.js"
   },
   "dependencies": {
     "lucide-react": "^0.360.0",
