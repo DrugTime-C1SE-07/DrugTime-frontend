@@ -28,14 +28,15 @@ DrugCatalogItem drug(String id, {String? name, bool missing = false}) =>
       strength: missing ? '' : '5 mg',
       dosageForm: missing ? '' : 'Viên nén',
     );
-Future<SearchRepository> mount(WidgetTester tester) async {
+Future<SearchRepository> mount(WidgetTester tester,
+    {String? initialQuery}) async {
   final repo = SearchRepository();
   final controller = MedicationController(repo);
   addTearDown(controller.dispose);
   await tester.pumpWidget(MaterialApp(
       home: MedicationScope(
     controller: controller,
-    child: const Scaffold(body: DrugCatalogSheet()),
+    child: Scaffold(body: DrugCatalogSheet(initialQuery: initialQuery)),
   )));
   await tester.pump();
   return repo;
@@ -337,5 +338,101 @@ void main() {
     await tester.scrollUntilVisible(find.text('result'), 80,
         scrollable: find.byType(Scrollable).last);
     expect(tester.takeException(), isNull);
+  });
+
+  group('initialQuery (OCR fallback entry point)', () {
+    String fieldText(WidgetTester tester) =>
+        tester.widget<TextField>(find.byType(TextField)).controller!.text;
+
+    Future<void> openSheet(
+      WidgetTester tester,
+      SearchRepository repo,
+      void Function(DrugCatalogItem?) onClosed,
+    ) async {
+      await tester.pumpWidget(MaterialApp(
+        home: Builder(
+          builder: (context) => Scaffold(
+            body: TextButton(
+              onPressed: () async => onClosed(await showDrugCatalogSheet(
+                context,
+                initialQuery: 'Para',
+                search: repo.searchCatalog,
+                isInUse: (_) => false,
+              )),
+              child: const Text('open'),
+            ),
+          ),
+        ),
+      ));
+      await tester.tap(find.text('open'));
+      // Không dùng pumpAndSettle khi request còn chờ: spinner quay vô hạn.
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 1));
+    }
+
+    testWidgets('prefills field and searches trimmed query once after debounce',
+        (tester) async {
+      final repo = await mount(tester, initialQuery: '  Para ');
+      expect(fieldText(tester), '  Para ');
+      // mount() đã pump một khung 0ms sau khi timer debounce bắt đầu.
+      await tester.pump(const Duration(milliseconds: 299));
+      expect(repo.queries, isEmpty);
+      await tester.pump(const Duration(milliseconds: 1));
+      expect(repo.queries, ['Para']);
+      await tester.pump(const Duration(seconds: 1));
+      expect(repo.queries, ['Para']);
+    });
+
+    for (final (label, query, message) in [
+      ('blank', '   ', 'Nhập tên thuốc hoặc hoạt chất'),
+      ('over 100', 'a' * 101, 'Từ khóa quá dài'),
+    ]) {
+      testWidgets('$label initialQuery does not call API', (tester) async {
+        final repo = await mount(tester, initialQuery: query);
+        await tester.pump(const Duration(seconds: 1));
+        expect(repo.queries, isEmpty);
+        expect(find.text(message), findsWidgets);
+      });
+    }
+
+    testWidgets('results are not auto-selected; user can edit then confirm',
+        (tester) async {
+      final repo = SearchRepository();
+      DrugCatalogItem? picked;
+      var closed = false;
+      await openSheet(tester, repo, (item) {
+        picked = item;
+        closed = true;
+      });
+      expect(repo.queries, ['Para']);
+      repo.pending[0].complete([drug('first'), drug('second')]);
+      await tester.pumpAndSettle();
+      expect(closed, isFalse);
+      expect(find.text('first'), findsOneWidget);
+      expect(find.byKey(const ValueKey('drug-selection-review')), findsNothing);
+
+      await search(tester, 'Ibu');
+      expect(repo.queries, ['Para', 'Ibu']);
+      repo.pending[1].complete([drug('ibu-1'), drug('ibu-2')]);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('ibu-2'));
+      await tester.pumpAndSettle();
+      expect(closed, isFalse);
+      await tester.tap(find.widgetWithText(FilledButton, 'Xác nhận thuốc'));
+      await tester.pumpAndSettle();
+      expect(closed, isTrue);
+      expect(picked?.id, 'ibu-2');
+    });
+
+    testWidgets('cancel returns null', (tester) async {
+      final repo = SearchRepository();
+      DrugCatalogItem? picked = drug('sentinel');
+      await openSheet(tester, repo, (item) => picked = item);
+      repo.pending.single.complete([drug('first')]);
+      await tester.pumpAndSettle();
+      await tester.tapAt(const Offset(10, 10));
+      await tester.pumpAndSettle();
+      expect(picked, isNull);
+    });
   });
 }
