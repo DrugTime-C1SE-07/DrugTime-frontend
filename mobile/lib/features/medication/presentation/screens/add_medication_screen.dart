@@ -19,6 +19,8 @@ import '../widgets/drug_catalog_sheet.dart';
 import '../widgets/medication_error_messages.dart';
 import '../widgets/medication_form_fields.dart';
 import '../widgets/medication_labels.dart';
+import '../../../auth/presentation/state/auth_controller.dart';
+import '../../../interaction_check/presentation/widgets/interaction_warning_dialog.dart';
 
 /// S07 · Thêm thuốc mới (Figma node 33:4419).
 ///
@@ -210,6 +212,52 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
     final controller = MedicationScope.read(context);
     final navigator = Navigator.of(context);
     setState(() => _saving = true);
+
+    final candidateId = int.tryParse(drug.id);
+    if (candidateId != null) {
+      try {
+        final patientId = AuthScope.maybeOf(context)?.currentSession?.userId ?? '';
+        final existingIds = controller.medications
+            .where((m) => m.isActive)
+            .map((m) => int.tryParse(m.catalogId))
+            .whereType<int>()
+            .toList();
+
+        final checkResult = await controller.checkInteractions(
+          patientId: patientId,
+          candidateMedicationId: candidateId,
+          candidateDoseAmount: _dose,
+          candidateDoseUnit: drug.unit.isEmpty ? null : drug.unit,
+          medicationIds: existingIds,
+        );
+
+        if (checkResult.hasInteractions) {
+          if (!mounted) return;
+          setState(() => _saving = false);
+          final proceed = await showInteractionWarningDialog(context, checkResult);
+          if (proceed != true) {
+            return;
+          }
+          if (mounted) setState(() => _saving = true);
+        } else if (checkResult.isInsufficientData || checkResult.insufficientDataMedications.isNotEmpty) {
+          if (!mounted) return;
+          setState(() => _saving = false);
+          final proceed = await showInsufficientDataDialog(context, checkResult);
+          if (proceed != true) {
+            return;
+          }
+          if (mounted) setState(() => _saving = true);
+        }
+      } catch (_) {
+        if (!mounted) return;
+        setState(() => _saving = false);
+        final proceed = await showInteractionNetworkErrorDialog(context);
+        if (proceed != true) {
+          return;
+        }
+        if (mounted) setState(() => _saving = true);
+      }
+    }
 
     final draft = Medication(
       id: '',

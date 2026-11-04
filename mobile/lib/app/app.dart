@@ -39,6 +39,7 @@ import '../features/family_link/presentation/state/incoming_requests_controller.
 import '../features/family_link/presentation/state/invite_link_controller.dart';
 import '../features/medication/data/repositories/in_memory_medication_repository.dart';
 import '../features/medication/domain/repositories/medication_repository.dart';
+import '../features/interaction_check/domain/repositories/interaction_check_repository.dart';
 import '../features/medication/presentation/state/medication_controller.dart';
 import '../features/reminder/domain/entities/dose_reminder.dart';
 import '../features/profile/domain/repositories/profile_repository.dart';
@@ -56,6 +57,7 @@ class DrugTimeApp extends StatefulWidget {
     required this.authController,
     this.adherenceHistoryRepository,
     this.medicationRepository,
+    this.interactionCheckRepository,
     this.adherenceRepository,
     this.consentRepository,
     this.familyLinkCodeRepository,
@@ -94,6 +96,7 @@ class DrugTimeApp extends StatefulWidget {
 
   /// Cho phép test/bản build khác thay nguồn dữ liệu thuốc.
   final MedicationRepository? medicationRepository;
+  final InteractionCheckRepository? interactionCheckRepository;
 
   /// Read-only family adherence history; supplied from Backend API on mobile.
   final AdherenceRepository? adherenceRepository;
@@ -258,6 +261,7 @@ class _DrugTimeAppState extends State<DrugTimeApp> with WidgetsBindingObserver {
 
   late final MedicationController _medications = MedicationController(
     widget.medicationRepository ?? InMemoryMedicationRepository(),
+    interactionCheckRepository: widget.interactionCheckRepository,
   );
 
   late final ConsentController _consents = ConsentController(
