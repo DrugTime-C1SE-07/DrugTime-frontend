@@ -162,6 +162,7 @@ class NotificationService {
         _actionHandler = onNotificationAction;
 
   final NotificationPlatform _platform;
+  NotificationPlatform get platform => _platform;
   void Function(int?)? onFamilyAction;
   int? _pendingFamilyId;
   bool _pendingFamilyInvalid = false;

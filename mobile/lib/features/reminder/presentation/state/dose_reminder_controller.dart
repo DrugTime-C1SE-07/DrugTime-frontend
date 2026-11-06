@@ -52,6 +52,28 @@ class DoseReminderController extends ChangeNotifier {
         (item) => statusOf(item) == DoseReminderItemStatus.confirmed,
       );
 
+  /// Xác nhận một cữ hoặc tất cả cữ trong nhóm (hỗ trợ gọi từ controller).
+  Future<bool> confirmDose([dynamic itemOrScheduleId, DateTime? scheduledAt]) {
+    if (itemOrScheduleId is DoseReminderItem) {
+      return confirmItem(itemOrScheduleId);
+    }
+    if (itemOrScheduleId is int && scheduledAt != null) {
+      final match = group.items.cast<DoseReminderItem?>().firstWhere(
+            (i) =>
+                i?.medicationScheduleId == itemOrScheduleId &&
+                i?.scheduledAt == scheduledAt,
+            orElse: () => null,
+          );
+      if (match != null) {
+        return confirmItem(match);
+      }
+    }
+    if (group.items.length == 1) {
+      return confirmItem(group.items.first);
+    }
+    return confirmAll();
+  }
+
   /// Persists one occurrence unless it is already saving or confirmed.
   Future<bool> confirmItem(DoseReminderItem item) {
     if (isBusy) return Future.value(false);
@@ -70,13 +92,27 @@ class DoseReminderController extends ChangeNotifier {
     _notify();
 
     try {
+      final now = _clock().toUtc();
       final record = await _outbox.enqueue(
         medicationScheduleId: item.medicationScheduleId,
         scheduledAt: item.scheduledAt,
-        takenAt: _clock().toUtc(),
+        takenAt: now,
       );
       _records[item.occurrenceKey] = record;
       _statuses[item.occurrenceKey] = DoseReminderItemStatus.confirmed;
+
+      // Hủy thông báo khi uống sớm trước giờ cữ (Subtask 65 / Task 2.08)
+      if (now.isBefore(item.scheduledAt)) {
+        try {
+          await _scheduler.cancelOccurrence(
+            scheduleId: item.medicationScheduleId,
+            scheduledAt: item.scheduledAt,
+          );
+        } catch (_) {
+          // Lỗi hủy không ngăn cản việc ghi nhận liều thành công
+        }
+      }
+
       _notify();
       return true;
     } catch (_) {

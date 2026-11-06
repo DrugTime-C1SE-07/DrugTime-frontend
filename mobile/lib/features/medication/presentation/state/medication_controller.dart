@@ -1,13 +1,21 @@
 import 'package:flutter/widgets.dart';
 
+import '../../../interaction_check/data/repositories/in_memory_interaction_check_repository.dart';
+import '../../../interaction_check/domain/entities/interaction_check_result.dart';
+import '../../../interaction_check/domain/repositories/interaction_check_repository.dart';
 import '../../domain/entities/medication.dart';
 import '../../domain/entities/medication_failure.dart';
 import '../../domain/repositories/medication_repository.dart';
 
 class MedicationController extends ChangeNotifier {
-  MedicationController(this._repository);
+  MedicationController(
+    this._repository, {
+    InteractionCheckRepository? interactionCheckRepository,
+  }) : _interactionRepository =
+            interactionCheckRepository ?? InMemoryInteractionCheckRepository();
 
   final MedicationRepository _repository;
+  final InteractionCheckRepository _interactionRepository;
 
   List<Medication> _medications = const [];
   bool _isLoading = false;
@@ -55,6 +63,23 @@ class MedicationController extends ChangeNotifier {
 
   Future<List<DrugCatalogItem>> searchCatalog(String query) =>
       _repository.searchCatalog(query);
+
+  /// Kiểm tra tương tác thuốc của người bệnh (PB24, Task 4.02).
+  Future<InteractionCheckResult> checkInteractions({
+    required String patientId,
+    int? candidateMedicationId,
+    double? candidateDoseAmount,
+    String? candidateDoseUnit,
+    List<int>? medicationIds,
+  }) {
+    return _interactionRepository.checkPatientInteractions(
+      patientId: patientId,
+      candidateMedicationId: candidateMedicationId,
+      candidateDoseAmount: candidateDoseAmount,
+      candidateDoseUnit: candidateDoseUnit,
+      medicationIds: medicationIds,
+    );
+  }
 
   /// Ghi xong thì tải lại từ server, không tự sửa danh sách tại chỗ.
   Future<T> _mutate<T>(Future<T> Function() write) async {

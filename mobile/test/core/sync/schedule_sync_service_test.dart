@@ -123,7 +123,7 @@ class _FakeLocalMedicationStore implements LocalMedicationStore {
 
   @override
   Future<List<LocalMedicationSchedule>> getActiveSchedules({
-    required String patientId,
+    String? patientId,
   }) {
     throw UnimplementedError();
   }
