@@ -2,13 +2,13 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
-import 'dart:typed_data';
 import 'package:cryptography/cryptography.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import '../domain/capture_models.dart';
 import '../domain/capture_ports.dart';
+import 'capture_crypto_worker.dart';
 
 class EncryptedCaptureStore implements CaptureStore {
   EncryptedCaptureStore(
@@ -28,12 +28,15 @@ class EncryptedCaptureStore implements CaptureStore {
   Directory? _root;
   SecretKey? _key;
   Future<void>? _initializing;
+  Future<void>? _clearing;
   int _generation = 0;
   final _timers = <String, Timer>{};
   String? cleanupError;
 
   @override
   Future<void> initialize() {
+    final clearing = _clearing;
+    if (clearing != null) return clearing.then((_) => initialize());
     final task = _initializing ??= _initialize();
     return task.catchError((Object e, StackTrace stack) {
       if (identical(_initializing, task)) {
@@ -85,18 +88,15 @@ class EncryptedCaptureStore implements CaptureStore {
       'height': image.height,
       'kind': kind.name
     });
-    final box = await _cipher.encrypt(image.bytes,
-        secretKey: key, aad: utf8.encode(header));
+    final envelope =
+        await sealCapture(image.bytes, header, await key.extractBytes());
     if (generation != _generation) {
       throw const CaptureFailure('Phiên chụp đã kết thúc.');
     }
     final file = File(p.join(_root!.path, '$id.capture'));
     final staging = File('${file.path}.part');
     try {
-      await staging.writeAsString(
-          jsonEncode(
-              {'header': header, 'box': base64Encode(box.concatenation())}),
-          flush: true);
+      await staging.writeAsString(envelope, flush: true);
       if (generation != _generation) {
         throw const CaptureFailure('Phiên chụp đã kết thúc.');
       }
@@ -133,23 +133,15 @@ class EncryptedCaptureStore implements CaptureStore {
             throw const CaptureFailure('Ảnh đã hết hạn. Hãy chụp lại.');
           }
           try {
-            final data =
-                jsonDecode(await file.readAsString()) as Map<String, dynamic>;
-            if (data['header'] != header) {
-              throw const CaptureFailure('Không thể mở ảnh an toàn.');
-            }
-            final encrypted = SecretBox.fromConcatenation(
-                base64Decode(data['box'] as String),
-                nonceLength: _cipher.nonceLength,
-                macLength: _cipher.macAlgorithm.macLength);
-            final bytes = await _cipher.decrypt(encrypted,
-                secretKey: key, aad: utf8.encode(header));
+            final bytes = await openCapture(
+                await file.readAsString(), header, await key.extractBytes());
             if (generation != _generation ||
                 !_clock().toUtc().isBefore(expires)) {
               await release();
+              bytes.fillRange(0, bytes.length, 0);
               throw const CaptureFailure('Ảnh đã hết hạn. Hãy chụp lại.');
             }
-            return Uint8List.fromList(bytes);
+            return bytes;
           } on FileSystemException {
             throw const CaptureFailure('Ảnh không còn khả dụng. Hãy chụp lại.');
           } on SecretBoxAuthenticationError {
@@ -173,16 +165,36 @@ class EncryptedCaptureStore implements CaptureStore {
   }
 
   @override
-  Future<void> clear() async {
+  Future<void> clear() {
+    final clearing = _clearing;
+    if (clearing != null) return clearing;
     _generation++;
+    final initializing = _initializing;
+    _initializing = null;
     _key = null;
     for (final timer in _timers.values) {
       timer.cancel();
     }
     _timers.clear();
+    final task = _clear(initializing);
+    _clearing = task;
+    return task.whenComplete(() {
+      if (identical(_clearing, task)) _clearing = null;
+    });
+  }
+
+  Future<void> _clear(Future<void>? initializing) async {
+    if (initializing != null) {
+      try {
+        await initializing;
+      } catch (_) {
+        // A revoked/failed initialization must finish before deleting its key.
+        cleanupError = 'Phiên ảnh cũ chưa khởi tạo xong; đang dọn lại.';
+      }
+    }
     await _purgeFiles();
     await _keys.delete(key: keyName);
-    _initializing = null;
+    cleanupError = null;
   }
 
   Future<void> _purgeFiles() async {

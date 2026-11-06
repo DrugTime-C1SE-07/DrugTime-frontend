@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:cryptography/cryptography.dart';
 import 'package:drugtime_mobile/features/medication_capture/data/encrypted_capture_store.dart';
 import 'package:drugtime_mobile/features/medication_capture/domain/capture_models.dart';
 
@@ -45,6 +46,36 @@ void main() {
     now = now.add(const Duration(hours: 24));
     await expectLater(lease.read(), throwsA(isA<CaptureFailure>()));
     expect(root.listSync(), isEmpty);
+  });
+  test('worker opens the legacy AES-GCM envelope and authenticates its header',
+      () async {
+    final lease = await store.save(sample(), PackagingKind.box);
+    final file = root.listSync().whereType<File>().single;
+    final envelope =
+        jsonDecode(await file.readAsString()) as Map<String, dynamic>;
+    final encodedKey = await const FlutterSecureStorage()
+        .read(key: EncryptedCaptureStore.keyName);
+    final box = await AesGcm.with256bits().encrypt(utf8.encode('LEGACY IMAGE'),
+        secretKey: SecretKey(base64Decode(encodedKey!)),
+        aad: utf8.encode(envelope['header'] as String));
+    envelope['box'] = base64Encode(box.concatenation());
+    await file.writeAsString(jsonEncode(envelope));
+    expect(utf8.decode(await lease.read()), 'LEGACY IMAGE');
+    envelope['header'] = '${envelope['header']} ';
+    await file.writeAsString(jsonEncode(envelope));
+    await expectLater(lease.read(), throwsA(isA<CaptureFailure>()));
+    expect(root.listSync(), isEmpty);
+  });
+  test('clear revokes a save before it can obtain the current key', () async {
+    await store.initialize();
+    final pending = store.save(sample(), PackagingKind.unspecified);
+    final assertion = expectLater(pending, throwsA(isA<CaptureFailure>()));
+    await store.clear();
+    await assertion;
+    expect(root.listSync(), isEmpty);
+    // New work can initialize a new session after the clear barrier completes.
+    final fresh = await store.save(sample(), PackagingKind.unspecified);
+    expect(await fresh.read(), isNotEmpty);
   });
   test(
       'unclassified images roundtrip without rewriting legacy authenticated metadata',

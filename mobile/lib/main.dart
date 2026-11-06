@@ -29,6 +29,7 @@ import 'features/family_link/data/repositories/remote_caregiver_repository.dart'
 import 'features/family_link/data/repositories/remote_family_link_repository.dart';
 import 'features/family_link/data/sources/invite_link_source.dart';
 import 'features/medication/data/repositories/remote_medication_repository.dart';
+import 'features/medication_capture/data/ocr_api_repository.dart';
 import 'features/profile/data/repositories/profile_repository_provider.dart';
 
 Future<void> main() async {
@@ -125,6 +126,7 @@ Future<void> main() async {
     adherenceHistoryRepository: RemoteAdherenceHistoryRepository(apiClient),
     adherenceRepository: RemoteAdherenceRepository(apiClient),
     medicationRepository: RemoteMedicationRepository(apiClient),
+    ocrMatchingRepository: RemoteOcrMatchingRepository(apiClient),
     consentRepository: RemoteConsentRepository(apiClient),
     doseOutboxSyncEngine: doseSync,
     familyLinkCodeRepository: RemoteFamilyLinkCodeRepository(apiClient),

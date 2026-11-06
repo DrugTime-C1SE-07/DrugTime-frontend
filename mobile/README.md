@@ -163,3 +163,38 @@ Trong chế độ Backend (`DRUGTIME_PREVIEW=false`), app không có địa ch�
    hoặc `"args": ["--dart-define=DRUGTIME_PREVIEW=false", "--dart-define-from-file=.env.android"]` trong `.vscode/launch.json` (VS Code).
 
 File `.env.*` chỉ được chứa địa chỉ Backend API. Không ghi key hay secret: giá trị bị đóng vào app và đọc được từ file cài đặt.
+
+## Pipeline OCR4.11 (Android)
+
+Trong app chính: Thêm thuốc → Quét vỏ thuốc → chụp/chọn ảnh → Dùng ảnh này.
+App chuẩn bị ảnh trong RAM, gọi ML Kit Latin rồi gửi nguyên văn OCR tới
+`POST /catalog/medications/match` (mặc định5ứng viên). Ảnh không upload.
+Danh sách chỉ là gợi ý: có thể chụp lại hoặc quay về form; chưa chọn/xác nhận
+thuốc hoặc tự điền tên, hàm lượng, liều và lịch (phần đó thuộc4.16).
+
+Ảnh lưu AES-GCM tối đa24h. Crypto và JPEG→NV21 chạy bằng isolate, không tạo file
+ảnh plaintext cho OCR. Retry lỗi mạng dùng lại text trong RAM của cùng ảnh/phiên;
+text giữ nguyên newline, tối đa2000Unicode code point. Hủy/Back/retake/logout/TTL
+vô hiệu kết quả muộn và dọn ảnh. SDK native có thể vẫn hoàn tất sau khi đã hủy
+logic; không coi nút Hủy là đã kill tác vụ SDK ngay lập tức. Nếu dọn ảnh lỗi,
+dùng “Thử dọn lại”. Không log raw OCR, request/response body hoặc token.
+
+Kiểm tra từ thư mục mobile (không đổi dependency):
+
+```powershell
+flutter analyze --no-pub
+flutter test --no-pub test/core/api/api_client_test.dart test/features/medication_capture test/features/medication test/features/ocr_prototype
+flutter test --no-pub
+flutter test --no-pub integration_test/ocr_pipeline_test.dart -d <android-device>
+```
+
+Native test sinh chữ/ảnh trong RAM, kiểm ML Kit và encrypted store thật;
+không chứng minh kết quả matching với HTTP/DB thật. Kiểm end-to-end bằng tài khoản
+test và ảnh có thuốc trong catalog local. Backend/Supabase cần được bật riêng;
+không reset DB deploy hoặc ghi credential vào test/log.
+
+Đo giao diện bằng `flutter run --profile --dart-define-from-file=.env.android`.
+Timeline `medication_scan.*`/timings tách decrypt, chuyển NV21, native và HTTP;
+không đưa dữ liệu thuốc vào trace. Ghi device/build mode/kích thước ảnh/frame
+timing/memory và kiểm Hủy/Back trong lúc chạy. Chưa đo trên thiết bị thì chưa
+kết luận không lag hoặc dùng số emulator thay số điện thoại.

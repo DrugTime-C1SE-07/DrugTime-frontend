@@ -1,4 +1,5 @@
 import 'dart:typed_data';
+import 'ocr_models.dart';
 
 // The classified values remain for existing encrypted image metadata.
 enum PackagingKind { box, blister, unspecified }
@@ -65,15 +66,23 @@ class PreparedMedicationImage {
   }
 }
 
-enum CaptureResultKind { aborted, prepared }
+enum CaptureResultKind { aborted, prepared, candidates }
 
 class CaptureResult {
   const CaptureResult.aborted()
       : kind = CaptureResultKind.aborted,
+        matches = null,
         image = null;
-  const CaptureResult.prepared(this.image) : kind = CaptureResultKind.prepared;
+  const CaptureResult.prepared(this.image)
+      : kind = CaptureResultKind.prepared,
+        matches = null;
+  const CaptureResult.candidates(OcrMatchResult result)
+      : kind = CaptureResultKind.candidates,
+        matches = result,
+        image = null;
   final CaptureResultKind kind;
   final PreparedMedicationImage? image;
+  final OcrMatchResult? matches;
 }
 
 class CaptureCandidate {
