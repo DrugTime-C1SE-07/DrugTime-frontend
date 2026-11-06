@@ -8,6 +8,7 @@ import 'package:drugtime_mobile/features/medication/presentation/screens/add_med
 import '../medication/medication_screens_test.dart'
     show RecordingRepository, signedInAuth;
 import 'capture_controller_test.dart' show TestSource, TestStore, TestProcessor;
+import 'ocr_controller_test.dart' show FakeReader, FakeMatcher;
 
 void main() {
   testWidgets(
@@ -20,7 +21,11 @@ void main() {
         store = TestStore(),
         repo = RecordingRepository();
     final services = CaptureServices(
-        store: store, processor: TestProcessor(), newSource: () => source);
+        store: store,
+        processor: TestProcessor(),
+        newSource: () => source,
+        reader: FakeReader(),
+        matching: FakeMatcher());
     await tester.pumpWidget(DrugTimeApp(
         authController: signedInAuth(),
         medicationRepository: repo,
@@ -43,15 +48,25 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byType(CaptureEditScreen), findsOneWidget);
     await tester.ensureVisible(find.text('Dùng ảnh này'));
+    final capture = tester
+        .widget<CaptureEditScreen>(find.byType(CaptureEditScreen))
+        .controller;
+    final preview = capture.image!;
     await tester.tap(find.text('Dùng ảnh này'));
     await tester.pumpAndSettle();
-    expect(find.text('Thêm thuốc mới'), findsOneWidget);
-    expect(find.text('Ảnh đã sẵn sàng'), findsOneWidget);
-    expect(find.text('Xem ảnh'), findsOneWidget);
+    expect(find.text('Tìm thấy ứng viên'), findsOneWidget);
+    expect(find.text('Thuốc kiểm thử'), findsOneWidget);
+    expect(find.text('Xác nhận thuốc'), findsNothing);
+    expect(capture.image, isNull);
+    expect(
+        PaintingBinding.instance.imageCache
+            .containsKey(MemoryImage(preview.bytes)),
+        false);
     expect(repo.addCalls, isEmpty);
     expect(store.live, hasLength(1));
-    await tester.tap(find.byTooltip('Bỏ ảnh'));
+    await tester.tap(find.text('Quay về form'));
     await tester.pumpAndSettle();
+    expect(find.text('Thêm thuốc mới'), findsOneWidget);
     expect(store.live, isEmpty);
     // Exercise system Back independently of the app's localized back tooltip.
     await tester.binding.handlePopRoute();

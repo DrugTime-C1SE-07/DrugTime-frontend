@@ -53,6 +53,34 @@ void main() {
 
   Uri base() => Uri.parse('http://127.0.0.1:${server.port}');
 
+  test('POST pinned token cannot borrow new account or sign it out on401',
+      () async {
+    status = 401;
+    var unauthorized = 0;
+    final client = ApiClient(
+        baseUrl: base(),
+        authTokenProvider: () async => 'B',
+        onUnauthorized: () async {
+          unauthorized++;
+        });
+    await expectLater(
+        client.postJson('/catalog/medications/match',
+            body: {'text': 'A'}, sessionToken: 'A', expectedStatus: 200),
+        throwsA(isA<ApiException>()));
+    expect(authHeaders.single, 'Bearer A');
+    expect(unauthorized, 0);
+  });
+
+  test('POST expected200 rejects201 without changing defaults', () async {
+    status = 201;
+    final client = ApiClient(baseUrl: base());
+    await expectLater(
+        client.postJson('/catalog/medications/match',
+            body: {'text': 'A'}, expectedStatus: 200),
+        throwsA(isA<ApiException>()));
+    expect(await client.postJson('/legacy', body: {}), isA<Map>());
+  });
+
   test('late 401 from A cannot clear active account B', () async {
     status = 401;
     responseGate = Completer<void>();

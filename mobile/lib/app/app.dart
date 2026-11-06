@@ -49,6 +49,7 @@ import 'app_shell.dart';
 import '../core/utils/app_assets.dart';
 import 'theme/app_theme.dart';
 import '../features/medication_capture/data/capture_services.dart';
+import '../features/medication_capture/domain/ocr_ports.dart';
 import '../features/medication_capture/presentation/state/capture_scope.dart';
 
 class DrugTimeApp extends StatefulWidget {
@@ -76,6 +77,7 @@ class DrugTimeApp extends StatefulWidget {
     this.scaffoldMessengerKey,
     this.notificationService,
     this.captureServices,
+    this.ocrMatchingRepository,
     this.initialTab = AppTab.medications,
     this.preview = false,
     this.familyAlertController,
@@ -146,14 +148,15 @@ class DrugTimeApp extends StatefulWidget {
   /// Dịch vụ thông báo để tiếp nhận sự kiện click thông báo và điều hướng cold start.
   final NotificationService? notificationService;
   final CaptureServices? captureServices;
+  final OcrMatchingRepository? ocrMatchingRepository;
 
   @override
   State<DrugTimeApp> createState() => _DrugTimeAppState();
 }
 
 class _DrugTimeAppState extends State<DrugTimeApp> with WidgetsBindingObserver {
-  late final CaptureServices _captures =
-      widget.captureServices ?? CaptureServices.native();
+  late final CaptureServices _captures = widget.captureServices ??
+      CaptureServices.native(matching: widget.ocrMatchingRepository);
 
   StreamSubscription<bool>? _familyConnection;
   final _familyAdherenceAvailability = ValueNotifier<bool>(false);
@@ -454,6 +457,8 @@ class _DrugTimeAppState extends State<DrugTimeApp> with WidgetsBindingObserver {
       _profileUser =
           _auth.isAuthenticated ? _auth.currentSession?.userId : null;
     });
+    unawaited(_captures.bindSession(
+        _auth.isAuthenticated ? _auth.currentSession?.accessToken : null));
     if (_auth.isAuthenticated) {
       unawaited(_medications.load());
       unawaited(_incomingRequests.load());
@@ -465,12 +470,13 @@ class _DrugTimeAppState extends State<DrugTimeApp> with WidgetsBindingObserver {
 
   void _onAuthChanged() {
     if (!_sessionLoaded) return;
+    unawaited(_captures.bindSession(
+        _auth.isAuthenticated ? _auth.currentSession?.accessToken : null));
     _familyChanged();
     final authenticated = _auth.isAuthenticated;
     final user = authenticated ? _auth.currentSession?.userId : null;
     final switchedUser = user != _profileUser;
     if (switchedUser) {
-      unawaited(_captures.invalidate());
       _history.setPatient(user);
       _profiles.clear();
       _profileUser = user;

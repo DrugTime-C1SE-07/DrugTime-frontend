@@ -31,8 +31,13 @@ class ApiClient {
   Future<Object?> getJson(String path, {Map<String, String>? query}) =>
       _send('GET', path, query: query);
 
-  Future<Object?> postJson(String path, {required Object? body}) =>
-      _send('POST', path, body: body, hasBody: true);
+  Future<Object?> postJson(String path,
+          {required Object? body, String? sessionToken, int? expectedStatus}) =>
+      _send('POST', path,
+          body: body,
+          hasBody: true,
+          sessionToken: sessionToken,
+          expectedStatus: expectedStatus);
 
   /// POST không có body và không có `Content-Type`, cho thao tác mà server từ chối mọi body
   /// (kể cả `null` hay `{}`), ví dụ từ chối hoặc hủy liên kết người thân.
@@ -63,6 +68,7 @@ class ApiClient {
     Object? body,
     bool hasBody = false,
     int? expectedStatus,
+    String? sessionToken,
   }) async {
     var uri = _baseUrl.resolve(path);
     if (query != null && query.isNotEmpty) {
@@ -71,7 +77,7 @@ class ApiClient {
 
     final request = http.Request(method, uri);
     try {
-      final token = await _authTokenProvider?.call();
+      final token = sessionToken ?? await _authTokenProvider?.call();
       if (token != null && token.isNotEmpty) {
         request.headers['Authorization'] = 'Bearer $token';
       }
