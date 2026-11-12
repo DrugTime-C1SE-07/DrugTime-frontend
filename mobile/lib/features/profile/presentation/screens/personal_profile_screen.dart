@@ -8,6 +8,21 @@ import '../widgets/profile_form_fields.dart';
 import '../widgets/profile_icons.dart';
 import '../widgets/profile_notices.dart';
 
+/// Bóng của nút hành động chính theo Figma S08-1.
+const _primaryButtonShadows = [
+  BoxShadow(
+    color: Color.fromRGBO(1, 61, 57, 0.3),
+    offset: Offset(0, 5),
+    blurRadius: 9,
+    spreadRadius: -2,
+  ),
+  BoxShadow(
+    color: Color.fromRGBO(1, 61, 57, 0.15),
+    offset: Offset(0, 1),
+    blurRadius: 2,
+  ),
+];
+
 class PersonalProfileScreen extends StatefulWidget {
   const PersonalProfileScreen({super.key});
   @override
@@ -50,7 +65,7 @@ class _PersonalProfileScreenState extends State<PersonalProfileScreen> {
                 icon: const ProfileIcon('p-arrow-left'))),
         body: SafeArea(
             child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(20, 20, 20, AppSpacing.xl),
+                padding: const EdgeInsets.fromLTRB(20, 8, 20, 34),
                 child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
@@ -66,10 +81,24 @@ class _PersonalProfileScreenState extends State<PersonalProfileScreen> {
                 child: Padding(
                   padding:
                       EdgeInsets.fromLTRB(20, 8, 20, 12 + missingBottomInset),
-                  child: FilledButton(
-                      key: const Key('save-profile'),
-                      onPressed: c.saving || c.loading ? null : _saveProfile,
-                      child: Text(c.saving ? 'Đang lưu…' : 'Lưu thay đổi')),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(AppRadius.field),
+                      boxShadow: _primaryButtonShadows,
+                    ),
+                    child: FilledButton(
+                        key: const Key('save-profile'),
+                        style: FilledButton.styleFrom(
+                          minimumSize:
+                              const Size.fromHeight(AppSizes.fieldCompact),
+                          shape: RoundedRectangleBorder(
+                            borderRadius:
+                                BorderRadius.circular(AppRadius.field),
+                          ),
+                        ),
+                        onPressed: c.saving || c.loading ? null : _saveProfile,
+                        child: Text(c.saving ? 'Đang lưu…' : 'Lưu thay đổi')),
+                  ),
                 ),
               )
             : null,
@@ -180,50 +209,25 @@ class _PersonalFormState extends State<_PersonalForm> {
   @override
   Widget build(BuildContext context) {
     final c = ProfileScope.of(context);
+    const suffixPencil = Center(widthFactor: 1, child: ProfileIcon('p-pencil'));
     return Form(
         key: _formKey,
         child:
             Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          Center(
-              child: InkWell(
-                  onTap: () => showAvatarPicker(context),
-                  borderRadius: BorderRadius.circular(60),
-                  child: Padding(
-                      padding: const EdgeInsets.all(8),
-                      child: Stack(children: [
-                        const ProfileAvatar(),
-                        Positioned(
-                            right: 0,
-                            bottom: 0,
-                            child: Container(
-                                width: 26,
-                                height: 26,
-                                decoration: BoxDecoration(
-                                    color: AppColors.surface,
-                                    shape: BoxShape.circle,
-                                    border:
-                                        Border.all(color: AppColors.border)),
-                                child: const Center(
-                                    child: ProfileIcon('p-camera')))),
-                      ])))),
-          Center(
-              child: TextButton(
-                  onPressed: () => showAvatarPicker(context),
-                  child: const Text('Đổi ảnh đại diện'))),
-          const SizedBox(height: AppSpacing.lg),
+          _AvatarBlock(onTap: () => showAvatarPicker(context)),
+          const SizedBox(height: AppSpacing.xl),
           ProfileField(
               label: 'Họ và tên',
               child: TextFormField(
                   key: const Key('profile-name'),
                   controller: _name,
                   enabled: !c.saving,
+                  style: profileFieldTextStyle,
                   onChanged: (_) => _dirty = true,
                   textCapitalization: TextCapitalization.words,
                   validator: (v) => ProfileDraft.validateName(v ?? ''),
-                  decoration: const InputDecoration(
-                      hintText: 'Nhập họ và tên',
-                      suffixIcon: Center(
-                          widthFactor: 1, child: ProfileIcon('p-pencil'))))),
+                  decoration: profileFieldDecoration(
+                      hintText: 'Nhập họ và tên', suffixIcon: suffixPencil))),
           ProfileFieldPair(children: [
             ProfileField(
                 label: 'Ngày sinh',
@@ -235,26 +239,34 @@ class _PersonalFormState extends State<_PersonalForm> {
                   builder: (field) => InkWell(
                       onTap: c.saving ? null : () => _pickDate(field),
                       child: InputDecorator(
-                          decoration: InputDecoration(
+                          decoration: profileFieldDecoration(
                               errorText: field.errorText,
-                              suffixIcon: const Center(
-                                  widthFactor: 1,
-                                  child: ProfileIcon('p-pencil'))),
-                          child: Text(_dob == null
-                              ? 'Chọn ngày sinh'
-                              : '${_dob!.day.toString().padLeft(2, '0')}/${_dob!.month.toString().padLeft(2, '0')}/${_dob!.year}'))),
+                              suffixIcon: suffixPencil),
+                          child: Text(
+                              _dob == null
+                                  ? 'Chọn ngày sinh'
+                                  : '${_dob!.day.toString().padLeft(2, '0')}/${_dob!.month.toString().padLeft(2, '0')}/${_dob!.year}',
+                              style: profileFieldTextStyle))),
                 )),
             ProfileField(
                 label: 'Giới tính',
                 child: DropdownButtonFormField<String>(
                   initialValue: _gender,
                   isExpanded: true,
+                  style: profileFieldTextStyle,
                   icon: const ProfileIcon('p-chevron-down'),
-                  hint: const Text('Chọn giới tính'),
+                  hint: const Text('Chọn giới tính',
+                      style: profileFieldTextStyle),
                   items: const [
-                    DropdownMenuItem(value: 'nam', child: Text('Nam')),
-                    DropdownMenuItem(value: 'nu', child: Text('Nữ')),
-                    DropdownMenuItem(value: 'khac', child: Text('Khác'))
+                    DropdownMenuItem(
+                        value: 'nam',
+                        child: Text('Nam', style: profileFieldTextStyle)),
+                    DropdownMenuItem(
+                        value: 'nu',
+                        child: Text('Nữ', style: profileFieldTextStyle)),
+                    DropdownMenuItem(
+                        value: 'khac',
+                        child: Text('Khác', style: profileFieldTextStyle))
                   ],
                   validator: (v) =>
                       v == null ? 'Vui lòng chọn giới tính' : null,
@@ -264,14 +276,22 @@ class _PersonalFormState extends State<_PersonalForm> {
                             _gender = v;
                             _dirty = true;
                           }),
+                  decoration: profileFieldDecoration(),
                 )),
           ]),
+          const Text('LIÊN HỆ', style: AppTextStyles.captionStrong),
+          const SizedBox(height: AppSpacing.sm),
+          ProfileField(
+              label: 'Số điện thoại',
+              child: _ReadOnlyField(
+                  value: profilePhoneLabel(widget.profile.phone))),
           ProfileField(
               label: 'Email',
               child: TextFormField(
                   key: const Key('profile-email'),
                   controller: _email,
                   enabled: !c.saving,
+                  style: profileFieldTextStyle,
                   keyboardType: TextInputType.emailAddress,
                   textInputAction: TextInputAction.done,
                   validator: (v) {
@@ -283,14 +303,73 @@ class _PersonalFormState extends State<_PersonalForm> {
                     return ProfileDraft.validateEmail(value);
                   },
                   onChanged: (_) => setState(() => _dirty = true),
-                  decoration: InputDecoration(
+                  decoration: profileFieldDecoration(
                       hintText: 'Nhập email',
                       helperText: _email.text.trim().isEmpty
                           ? null
                           : 'Email này dùng để đăng nhập và nhận OTP lần sau.',
-                      suffixIcon: const Center(
-                          widthFactor: 1, child: ProfileIcon('p-pencil'))))),
+                      suffixIcon: suffixPencil))),
           const SizedBox(height: AppSpacing.xl),
         ]));
+  }
+}
+
+/// Khối ảnh đại diện: avatar 84, badge camera 26 và link đổi ảnh (Figma S08-1).
+class _AvatarBlock extends StatelessWidget {
+  const _AvatarBlock({required this.onTap});
+  final VoidCallback onTap;
+  @override
+  Widget build(BuildContext context) => Column(children: [
+        Semantics(
+            button: true,
+            label: 'Đổi ảnh đại diện',
+            child: InkWell(
+                onTap: onTap,
+                customBorder: const CircleBorder(),
+                child: Stack(clipBehavior: Clip.none, children: [
+                  const ProfileAvatar(),
+                  Positioned(
+                      right: 0,
+                      bottom: 0,
+                      child: Container(
+                          width: 26,
+                          height: 26,
+                          decoration: BoxDecoration(
+                              color: AppColors.surface,
+                              shape: BoxShape.circle,
+                              border: Border.all(color: AppColors.border)),
+                          child: const Center(child: ProfileIcon('p-camera')))),
+                ]))),
+        TextButton(onPressed: onTap, child: const Text('Đổi ảnh đại diện')),
+      ]);
+}
+
+/// Ô chỉ đọc: số điện thoại là dữ liệu liên hệ, đổi số không thuộc màn hình này
+/// (Figma S08-1 vẽ ổ khoá và nền `#F2F1ED`).
+class _ReadOnlyField extends StatelessWidget {
+  const _ReadOnlyField({required this.value});
+  final String value;
+  @override
+  Widget build(BuildContext context) {
+    final compact = MediaQuery.textScalerOf(context).scale(14) <= 18;
+    return Semantics(
+        readOnly: true,
+        label: 'Số điện thoại, chỉ đọc',
+        child: Container(
+            constraints:
+                BoxConstraints(minHeight: compact ? AppSizes.fieldCompact : 0),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+            decoration: BoxDecoration(
+                color: AppColors.surfaceMuted,
+                border: Border.all(color: AppColors.border),
+                borderRadius: BorderRadius.circular(AppRadius.field)),
+            child: Row(children: [
+              Expanded(
+                  child: Text(value,
+                      style: profileFieldTextStyle.copyWith(
+                          color: AppColors.inkMuted))),
+              const Icon(Icons.lock_outline,
+                  size: 16, color: AppColors.inkMuted),
+            ])));
   }
 }

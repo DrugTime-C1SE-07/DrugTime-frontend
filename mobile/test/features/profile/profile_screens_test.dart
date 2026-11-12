@@ -191,6 +191,24 @@ void main() {
     await tester.pumpAndSettle();
     expect(c.profile!.conditions, isEmpty);
   });
+  testWidgets('email change conflict shows the verification message',
+      (tester) async {
+    final repo = FakeProfileRepository()
+      ..writeFailure =
+          const ProfileFailure(ProfileFailureKind.emailChangeVerification);
+    final c = ProfileController(repo);
+    addTearDown(c.dispose);
+    await tester.pumpWidget(profileApp(c, const PersonalProfileScreen()));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+        find.byKey(const Key('profile-email')), 'new@example.com');
+    await tester.ensureVisible(find.byKey(const Key('save-profile')));
+    await tester.tap(find.byKey(const Key('save-profile')));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('chưa đổi được tại đây'), findsOneWidget);
+    expect(find.text('Bệnh này đã có trong hồ sơ của bạn.'), findsNothing);
+  });
+
   testWidgets('403 removes sensitive form and offers consent action',
       (tester) async {
     final repo = FakeProfileRepository();

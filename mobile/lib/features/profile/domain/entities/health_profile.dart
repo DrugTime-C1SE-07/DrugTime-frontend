@@ -6,6 +6,7 @@ class HealthProfile {
       this.dateOfBirth,
       this.gender,
       this.email,
+      this.phone,
       this.conditions = const []});
   final String? fullName;
 
@@ -13,6 +14,10 @@ class HealthProfile {
   final DateTime? dateOfBirth;
   final String? gender;
   final String? email;
+
+  /// Contact phone as returned by the API (E.164), null when not supplied.
+  /// Not a login identifier and never sent back by this screen.
+  final String? phone;
   final List<ProfileCondition> conditions;
 }
 

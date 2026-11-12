@@ -9,7 +9,8 @@ class FakeProfileRepository implements ProfileRepository {
       fullName: 'Nguyễn Mai',
       dateOfBirth: DateTime(1960, 3, 1),
       gender: 'nu',
-      email: 'old@example.com');
+      email: 'old@example.com',
+      phone: '+84912345678');
   int reads = 0, writes = 0;
   ProfileDraft? lastDraft;
   Completer<HealthProfile>? pendingRead;
@@ -37,6 +38,7 @@ class FakeProfileRepository implements ProfileRepository {
         dateOfBirth: draft.dateOfBirth,
         gender: draft.gender,
         email: draft.email ?? value.email,
+        phone: value.phone,
         conditions: value.conditions);
     if (failFetchAfterWrite) {
       fetchFailure = const ProfileFailure(ProfileFailureKind.network);
@@ -64,6 +66,7 @@ class FakeProfileRepository implements ProfileRepository {
         dateOfBirth: value.dateOfBirth,
         gender: value.gender,
         email: value.email,
+        phone: value.phone,
         conditions: [...value.conditions, c]);
     if (writeFailure case final f?) throw f;
     return c;
@@ -88,6 +91,7 @@ class FakeProfileRepository implements ProfileRepository {
         dateOfBirth: value.dateOfBirth,
         gender: value.gender,
         email: value.email,
+        phone: value.phone,
         conditions: [
           for (final c in value.conditions) c.id == linkId ? changed : c
         ]);
@@ -103,6 +107,7 @@ class FakeProfileRepository implements ProfileRepository {
         dateOfBirth: value.dateOfBirth,
         gender: value.gender,
         email: value.email,
+        phone: value.phone,
         conditions: value.conditions.where((c) => c.id != linkId).toList());
     if (writeFailure case final f?) throw f;
   }

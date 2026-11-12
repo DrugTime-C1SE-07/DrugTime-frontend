@@ -20,6 +20,7 @@ void main() {
       'date_of_birth': null,
       'gender': null,
       'email': 'user@example.com',
+      'phone_number': '+84912345678',
       'conditions': []
     };
     server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
@@ -50,6 +51,7 @@ void main() {
     final p = await repo.fetch();
     expect(p.fullName, isNull);
     expect(p.email, 'user@example.com');
+    expect(p.phone, '+84912345678');
     status = 204;
     await repo.update(ProfileDraft(
         fullName: ' Mai ',
@@ -121,6 +123,19 @@ void main() {
         repo.fetch(),
         throwsA(isA<ProfileFailure>()
             .having((e) => e.kind, 'kind', ProfileFailureKind.consent)));
+  });
+  test('changing the login email is not reported as a duplicate condition',
+      () async {
+    status = 409;
+    response = {'detail': 'email_change_verification_required'};
+    await expectLater(
+        repo.update(ProfileDraft(
+            fullName: 'Mai',
+            dateOfBirth: DateTime(1960),
+            gender: 'nu',
+            email: 'new@example.com')),
+        throwsA(isA<ProfileFailure>().having((e) => e.kind, 'kind',
+            ProfileFailureKind.emailChangeVerification)));
   });
   test('malformed shape becomes safe failure', () async {
     response = {'full_name': 11};
