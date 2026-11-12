@@ -7,6 +7,7 @@ import '../../../auth/presentation/state/auth_controller.dart';
 import '../../../family_link/presentation/screens/caregivers_screen.dart';
 import '../state/profile_controller.dart';
 import '../widgets/profile_avatar.dart';
+import '../widgets/profile_form_fields.dart';
 import '../widgets/profile_icons.dart';
 import '../widgets/profile_notices.dart';
 
@@ -103,16 +104,17 @@ class _ProfileScreenState extends State<ProfileScreen>
           padding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
           children: [
             Row(children: [
-              const Expanded(child: Text('Hồ sơ', style: AppTextStyles.title)),
+              const Expanded(
+                  child: Text('Hồ sơ', style: AppTextStyles.display)),
               PopupMenuButton<String>(
                 tooltip: 'Cài đặt hồ sơ',
-                icon: const ProfileIcon('h-settings'),
-                iconSize: 18,
                 style: IconButton.styleFrom(
-                  backgroundColor: AppColors.surfaceMuted,
-                  fixedSize: const Size(36, 36),
+                  backgroundColor: AppColors.brandTint,
+                  fixedSize: const Size(AppSizes.tapTarget, AppSizes.tapTarget),
                   padding: EdgeInsets.zero,
                 ),
+                icon: const SizedBox(
+                    width: 20, height: 20, child: ProfileIcon('h-settings')),
                 onSelected: (value) {
                   if (value == 'logout') _logout();
                 },
@@ -124,46 +126,24 @@ class _ProfileScreenState extends State<ProfileScreen>
             ]),
             const SizedBox(height: 16),
             const ProfileNotices(),
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: AppColors.brandTint,
-                borderRadius: BorderRadius.circular(24),
-              ),
-              child: Row(children: [
-                const ProfileAvatar(size: 56),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    c.profile?.fullName ?? 'Chưa cung cấp',
-                    style: AppTextStyles.bodyStrong,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                IconButton(
-                  tooltip: 'Sửa thông tin cá nhân',
-                  onPressed: () => _open(AppRoutes.personalProfile),
-                  icon: const ProfileIcon('h-pencil'),
-                  style: IconButton.styleFrom(
-                    backgroundColor: AppColors.surface,
-                    fixedSize: const Size(36, 36),
-                  ),
-                ),
-              ]),
+            _ProfileCard(
+              name: c.profile?.fullName ?? 'Chưa cung cấp',
+              phone: c.profile?.phone == null
+                  ? 'Chưa có số điện thoại'
+                  : profilePhoneLabel(c.profile!.phone),
+              onEdit: () => _open(AppRoutes.personalProfile),
             ),
             const SizedBox(height: 16),
             Container(
               decoration: BoxDecoration(
                 color: AppColors.surface,
-                border: Border.all(color: AppColors.border),
                 borderRadius: BorderRadius.circular(AppRadius.card),
               ),
               clipBehavior: Clip.antiAlias,
               child: Column(children: [
                 _menu(
                   'Thông tin cá nhân',
-                  'Ngày sinh, giới tính',
+                  'Họ tên, ngày sinh, giới tính',
                   'h-user',
                   () => _open(AppRoutes.personalProfile),
                   key: const Key('personal-profile-tile'),
@@ -189,7 +169,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                 _divider(),
                 _menu(
                   'Thông báo & Nhắc nhở',
-                  null,
+                  'Âm thanh, giờ nhắc, nhắc lại',
                   'h-bell',
                   () => _openComingSoon(
                       'Thông báo & Nhắc nhở', Icons.notifications_none),
@@ -198,7 +178,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                 _divider(),
                 _menu(
                   'Quyền riêng tư & Bảo mật',
-                  null,
+                  'Dữ liệu và quyền truy cập',
                   'h-shield',
                   () => _open(AppRoutes.privacySettings),
                   key: const Key('privacy-settings-tile'),
@@ -206,7 +186,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                 _divider(),
                 _menu(
                   'Trợ giúp',
-                  null,
+                  'Câu hỏi thường gặp, liên hệ',
                   'h-help-circle',
                   () => _openComingSoon('Trợ giúp', Icons.help_outline),
                   key: const Key('profile-help-tile'),
@@ -219,7 +199,8 @@ class _ProfileScreenState extends State<ProfileScreen>
     );
   }
 
-  Widget _divider() => const Divider(height: 1, indent: 0, endIndent: 0);
+  Widget _divider() =>
+      const Divider(height: 1, thickness: 1, color: AppColors.dividerSoft);
 
   Widget _menu(
     String title,
@@ -233,43 +214,103 @@ class _ProfileScreenState extends State<ProfileScreen>
       child: InkWell(
         key: key,
         onTap: onTap,
-        child: Padding(
-          padding: EdgeInsets.symmetric(
-              horizontal: 16, vertical: subtitle == null ? 12 : 10),
-          child: Row(children: [
-            Container(
-              width: 36,
-              height: 36,
-              decoration: const BoxDecoration(
-                color: AppColors.brandTint,
-                shape: BoxShape.circle,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: 72),
+          child: Padding(
+            padding: const EdgeInsets.only(left: 16, right: 12),
+            child: Row(children: [
+              Container(
+                width: AppSizes.iconTile,
+                height: AppSizes.iconTile,
+                decoration: BoxDecoration(
+                  color: AppColors.brandTint,
+                  borderRadius: BorderRadius.circular(AppRadius.field),
+                ),
+                child: Center(child: ProfileIcon(icon)),
               ),
-              child: Center(child: ProfileIcon(icon)),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(title, style: AppTextStyles.body.copyWith(fontSize: 14)),
-                  if (subtitle != null) ...[
-                    const SizedBox(height: 2),
-                    Text(
-                      subtitle,
-                      style: AppTextStyles.caption.copyWith(fontSize: 12),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(title,
+                        style: AppTextStyles.heading,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis),
+                    if (subtitle != null) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        subtitle,
+                        style: AppTextStyles.caption,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
                   ],
-                ],
+                ),
               ),
-            ),
-            const SizedBox(width: 8),
-            const ProfileIcon('h-chevron-right'),
-          ]),
+              const SizedBox(width: AppSpacing.sm),
+              const SizedBox(
+                  width: 24, height: 24, child: ProfileIcon('h-chevron-right')),
+            ]),
+          ),
         ),
       ),
     );
   }
+}
+
+/// Thẻ hồ sơ của Figma S08: nền `#E7F3F1`, bo 16, cao 88, nút sửa 48 trắng.
+class _ProfileCard extends StatelessWidget {
+  const _ProfileCard(
+      {required this.name, required this.phone, required this.onEdit});
+  final String name;
+  final String phone;
+  final VoidCallback onEdit;
+  @override
+  Widget build(BuildContext context) => Container(
+        key: const Key('profile-card'),
+        constraints: const BoxConstraints(minHeight: 88),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: AppColors.brandTint,
+          borderRadius: BorderRadius.circular(AppRadius.card),
+        ),
+        child: Row(children: [
+          const ProfileAvatar(size: 56),
+          const SizedBox(width: AppSpacing.lg),
+          Expanded(
+            child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(name,
+                      style: AppTextStyles.heading,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis),
+                  const SizedBox(height: 2),
+                  Text(phone,
+                      style: AppTextStyles.caption,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis),
+                ]),
+          ),
+          Container(
+            decoration: const BoxDecoration(
+                color: AppColors.surface,
+                shape: BoxShape.circle,
+                boxShadow: AppShadows.cardElevation),
+            child: IconButton(
+              tooltip: 'Sửa thông tin cá nhân',
+              onPressed: onEdit,
+              icon: const ProfileIcon('h-pencil'),
+              style: IconButton.styleFrom(
+                fixedSize: const Size(AppSizes.tapTarget, AppSizes.tapTarget),
+                padding: EdgeInsets.zero,
+              ),
+            ),
+          ),
+        ]),
+      );
 }

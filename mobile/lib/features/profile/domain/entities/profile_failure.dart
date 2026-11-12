@@ -8,7 +8,8 @@ enum ProfileFailureKind {
   validation,
   unavailable,
   unsupported,
-  invalidResponse
+  invalidResponse,
+  emailChangeVerification
 }
 
 class ProfileFailure implements Exception {
@@ -38,6 +39,8 @@ class ProfileFailure implements Exception {
           'Hồ sơ cần kết nối Backend API trên ứng dụng di động.',
         ProfileFailureKind.invalidResponse =>
           'Dữ liệu hồ sơ trả về chưa hợp lệ. Vui lòng thử lại.',
+        ProfileFailureKind.emailChangeVerification =>
+          'Email này dùng để đăng nhập nên chưa đổi được tại đây. Bạn cần xác minh email cũ và email mới để đổi.',
       };
   // Do not include API response bodies or health data in exception diagnostics.
   @override

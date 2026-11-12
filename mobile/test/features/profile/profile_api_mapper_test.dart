@@ -12,10 +12,12 @@ void main() {
       'date_of_birth': null,
       'gender': null,
       'email': 'old@example.com',
+      'phone_number': '+84912345678',
       'conditions': []
     });
     expect(p.fullName, isNull);
     expect(p.email, 'old@example.com');
+    expect(p.phone, '+84912345678');
     expect(p.conditions, isEmpty);
     for (final pair in {
       'male': 'nam',
@@ -87,5 +89,31 @@ void main() {
         ProfileApiMapper.failure(const ApiException('bad', statusCode: 403))
             .kind,
         ProfileFailureKind.forbidden);
+  });
+
+  test('absent phone_number stays null and email-change 409 is its own kind',
+      () {
+    expect(
+        ProfileApiMapper.profile({
+          'full_name': 'A',
+          'date_of_birth': null,
+          'gender': null,
+          'email': null,
+          'phone_number': null,
+          'conditions': []
+        }).phone,
+        isNull);
+    final emailChange = ProfileApiMapper.failure(const ApiException(
+        '{"detail":"email_change_verification_required"}',
+        statusCode: 409));
+    expect(emailChange.kind, ProfileFailureKind.emailChangeVerification);
+    expect(emailChange.removesAccess, isFalse);
+    expect(emailChange.message, contains('đăng nhập'));
+    expect(
+        ProfileApiMapper.failure(const ApiException(
+                '{"detail":"duplicate_condition"}',
+                statusCode: 409))
+            .kind,
+        ProfileFailureKind.duplicate);
   });
 }

@@ -56,6 +56,7 @@ abstract final class ProfileApiMapper {
         dateOfBirth: parseDate(j['date_of_birth']),
         gender: gender(j['gender'] as String?),
         email: j['email'] as String?,
+        phone: j['phone_number'] as String?,
         conditions:
             List.unmodifiable((j['conditions'] as List).map(condition)));
   }
@@ -99,7 +100,9 @@ abstract final class ProfileApiMapper {
           ? ProfileFailureKind.consent
           : ProfileFailureKind.forbidden,
       404 => ProfileFailureKind.missing,
-      409 => ProfileFailureKind.duplicate,
+      409 => code == 'email_change_verification_required'
+          ? ProfileFailureKind.emailChangeVerification
+          : ProfileFailureKind.duplicate,
       422 => ProfileFailureKind.validation,
       null => ProfileFailureKind.network,
       _ => ProfileFailureKind.unavailable,

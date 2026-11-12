@@ -23,6 +23,9 @@ abstract final class AppColors {
   static const inkDisabled = Color(0xFF9CA3AF);
   static const border = Color(0xFFE4E4E1);
 
+  /// Vạch chia mảnh trong danh sách (Figma S08: `#EEF0EF`).
+  static const dividerSoft = Color(0xFFEEF0EF);
+
   // Thương hiệu — hành động chính, không dùng cho trạng thái lâm sàng
   static const brand = Color(0xFF01554F);
   static const brandStrong = Color(0xFF013D39);
@@ -89,12 +92,26 @@ abstract final class AppSizes {
   static const tapTarget = 48.0;
   static const field = 56.0;
   static const primaryButton = 56.0;
+
+  /// Ô nhập và nút gọn theo Figma S08-1 (vẫn đạt ngưỡng chạm 48).
+  static const fieldCompact = 48.0;
+
+  /// Ô icon vuông trong danh sách mục của Figma S08.
+  static const iconTile = 40.0;
 }
 
 /// Thang chữ: 4 cỡ (24 · 18 · 16 · 14), 2 độ đậm (400 · 600).
 /// Cỡ nhỏ nhất 14 để người lớn tuổi vẫn đọc được.
 abstract final class AppTextStyles {
   static const _tabular = [FontFeature.tabularFigures()];
+
+  /// Tiêu đề màn hình lớn của Figma S08 (28/700).
+  static const display = TextStyle(
+    fontSize: 28,
+    fontWeight: FontWeight.w700,
+    height: 1.25,
+    color: AppColors.ink,
+  );
 
   static const title = TextStyle(
     fontSize: 24,
