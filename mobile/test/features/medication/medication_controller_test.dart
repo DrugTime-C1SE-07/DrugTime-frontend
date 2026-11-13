@@ -87,6 +87,24 @@ void main() {
     expect(repo.fetches, fetchesBefore);
   });
 
+  test('ghi thành công gọi onChanged, ghi lỗi thì không', () async {
+    final repo = FlakyRepository();
+    var changes = 0;
+    final controller = MedicationController(repo, onChanged: () => changes++);
+    await controller.load();
+    final id = controller.medications.firstWhere((m) => m.isActive).id;
+
+    await controller.setStopped(id, true);
+    expect(changes, 1);
+
+    repo.failWrite = const MedicationFailure(MedicationFailureKind.forbidden);
+    await expectLater(
+      controller.delete(id),
+      throwsA(isA<MedicationFailure>()),
+    );
+    expect(changes, 1);
+  });
+
   test('add cùng clientUuid hai lần chỉ có một thuốc (AC9)', () async {
     final controller = MedicationController(InMemoryMedicationRepository(seed: []));
     final draft = sampleMedications.first.copyWith(id: '');
