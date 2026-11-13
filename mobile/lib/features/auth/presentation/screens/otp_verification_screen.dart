@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:flutter/services.dart';
 
 import '../../../../app/router.dart';
 import '../../../../app/theme/app_theme.dart';
-import '../../../../core/widgets/vector_icons.dart';
 import '../../domain/entities/login_method.dart';
 import '../state/auth_controller.dart';
 import '../widgets/otp_header.dart';
+import '../widgets/floating_pills.dart';
+import '../widgets/mascot_protect_widget.dart';
 import '../widgets/otp_pin_input.dart';
 import '../widgets/otp_resend_row.dart';
 
@@ -84,8 +86,9 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
   }
 
   Future<void> _handleVerify(AuthController? controller) async {
+    if (controller?.isLoading ?? false) return;
     final pin = _pinController.text.trim();
-    if (pin.length < 6) {
+    if (!RegExp(r'^[0-9]{6}$').hasMatch(pin)) {
       setState(() {
         _localHasError = true;
         _localErrorMessage = 'Vui lòng nhập đủ 6 chữ số mã OTP';
@@ -112,7 +115,8 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
     } else {
       setState(() {
         _localHasError = true;
-        _localErrorMessage = controller.errorMessage ?? 'Mã xác thực không đúng';
+        _localErrorMessage =
+            controller.errorMessage ?? 'Mã xác thực không đúng';
       });
     }
   }
@@ -139,6 +143,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
   }
 
   Future<void> _handleResend(AuthController? controller) async {
+    if (controller?.isLoading ?? false) return;
     setState(() {
       _pinController.clear();
       _localHasError = false;
@@ -187,7 +192,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
   Widget build(BuildContext context) {
     final authController = AuthScope.maybeOf(context);
     final isLoading = authController?.isLoading ?? false;
-    final errorMessage = _localErrorMessage ?? authController?.errorMessage;
+    final errorMessage = _localErrorMessage;
     final isPhone = widget.method == LoginMethod.phone;
 
     // Xem trước giao diện khung 375x812 (chỉ khi bật cờ, ví dụ trên Desktop/Web)
@@ -218,17 +223,20 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
     }
 
     // Hiển thị gốc trên điện thoại di động
-    return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: SystemUiOverlayStyle.dark,
-      child: Scaffold(
-        backgroundColor: AppColors.canvas,
-        body: SafeArea(
-          child: _buildContent(
-            context: context,
-            controller: authController,
-            isLoading: isLoading,
-            errorMessage: errorMessage,
-            isPhone: isPhone,
+    return PopScope(
+      canPop: !isLoading,
+      child: AnnotatedRegion<SystemUiOverlayStyle>(
+        value: SystemUiOverlayStyle.light,
+        child: Scaffold(
+          backgroundColor: Colors.white,
+          body: SafeArea(
+            child: _buildContent(
+              context: context,
+              controller: authController,
+              isLoading: isLoading,
+              errorMessage: errorMessage,
+              isPhone: isPhone,
+            ),
           ),
         ),
       ),
@@ -242,42 +250,59 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
     required String? errorMessage,
     required bool isPhone,
   }) {
-    return Column(
-      children: [
-        // content (padding 24px, gap 20px)
-        Expanded(
-          child: GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTap: () => FocusScope.of(context).unfocus(),
-            child: SingleChildScrollView(
-              physics: const ClampingScrollPhysics(),
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
+    return SingleChildScrollView(
+      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+      child: Column(
+        children: [
+          SizedBox(
+            height: 196,
+            width: double.infinity,
+            child: ColoredBox(
+                color: AppColors.brand,
+                child: Stack(children: [
+                  Positioned(
+                      top: -120,
+                      right: -110,
+                      child: Container(
+                        width: 300,
+                        height: 300,
+                        decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: Colors.white.withValues(alpha: .06)),
+                      )),
+                  const Positioned.fill(child: FloatingPills()),
+                  const Center(child: MascotProtectWidget()),
+                  Positioned(
+                      top: 4,
+                      left: 20,
+                      child: _buildBackRow(context, isLoading)),
+                ])),
+          ),
+          Container(
+            color: AppColors.brand,
+            child: Container(
+              width: double.infinity,
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
+              ),
+              padding: const EdgeInsets.fromLTRB(20, 26, 20, 36),
               child: Center(
                 child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 327.0),
+                  constraints: const BoxConstraints(maxWidth: 430),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
-                      // back-row (order: 0)
-                      _buildBackRow(context),
-                      const SizedBox(height: 4.0),
-
-                      // header (order: 1)
                       OtpHeader(
-                        method: widget.method,
-                        targetIdentifier: widget.targetIdentifier,
-                      ),
-                      const SizedBox(height: 20.0),
-
-                      // otp-row (order: 2)
+                          method: widget.method,
+                          targetIdentifier: widget.targetIdentifier),
+                      const SizedBox(height: 20),
                       OtpPinInput(
                         controller: _pinController,
                         focusNode: _pinFocusNode,
                         hasError: _localHasError,
                         enabled: !isLoading,
-                        onChanged: (val) {
+                        onChanged: (_) {
                           if (_localHasError) {
                             setState(() {
                               _localHasError = false;
@@ -287,50 +312,49 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
                         },
                         onCompleted: (_) => _handleVerify(controller),
                       ),
-
                       if (errorMessage != null) ...[
-                        const SizedBox(height: 8.0),
-                        Text(
-                          errorMessage,
-                          style: const TextStyle(
-                            fontSize: 12.0,
-                            fontWeight: FontWeight.w400,
-                            color: AppColors.danger,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
+                        const SizedBox(height: 8),
+                        Text(errorMessage,
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(color: AppColors.danger)),
                       ],
-                      const SizedBox(height: 20.0),
-
-                      // resend-row (order: 3)
-                      OtpResendRow(
-                        initialCountdown: 60,
-                        onResend: () => _handleResend(controller),
-                      ),
-                      const SizedBox(height: 20.0),
-
-                      // btn/verify or btn/verify-email (order: 4)
-                      _buildVerifyButton(context, isLoading, controller),
-                      const SizedBox(height: 20.0),
-
-                      // wrong-row (order: 5)
-                      _buildWrongRow(isPhone),
+                      const SizedBox(height: 20),
+                      if (isLoading)
+                        const Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(
+                                      strokeWidth: 2)),
+                              SizedBox(width: 8),
+                              Text('Đang xác thực…'),
+                            ])
+                      else
+                        OtpResendRow(
+                            initialCountdown: 60,
+                            onResend: () => _handleResend(controller)),
+                      if (!isLoading && _localHasError)
+                        _buildVerifyButton(context, isLoading, controller),
+                      const SizedBox(height: 12),
+                      _buildWrongRow(isPhone, isLoading),
                     ],
                   ),
                 ),
               ),
             ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
   /// back-row (order: 0, 327x44px - Touch target 44x44px accessible)
-  Widget _buildBackRow(BuildContext context) {
+  Widget _buildBackRow(BuildContext context, bool isLoading) {
     return SizedBox(
-      width: 327.0,
-      height: 44.0,
+      width: 48.0,
+      height: 48.0,
       child: Row(
         mainAxisAlignment: MainAxisAlignment.start,
         children: [
@@ -340,13 +364,15 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
             child: Tooltip(
               message: 'Quay lại',
               child: InkWell(
-                onTap: () => Navigator.of(context).maybePop(),
+                onTap:
+                    isLoading ? null : () => Navigator.of(context).maybePop(),
                 borderRadius: BorderRadius.circular(22.0),
                 child: const SizedBox(
-                  width: 44.0,
-                  height: 44.0,
+                  width: 48.0,
+                  height: 48.0,
                   child: Center(
-                    child: ArrowLeftIcon(size: 20.0, color: AppColors.ink),
+                    child: Icon(LucideIcons.arrowLeft,
+                        size: 20.0, color: AppColors.ink),
                   ),
                 ),
               ),
@@ -365,77 +391,45 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
   ) {
     return SizedBox(
       width: 327.0,
-      height: 48.0,
-      child: Material(
-        color: isLoading ? AppColors.brand.withValues(alpha: 0.7) : AppColors.brand,
-        borderRadius: BorderRadius.circular(8.0),
-        child: InkWell(
-          onTap: isLoading ? null : () => _handleVerify(controller),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 48),
+        child: Material(
+          color: isLoading
+              ? AppColors.brand.withValues(alpha: 0.7)
+              : AppColors.brand,
           borderRadius: BorderRadius.circular(8.0),
-          child: Center(
-            child: isLoading
-                ? const SizedBox(
-                    width: 20.0,
-                    height: 20.0,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2.0,
-                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                    ),
-                  )
-                : const Text(
-                    'Xác nhận',
-                    style: TextStyle(
-                      fontSize: 15.0,
-                      fontWeight: FontWeight.w500,
-                      height: 22.0 / 15.0,
-                      color: AppColors.onBrand,
-                      fontFamily: 'Inter',
-                    ),
-                  ),
+          child: InkWell(
+            onTap: isLoading ? null : () => _handleVerify(controller),
+            borderRadius: BorderRadius.circular(8.0),
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Text(
+                isLoading ? 'Đang xác thực…' : 'Xác nhận',
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: AppColors.onBrand,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
           ),
         ),
       ),
     );
   }
 
-  /// wrong-row (order: 5, 327x19px)
-  Widget _buildWrongRow(bool isPhone) {
-    final queryText = isPhone ? 'Sai số điện thoại?' : 'Sai email?';
-    final ctaText = isPhone ? 'Đổi số' : 'Đổi email';
-
-    return SizedBox(
-      width: 327.0,
-      height: 19.0,
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          Text(
-            queryText,
-            style: const TextStyle(
-              fontSize: 13.0,
-              fontWeight: FontWeight.w400,
-              height: 19.0 / 13.0,
-              color: AppColors.inkMuted,
-              fontFamily: 'Inter',
-            ),
-          ),
-          const SizedBox(width: 4.0),
-          GestureDetector(
-            onTap: _handleChangeIdentifier,
-            child: Text(
-              ctaText,
-              style: const TextStyle(
-                fontSize: 13.0,
-                fontWeight: FontWeight.w500,
-                height: 19.0 / 13.0,
-                color: AppColors.brand,
-                fontFamily: 'Inter',
-              ),
-            ),
-          ),
-        ],
-      ),
+  Widget _buildWrongRow(bool isPhone, bool isLoading) {
+    return Wrap(
+      alignment: WrapAlignment.center,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        Text(isPhone ? 'Sai số điện thoại?' : 'Sai email?'),
+        TextButton(
+          onPressed: isLoading ? null : _handleChangeIdentifier,
+          style: TextButton.styleFrom(minimumSize: const Size(48, 48)),
+          child: Text(isPhone ? 'Đổi số' : 'Đổi email'),
+        ),
+      ],
     );
   }
 }

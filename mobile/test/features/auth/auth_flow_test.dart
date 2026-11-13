@@ -8,7 +8,7 @@ import 'package:drugtime_mobile/features/auth/presentation/screens/complete_prof
 import 'package:drugtime_mobile/features/auth/presentation/screens/login_mobile_screen.dart';
 import 'package:drugtime_mobile/features/auth/presentation/screens/otp_verification_screen.dart';
 import 'package:drugtime_mobile/features/auth/presentation/state/auth_controller.dart';
-import 'package:drugtime_mobile/features/auth/presentation/widgets/phone_input_field.dart';
+import 'package:drugtime_mobile/features/auth/presentation/widgets/email_input_field.dart';
 import 'package:drugtime_mobile/features/consent/data/repositories/in_memory_consent_repository.dart';
 import 'package:drugtime_mobile/features/consent/domain/entities/consent.dart';
 import 'package:drugtime_mobile/features/consent/presentation/screens/terms_update_screen.dart';
@@ -35,6 +35,9 @@ Future<AuthController> _pumpApp(
   String? initialRoute,
   InMemoryConsentRepository? consents,
 }) async {
+  tester.platformDispatcher.accessibilityFeaturesTestValue =
+      const FakeAccessibilityFeatures(disableAnimations: true);
+  addTearDown(tester.platformDispatcher.clearAccessibilityFeaturesTestValue);
   tester.view.physicalSize = const Size(375, 812);
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.reset);
@@ -77,20 +80,22 @@ void main() {
     expect(find.byType(AppShell), findsNothing);
   });
 
-  Future<void> enterPhoneAndSend(WidgetTester tester,
+  Future<void> enterEmailAndSend(WidgetTester tester,
       {required bool tick}) async {
+    await tester.tap(find.text('Email').first);
+    await tester.pumpAndSettle();
     await tester.enterText(
       find.descendant(
-          of: find.byType(PhoneInputField), matching: find.byType(TextField)),
-      '0900000001',
+          of: find.byType(EmailInputField), matching: find.byType(TextField)),
+      'lan@example.com',
     );
     if (tick) {
       await tester.ensureVisible(find.byKey(const Key('terms-checkbox')));
       await tester.tap(find.byKey(const Key('terms-checkbox')));
       await tester.pumpAndSettle();
     }
-    await tester.ensureVisible(find.text('Gửi mã OTP'));
-    await tester.tap(find.text('Gửi mã OTP'));
+    await tester.ensureVisible(find.text('Nhận mã OTP'));
+    await tester.tap(find.text('Nhận mã OTP'));
     await tester.pumpAndSettle();
   }
 
@@ -99,9 +104,9 @@ void main() {
     final repo = _repo();
     await _pumpApp(tester, repo);
 
-    await enterPhoneAndSend(tester, tick: false);
+    await enterEmailAndSend(tester, tick: false);
 
-    expect(repo.requestedPhoneOtps, isEmpty);
+    expect(repo.requestedEmailOtps, isEmpty);
     expect(find.byType(LoginMobileScreen), findsOneWidget);
     expect(find.byType(OtpVerificationScreen), findsNothing);
   });
@@ -116,8 +121,8 @@ void main() {
     );
     await _pumpApp(tester, repo, consents: consents);
 
-    await enterPhoneAndSend(tester, tick: true);
-    expect(repo.requestedPhoneOtps, ['+84900000001']);
+    await enterEmailAndSend(tester, tick: true);
+    expect(repo.requestedEmailOtps, ['lan@example.com']);
     await _enterOtp(tester, '123456');
 
     expect(find.byType(AppShell), findsOneWidget);
@@ -220,6 +225,14 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byType(LoginMobileScreen), findsOneWidget);
+  });
+
+  testWidgets('AC8: mã thiếu không xác thực', (tester) async {
+    final repo = _repo();
+    await _atEmailOtp(tester, repo);
+    await _enterOtp(tester, '12345');
+    expect(await repo.getCurrentSession(), isNull);
+    expect(find.byType(OtpVerificationScreen), findsOneWidget);
   });
 
   testWidgets('(g) OTP sai → thông báo lỗi, vẫn ở màn OTP', (tester) async {

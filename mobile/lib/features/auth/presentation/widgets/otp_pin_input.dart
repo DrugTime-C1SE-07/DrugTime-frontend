@@ -35,9 +35,11 @@ class OtpPinInput extends StatefulWidget {
 }
 
 class _OtpPinInputState extends State<OtpPinInput> {
+  late String _lastText;
   @override
   void initState() {
     super.initState();
+    _lastText = widget.controller.text;
     widget.controller.addListener(_handleTextChange);
     widget.focusNode.addListener(_handleFocusChange);
   }
@@ -47,6 +49,7 @@ class _OtpPinInputState extends State<OtpPinInput> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.controller != widget.controller) {
       oldWidget.controller.removeListener(_handleTextChange);
+      _lastText = widget.controller.text;
       widget.controller.addListener(_handleTextChange);
     }
     if (oldWidget.focusNode != widget.focusNode) {
@@ -63,8 +66,10 @@ class _OtpPinInputState extends State<OtpPinInput> {
   }
 
   void _handleTextChange() {
-    setState(() {});
     final text = widget.controller.text;
+    if (text == _lastText) return;
+    _lastText = text;
+    setState(() {});
     widget.onChanged?.call(text);
     if (text.length == 6) {
       widget.onCompleted?.call(text);
@@ -86,7 +91,8 @@ class _OtpPinInputState extends State<OtpPinInput> {
         alignment: Alignment.center,
         children: [
           // 6 ô hiển thị giao diện theo đúng CSS Figma
-          Row(
+          ExcludeSemantics(
+              child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: List.generate(6, (index) {
               final isFilled = index < text.length;
@@ -96,10 +102,11 @@ class _OtpPinInputState extends State<OtpPinInput> {
               final isActive = hasFocus &&
                   (index == text.length || (index == 5 && text.length == 6));
 
-              return Container(
+              return Expanded(
+                  child: Container(
                 key: ValueKey<String>('otp_box_$index'),
-                width: 47.0,
-                height: 56.0,
+                constraints: const BoxConstraints(minHeight: 56),
+                padding: const EdgeInsets.symmetric(vertical: 6),
                 margin: EdgeInsets.only(right: index < 5 ? 8.0 : 0.0),
                 decoration: BoxDecoration(
                   color: AppColors.surface,
@@ -124,27 +131,36 @@ class _OtpPinInputState extends State<OtpPinInput> {
                     fontFamily: 'Inter',
                   ),
                 ),
-              );
+              ));
             }),
-          ),
+          )),
 
           // TextField ẩn tiếp nhận phím nhập từ bàn phím hệ điều hành
           Positioned.fill(
             child: Opacity(
               opacity: 0.0,
+              alwaysIncludeSemantics: true,
               child: TextField(
                 controller: widget.controller,
                 focusNode: widget.focusNode,
                 enabled: widget.enabled,
                 keyboardType: TextInputType.number,
+                autofillHints: const [AutofillHints.oneTimeCode],
                 autofocus: true,
                 maxLength: 6,
                 inputFormatters: [
                   FilteringTextInputFormatter.digitsOnly,
                   LengthLimitingTextInputFormatter(6),
                 ],
-                buildCounter: (_, {required currentLength, required isFocused, maxLength}) => null,
+                buildCounter: (
+                  _, {
+                  required currentLength,
+                  required isFocused,
+                  maxLength,
+                }) =>
+                    null,
                 decoration: const InputDecoration(
+                  labelText: 'Mã xác thực 6 chữ số',
                   border: InputBorder.none,
                   contentPadding: EdgeInsets.zero,
                 ),

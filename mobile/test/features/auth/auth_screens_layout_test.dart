@@ -1,4 +1,8 @@
 import 'package:drugtime_mobile/core/widgets/home_indicator.dart';
+import 'package:drugtime_mobile/app/theme/app_theme.dart';
+import 'package:drugtime_mobile/features/auth/presentation/widgets/otp_resend_row.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
+import 'package:drugtime_mobile/features/auth/presentation/widgets/floating_pills.dart';
 import 'package:drugtime_mobile/core/widgets/status_bar_compact.dart';
 import 'package:drugtime_mobile/features/auth/presentation/screens/login_mobile_screen.dart';
 import 'package:drugtime_mobile/features/auth/presentation/screens/otp_verification_screen.dart';
@@ -14,8 +18,9 @@ const _navigationBarHeight = 24.0;
 final _screens = <String, Widget Function({bool enableFramePreview})>{
   'Đăng nhập': ({bool enableFramePreview = false}) =>
       LoginMobileScreen(enableFramePreview: enableFramePreview),
-  'Xác thực OTP': ({bool enableFramePreview = false}) => OtpVerificationScreen.phone(
-        phoneNumber: '+84 900000001',
+  'Xác thực OTP': ({bool enableFramePreview = false}) =>
+      OtpVerificationScreen.email(
+        email: 'lan@example.com',
         enableFramePreview: enableFramePreview,
       ),
 };
@@ -23,7 +28,8 @@ final _screens = <String, Widget Function({bool enableFramePreview})>{
 void _setScreen(WidgetTester tester, Size size) {
   tester.view.devicePixelRatio = 1.0;
   tester.view.physicalSize = size;
-  const insets = FakeViewPadding(top: _statusBarHeight, bottom: _navigationBarHeight);
+  const insets =
+      FakeViewPadding(top: _statusBarHeight, bottom: _navigationBarHeight);
   tester.view.padding = insets;
   tester.view.viewPadding = insets;
   addTearDown(tester.view.reset);
@@ -31,9 +37,10 @@ void _setScreen(WidgetTester tester, Size size) {
 
 Finder _frameMockup() => find.byWidgetPredicate(
       (widget) =>
-          widget is Container &&
-          widget.constraints?.maxWidth == 375.0 &&
-          widget.constraints?.maxHeight == 812.0,
+          (widget is Container &&
+              widget.constraints?.maxWidth == 375.0 &&
+              widget.constraints?.maxHeight == 812.0) ||
+          (widget is SizedBox && widget.width == 375 && widget.height == 812),
     );
 
 Future<void> _pump(WidgetTester tester, Widget screen) async {
@@ -42,9 +49,41 @@ Future<void> _pump(WidgetTester tester, Widget screen) async {
 }
 
 /// Gỡ cây widget để hủy bộ đếm gửi lại mã của màn OTP.
-Future<void> _unmount(WidgetTester tester) => tester.pumpWidget(const SizedBox());
+Future<void> _unmount(WidgetTester tester) =>
+    tester.pumpWidget(const SizedBox());
 
 void main() {
+  testWidgets('AC12: login animation settles when reduced motion is enabled',
+      (tester) async {
+    _setScreen(tester, const Size(375, 812));
+    tester.platformDispatcher.accessibilityFeaturesTestValue =
+        const FakeAccessibilityFeatures(disableAnimations: true);
+    addTearDown(tester.platformDispatcher.clearAccessibilityFeaturesTestValue);
+    await _pump(tester, const LoginMobileScreen());
+    expect(find.byType(FloatingPills), findsOneWidget);
+    await tester.pumpAndSettle();
+    expect(tester.binding.hasScheduledFrame, isFalse);
+    await _unmount(tester);
+  });
+
+  testWidgets('AC13: bộ đếm OTP màu xanh, icon Lucide và sheet bo góc',
+      (tester) async {
+    _setScreen(tester, const Size(375, 812));
+    await _pump(
+        tester, const OtpVerificationScreen.email(email: 'lan@example.com'));
+    expect(find.byIcon(LucideIcons.clock), findsOneWidget);
+    final seconds = find.descendant(
+        of: find.byType(OtpResendRow), matching: find.text('01:00'));
+    expect(tester.widget<Text>(seconds).style?.color, AppColors.brand);
+    final sheet = find.byWidgetPredicate((widget) =>
+        widget is Container &&
+        widget.decoration is BoxDecoration &&
+        (widget.decoration as BoxDecoration).borderRadius ==
+            const BorderRadius.vertical(top: Radius.circular(32)));
+    expect(sheet, findsOneWidget);
+    await _unmount(tester);
+  });
+
   for (final entry in _screens.entries) {
     final name = entry.key;
     final build = entry.value;
@@ -60,13 +99,15 @@ void main() {
         await _unmount(tester);
       });
 
-      testWidgets('nội dung nằm giữa status bar và thanh điều hướng của hệ điều hành',
+      testWidgets(
+          'nội dung nằm giữa status bar và thanh điều hướng của hệ điều hành',
           (tester) async {
         _setScreen(tester, const Size(412, 915));
         await _pump(tester, build());
 
         final content = find.byType(SingleChildScrollView);
-        expect(tester.getTopLeft(content).dy, greaterThanOrEqualTo(_statusBarHeight));
+        expect(tester.getTopLeft(content).dy,
+            greaterThanOrEqualTo(_statusBarHeight));
         expect(
           tester.getBottomLeft(content).dy,
           lessThanOrEqualTo(915 - _navigationBarHeight),
@@ -74,7 +115,7 @@ void main() {
         await _unmount(tester);
       });
 
-      testWidgets('icon status bar màu tối trên nền sáng', (tester) async {
+      testWidgets('icon status bar màu sáng trên nền xanh', (tester) async {
         _setScreen(tester, const Size(412, 915));
         await _pump(tester, build());
 
@@ -82,14 +123,15 @@ void main() {
           find.byWidgetPredicate(
             (widget) =>
                 widget is AnnotatedRegion<SystemUiOverlayStyle> &&
-                widget.value == SystemUiOverlayStyle.dark,
+                widget.value == SystemUiOverlayStyle.light,
           ),
           findsOneWidget,
         );
         await _unmount(tester);
       });
 
-      testWidgets('màn rộng không tự chuyển sang khung mockup 375x812', (tester) async {
+      testWidgets('màn rộng không tự chuyển sang khung mockup 375x812',
+          (tester) async {
         _setScreen(tester, const Size(800, 1000));
         await _pump(tester, build());
 
@@ -97,7 +139,8 @@ void main() {
         await _unmount(tester);
       });
 
-      testWidgets('khung mockup chỉ hiện khi bật enableFramePreview', (tester) async {
+      testWidgets('khung mockup chỉ hiện khi bật enableFramePreview',
+          (tester) async {
         _setScreen(tester, const Size(800, 1000));
         await _pump(tester, build(enableFramePreview: true));
 

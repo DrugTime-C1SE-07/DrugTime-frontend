@@ -1,9 +1,9 @@
 import 'dart:async';
-import 'package:flutter/gestures.dart';
+
 import 'package:flutter/material.dart';
 
 import '../../../../app/theme/app_theme.dart';
-import '../../../../core/widgets/vector_icons.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 /// Dòng đếm ngược và gửi lại mã OTP theo Figma:
 /// - Kích thước: 327px x 19px, gap: 6px, căn giữa
@@ -74,17 +74,16 @@ class _OtpResendRowState extends State<OtpResendRow> {
   @override
   Widget build(BuildContext context) {
     if (_remainingSeconds > 0) {
-      return SizedBox(
-        width: 327.0,
-        height: 19.0,
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.center,
+      return Center(
+        child: Wrap(
+          alignment: WrapAlignment.center,
+          crossAxisAlignment: WrapCrossAlignment.center,
           children: [
-            const ClockIcon(size: 14.0, color: AppColors.inkMuted),
+            const Icon(LucideIcons.clock,
+                size: 16.0, color: AppColors.inkMuted),
             const SizedBox(width: 6.0),
             Text(
-              'Gửi lại mã sau ${_formatDuration(_remainingSeconds)}',
+              'Gửi lại mã sau',
               style: const TextStyle(
                 fontSize: 12.5,
                 fontWeight: FontWeight.w400,
@@ -93,48 +92,24 @@ class _OtpResendRowState extends State<OtpResendRow> {
                 fontFamily: 'Inter',
               ),
             ),
+            const SizedBox(width: 6),
+            Text(
+              _formatDuration(_remainingSeconds),
+              style: const TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.brand,
+                  fontFamily: 'Inter'),
+            ),
           ],
         ),
       );
     }
 
-    // Khi đã hết thời gian đếm ngược (00:00)
-    return SizedBox(
-      width: 327.0,
-      height: 19.0,
-      child: Center(
-        child: widget.isResending
-            ? const SizedBox(
-                width: 14.0,
-                height: 14.0,
-                child: CircularProgressIndicator(strokeWidth: 1.5, color: AppColors.brand),
-              )
-            : Text.rich(
-                TextSpan(
-                  text: 'Chưa nhận được mã? ',
-                  style: const TextStyle(
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w400,
-                    height: 18.0 / 12.5,
-                    color: AppColors.inkMuted,
-                    fontFamily: 'Inter',
-                  ),
-                  children: [
-                    TextSpan(
-                      text: 'Gửi lại mã',
-                      style: const TextStyle(
-                        fontSize: 12.5,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.brand,
-                        decoration: TextDecoration.underline,
-                      ),
-                      recognizer: TapGestureRecognizer()..onTap = _handleResend,
-                    ),
-                  ],
-                ),
-                textAlign: TextAlign.center,
-              ),
-      ),
+    return TextButton(
+      onPressed: widget.isResending ? null : _handleResend,
+      style: TextButton.styleFrom(minimumSize: const Size(48, 48)),
+      child: const Text('Gửi lại mã'),
     );
   }
 }

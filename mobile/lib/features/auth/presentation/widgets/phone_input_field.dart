@@ -27,7 +27,7 @@ class PhoneInputField extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      width: 327.0,
+      width: double.infinity,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
@@ -46,14 +46,15 @@ class PhoneInputField extends StatelessWidget {
 
           // Input/phone container
           Container(
-            width: 327.0,
-            height: 48.0,
+            width: double.infinity,
+            height: 58.0,
             padding: const EdgeInsets.symmetric(horizontal: 14.0),
             decoration: BoxDecoration(
-              color: AppColors.surface,
+              color: const Color(0xFFF5F7F6),
               borderRadius: BorderRadius.circular(8.0),
               border: Border.all(
-                color: errorMessage != null ? AppColors.danger : AppColors.border,
+                color:
+                    errorMessage != null ? AppColors.danger : AppColors.border,
                 width: 1.0,
               ),
             ),
@@ -99,7 +100,8 @@ class PhoneInputField extends StatelessWidget {
                       color: AppColors.ink,
                     ),
                     decoration: const InputDecoration(
-                      hintText: '090 123 4567',
+                      filled: false,
+                      hintText: '912 345 678',
                       hintStyle: TextStyle(
                         fontSize: 15.0,
                         fontWeight: FontWeight.w400,
