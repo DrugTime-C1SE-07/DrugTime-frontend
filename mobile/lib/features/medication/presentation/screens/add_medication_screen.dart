@@ -22,11 +22,20 @@ import '../widgets/medication_labels.dart';
 import '../../../auth/presentation/state/auth_controller.dart';
 import '../../../interaction_check/presentation/widgets/interaction_warning_dialog.dart';
 
+import '../../../drug_food_warning/data/repositories/in_memory_food_interaction_repository.dart';
+import '../../../drug_food_warning/domain/repositories/food_interaction_repository.dart';
+import '../../../drug_food_warning/presentation/widgets/food_warning_dialog.dart';
+
 /// S07 · Thêm thuốc mới (Figma node 33:4419).
 ///
 /// Trả về [Medication] vừa lưu qua `Navigator.pop` để màn trước xác nhận.
 class AddMedicationScreen extends StatefulWidget {
-  const AddMedicationScreen({super.key, this.captureLauncher});
+  const AddMedicationScreen({
+    super.key,
+    this.captureLauncher,
+    this.foodInteractionRepository,
+  });
+  final FoodInteractionRepository? foodInteractionRepository;
   final Future<CaptureResult?> Function(BuildContext)? captureLauncher;
 
   @override
@@ -215,8 +224,8 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
 
     final candidateId = int.tryParse(drug.id);
     if (candidateId != null) {
+      final patientId = AuthScope.maybeOf(context)?.currentSession?.userId ?? '';
       try {
-        final patientId = AuthScope.maybeOf(context)?.currentSession?.userId ?? '';
         final existingIds = controller.medications
             .where((m) => m.isActive)
             .map((m) => int.tryParse(m.catalogId))
@@ -252,6 +261,36 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
         if (!mounted) return;
         setState(() => _saving = false);
         final proceed = await showInteractionNetworkErrorDialog(context);
+        if (proceed != true) {
+          return;
+        }
+        if (mounted) setState(() => _saving = true);
+      }
+
+      // Kiem tra tuong tac thuoc - thuc an / do uong (Task 4.06)
+      final foodRepo = widget.foodInteractionRepository ??
+          InMemoryFoodInteractionRepository();
+      try {
+        final foodResult = await foodRepo.checkFoodInteractions(
+          patientId: patientId,
+          medicationName: drug.name,
+          activeIngredient: drug.activeIngredient,
+          catalogId: candidateId,
+        );
+
+        if (foodResult.hasWarnings) {
+          if (!mounted) return;
+          setState(() => _saving = false);
+          final proceed = await showFoodWarningDialog(context, foodResult);
+          if (proceed != true) {
+            return;
+          }
+          if (mounted) setState(() => _saving = true);
+        }
+      } catch (_) {
+        if (!mounted) return;
+        setState(() => _saving = false);
+        final proceed = await showFoodNetworkErrorDialog(context);
         if (proceed != true) {
           return;
         }

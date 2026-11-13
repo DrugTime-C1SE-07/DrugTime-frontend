@@ -11,6 +11,9 @@ import '../widgets/medication_form_fields.dart';
 import '../widgets/medication_labels.dart';
 import '../../../auth/presentation/state/auth_controller.dart';
 import '../../../interaction_check/presentation/widgets/interaction_warning_dialog.dart';
+import '../../../drug_food_warning/data/repositories/in_memory_food_interaction_repository.dart';
+import '../../../drug_food_warning/domain/repositories/food_interaction_repository.dart';
+import '../../../drug_food_warning/presentation/widgets/food_warning_dialog.dart';
 
 /// S06b · Sửa thông tin thuốc (Figma prototype).
 ///
@@ -22,6 +25,7 @@ class EditMedicationScreen extends StatefulWidget {
     required this.medication,
     this.dosageForm,
     this.reminderScheduler,
+    this.foodInteractionRepository,
   });
 
   final Medication medication;
@@ -30,6 +34,8 @@ class EditMedicationScreen extends StatefulWidget {
   final String? dosageForm;
 
   final ReminderScheduler? reminderScheduler;
+
+  final FoodInteractionRepository? foodInteractionRepository;
 
   @override
   State<EditMedicationScreen> createState() => _EditMedicationScreenState();
@@ -242,8 +248,8 @@ class _EditMedicationScreenState extends State<EditMedicationScreen> {
 
     final candidateId = int.tryParse(widget.medication.catalogId);
     if (candidateId != null) {
+      final patientId = AuthScope.maybeOf(context)?.currentSession?.userId ?? '';
       try {
-        final patientId = AuthScope.maybeOf(context)?.currentSession?.userId ?? '';
         final otherActiveIds = controller.medications
             .where((m) => m.id != widget.medication.id && m.isActive)
             .map((m) => int.tryParse(m.catalogId))
@@ -279,6 +285,36 @@ class _EditMedicationScreenState extends State<EditMedicationScreen> {
         if (!mounted) return;
         setState(() => _saving = false);
         final proceed = await showInteractionNetworkErrorDialog(context);
+        if (proceed != true) {
+          return;
+        }
+        if (mounted) setState(() => _saving = true);
+      }
+
+      // Kiem tra tuong tac thuoc - thuc an / do uong (Task 4.06)
+      final foodRepo = widget.foodInteractionRepository ??
+          InMemoryFoodInteractionRepository();
+      try {
+        final foodResult = await foodRepo.checkFoodInteractions(
+          patientId: patientId,
+          medicationName: widget.medication.name,
+          activeIngredient: widget.medication.activeIngredient,
+          catalogId: candidateId,
+        );
+
+        if (foodResult.hasWarnings) {
+          if (!mounted) return;
+          setState(() => _saving = false);
+          final proceed = await showFoodWarningDialog(context, foodResult);
+          if (proceed != true) {
+            return;
+          }
+          if (mounted) setState(() => _saving = true);
+        }
+      } catch (_) {
+        if (!mounted) return;
+        setState(() => _saving = false);
+        final proceed = await showFoodNetworkErrorDialog(context);
         if (proceed != true) {
           return;
         }
