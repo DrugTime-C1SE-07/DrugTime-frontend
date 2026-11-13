@@ -106,124 +106,129 @@ class _LoginMobileScreenState extends State<LoginMobileScreen> {
   Widget build(BuildContext context) {
     final auth = AuthScope.maybeOf(context);
     final sending = _sending || (auth?.isLoading ?? false);
-    final content = SingleChildScrollView(
-      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-      child: Column(
-        children: [
-          const ColoredBox(color: Color(0xFF01554F), child: LoginHeader()),
-          Container(
-            color: const Color(0xFF01554F),
-            child: Container(
-              width: double.infinity,
-              decoration: const BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
-              ),
-              padding: const EdgeInsets.fromLTRB(20, 26, 20, 30),
-              child: Center(
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 430),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      const Text('Đăng nhập',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                              fontSize: 28,
-                              fontWeight: FontWeight.w700,
-                              color: AppColors.ink)),
-                      const SizedBox(height: 18),
-                      LoginSegmentedPicker(
-                        selectedMethod: _method,
-                        onMethodChanged: sending ? null : _select,
+    final content = LayoutBuilder(
+      builder: (context, constraints) => SingleChildScrollView(
+        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+        child: ConstrainedBox(
+          constraints: BoxConstraints(minHeight: constraints.maxHeight),
+          child: IntrinsicHeight(
+            child: Column(
+              children: [
+                const ColoredBox(
+                    color: Color(0xFF01554F), child: LoginHeader()),
+                Expanded(
+                  child: Container(
+                    color: const Color(0xFF01554F),
+                    child: Container(
+                      key: const Key('login-sheet'),
+                      width: double.infinity,
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: const BorderRadius.vertical(
+                            top: Radius.circular(32)),
+                        boxShadow: [
+                          BoxShadow(
+                              color: Colors.black.withValues(alpha: .16),
+                              blurRadius: 20,
+                              offset: const Offset(0, -4))
+                        ],
                       ),
-                      const SizedBox(height: 18),
-                      if (_method.isPhone) ...[
-                        PhoneInputField(
-                          controller: _phone,
-                          enabled: !sending,
-                          onChanged: (_) => setState(() {}),
-                        ),
-                      ] else ...[
-                        AutofillGroup(
-                          child: EmailInputField(
-                            controller: _email,
-                            enabled: !sending,
-                            errorMessage: _emailError,
-                            onChanged: (_) =>
-                                setState(() => _emailError = null),
-                            onSubmitted: (_) => _send(auth),
+                      padding: const EdgeInsets.fromLTRB(20, 26, 20, 30),
+                      child: Align(
+                        alignment: Alignment.topCenter,
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 430),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Text('Đăng nhập',
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                      fontSize: 30,
+                                      fontWeight: FontWeight.w800,
+                                      color: AppColors.ink)),
+                              const SizedBox(height: 18),
+                              LoginSegmentedPicker(
+                                selectedMethod: _method,
+                                onMethodChanged: sending ? null : _select,
+                              ),
+                              const SizedBox(height: 18),
+                              if (_method.isPhone) ...[
+                                PhoneInputField(
+                                  controller: _phone,
+                                  enabled: !sending,
+                                  onChanged: (_) => setState(() {}),
+                                ),
+                              ] else ...[
+                                AutofillGroup(
+                                  child: EmailInputField(
+                                    controller: _email,
+                                    enabled: !sending,
+                                    errorMessage: _emailError,
+                                    onChanged: (_) =>
+                                        setState(() => _emailError = null),
+                                    onSubmitted: (_) => _send(auth),
+                                  ),
+                                ),
+                              ],
+                              const SizedBox(height: 12),
+                              TermsAgreementRow(
+                                value: auth?.termsAccepted ?? _accepted,
+                                onChanged: sending
+                                    ? null
+                                    : (value) {
+                                        auth?.setTermsAccepted(value);
+                                        setState(() {
+                                          _accepted = value;
+                                          if (value) _showTermsError = false;
+                                        });
+                                      },
+                                errorText: _showTermsError
+                                    ? 'Vui lòng đồng ý Điều khoản dịch vụ và Chính sách quyền riêng tư'
+                                    : null,
+                                onTermsTapped: widget.onTermsTapped,
+                                onPrivacyTapped: widget.onPrivacyTapped,
+                              ),
+                              const SizedBox(height: 18),
+                              FilledButton(
+                                style: FilledButton.styleFrom(
+                                  backgroundColor: AppColors.brand,
+                                  elevation: 4,
+                                  shadowColor:
+                                      AppColors.brand.withValues(alpha: .35),
+                                  minimumSize: const Size(0, 58),
+                                  shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(16)),
+                                ),
+                                onPressed: sending ||
+                                        _method.isPhone ||
+                                        _email.text.trim().isEmpty
+                                    ? null
+                                    : () => _send(auth),
+                                child: sending
+                                    ? const Text('Đang gửi mã…')
+                                    : const Row(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.center,
+                                        children: [
+                                            Text('Nhận mã OTP'),
+                                            SizedBox(width: 10),
+                                            Icon(LucideIcons.arrowRight,
+                                                size: 20)
+                                          ]),
+                              ),
+                            ],
                           ),
                         ),
-                      ],
-                      const SizedBox(height: 12),
-                      TermsAgreementRow(
-                        value: auth?.termsAccepted ?? _accepted,
-                        onChanged: sending
-                            ? null
-                            : (value) {
-                                auth?.setTermsAccepted(value);
-                                setState(() {
-                                  _accepted = value;
-                                  if (value) _showTermsError = false;
-                                });
-                              },
-                        errorText: _showTermsError
-                            ? 'Vui lòng đồng ý Điều khoản dịch vụ và Chính sách quyền riêng tư'
-                            : null,
-                        onTermsTapped: widget.onTermsTapped,
-                        onPrivacyTapped: widget.onPrivacyTapped,
                       ),
-                      const SizedBox(height: 18),
-                      FilledButton(
-                        style: FilledButton.styleFrom(
-                          backgroundColor: AppColors.brand,
-                          minimumSize: const Size(0, 58),
-                          shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16)),
-                        ),
-                        onPressed: sending ||
-                                _method.isPhone ||
-                                _email.text.trim().isEmpty
-                            ? null
-                            : () => _send(auth),
-                        child: sending
-                            ? const Text('Đang gửi mã…')
-                            : const Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                    Text('Nhận mã OTP'),
-                                    SizedBox(width: 10),
-                                    Icon(LucideIcons.arrowRight, size: 20)
-                                  ]),
-                      ),
-                      const SizedBox(height: 18),
-                      const Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(LucideIcons.shieldCheck,
-                                color: AppColors.brand, size: 18),
-                            SizedBox(width: 8),
-                            Flexible(
-                                child: Text(
-                                    'Không cần mật khẩu · dữ liệu được mã hoá',
-                                    style: TextStyle(
-                                        color: AppColors.brand, fontSize: 14),
-                                    textAlign: TextAlign.center)),
-                          ]),
-                      const SizedBox(height: 18),
-                      const Text(
-                          'Tiếp tục nghĩa là bạn đồng ý với Điều khoản sử dụng và Chính sách bảo mật.',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                              color: AppColors.inkMuted, fontSize: 13)),
-                    ],
+                    ),
                   ),
                 ),
-              ),
+              ],
             ),
           ),
-        ],
+        ),
       ),
     );
     return AnnotatedRegion<SystemUiOverlayStyle>(

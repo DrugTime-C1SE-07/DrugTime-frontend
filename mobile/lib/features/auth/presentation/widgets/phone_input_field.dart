@@ -10,7 +10,7 @@ import '../../../../app/theme/app_theme.dart';
 /// - Tiền tố: '+84' (15px / line-height 22px [AppColors.ink])
 /// - Đường phân cách: 1px x 22px [AppColors.border]
 /// - Placeholder: '090 123 4567'
-class PhoneInputField extends StatelessWidget {
+class PhoneInputField extends StatefulWidget {
   const PhoneInputField({
     super.key,
     required this.controller,
@@ -25,6 +25,13 @@ class PhoneInputField extends StatelessWidget {
   final bool enabled;
 
   @override
+  State<PhoneInputField> createState() => _PhoneInputFieldState();
+}
+
+class _PhoneInputFieldState extends State<PhoneInputField> {
+  bool _focused = false;
+
+  @override
   Widget build(BuildContext context) {
     return SizedBox(
       width: double.infinity,
@@ -36,90 +43,94 @@ class PhoneInputField extends StatelessWidget {
           const Text(
             'Số điện thoại',
             style: TextStyle(
-              fontSize: 13.0,
-              fontWeight: FontWeight.w400,
-              height: 19.0 / 13.0,
+              fontSize: 15.0,
+              fontWeight: FontWeight.w600,
+              height: 19.0 / 15.0,
               color: AppColors.ink,
             ),
           ),
           const SizedBox(height: 6.0),
 
           // Input/phone container
-          Container(
-            width: double.infinity,
-            height: 58.0,
-            padding: const EdgeInsets.symmetric(horizontal: 14.0),
-            decoration: BoxDecoration(
-              color: const Color(0xFFF5F7F6),
-              borderRadius: BorderRadius.circular(8.0),
-              border: Border.all(
-                color:
-                    errorMessage != null ? AppColors.danger : AppColors.border,
-                width: 1.0,
-              ),
-            ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                // prefix
-                const Text(
-                  '+84',
-                  style: TextStyle(
-                    fontSize: 15.0,
-                    fontWeight: FontWeight.w400,
-                    height: 22.0 / 15.0,
-                    color: AppColors.ink,
-                  ),
-                ),
-                const SizedBox(width: 8.0),
-
-                // divider (1px x 22px)
-                Container(
+          Focus(
+            onFocusChange: (focused) => setState(() => _focused = focused),
+            child: Container(
+              width: double.infinity,
+              height: 58.0,
+              padding: const EdgeInsets.symmetric(horizontal: 14.0),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF5F7F6),
+                borderRadius: BorderRadius.circular(8.0),
+                border: Border.all(
+                  color: widget.errorMessage != null
+                      ? AppColors.danger
+                      : (_focused ? AppColors.brand : AppColors.border),
                   width: 1.0,
-                  height: 22.0,
-                  color: AppColors.border,
                 ),
-                const SizedBox(width: 8.0),
-
-                // text field
-                Expanded(
-                  child: TextField(
-                    controller: controller,
-                    enabled: enabled,
-                    onChanged: onChanged,
-                    keyboardType: TextInputType.phone,
-                    inputFormatters: [
-                      FilteringTextInputFormatter.digitsOnly,
-                      LengthLimitingTextInputFormatter(11),
-                      _VietnamesePhoneFormatter(),
-                    ],
-                    style: const TextStyle(
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  // prefix
+                  const Text(
+                    '+84',
+                    style: TextStyle(
                       fontSize: 15.0,
                       fontWeight: FontWeight.w400,
                       height: 22.0 / 15.0,
                       color: AppColors.ink,
                     ),
-                    decoration: const InputDecoration(
-                      filled: false,
-                      hintText: '912 345 678',
-                      hintStyle: TextStyle(
+                  ),
+                  const SizedBox(width: 8.0),
+
+                  // divider (1px x 22px)
+                  Container(
+                    width: 1.0,
+                    height: 22.0,
+                    color: AppColors.border,
+                  ),
+                  const SizedBox(width: 8.0),
+
+                  // text field
+                  Expanded(
+                    child: TextField(
+                      controller: widget.controller,
+                      enabled: widget.enabled,
+                      onChanged: widget.onChanged,
+                      keyboardType: TextInputType.phone,
+                      inputFormatters: [
+                        FilteringTextInputFormatter.digitsOnly,
+                        LengthLimitingTextInputFormatter(11),
+                        _VietnamesePhoneFormatter(),
+                      ],
+                      style: const TextStyle(
                         fontSize: 15.0,
                         fontWeight: FontWeight.w400,
                         height: 22.0 / 15.0,
-                        color: AppColors.inkMuted,
+                        color: AppColors.ink,
                       ),
-                      border: InputBorder.none,
-                      enabledBorder: InputBorder.none,
-                      focusedBorder: InputBorder.none,
-                      contentPadding: EdgeInsets.zero,
-                      isDense: true,
+                      decoration: const InputDecoration(
+                        filled: false,
+                        hintText: '912 345 678',
+                        hintStyle: TextStyle(
+                          fontSize: 15.0,
+                          fontWeight: FontWeight.w400,
+                          height: 22.0 / 15.0,
+                          color: AppColors.inkMuted,
+                        ),
+                        border: InputBorder.none,
+                        enabledBorder: InputBorder.none,
+                        focusedBorder: InputBorder.none,
+                        contentPadding: EdgeInsets.zero,
+                        isDense: true,
+                      ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
-          if (errorMessage case final msg?) ...[
+          if (widget.errorMessage case final msg?) ...[
             const SizedBox(height: 4.0),
             Text(
               msg,
