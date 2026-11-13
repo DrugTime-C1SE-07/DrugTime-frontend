@@ -1,11 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../../../app/theme/app_theme.dart';
 import '../../domain/entities/login_method.dart';
 
-/// Segmented Picker khớp với thiết kế `SegmentedPicker/login-method`:
-/// - Rộng 331px, Cao 42px, Padding 4px, Gap 4px, Nền [AppColors.surfaceMuted] (#F2F1ED), Bo tròn 9999px
-/// - Segment active: 159.5px x 34px, Nền [AppColors.surface] (#FFFFFF) với bóng đổ [AppShadows.cardElevation].
 class LoginSegmentedPicker extends StatelessWidget {
   const LoginSegmentedPicker({
     super.key,
@@ -14,92 +12,55 @@ class LoginSegmentedPicker extends StatelessWidget {
   });
 
   final LoginMethod selectedMethod;
-  final ValueChanged<LoginMethod> onMethodChanged;
+  final ValueChanged<LoginMethod>? onMethodChanged;
 
   @override
   Widget build(BuildContext context) {
-    const double containerWidth = 331.0;
-    const double containerHeight = 42.0;
-    const double padding = 4.0;
-    const double segmentWidth = 159.5;
-    const double segmentHeight = 34.0;
-
-    final isPhone = selectedMethod == LoginMethod.phone;
-
-    return Container(
-      width: containerWidth,
-      height: containerHeight,
-      padding: const EdgeInsets.all(padding),
+    return DecoratedBox(
       decoration: BoxDecoration(
         color: AppColors.surfaceMuted,
-        borderRadius: BorderRadius.circular(9999.0),
+        borderRadius: BorderRadius.circular(28),
       ),
-      child: Stack(
-        children: [
-          // Con trượt động màu trắng (Pill Indicator)
-          AnimatedAlign(
-            duration: const Duration(milliseconds: 200),
-            curve: Curves.easeInOutCubic,
-            alignment: isPhone ? Alignment.centerLeft : Alignment.centerRight,
-            child: Container(
-              width: segmentWidth,
-              height: segmentHeight,
-              decoration: BoxDecoration(
-                color: AppColors.surface,
-                borderRadius: BorderRadius.circular(9999.0),
-                boxShadow: AppShadows.cardElevation,
-              ),
-            ),
+      child: Padding(
+        padding: const EdgeInsets.all(4),
+        child: Row(
+          children: [
+            _tab(LoginMethod.phone, 'Số điện thoại'),
+            const SizedBox(width: 4),
+            _tab(LoginMethod.email, 'Email'),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _tab(LoginMethod method, String label) {
+    final selected = selectedMethod == method;
+    return Expanded(
+      child: Semantics(
+        selected: selected,
+        child: TextButton(
+          style: TextButton.styleFrom(
+            backgroundColor: selected ? AppColors.surface : Colors.transparent,
+            foregroundColor: selected ? AppColors.brand : AppColors.inkMuted,
+            minimumSize: const Size(0, 48),
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
           ),
-          // Hai nút bấm chọn
-          Row(
+          onPressed:
+              onMethodChanged == null ? null : () => onMethodChanged!(method),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              // Tab 1: Số điện thoại
-              Expanded(
-                child: GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onTap: () => onMethodChanged(LoginMethod.phone),
-                  child: SizedBox(
-                    height: segmentHeight,
-                    child: Center(
-                      child: Text(
-                        'Số điện thoại',
-                        style: TextStyle(
-                          fontSize: 14.0,
-                          fontWeight: isPhone ? FontWeight.w500 : FontWeight.w400,
-                          height: 20.0 / 14.0,
-                          color: isPhone ? AppColors.ink : AppColors.inkMuted,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 4.0),
-              // Tab 2: Email
-              Expanded(
-                child: GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onTap: () => onMethodChanged(LoginMethod.email),
-                  child: SizedBox(
-                    height: segmentHeight,
-                    child: Center(
-                      child: Text(
-                        'Email',
-                        style: TextStyle(
-                          fontSize: 14.0,
-                          fontWeight: !isPhone ? FontWeight.w500 : FontWeight.w400,
-                          height: 20.0 / 14.0,
-                          color: !isPhone ? AppColors.ink : AppColors.inkMuted,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
+              Icon(
+                  method == LoginMethod.phone
+                      ? LucideIcons.phone
+                      : LucideIcons.mail,
+                  size: 18),
+              const SizedBox(width: 6),
+              Flexible(child: Text(label, textAlign: TextAlign.center)),
             ],
           ),
-        ],
+        ),
       ),
     );
   }

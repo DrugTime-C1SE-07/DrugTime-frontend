@@ -9,7 +9,7 @@ import 'package:drugtime_mobile/features/auth/domain/entities/auth_session.dart'
 import 'package:drugtime_mobile/features/auth/presentation/screens/login_mobile_screen.dart';
 import 'package:drugtime_mobile/features/auth/presentation/screens/otp_verification_screen.dart';
 import 'package:drugtime_mobile/features/auth/presentation/state/auth_controller.dart';
-import 'package:drugtime_mobile/features/auth/presentation/widgets/phone_input_field.dart';
+import 'package:drugtime_mobile/features/auth/presentation/widgets/email_input_field.dart';
 import 'package:drugtime_mobile/features/family/data/repositories/remote_family_link_code_repository.dart';
 import 'package:drugtime_mobile/features/family/domain/entities/family_link_code.dart';
 import 'package:drugtime_mobile/features/family/domain/entities/family_link_code_failure.dart';
@@ -229,19 +229,21 @@ void main() {
       expect(find.text('PATIENT10X'), findsNothing);
 
       // 3. Người dùng đăng nhập lại từ màn hình đăng nhập
+      await tester.tap(find.text('Dùng email'));
+      await tester.pumpAndSettle();
       await tester.enterText(
         find.descendant(
-          of: find.byType(PhoneInputField),
+          of: find.byType(EmailInputField),
           matching: find.byType(TextField),
         ),
-        '0900000001',
+        'lan@example.com',
       );
       await tester.ensureVisible(find.byKey(const Key('terms-checkbox')));
       await tester.tap(find.byKey(const Key('terms-checkbox')));
       await tester.pumpAndSettle();
 
-      await tester.ensureVisible(find.text('Gửi mã OTP'));
-      await tester.tap(find.text('Gửi mã OTP'));
+      await tester.ensureVisible(find.text('Nhận mã OTP'));
+      await tester.tap(find.text('Nhận mã OTP'));
       await tester.pumpAndSettle();
 
       // Nhập mã OTP

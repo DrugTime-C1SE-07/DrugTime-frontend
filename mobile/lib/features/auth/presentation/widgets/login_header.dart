@@ -1,68 +1,72 @@
 import 'package:flutter/material.dart';
 
-import '../../../../app/theme/app_theme.dart';
 import '../../../../core/utils/app_assets.dart';
+import 'floating_pills.dart';
 
-/// Header widget cho màn hình Đăng nhập Mobile (S00c):
-/// - Ảnh mascot DrugTime ([AppAssets.mascotHello]) cao 150px
-/// - Tiêu đề 22px, bold 700 [AppColors.ink]
-/// - Phụ đề 13px, regular 400, line-height 19px [AppColors.inkMuted]
 class LoginHeader extends StatelessWidget {
-  const LoginHeader({
-    super.key,
-    this.heading = 'Đăng nhập',
-    this.subheading =
-        'Nhập số điện thoại hoặc email để nhận mã xác thực OTP đăng nhập vào tài khoản DrugTime của bạn.',
-  });
-
+  const LoginHeader(
+      {super.key, this.heading = 'Đăng nhập', this.subheading = ''});
   final String heading;
   final String subheading;
 
   @override
   Widget build(BuildContext context) {
     return SizedBox(
+      height: 320,
       width: double.infinity,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.center,
+      child: Stack(
+        clipBehavior: Clip.hardEdge,
         children: [
-          // mascot DrugTime (ảnh gốc 1223x1286; giải mã ở độ phân giải vừa đủ hiển thị)
-          Image.asset(
-            AppAssets.mascotHello,
-            height: 150.0,
-            cacheHeight: 450,
-            fit: BoxFit.contain,
-            semanticLabel: 'DrugTime',
-          ),
-          const SizedBox(height: AppSpacing.md),
-
-          // heading (22px / line-height 30px / 700 bold)
-          Text(
-            heading,
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              fontSize: 22.0,
-              fontWeight: FontWeight.w700,
-              height: 30.0 / 22.0,
-              color: AppColors.ink,
-              letterSpacing: -0.2,
-            ),
-          ),
-          const SizedBox(height: AppSpacing.sm),
-
-          // subheading (13px / line-height 19px / 400 regular)
-          Text(
-            subheading,
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              fontSize: 13.0,
-              fontWeight: FontWeight.w400,
-              height: 19.0 / 13.0,
-              color: AppColors.inkMuted,
-            ),
-          ),
+          Positioned(top: -120, right: -110, child: _circle(300)),
+          Positioned(top: 150, left: -90, child: _circle(220)),
+          Center(
+              child: MediaQuery.withClampedTextScaling(
+                  maxScaleFactor: 1.0,
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.start,
+                    children: [
+                const SizedBox(height: 30),
+                      Container(
+                        width: 180,
+                        height: 180,
+                        decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: .13),
+                            shape: BoxShape.circle),
+                        child: Image.asset(
+                            'assets/icons/login-mascot-figma.png',
+                            fit: BoxFit.contain,
+                            excludeFromSemantics: true),
+                      ),
+                      const SizedBox(height: 10),
+                      Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            ClipRRect(
+                                borderRadius: BorderRadius.circular(8),
+                                child: Image.asset(AppAssets.logo,
+                                    width: 40, height: 40)),
+                            const SizedBox(width: 10),
+                            const Text('DrugTime',
+                                style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 30,
+                                    fontWeight: FontWeight.w800)),
+                          ]),
+                      const Text('Trợ lý nhắc uống thuốc của bạn',
+                          style: TextStyle(
+                              color: Color(0xFFCFE7E3), fontSize: 14)),
+                    ],
+                  ))),
+          const Positioned.fill(child: FloatingPills()),
         ],
       ),
     );
   }
+
+  Widget _circle(double size) => Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+            shape: BoxShape.circle, color: Colors.white.withValues(alpha: .06)),
+      );
 }

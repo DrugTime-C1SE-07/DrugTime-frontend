@@ -11,19 +11,21 @@ class EmailInputField extends StatelessWidget {
     super.key,
     required this.controller,
     this.onChanged,
+    this.onSubmitted,
     this.errorMessage,
     this.enabled = true,
   });
 
   final TextEditingController controller;
   final ValueChanged<String>? onChanged;
+  final ValueChanged<String>? onSubmitted;
   final String? errorMessage;
   final bool enabled;
 
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      width: 327.0,
+      width: double.infinity,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
@@ -42,14 +44,15 @@ class EmailInputField extends StatelessWidget {
 
           // Input container
           Container(
-            width: 327.0,
-            height: 48.0,
+            width: double.infinity,
+            constraints: const BoxConstraints(minHeight: 58),
             padding: const EdgeInsets.symmetric(horizontal: 14.0),
             decoration: BoxDecoration(
-              color: AppColors.surface,
+              color: const Color(0xFFF5F7F6),
               borderRadius: BorderRadius.circular(8.0),
               border: Border.all(
-                color: errorMessage != null ? AppColors.danger : AppColors.border,
+                color:
+                    errorMessage != null ? AppColors.danger : AppColors.border,
                 width: 1.0,
               ),
             ),
@@ -58,6 +61,9 @@ class EmailInputField extends StatelessWidget {
               controller: controller,
               enabled: enabled,
               onChanged: onChanged,
+              onSubmitted: onSubmitted,
+              autofillHints: const [AutofillHints.email],
+              textInputAction: TextInputAction.done,
               keyboardType: TextInputType.emailAddress,
               autocorrect: false,
               enableSuggestions: false,
@@ -68,7 +74,8 @@ class EmailInputField extends StatelessWidget {
                 color: AppColors.ink,
               ),
               decoration: const InputDecoration(
-                hintText: 'name@example.com',
+                filled: false,
+                hintText: 'ten@email.com',
                 hintStyle: TextStyle(
                   fontSize: 15.0,
                   fontWeight: FontWeight.w400,

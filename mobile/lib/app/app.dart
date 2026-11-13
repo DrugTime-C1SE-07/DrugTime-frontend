@@ -617,25 +617,22 @@ class _SessionLoadingScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final width = MediaQuery.sizeOf(context).width;
     return Scaffold(
       backgroundColor: AppColors.canvas,
       body: Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Image.asset(
-              AppAssets.mascotHello,
-              width: (width * 0.7).clamp(0.0, 280.0),
-              cacheWidth: 840,
-              fit: BoxFit.contain,
-              semanticLabel: 'DrugTime',
+            ClipRRect(
+              borderRadius: BorderRadius.circular(10),
+              child: Image.asset(AppAssets.logo, width: 48, height: 48),
             ),
-            const SizedBox(height: AppSpacing.xl),
-            const SizedBox(
-                width: 24.0,
-                height: 24.0,
-                child: CircularProgressIndicator(strokeWidth: 2.5)),
+            const SizedBox(height: 42),
+            Image.asset(AppAssets.mascotRunning, width: 140, height: 140, fit: BoxFit.contain),
+            const SizedBox(height: 28),
+            const SizedBox(width: 180, child: LinearProgressIndicator(minHeight: 4)),
+            const SizedBox(height: 28),
+            Semantics(liveRegion: true, child: const Text('Đang khởi động DrugTime…')),
           ],
         ),
       ),

@@ -26,12 +26,16 @@ Finder _assetImage(String asset) => find.byWidgetPredicate(
           widget is Image &&
           switch (widget.image) {
             AssetImage(:final assetName) => assetName == asset,
-            ResizeImage(imageProvider: AssetImage(:final assetName)) => assetName == asset,
+            ResizeImage(imageProvider: AssetImage(:final assetName)) =>
+              assetName == asset,
             _ => false,
           },
     );
 
 void _setScreen(WidgetTester tester, Size size) {
+  tester.platformDispatcher.accessibilityFeaturesTestValue =
+      const FakeAccessibilityFeatures(disableAnimations: true);
+  addTearDown(tester.platformDispatcher.clearAccessibilityFeaturesTestValue);
   tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.reset);
@@ -43,7 +47,8 @@ Future<void> _pumpScreen(
   AuthController? controller,
   double textScale = 1.0,
 }) async {
-  final auth = controller ?? AuthController(InMemoryAuthRepository(simulatedDelay: Duration.zero));
+  final auth = controller ??
+      AuthController(InMemoryAuthRepository(simulatedDelay: Duration.zero));
   await tester.pumpWidget(AuthScope(
     controller: auth,
     child: MaterialApp(
@@ -58,7 +63,8 @@ Future<void> _pumpScreen(
 }
 
 void main() {
-  testWidgets('màn chờ đọc phiên hiện mascot-hello và vòng xoay (AC20)', (tester) async {
+  testWidgets('màn chờ đọc phiên hiện mascot-hello và vòng xoay (AC20)',
+      (tester) async {
     _setScreen(tester, const Size(412, 915));
     final repo = _PendingSessionRepository();
 
@@ -68,30 +74,41 @@ void main() {
     ));
     await tester.pump();
 
-    expect(_assetImage(AppAssets.mascotHello), findsOneWidget);
-    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    expect(_assetImage(AppAssets.mascotRunning), findsOneWidget);
+    expect(find.byType(LinearProgressIndicator), findsOneWidget);
+    expect(find.text('Đang khởi động DrugTime…'), findsOneWidget);
 
     repo.pending.complete(null);
     await tester.pumpAndSettle();
     expect(find.byType(LoginMobileScreen), findsOneWidget);
   });
 
-  testWidgets('màn Đăng nhập dùng mascot-hello thay cho logo vẽ bằng code (AC21)', (tester) async {
+  testWidgets(
+      'màn Đăng nhập dùng mascot-hello thay cho logo vẽ bằng code (AC21)',
+      (tester) async {
     _setScreen(tester, const Size(412, 915));
     await _pumpScreen(tester, const LoginMobileScreen());
 
-    expect(_assetImage(AppAssets.mascotHello), findsOneWidget);
-    expect(find.bySemanticsLabel('DrugTime'), findsOneWidget);
+    expect(_assetImage('assets/icons/login-mascot-figma.png'), findsOneWidget);
+    expect(find.text('DrugTime'), findsOneWidget);
     expect(find.text('Đăng nhập'), findsWidgets);
     expect(
-      find.descendant(of: find.byType(LoginMobileScreen), matching: find.byType(CustomPaint)).evaluate().where(
-            (e) => (e.widget as CustomPaint).painter.runtimeType.toString() == '_DrugTimeLogoPainter',
+      find
+          .descendant(
+              of: find.byType(LoginMobileScreen),
+              matching: find.byType(CustomPaint))
+          .evaluate()
+          .where(
+            (e) =>
+                (e.widget as CustomPaint).painter.runtimeType.toString() ==
+                '_DrugTimeLogoPainter',
           ),
       isEmpty,
     );
   });
 
-  testWidgets('màn Hoàn thiện hồ sơ có mascot-thinking phía trên form (AC22)', (tester) async {
+  testWidgets('màn Hoàn thiện hồ sơ có mascot-thinking phía trên form (AC22)',
+      (tester) async {
     _setScreen(tester, const Size(412, 915));
     await _pumpScreen(tester, const CompleteProfileScreen());
 
@@ -99,18 +116,22 @@ void main() {
     expect(mascot, findsOneWidget);
     expect(
       tester.getBottomLeft(mascot).dy,
-      lessThanOrEqualTo(tester.getTopLeft(find.byKey(const Key('profile-full-name'))).dy),
+      lessThanOrEqualTo(
+          tester.getTopLeft(find.byKey(const Key('profile-full-name'))).dy),
     );
   });
 
-  group('màn nhỏ 360x640, chữ phóng to 1.5x: không tràn bố cục, cuộn tới nút chính', () {
+  group(
+      'màn nhỏ 360x640, chữ phóng to 1.5x: không tràn bố cục, cuộn tới nút chính',
+      () {
     testWidgets('Đăng nhập (AC21)', (tester) async {
       _setScreen(tester, const Size(360, 640));
       await _pumpScreen(tester, const LoginMobileScreen(), textScale: 1.5);
 
       expect(tester.takeException(), isNull);
-      final button = find.text('Gửi mã OTP');
-      await tester.scrollUntilVisible(button, 200, scrollable: find.byType(Scrollable).first);
+      final button = find.text('Email').first;
+      await tester.scrollUntilVisible(button, 200,
+          scrollable: find.byType(Scrollable).first);
       await tester.ensureVisible(button);
       await tester.pumpAndSettle();
       expect(tester.getBottomLeft(button).dy, lessThanOrEqualTo(640));
@@ -123,7 +144,8 @@ void main() {
 
       expect(tester.takeException(), isNull);
       final button = find.text('Lưu và tiếp tục');
-      await tester.scrollUntilVisible(button, 200, scrollable: find.byType(Scrollable).first);
+      await tester.scrollUntilVisible(button, 200,
+          scrollable: find.byType(Scrollable).first);
       await tester.ensureVisible(button);
       await tester.pumpAndSettle();
       expect(tester.getBottomLeft(button).dy, lessThanOrEqualTo(640));

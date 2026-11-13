@@ -34,7 +34,6 @@ import '../features/reminder/presentation/widgets/lockscreen_privacy_gate.dart';
 import '../features/auth/presentation/screens/complete_profile_screen.dart';
 import '../features/auth/presentation/screens/email_otp_screen.dart';
 import '../features/auth/presentation/screens/login_mobile_screen.dart';
-import '../features/auth/presentation/screens/phone_otp_screen.dart';
 import 'app_shell.dart';
 import '../features/profile/presentation/screens/profile_screen.dart';
 import '../features/profile/presentation/screens/personal_profile_screen.dart';
@@ -186,10 +185,7 @@ Route<dynamic>? onGenerateRoute(
       ),
     AppRoutes.otpPhone => MaterialPageRoute<void>(
         settings: settings,
-        builder: (_) {
-          final target = settings.arguments as String?;
-          return PhoneOtpScreen(phoneNumber: target);
-        },
+        builder: (_) => const LoginMobileScreen(),
       ),
     AppRoutes.otpEmail => MaterialPageRoute<void>(
         settings: settings,
