@@ -8,6 +8,7 @@ class SecureStorage {
       : _storage = storage ?? const FlutterSecureStorage();
 
   static const _databasePasswordKey = 'encrypted_local_db_password';
+  static const _reminderPermissionsAskedKey = 'reminder_permissions_asked';
 
   final FlutterSecureStorage _storage;
 
@@ -21,6 +22,15 @@ class SecureStorage {
     await _storage.write(key: _databasePasswordKey, value: newPassword);
 
     return newPassword;
+  }
+
+  /// `true` ở lần gọi đầu tiên sau khi cài app, các lần sau `false`.
+  Future<bool> markReminderPermissionsAsked() async {
+    if (await _storage.read(key: _reminderPermissionsAskedKey) != null) {
+      return false;
+    }
+    await _storage.write(key: _reminderPermissionsAskedKey, value: '1');
+    return true;
   }
 
   String _createStrongPassword() {

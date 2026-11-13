@@ -15,10 +15,12 @@ import 'core/config/app_config.dart';
 import 'core/storage/local_db/local_db.dart';
 import 'core/contracts/dose_outbox.dart';
 import 'core/notification/reminder_notification_scheduler.dart';
-import 'core/notification/reminder_occurrence_generator.dart';
+import 'core/notification/reminder_sync_coordinator.dart';
 import 'core/storage/local_db/local_medication_store.dart';
 import 'core/storage/local_db/sqlite_dose_outbox.dart';
 import 'core/storage/secure_storage.dart';
+import 'core/sync/api_schedule_remote_data_source.dart';
+import 'core/sync/schedule_sync_service.dart';
 import 'core/sync/sync_engine.dart';
 import 'features/auth/data/repositories/remote_auth_repository.dart';
 import 'features/adherence_history/data/repositories/remote_adherence_history_repository.dart';
@@ -79,25 +81,18 @@ Future<void> main() async {
     targetPlatform: defaultTargetPlatform,
   );
 
-  // Quét và lập lịch lại toàn bộ các đơn thuốc đang kích hoạt khi khởi động ứng dụng
-  if (!kIsWeb) {
-    try {
-      final activeSchedules = await localStore.getActiveSchedules();
-      if (activeSchedules.isNotEmpty) {
-        final now = DateTime.now().toUtc();
-        final occurrences = generateOccurrences(
-          schedules: activeSchedules,
-          from: now,
-          to: now.add(const Duration(days: 7)),
-        );
-        await scheduler.scheduleOccurrences(occurrences);
-      }
-    } catch (e) {
-      debugPrint('Lỗi quét lập lịch lại đơn thuốc khi khởi động: $e');
-    }
-  }
-
   final apiClient = _buildApiClient(authController);
+
+  // Lịch uống lấy từ API về máy rồi mới lập nhắc; chạy khi có phiên (app.dart) và khi sửa thuốc.
+  final reminderSync = ReminderSyncCoordinator(
+    syncService: ScheduleSyncService(
+      remoteDataSource: ApiScheduleRemoteDataSource(apiClient),
+      localStore: localStore,
+    ),
+    localStore: localStore,
+    scheduler: scheduler,
+    onLog: debugPrint,
+  );
 
   final alerts = FamilyAlertController(RemoteFamilyAlertRepository(apiClient));
 
@@ -146,6 +141,7 @@ Future<void> main() async {
   authController.beforeSignOut = (session) async {
     alerts.clear();
     push.clear();
+    await reminderSync.clear();
     await tokens?.logout(session);
   };
 
@@ -174,6 +170,8 @@ Future<void> main() async {
     localMedicationStore: localStore,
     doseOutbox: doseOutbox,
     reminderScheduler: scheduler,
+    reminderSyncCoordinator: reminderSync,
+    shouldAskReminderPermissions: secureStorage.markReminderPermissionsAsked,
     familyLinkCodeRepository: RemoteFamilyLinkCodeRepository(apiClient),
     familyLinkRepository: RemoteFamilyLinkRepository(apiClient),
     caregiverRepository: RemoteCaregiverRepository(apiClient),

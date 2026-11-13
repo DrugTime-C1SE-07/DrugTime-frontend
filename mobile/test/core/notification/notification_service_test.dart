@@ -98,6 +98,22 @@ void main() {
     expect(service.consumeFamilyId(), isNull);
     expect(service.consumeInvalidFamilyPayload(), true);
   });
+  group('NotificationService.requestNotificationsPermission (M1)', () {
+    test('forwards to a platform that can request the permission', () async {
+      final platform = _PermissionPlatform();
+      final service = NotificationService(platform: platform);
+
+      expect(await service.requestNotificationsPermission(), isFalse);
+      expect(platform.calls, 1);
+    });
+
+    test('returns true when the platform has no permission API', () async {
+      final service = NotificationService(platform: MockNotificationPlatform());
+
+      expect(await service.requestNotificationsPermission(), isTrue);
+    });
+  });
+
   group('NotificationService.init (AC7 & AC8)', () {
     late MockNotificationPlatform mockPlatform;
 
@@ -257,4 +273,15 @@ void main() {
       }
     });
   });
+}
+
+class _PermissionPlatform extends MockNotificationPlatform
+    implements NotificationPermissionPlatform {
+  int calls = 0;
+
+  @override
+  Future<bool?> requestNotificationsPermission() async {
+    calls++;
+    return false;
+  }
 }

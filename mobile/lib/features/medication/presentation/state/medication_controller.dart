@@ -11,11 +11,15 @@ class MedicationController extends ChangeNotifier {
   MedicationController(
     this._repository, {
     InteractionCheckRepository? interactionCheckRepository,
+    this.onChanged,
   }) : _interactionRepository =
             interactionCheckRepository ?? InMemoryInteractionCheckRepository();
 
   final MedicationRepository _repository;
   final InteractionCheckRepository _interactionRepository;
+
+  /// Gọi sau mỗi lần thêm/sửa/ngưng/xóa thuốc thành công (lập lại nhắc, QD-22).
+  final void Function()? onChanged;
 
   List<Medication> _medications = const [];
   bool _isLoading = false;
@@ -84,6 +88,7 @@ class MedicationController extends ChangeNotifier {
   /// Ghi xong thì tải lại từ server, không tự sửa danh sách tại chỗ.
   Future<T> _mutate<T>(Future<T> Function() write) async {
     final result = await write();
+    onChanged?.call();
     await load();
     return result;
   }

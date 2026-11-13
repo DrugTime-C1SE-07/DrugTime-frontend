@@ -8,6 +8,7 @@ import '../core/contracts/dose_outbox.dart';
 import '../core/notification/notification_id.dart';
 import '../core/notification/notification_service.dart';
 import '../core/notification/reminder_scheduler.dart';
+import '../core/notification/reminder_sync_coordinator.dart';
 import '../core/platform/keyguard_service.dart';
 import '../core/storage/local_db/local_medication_store.dart';
 import '../core/storage/local_db/local_models.dart';
@@ -70,6 +71,8 @@ class DrugTimeApp extends StatefulWidget {
     this.localMedicationStore,
     this.doseOutbox,
     this.reminderScheduler,
+    this.reminderSyncCoordinator,
+    this.shouldAskReminderPermissions,
     this.keyguardPlatform,
     this.clock,
     this.initialRoute,
@@ -130,6 +133,12 @@ class DrugTimeApp extends StatefulWidget {
   /// Bộ điều phối hoãn/lên lịch nhắc.
   final ReminderScheduler? reminderScheduler;
 
+  /// Đồng bộ lịch uống và lập lại nhắc khi có phiên hoặc khi sửa thuốc.
+  final ReminderSyncCoordinator? reminderSyncCoordinator;
+
+  /// Chỉ xin quyền nhắc thuốc khi trả `true` (lần đầu sau khi cài); `null` thì luôn xin.
+  final Future<bool> Function()? shouldAskReminderPermissions;
+
   /// Bộ kiểm tra trạng thái màn hình khóa.
   final KeyguardPlatform? keyguardPlatform;
 
@@ -161,6 +170,7 @@ class _DrugTimeAppState extends State<DrugTimeApp> with WidgetsBindingObserver {
   StreamSubscription<bool>? _familyConnection;
   final _familyAdherenceAvailability = ValueNotifier<bool>(false);
   String? _tokenSession;
+  String? _reminderUser;
   bool _foreground = true, _online = true, _openingFamily = false;
   Timer? _expiryTimer;
   // Chỉ cho đọc cảnh báo khi phiên, hồ sơ, consent, mạng và foreground đều sẵn sàng.
@@ -210,12 +220,57 @@ class _DrugTimeAppState extends State<DrugTimeApp> with WidgetsBindingObserver {
         }
       });
     }
+    // Không chờ mạng: offline vẫn lập nhắc từ lịch đã lưu trên máy (QD-33).
+    if (_auth.isAuthenticated &&
+        !_auth.isSigningOut &&
+        session != null &&
+        _reminderUser != session.userId) {
+      _reminderUser = session.userId;
+      unawaited(_activateReminders(session.userId));
+    }
     if (!_auth.isAuthenticated) {
+      _reminderUser = null;
       _tokenSession = null;
       _expiryTimer?.cancel();
       if (_wasAuthenticated) widget.familyPushService?.clear();
     }
     if (ready) _openPendingFamily();
+  }
+
+  // Q1: xin quyền toàn màn hình cùng lúc xin quyền thông báo, khi phiên được kích hoạt.
+  Future<void> _activateReminders(String userId) async {
+    if (await _shouldAskPermissions()) await _askReminderPermissions();
+    await widget.reminderSyncCoordinator?.refresh(userId);
+  }
+
+  Future<bool> _shouldAskPermissions() async {
+    try {
+      return await widget.shouldAskReminderPermissions?.call() ?? true;
+    } on Exception catch (e) {
+      debugPrint('Không đọc được cờ đã xin quyền: $e');
+      return false;
+    }
+  }
+
+  Future<void> _askReminderPermissions() async {
+    final notifications = widget.notificationService;
+    try {
+      await notifications?.requestNotificationsPermission();
+    } on Exception catch (e) {
+      debugPrint('Không xin được quyền thông báo: $e');
+    }
+    try {
+      await notifications?.requestFullScreenIntentPermission();
+    } on Exception catch (e) {
+      debugPrint('Không xin được quyền thông báo toàn màn hình: $e');
+    }
+  }
+
+  void _refreshReminders() {
+    final user = _reminderUser;
+    if (user != null) {
+      unawaited(widget.reminderSyncCoordinator?.refresh(user));
+    }
   }
 
   // Tap cold start giữ lại ID tới khi qua các cổng sẵn sàng và navigator đã được dựng.
@@ -265,6 +320,7 @@ class _DrugTimeAppState extends State<DrugTimeApp> with WidgetsBindingObserver {
   late final MedicationController _medications = MedicationController(
     widget.medicationRepository ?? InMemoryMedicationRepository(),
     interactionCheckRepository: widget.interactionCheckRepository,
+    onChanged: _refreshReminders,
   );
 
   late final ConsentController _consents = ConsentController(
