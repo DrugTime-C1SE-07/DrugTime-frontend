@@ -106,7 +106,7 @@ class _PillPainter extends CustomPainter {
   ) {
     canvas.save();
     canvas.translate(
-      anchor.dx + 2.5 * amplitude * math.cos(phase),
+      anchor.dx + 5 * amplitude * math.cos(phase),
       anchor.dy + 5 * amplitude * math.sin(phase),
     );
     canvas.rotate(tilt + .14 * amplitude * math.sin(phase + .5));

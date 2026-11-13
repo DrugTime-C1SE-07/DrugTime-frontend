@@ -53,6 +53,15 @@ Future<void> _unmount(WidgetTester tester) =>
     tester.pumpWidget(const SizedBox());
 
 void main() {
+  testWidgets('sheet đăng nhập phủ tới đáy vùng an toàn', (tester) async {
+    _setScreen(tester, const Size(375, 1000));
+    await _pump(tester, const LoginMobileScreen());
+    final sheet = find.byKey(const Key('login-sheet'));
+    expect(sheet, findsOneWidget);
+    expect(tester.getBottomLeft(sheet).dy, closeTo(976, 0.1));
+    await _unmount(tester);
+  });
+
   testWidgets('AC12: login animation settles when reduced motion is enabled',
       (tester) async {
     _setScreen(tester, const Size(375, 812));

@@ -23,11 +23,33 @@ class LoginSegmentedPicker extends StatelessWidget {
       ),
       child: Padding(
         padding: const EdgeInsets.all(4),
-        child: Row(
+        child: Stack(
           children: [
-            _tab(LoginMethod.phone, 'Số điện thoại'),
-            const SizedBox(width: 4),
-            _tab(LoginMethod.email, 'Email'),
+            Positioned.fill(
+              child: AnimatedAlign(
+                duration: MediaQuery.disableAnimationsOf(context)
+                    ? Duration.zero
+                    : const Duration(milliseconds: 250),
+                curve: Curves.easeInOutCubic,
+                alignment: selectedMethod == LoginMethod.phone
+                    ? Alignment.centerLeft
+                    : Alignment.centerRight,
+                child: FractionallySizedBox(
+                  widthFactor: .5,
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: AppColors.surface,
+                      borderRadius: BorderRadius.circular(24),
+                    ),
+                    child: const SizedBox.expand(),
+                  ),
+                ),
+              ),
+            ),
+            Row(children: [
+              _tab(LoginMethod.phone, 'Số điện thoại'),
+              _tab(LoginMethod.email, 'Email'),
+            ]),
           ],
         ),
       ),
@@ -41,7 +63,9 @@ class LoginSegmentedPicker extends StatelessWidget {
         selected: selected,
         child: TextButton(
           style: TextButton.styleFrom(
-            backgroundColor: selected ? AppColors.surface : Colors.transparent,
+            backgroundColor: Colors.transparent,
+            overlayColor: Colors.transparent,
+            splashFactory: NoSplash.splashFactory,
             foregroundColor: selected ? AppColors.brand : AppColors.inkMuted,
             minimumSize: const Size(0, 48),
             padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),

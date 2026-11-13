@@ -6,7 +6,7 @@ import '../../../../app/theme/app_theme.dart';
 /// - Rộng 327px, Cao 73px
 /// - Label: 13px / line-height 19px [AppColors.ink]
 /// - Khung nhập: Cao 48px, viền 1px [AppColors.border], bo góc 8px, nền [AppColors.surface]
-class EmailInputField extends StatelessWidget {
+class EmailInputField extends StatefulWidget {
   const EmailInputField({
     super.key,
     required this.controller,
@@ -23,6 +23,13 @@ class EmailInputField extends StatelessWidget {
   final bool enabled;
 
   @override
+  State<EmailInputField> createState() => _EmailInputFieldState();
+}
+
+class _EmailInputFieldState extends State<EmailInputField> {
+  bool _focused = false;
+
+  @override
   Widget build(BuildContext context) {
     return SizedBox(
       width: double.infinity,
@@ -34,63 +41,67 @@ class EmailInputField extends StatelessWidget {
           const Text(
             'Email',
             style: TextStyle(
-              fontSize: 13.0,
-              fontWeight: FontWeight.w400,
-              height: 19.0 / 13.0,
+              fontSize: 15.0,
+              fontWeight: FontWeight.w600,
+              height: 19.0 / 15.0,
               color: AppColors.ink,
             ),
           ),
           const SizedBox(height: 6.0),
 
           // Input container
-          Container(
-            width: double.infinity,
-            constraints: const BoxConstraints(minHeight: 58),
-            padding: const EdgeInsets.symmetric(horizontal: 14.0),
-            decoration: BoxDecoration(
-              color: const Color(0xFFF5F7F6),
-              borderRadius: BorderRadius.circular(8.0),
-              border: Border.all(
-                color:
-                    errorMessage != null ? AppColors.danger : AppColors.border,
-                width: 1.0,
+          Focus(
+            onFocusChange: (focused) => setState(() => _focused = focused),
+            child: Container(
+              width: double.infinity,
+              constraints: const BoxConstraints(minHeight: 58),
+              padding: const EdgeInsets.symmetric(horizontal: 14.0),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF5F7F6),
+                borderRadius: BorderRadius.circular(8.0),
+                border: Border.all(
+                  color: widget.errorMessage != null
+                      ? AppColors.danger
+                      : (_focused ? AppColors.brand : AppColors.border),
+                  width: 1.0,
+                ),
               ),
-            ),
-            alignment: Alignment.centerLeft,
-            child: TextField(
-              controller: controller,
-              enabled: enabled,
-              onChanged: onChanged,
-              onSubmitted: onSubmitted,
-              autofillHints: const [AutofillHints.email],
-              textInputAction: TextInputAction.done,
-              keyboardType: TextInputType.emailAddress,
-              autocorrect: false,
-              enableSuggestions: false,
-              style: const TextStyle(
-                fontSize: 15.0,
-                fontWeight: FontWeight.w400,
-                height: 22.0 / 15.0,
-                color: AppColors.ink,
-              ),
-              decoration: const InputDecoration(
-                filled: false,
-                hintText: 'ten@email.com',
-                hintStyle: TextStyle(
+              alignment: Alignment.centerLeft,
+              child: TextField(
+                controller: widget.controller,
+                enabled: widget.enabled,
+                onChanged: widget.onChanged,
+                onSubmitted: widget.onSubmitted,
+                autofillHints: const [AutofillHints.email],
+                textInputAction: TextInputAction.done,
+                keyboardType: TextInputType.emailAddress,
+                autocorrect: false,
+                enableSuggestions: false,
+                style: const TextStyle(
                   fontSize: 15.0,
                   fontWeight: FontWeight.w400,
                   height: 22.0 / 15.0,
-                  color: AppColors.inkMuted,
+                  color: AppColors.ink,
                 ),
-                border: InputBorder.none,
-                enabledBorder: InputBorder.none,
-                focusedBorder: InputBorder.none,
-                contentPadding: EdgeInsets.zero,
-                isDense: true,
+                decoration: const InputDecoration(
+                  filled: false,
+                  hintText: 'ten@email.com',
+                  hintStyle: TextStyle(
+                    fontSize: 15.0,
+                    fontWeight: FontWeight.w400,
+                    height: 22.0 / 15.0,
+                    color: AppColors.inkMuted,
+                  ),
+                  border: InputBorder.none,
+                  enabledBorder: InputBorder.none,
+                  focusedBorder: InputBorder.none,
+                  contentPadding: EdgeInsets.zero,
+                  isDense: true,
+                ),
               ),
             ),
           ),
-          if (errorMessage case final msg?) ...[
+          if (widget.errorMessage case final msg?) ...[
             const SizedBox(height: 4.0),
             Text(
               msg,

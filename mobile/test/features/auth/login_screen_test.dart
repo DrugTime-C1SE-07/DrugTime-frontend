@@ -44,6 +44,37 @@ void main() {
     }
   }
 
+  testWidgets('ẩn thông điệp phụ và giữ điều khoản ở hai tab', (tester) async {
+    await pumpLogin(tester, selectEmail: false);
+    expect(find.textContaining('Không cần mật khẩu'), findsNothing);
+    expect(find.textContaining('Tiếp tục nghĩa là'), findsNothing);
+    expect(find.byKey(const Key('terms-checkbox')), findsOneWidget);
+    await tester.tap(find.text('Email').first);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('terms-checkbox')), findsOneWidget);
+  });
+
+  testWidgets('ô nhập đổi viền xanh khi nhận focus', (tester) async {
+    await pumpLogin(tester, selectEmail: false);
+    Future<void> expectFocusedBorder(Finder field) async {
+      await tester.ensureVisible(field);
+      await tester.tap(find.descendant(of: field, matching: find.byType(TextField)));
+      await tester.pump();
+      final containers = find.descendant(of: field, matching: find.byType(Container));
+      final focused = tester.widgetList<Container>(containers).any((container) {
+        final decoration = container.decoration;
+        return decoration is BoxDecoration &&
+            decoration.border is Border &&
+            (decoration.border! as Border).top.color == const Color(0xFF01554F);
+      });
+      expect(focused, isTrue);
+    }
+    await expectFocusedBorder(find.byType(PhoneInputField));
+    await tester.tap(find.text('Email').first);
+    await tester.pumpAndSettle();
+    await expectFocusedBorder(find.byType(EmailInputField));
+  });
+
   final termsCheckbox = find.byKey(const Key('terms-checkbox'));
   final termsError = find.byKey(const Key('terms-error'));
   const consentErrorText =
