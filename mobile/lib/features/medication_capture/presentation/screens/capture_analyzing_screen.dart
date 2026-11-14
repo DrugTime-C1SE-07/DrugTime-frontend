@@ -43,9 +43,9 @@ class CaptureAnalyzingScreen extends StatelessWidget {
                                     textAlign: TextAlign.center)),
                             const SizedBox(height: 24),
                             for (final (i, label) in [
-                              'Chuẩn bị ảnh',
-                              'Đọc chữ trên bao bì',
-                              'Tìm trong danh mục'
+                              'Đã chụp ảnh vỏ thuốc',
+                              'Đang đọc chữ trên vỏ',
+                              'Đối chiếu danh mục thuốc'
                             ].indexed)
                               Padding(
                                   padding: const EdgeInsets.only(bottom: 16),
