@@ -10,7 +10,10 @@ import '../features/family_link/presentation/state/incoming_requests_controller.
 import '../features/family_link/presentation/state/invite_link_controller.dart';
 import '../features/medication/presentation/screens/my_medications_screen.dart';
 import '../features/profile/presentation/screens/profile_screen.dart';
-import '../shared/widgets/coming_soon_view.dart';
+import '../features/home/presentation/screens/home_screen.dart';
+import '../features/home/presentation/widgets/home_navigation_bar.dart';
+import '../features/medication/presentation/state/medication_controller.dart';
+import '../features/profile/presentation/state/profile_controller.dart';
 import '../shared/widgets/pill_icon.dart';
 import 'router.dart';
 import '../core/preview/app_preview_scope.dart';
@@ -108,7 +111,18 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
+    final medications =
+        context.dependOnInheritedWidgetOfExactType<MedicationScope>()?.notifier;
+    final profile =
+        context.dependOnInheritedWidgetOfExactType<ProfileScope>()?.notifier;
+    final emptyHome = _tab == AppTab.home &&
+        medications != null &&
+        medications.hasLoaded &&
+        !medications.isLoading &&
+        medications.loadError == null &&
+        medications.medications.isEmpty;
     return Scaffold(
+      extendBody: emptyHome,
       appBar:
           AppPreviewScope.maybeOf(context) != null && _tab != AppTab.reminders
               ? const PreferredSize(
@@ -124,14 +138,20 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       body: IndexedStack(
         index: _tab.index,
         children: [
-          const ComingSoonView(title: 'Trang chủ', icon: Icons.home_outlined),
+          HomeScreen(
+            displayName: profile?.profile?.fullName,
+            onFamily: () => _select(AppTab.family),
+            onMedications: () => _select(AppTab.medications),
+          ),
           const MyMedicationsScreen(),
           AdherenceHistoryScreen(active: _tab == AppTab.reminders),
           FamilyTabScreen(active: _tab == AppTab.family),
           ProfileScreen(active: _tab == AppTab.profile),
         ],
       ),
-      bottomNavigationBar: ListenableBuilder(
+      bottomNavigationBar: emptyHome
+          ? HomeNavigationBar(onSelected: _select)
+          : ListenableBuilder(
         listenable: _incomingRequests ?? _emptyNotifier,
         builder: (context, _) {
           final pendingCount = _incomingRequests?.pendingCount ?? 0;

@@ -26,14 +26,29 @@ import '../../../interaction_check/presentation/widgets/interaction_warning_dial
 ///
 /// Trả về [Medication] vừa lưu qua `Navigator.pop` để màn trước xác nhận.
 class AddMedicationScreen extends StatefulWidget {
-  const AddMedicationScreen({super.key, this.captureLauncher});
+  const AddMedicationScreen({
+    super.key,
+    this.captureLauncher,
+    this.openCaptureOnStart = false,
+  });
   final Future<CaptureResult?> Function(BuildContext)? captureLauncher;
+  final bool openCaptureOnStart;
 
   @override
   State<AddMedicationScreen> createState() => _AddMedicationScreenState();
 }
 
 class _AddMedicationScreenState extends State<AddMedicationScreen> {
+  @override
+  void initState() {
+    super.initState();
+    if (widget.openCaptureOnStart) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) unawaited(_openCapture());
+      });
+    }
+  }
+
   final _drugFieldKey = GlobalKey();
   final _stockController = TextEditingController();
 

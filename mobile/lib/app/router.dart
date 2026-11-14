@@ -160,7 +160,9 @@ Route<dynamic>? onGenerateRoute(
       ),
     AppRoutes.addMedication => MaterialPageRoute<Medication>(
         settings: settings,
-        builder: (_) => const AddMedicationScreen(),
+        builder: (_) => AddMedicationScreen(
+          openCaptureOnStart: settings.arguments == true,
+        ),
       ),
     AppRoutes.medicationDetail => MaterialPageRoute<void>(
         settings: settings,

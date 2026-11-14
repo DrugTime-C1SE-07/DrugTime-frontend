@@ -50,4 +50,19 @@ flutter:
   assets:
     - assets/icons/
     - assets/icons/profile/
+    - assets/icons/welcome/
+    - assets/icons/home/
+    - assets/icons/navigation/
     - assets/images/
+
+  fonts:
+    - family: WelcomeInter
+      fonts:
+        - asset: assets/fonts/Inter-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/Inter-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/Inter-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/Inter-Bold.ttf
+          weight: 700

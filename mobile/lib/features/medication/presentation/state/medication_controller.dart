@@ -19,10 +19,12 @@ class MedicationController extends ChangeNotifier {
 
   List<Medication> _medications = const [];
   bool _isLoading = false;
+  bool _hasLoaded = false;
   MedicationFailure? _loadError;
 
   List<Medication> get medications => _medications;
   bool get isLoading => _isLoading;
+  bool get hasLoaded => _hasLoaded;
 
   /// Lỗi của lần tải gần nhất; danh sách cũ (nếu có) vẫn giữ để hiển thị.
   MedicationFailure? get loadError => _loadError;
@@ -33,6 +35,7 @@ class MedicationController extends ChangeNotifier {
     notifyListeners();
     try {
       _medications = await _repository.fetchAll();
+      _hasLoaded = true;
     } on MedicationFailure catch (failure) {
       _loadError = failure;
     } finally {
@@ -43,6 +46,7 @@ class MedicationController extends ChangeNotifier {
 
   /// Đăng xuất: bỏ dữ liệu của người dùng trước.
   void clear() {
+    _hasLoaded = false;
     _medications = const [];
     _loadError = null;
     _isLoading = false;
