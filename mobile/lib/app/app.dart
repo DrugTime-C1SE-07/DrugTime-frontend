@@ -43,6 +43,7 @@ import '../features/interaction_check/domain/repositories/interaction_check_repo
 import '../features/medication/presentation/state/medication_controller.dart';
 import '../features/reminder/domain/entities/dose_reminder.dart';
 import '../features/profile/domain/repositories/profile_repository.dart';
+import '../features/profile/domain/repositories/health_setup_repository.dart';
 import '../features/profile/presentation/state/profile_controller.dart';
 import 'router.dart';
 import 'app_shell.dart';
@@ -66,6 +67,7 @@ class DrugTimeApp extends StatefulWidget {
     this.caregiverRepository,
     this.inviteLinkSource,
     this.profileRepository,
+    this.healthSetupRepository,
     this.doseOutboxSyncEngine,
     this.localMedicationStore,
     this.doseOutbox,
@@ -119,6 +121,7 @@ class DrugTimeApp extends StatefulWidget {
   /// Link mời mở app (Android App Links). Không truyền thì app không nhận link.
   final InviteLinkSource? inviteLinkSource;
   final ProfileRepository? profileRepository;
+  final HealthSetupRepository? healthSetupRepository;
   final DoseOutboxSyncEngine? doseOutboxSyncEngine;
 
   /// Kho lưu trữ lịch và liều thuốc cục bộ (dùng tra cứu khi bấm thông báo).
@@ -571,6 +574,7 @@ class _DrugTimeAppState extends State<DrugTimeApp> with WidgetsBindingObserver {
         initialTab: widget.initialTab,
         preview: widget.preview,
         adherenceRepository: widget.adherenceRepository,
+        healthSetupRepository: widget.healthSetupRepository,
         familyAdherenceAvailability: _familyAdherenceAvailability,
       );
 

@@ -7,6 +7,8 @@ import 'package:drugtime_mobile/features/home/presentation/widgets/home_navigati
 import 'package:drugtime_mobile/features/home/presentation/screens/home_screen.dart';
 import 'package:drugtime_mobile/features/medication/data/repositories/in_memory_medication_repository.dart';
 import 'package:drugtime_mobile/features/medication/presentation/state/medication_controller.dart';
+import 'package:drugtime_mobile/app/router.dart';
+import 'package:drugtime_mobile/features/profile/presentation/screens/health_profile_intro_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
@@ -21,6 +23,56 @@ void main() {
     }
     await font.load();
   });
+  for (final useSystemBack in [false, true]) {
+    testWidgets(
+        'Welcome setup opens S08a once and returns via '
+        '${useSystemBack ? 'system back' : 'skip'}', (tester) async {
+      final controller = MedicationController(
+        InMemoryMedicationRepository(seed: []),
+      );
+      addTearDown(controller.dispose);
+      final observer = _IntroRouteObserver();
+      await controller.load();
+      await tester.pumpWidget(
+        MedicationScope(
+          controller: controller,
+          child: MaterialApp(
+            onGenerateRoute: onGenerateRoute,
+            navigatorObservers: [observer],
+            home: Scaffold(
+              body: HomeScreen(onFamily: () {}, onMedications: () {}),
+            ),
+          ),
+        ),
+      );
+      final home = tester.element(find.byType(HomeScreen));
+      await tester.tap(find.text('Bắt đầu nào!'));
+      await tester.pumpAndSettle();
+      final setup = find.text('Thiết lập hồ sơ sức khỏe');
+      final setupPosition = tester.getCenter(setup);
+      await tester.tap(setup);
+      await tester.tapAt(setupPosition);
+      await tester.pumpAndSettle();
+
+      expect(observer.introPushes, 1);
+      expect(find.byType(HealthProfileIntroScreen), findsOneWidget);
+      expect(find.text('Chào mừng đến với DrugTime!'), findsNothing);
+
+      // The fixture has no profile or consent scope. This flow works without
+      // accessing either controller.
+      if (useSystemBack) {
+        await tester.binding.handlePopRoute();
+      } else {
+        await tester.tap(find.text('Bỏ qua'));
+      }
+      await tester.pumpAndSettle();
+
+      expect(tester.element(find.byType(HomeScreen)), same(home));
+      expect(find.byType(HealthProfileIntroScreen), findsNothing);
+      expect(find.text('Chào mừng đến với DrugTime!'), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+  }
   testWidgets('Empty home waits for data and opens the welcome popup',
       (tester) async {
     final controller =
@@ -127,4 +179,13 @@ void main() {
 class _HomePreviewBinding extends AutomatedTestWidgetsFlutterBinding {
   @override
   bool get disableShadows => false;
+}
+
+class _IntroRouteObserver extends NavigatorObserver {
+  int introPushes = 0;
+
+  @override
+  void didPush(Route<dynamic> route, Route<dynamic>? previousRoute) {
+    if (route.settings.name == AppRoutes.healthProfileIntro) introPushes++;
+  }
 }

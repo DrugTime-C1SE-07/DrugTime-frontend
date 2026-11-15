@@ -138,8 +138,9 @@ class HomeScreen extends StatelessWidget {
                                         onPressed: () =>
                                             showWelcomeOnboardingSheet(
                                           context,
-                                          onSetup: () => _message(context,
-                                              'Thiết lập hồ sơ sức khỏe chưa khả dụng.'),
+                                          onSetup: () => Navigator.of(context)
+                                              .pushNamed<void>(
+                                                  AppRoutes.healthProfileIntro),
                                         ),
                                         child: Text(
                                           'Bắt đầu nào!',

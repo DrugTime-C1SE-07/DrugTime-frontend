@@ -33,6 +33,7 @@ dependencies:
   cryptography: 2.8.1
   firebase_core: ^5.0.0
   firebase_messaging: ^17.0.0
+  unorm_dart: ^0.3.3
 
 dev_dependencies:
   flutter_test:
@@ -52,8 +53,10 @@ flutter:
     - assets/icons/profile/
     - assets/icons/welcome/
     - assets/icons/home/
+    - assets/icons/health_setup/
     - assets/icons/navigation/
     - assets/images/
+    - assets/images/health_setup/
 
   fonts:
     - family: WelcomeInter
