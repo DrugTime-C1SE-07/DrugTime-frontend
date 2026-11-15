@@ -72,17 +72,21 @@ class CaptureResult {
   const CaptureResult.aborted()
       : kind = CaptureResultKind.aborted,
         matches = null,
+        selectedCandidate = null,
         image = null;
   const CaptureResult.prepared(this.image)
       : kind = CaptureResultKind.prepared,
+        selectedCandidate = null,
         matches = null;
-  const CaptureResult.candidates(OcrMatchResult result)
+  const CaptureResult.candidates(OcrMatchResult result,
+      {this.selectedCandidate})
       : kind = CaptureResultKind.candidates,
         matches = result,
         image = null;
   final CaptureResultKind kind;
   final PreparedMedicationImage? image;
   final OcrMatchResult? matches;
+  final OcrCandidate? selectedCandidate;
 }
 
 class CaptureCandidate {

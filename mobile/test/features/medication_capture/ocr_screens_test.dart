@@ -29,11 +29,12 @@ void main() {
                   exits++;
                 }))));
     expect(find.text('Có thể là'), findsOneWidget);
-    expect(find.textContaining('Chưa xác minh được hàm lượng'), findsOneWidget);
+    final warning = find.textContaining('Chưa xác minh được hàm lượng');
+    await tester.scrollUntilVisible(warning, 120);
+    expect(warning, findsOneWidget);
     expect(find.byType(RadioListTile), findsNothing);
     expect(find.text('Xác nhận thuốc'), findsNothing);
-    await tester.scrollUntilVisible(find.text('Quay về form'), 200);
-    await tester.tap(find.text('Quay về form'));
+    await tester.tap(find.byTooltip('Quay về form'));
     expect(exits, 1);
     expect(tester.takeException(), isNull);
   });
@@ -53,9 +54,10 @@ void main() {
               retakes++;
             },
             onExit: () {})));
-    expect(find.text('Chưa tìm thấy thuốc phù hợp'), findsOneWidget);
+    expect(find.text('Chưa đọc được vỏ hộp'), findsOneWidget);
     expect(find.text('Thử lại'), findsNothing);
-    await tester.tap(find.text('Chụp lại'));
+    await tester.scrollUntilVisible(find.text('Quét lại'), 200);
+    await tester.tap(find.text('Quét lại'));
     expect(retakes, 1);
   });
   testWidgets('OCR empty has safe error and no matching call', (tester) async {

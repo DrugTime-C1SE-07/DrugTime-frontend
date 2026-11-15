@@ -33,7 +33,9 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.widgetWithText(FilledButton, 'Thêm'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Quét vỏ thuốc'));
+    final scan = find.text('Quét vỏ hộp để tự điền');
+    await tester.ensureVisible(scan);
+    await tester.tap(scan);
     await tester.pumpAndSettle();
     expect(find.byType(CameraCaptureScreen), findsOneWidget);
     expect(find.text('Nhập thủ công'), findsNothing);
@@ -54,7 +56,7 @@ void main() {
     final preview = capture.image!;
     await tester.tap(find.text('Dùng ảnh này'));
     await tester.pumpAndSettle();
-    expect(find.text('Tìm thấy ứng viên'), findsOneWidget);
+    expect(find.text('Đã nhận diện thuốc'), findsOneWidget);
     expect(find.text('Thuốc kiểm thử'), findsOneWidget);
     expect(find.text('Xác nhận thuốc'), findsNothing);
     expect(capture.image, isNull);
@@ -64,7 +66,7 @@ void main() {
         false);
     expect(repo.addCalls, isEmpty);
     expect(store.live, hasLength(1));
-    await tester.tap(find.text('Quay về form'));
+    await tester.tap(find.byTooltip('Quay về form'));
     await tester.pumpAndSettle();
     expect(find.text('Thêm thuốc mới'), findsOneWidget);
     expect(store.live, isEmpty);
@@ -100,7 +102,9 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.widgetWithText(FilledButton, 'Thêm'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Quét vỏ thuốc'));
+    final scan = find.text('Quét vỏ hộp để tự điền');
+    await tester.ensureVisible(scan);
+    await tester.tap(scan);
     await tester.pumpAndSettle();
     await services.invalidate();
     await tester.pumpAndSettle();

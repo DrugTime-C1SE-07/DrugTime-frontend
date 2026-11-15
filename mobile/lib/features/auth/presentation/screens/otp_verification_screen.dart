@@ -76,6 +76,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
   final FocusNode _pinFocusNode = FocusNode();
 
   bool _localHasError = false;
+  bool _verifying = false;
   String? _localErrorMessage;
 
   @override
@@ -107,8 +108,10 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
       return;
     }
 
+    setState(() => _verifying = true);
     final success = await controller.verifyOtp(token: pin);
     if (!mounted) return;
+    setState(() => _verifying = false);
 
     if (success) {
       _showSuccessAndNavigate(needsProfile: controller.needsProfile);
@@ -301,14 +304,12 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
                         controller: _pinController,
                         focusNode: _pinFocusNode,
                         hasError: _localHasError,
-                        enabled: !isLoading,
+                        enabled: !_verifying,
                         onChanged: (_) {
-                          if (_localHasError) {
-                            setState(() {
-                              _localHasError = false;
-                              _localErrorMessage = null;
-                            });
-                          }
+                          setState(() {
+                            _localHasError = false;
+                            _localErrorMessage = null;
+                          });
                         },
                         onCompleted: (_) => _handleVerify(controller),
                       ),
@@ -319,23 +320,25 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
                             style: const TextStyle(color: AppColors.danger)),
                       ],
                       const SizedBox(height: 20),
-                      if (isLoading)
+                      if (_verifying)
                         const Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              SizedBox(
-                                  width: 16,
-                                  height: 16,
-                                  child: CircularProgressIndicator(
-                                      strokeWidth: 2)),
-                              SizedBox(width: 8),
-                              Text('Đang xác thực…'),
-                            ])
-                      else
-                        OtpResendRow(
-                            initialCountdown: 60,
-                            onResend: () => _handleResend(controller)),
-                      if (!isLoading && _localHasError)
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            ),
+                            SizedBox(width: 8),
+                            Text('Đang xác thực…'),
+                          ],
+                        ),
+                      OtpResendRow(
+                        isResending: isLoading,
+                        onResend: () => _handleResend(controller),
+                      ),
+                      if (!isLoading &&
+                          (_localHasError || _pinController.text.length == 6))
                         _buildVerifyButton(context, isLoading, controller),
                       const SizedBox(height: 12),
                       _buildWrongRow(isPhone, isLoading),

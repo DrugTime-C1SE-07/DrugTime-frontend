@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
@@ -64,7 +66,11 @@ Future<void> main() async {
 
   final authController = AuthController(authRepository);
   final notificationService = NotificationService();
-  await notificationService.init();
+  final android = defaultTargetPlatform == TargetPlatform.android;
+  final (_, pushEnabled) = await (
+    notificationService.init(),
+    android ? initializeFamilyFirebase() : Future.value(false),
+  ).wait;
 
   // Khởi tạo cơ sở dữ liệu cục bộ và hàng đợi outbox (Task 2.07 & 2.24)
   final secureStorage = SecureStorage();
@@ -79,30 +85,10 @@ Future<void> main() async {
     targetPlatform: defaultTargetPlatform,
   );
 
-  // Quét và lập lịch lại toàn bộ các đơn thuốc đang kích hoạt khi khởi động ứng dụng
-  if (!kIsWeb) {
-    try {
-      final activeSchedules = await localStore.getActiveSchedules();
-      if (activeSchedules.isNotEmpty) {
-        final now = DateTime.now().toUtc();
-        final occurrences = generateOccurrences(
-          schedules: activeSchedules,
-          from: now,
-          to: now.add(const Duration(days: 7)),
-        );
-        await scheduler.scheduleOccurrences(occurrences);
-      }
-    } catch (e) {
-      debugPrint('Lỗi quét lập lịch lại đơn thuốc khi khởi động: $e');
-    }
-  }
-
   final apiClient = _buildApiClient(authController);
 
   final alerts = FamilyAlertController(RemoteFamilyAlertRepository(apiClient));
 
-  final android = !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
-  final pushEnabled = android && await initializeFamilyFirebase();
   final doseSync = _buildDoseOutboxSyncEngine(
     apiClient,
     authController,
@@ -139,8 +125,6 @@ Future<void> main() async {
       },
       clearNotifications: notificationService.clearFamily,
     );
-
-    await push.start();
   }
 
   authController.beforeSignOut = (session) async {
@@ -181,6 +165,30 @@ Future<void> main() async {
     notificationService: notificationService,
     profileRepository: profileRepository,
   ));
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    unawaited(push.start().catchError((Object _) {
+      debugPrint('Không khởi tạo được nhận thông báo đẩy.');
+    }));
+    unawaited(_restoreMissingReminders(localStore, scheduler));
+  });
+}
+
+Future<void> _restoreMissingReminders(
+  SqliteLocalMedicationStore localStore,
+  ReminderNotificationScheduler scheduler,
+) async {
+  try {
+    final schedules = await localStore.getActiveSchedules();
+    if (schedules.isEmpty) return;
+    final now = DateTime.now().toUtc();
+    await scheduler.scheduleMissingOccurrences(generateOccurrences(
+      schedules: schedules,
+      from: now,
+      to: now.add(const Duration(days: 7)),
+    ));
+  } catch (_) {
+    debugPrint('Không khôi phục được lịch nhắc uống thuốc khi mở ứng dụng.');
+  }
 }
 
 ApiClient _buildApiClient(AuthController auth) => ApiClient(

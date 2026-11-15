@@ -1,3 +1,4 @@
+import '../../../medication/presentation/widgets/medication_step_progress.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../data/capture_services.dart';
@@ -13,11 +14,13 @@ class OcrFlowScreen extends StatefulWidget {
       required this.image,
       required this.services,
       required this.onRetake,
-      required this.onExit});
+      required this.onExit,
+      this.onConfirmed});
   final PreparedMedicationImage image;
   final CaptureServices services;
   final VoidCallback onRetake;
   final ValueChanged<OcrMatchResult?> onExit;
+  final void Function(OcrMatchResult, OcrCandidate)? onConfirmed;
   @override
   State<OcrFlowScreen> createState() => _OcrFlowScreenState();
 }
@@ -42,10 +45,10 @@ class _OcrFlowScreenState extends State<OcrFlowScreen>
     }
   }
 
-  Future<void> _leave({bool retake = false, bool result = false}) async {
+  Future<void> _leave({bool retake = false, OcrCandidate? candidate}) async {
     if (_leaving) return;
     _leaving = true;
-    final matches = result ? _controller.result : null;
+    final matches = candidate == null ? null : _controller.result;
     final clean = await _controller.close();
     if (!mounted) return;
     _leaving = false;
@@ -55,8 +58,12 @@ class _OcrFlowScreenState extends State<OcrFlowScreen>
     }
     if (retake) {
       widget.onRetake();
+    } else if (matches != null &&
+        candidate != null &&
+        widget.onConfirmed != null) {
+      widget.onConfirmed!(matches, candidate);
     } else {
-      widget.onExit(matches);
+      widget.onExit(null);
     }
   }
 
@@ -94,7 +101,9 @@ class _OcrFlowScreenState extends State<OcrFlowScreen>
               return OcrCandidatesScreen(
                   result: result,
                   onRetake: () => unawaited(_leave(retake: true)),
-                  onExit: () => unawaited(_leave(result: true)));
+                  onExit: () => unawaited(_leave()),
+                  onSelectCandidate: (candidate) =>
+                      unawaited(_leave(candidate: candidate)));
             }
             if (failure != null) {
               return Scaffold(
@@ -108,6 +117,7 @@ class _OcrFlowScreenState extends State<OcrFlowScreen>
                       child: ListView(
                           padding: const EdgeInsets.all(24),
                           children: [
+                        const MedicationStepProgress(currentStep: 0),
                         Semantics(
                             liveRegion: true, child: Text(failure.message)),
                         const SizedBox(height: 24),

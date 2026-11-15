@@ -18,6 +18,12 @@ import 'package:flutter_test/flutter_test.dart';
 
 import '../consent/consent_test_helpers.dart';
 
+class _UnreadableSessionRepository extends InMemoryAuthRepository {
+  @override
+  Future<AuthSession?> getCurrentSession() async =>
+      throw StateError('Secure storage unavailable');
+}
+
 AuthSession _session({required bool profileComplete}) => AuthSession(
       userId: 'u-1',
       accessToken: 'app-token',
@@ -80,8 +86,15 @@ void main() {
     expect(find.byType(AppShell), findsNothing);
   });
 
+  testWidgets('lỗi đọc phiên không giữ app ở màn khởi động', (tester) async {
+    await _pumpApp(tester, _UnreadableSessionRepository());
+
+    expect(find.text('Đang khởi động DrugTime…'), findsNothing);
+    expect(find.byType(LoginMobileScreen), findsOneWidget);
+  });
+
   Future<void> enterEmailAndSend(WidgetTester tester,
-      {required bool tick}) async {
+      {required bool tick, bool settle = true}) async {
     await tester.tap(find.text('Email').first);
     await tester.pumpAndSettle();
     await tester.enterText(
@@ -96,8 +109,38 @@ void main() {
     }
     await tester.ensureVisible(find.text('Nhận mã OTP'));
     await tester.tap(find.text('Nhận mã OTP'));
-    await tester.pumpAndSettle();
+    if (settle) await tester.pumpAndSettle();
   }
+
+  testWidgets('mở màn nhập OTP khi yêu cầu gửi mã vẫn đang chạy',
+      (tester) async {
+    const delay = Duration(seconds: 5);
+    final auth = await _pumpApp(
+      tester,
+      InMemoryAuthRepository(simulatedDelay: delay),
+    );
+
+    await enterEmailAndSend(tester, tick: true, settle: false);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+
+    expect(find.byType(OtpVerificationScreen), findsOneWidget);
+    expect(auth.isLoading, isTrue);
+    expect(find.text('Gửi lại mã sau'), findsOneWidget);
+    final pinField = tester.widget<TextField>(find.descendant(
+      of: find.byType(OtpVerificationScreen),
+      matching: find.byType(TextField),
+    ));
+    expect(pinField.focusNode!.hasFocus, isTrue);
+    expect(pinField.keyboardType, TextInputType.number);
+    await tester.pump(const Duration(seconds: 1));
+    expect(find.text('00:59'), findsOneWidget);
+
+    await tester.pump(delay);
+    await tester.pumpAndSettle();
+    expect(auth.isLoading, isFalse);
+    expect(find.byType(OtpVerificationScreen), findsOneWidget);
+  });
 
   testWidgets('(h) màn Đăng nhập chưa tick điều khoản → không gửi OTP',
       (tester) async {

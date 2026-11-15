@@ -33,7 +33,8 @@ class NumericCatalogMedicationRepository extends InMemoryMedicationRepository {
   }
 }
 
-AuthController signedInAuth({String userId = 'patient-uuid-1'}) => AuthController(
+AuthController signedInAuth({String userId = 'patient-uuid-1'}) =>
+    AuthController(
       InMemoryAuthRepository(
         simulatedDelay: Duration.zero,
         initialSession: AuthSession(
@@ -45,12 +46,9 @@ AuthController signedInAuth({String userId = 'patient-uuid-1'}) => AuthControlle
       ),
     );
 
-Future<void> _confirmDrugIfPresent(WidgetTester tester) async {
-  final confirmBtn = find.text('Xác nhận thuốc');
-  if (confirmBtn.evaluate().isNotEmpty) {
-    await tester.tap(confirmBtn);
-    await tester.pumpAndSettle();
-  }
+Future<void> _reviewSchedule(WidgetTester tester) async {
+  await tester.tap(find.widgetWithText(FilledButton, 'Tiếp tục'));
+  await tester.pumpAndSettle();
 }
 
 void main() {
@@ -94,7 +92,8 @@ void main() {
                   interactionType: 'phu_thuoc_lieu',
                   handlingType: 'can_theo_doi',
                   description: 'Amlodipin làm tăng nồng độ Simvastatin.',
-                  warningMessage: '[THẬN TRỌNG] Tăng nguy cơ tổn thương cơ khi dùng cùng.',
+                  warningMessage:
+                      '[THẬN TRỌNG] Tăng nguy cơ tổn thương cơ khi dùng cùng.',
                   source: 'Dược thư Quốc gia',
                 )
               ],
@@ -124,13 +123,16 @@ void main() {
       expect(find.text('Thêm thuốc mới'), findsOneWidget);
 
       // Chọn thuốc Amlor 5mg (id 102) từ danh mục
-      await tester.tap(find.text('Tìm tên thuốc, hoạt chất…'));
+      await tester.tap(find.byType(TextField).last);
       await tester.pumpAndSettle();
       await tester.enterText(find.byType(TextField).last, 'amlor');
+      await tester.pump(const Duration(milliseconds: 300));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Amlor 5mg'));
       await tester.pumpAndSettle();
-      await _confirmDrugIfPresent(tester);
+      await _reviewSchedule(tester);
+
+      expect(find.textContaining('Phát hiện tương tác thuốc'), findsOneWidget);
 
       // Bấm Lưu thuốc
       await tester.scrollUntilVisible(
@@ -144,7 +146,8 @@ void main() {
       // Hộp thoại cảnh báo xuất hiện
       expect(find.text('CẦN THẬN TRỌNG PHỐI HỢP'), findsOneWidget);
       expect(find.text(nfr03Disclaimer), findsOneWidget);
-      expect(find.textContaining('Amlodipin làm tăng nồng độ Simvastatin'), findsOneWidget);
+      expect(find.textContaining('Amlodipin làm tăng nồng độ Simvastatin'),
+          findsOneWidget);
 
       // Nhấn "Quay lại chỉnh sửa"
       await tester.tap(find.text('Quay lại chỉnh sửa'));
@@ -163,8 +166,10 @@ void main() {
       await tester.pumpAndSettle();
 
       // Đã lưu thành công và quay về danh sách thuốc
-      expect(find.text('Amlor 5mg'), findsOneWidget);
-      expect(find.text('Simvastatin 20mg'), findsOneWidget);
+      expect((await medRepo.fetchAll()).where((m) => m.name == 'Amlor 5mg'),
+          hasLength(1));
+      expect(find.text('Đã thêm thuốc!'), findsOneWidget);
+      expect(find.text('Không có tương tác nguy hiểm'), findsNothing);
     });
 
     testWidgets('saves directly without dialog when no interaction found',
@@ -193,13 +198,14 @@ void main() {
       expect(find.text('Thêm thuốc mới'), findsOneWidget);
 
       // Chọn thuốc Paracetamol 500mg
-      await tester.tap(find.text('Tìm tên thuốc, hoạt chất…'));
+      await tester.tap(find.byType(TextField).last);
       await tester.pumpAndSettle();
       await tester.enterText(find.byType(TextField).last, 'para');
+      await tester.pump(const Duration(milliseconds: 300));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Paracetamol 500mg'));
       await tester.pumpAndSettle();
-      await _confirmDrugIfPresent(tester);
+      await _reviewSchedule(tester);
 
       // Bấm Lưu thuốc
       await tester.scrollUntilVisible(
@@ -213,9 +219,13 @@ void main() {
       // Không xuất hiện dialog cảnh báo
       expect(find.text('CẦN THẬN TRỌNG PHỐI HỢP'), findsNothing);
       expect(find.text('CẢNH BÁO CHỐNG CHỈ ĐỊNH'), findsNothing);
+      expect(find.text('Không có tương tác nguy hiểm'), findsOneWidget);
 
       // Thuốc được lưu trực tiếp và hiển thị ở danh sách
-      expect(find.text('Paracetamol 500mg'), findsOneWidget);
+      expect(
+          (await medRepo.fetchAll())
+              .where((m) => m.name == 'Paracetamol 500mg'),
+          hasLength(1));
     });
 
     testWidgets(
@@ -249,13 +259,14 @@ void main() {
       await tester.tap(find.widgetWithText(FilledButton, 'Thêm thuốc mới'));
       await tester.pumpAndSettle();
 
-      await tester.tap(find.text('Tìm tên thuốc, hoạt chất…'));
+      await tester.tap(find.byType(TextField).last);
       await tester.pumpAndSettle();
       await tester.enterText(find.byType(TextField).last, 'para');
+      await tester.pump(const Duration(milliseconds: 300));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Paracetamol 500mg'));
       await tester.pumpAndSettle();
-      await _confirmDrugIfPresent(tester);
+      await _reviewSchedule(tester);
 
       await tester.scrollUntilVisible(
         find.text('Lưu thuốc'),
@@ -282,7 +293,10 @@ void main() {
       await tester.pumpAndSettle();
 
       // Lưu thành công
-      expect(find.text('Paracetamol 500mg'), findsOneWidget);
+      expect(
+          (await medRepo.fetchAll())
+              .where((m) => m.name == 'Paracetamol 500mg'),
+          hasLength(1));
     });
 
     testWidgets(
@@ -323,7 +337,8 @@ void main() {
                 interactionType: 'phu_thuoc_lieu',
                 handlingType: 'can_theo_doi',
                 description: 'Amlodipin làm tăng nồng độ Simvastatin.',
-                warningMessage: '[THẬN TRỌNG] Tăng nguy cơ tổn thương cơ khi dùng cùng.',
+                warningMessage:
+                    '[THẬN TRỌNG] Tăng nguy cơ tổn thương cơ khi dùng cùng.',
                 source: 'Dược thư Quốc gia',
               )
             ],
@@ -351,13 +366,14 @@ void main() {
       await tester.tap(find.widgetWithText(FilledButton, 'Thêm'));
       await tester.pumpAndSettle();
 
-      await tester.tap(find.text('Tìm tên thuốc, hoạt chất…'));
+      await tester.tap(find.byType(TextField).last);
       await tester.pumpAndSettle();
       await tester.enterText(find.byType(TextField).last, 'amlor');
+      await tester.pump(const Duration(milliseconds: 300));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Amlor 5mg'));
       await tester.pumpAndSettle();
-      await _confirmDrugIfPresent(tester);
+      await _reviewSchedule(tester);
 
       await tester.scrollUntilVisible(
         find.text('Lưu thuốc'),
@@ -370,10 +386,12 @@ void main() {
       // Kiểm tra hộp thoại hiển thị trọn vẹn:
       // 1. Cảnh báo tương tác
       expect(find.text('CẦN THẬN TRỌNG PHỐI HỢP'), findsOneWidget);
-      expect(find.textContaining('Amlodipin làm tăng nồng độ Simvastatin'), findsOneWidget);
+      expect(find.textContaining('Amlodipin làm tăng nồng độ Simvastatin'),
+          findsOneWidget);
 
       // 2. Không bị che mất cảnh báo thuốc thiếu dữ liệu
-      expect(find.text('Thuốc chưa đủ dữ liệu hoạt chất để đối soát:'), findsOneWidget);
+      expect(find.text('Thuốc chưa đủ dữ liệu hoạt chất để đối soát:'),
+          findsOneWidget);
       expect(find.textContaining('Thuốc nam gia truyền'), findsOneWidget);
 
       // 3. Disclaimer pháp lý
@@ -388,7 +406,8 @@ void main() {
       await tester.tap(find.text('Đã hiểu & Tiếp tục'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Amlor 5mg'), findsOneWidget);
+      expect((await medRepo.fetchAll()).where((m) => m.name == 'Amlor 5mg'),
+          hasLength(1));
     });
 
     testWidgets(
@@ -419,13 +438,14 @@ void main() {
       await tester.tap(find.widgetWithText(FilledButton, 'Thêm thuốc mới'));
       await tester.pumpAndSettle();
 
-      await tester.tap(find.text('Tìm tên thuốc, hoạt chất…'));
+      await tester.tap(find.byType(TextField).last);
       await tester.pumpAndSettle();
       await tester.enterText(find.byType(TextField).last, 'para');
+      await tester.pump(const Duration(milliseconds: 300));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Paracetamol 500mg'));
       await tester.pumpAndSettle();
-      await _confirmDrugIfPresent(tester);
+      await _reviewSchedule(tester);
 
       await tester.scrollUntilVisible(
         find.text('Lưu thuốc'),
@@ -437,7 +457,8 @@ void main() {
 
       // Xuất hiện dialog lỗi mạng
       expect(find.text('KHÔNG THỂ KIỂM TRA TƯƠNG TÁC'), findsOneWidget);
-      expect(find.textContaining('Không thể kết nối đến máy chủ'), findsOneWidget);
+      expect(
+          find.textContaining('Không thể kết nối đến máy chủ'), findsOneWidget);
 
       // Bấm "Quay lại"
       await tester.tap(find.text('Quay lại'));
@@ -452,7 +473,10 @@ void main() {
       await tester.pumpAndSettle();
 
       // Lưu thành công
-      expect(find.text('Paracetamol 500mg'), findsOneWidget);
+      expect(
+          (await medRepo.fetchAll())
+              .where((m) => m.name == 'Paracetamol 500mg'),
+          hasLength(1));
     });
   });
 }

@@ -79,13 +79,15 @@ class _LoginMobileScreenState extends State<LoginMobileScreen> {
     try {
       if (auth != null) {
         auth.setMethod(LoginMethod.email);
-        final sent = await auth.requestOtp(email);
+        final navigator = Navigator.of(context);
+        final request = auth.requestOtp(email);
+        navigator.pushNamed<void>(AppRoutes.otpEmail, arguments: email);
+        final sent = await request;
         if (!mounted) return;
         if (!sent) {
+          navigator.pop();
           setState(() => _emailError = auth.errorMessage);
-          return;
         }
-        Navigator.of(context).pushNamed(AppRoutes.otpEmail, arguments: email);
       } else if (widget.onSubmitOtp case final submit?) {
         await submit(email, LoginMethod.email);
       } else {
