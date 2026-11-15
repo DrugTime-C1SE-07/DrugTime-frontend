@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import '../core/sync/schedule_sync_service.dart';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -39,6 +41,7 @@ import '../features/family_link/presentation/state/family_link_scope.dart';
 import '../features/family_link/presentation/state/incoming_requests_controller.dart';
 import '../features/family_link/presentation/state/invite_link_controller.dart';
 import '../features/medication/data/repositories/in_memory_medication_repository.dart';
+import '../features/medication/domain/entities/medication.dart';
 import '../features/medication/domain/repositories/medication_repository.dart';
 import '../features/interaction_check/domain/repositories/interaction_check_repository.dart';
 import '../features/medication/presentation/state/medication_controller.dart';
@@ -58,6 +61,7 @@ class DrugTimeApp extends StatefulWidget {
     super.key,
     required this.authController,
     this.adherenceHistoryRepository,
+    this.scheduleSource,
     this.medicationRepository,
     this.interactionCheckRepository,
     this.adherenceRepository,
@@ -94,6 +98,7 @@ class DrugTimeApp extends StatefulWidget {
   final AppTab initialTab;
   final bool preview;
   final AdherenceHistoryRepository? adherenceHistoryRepository;
+  final ScheduleRemoteDataSource? scheduleSource;
   final FamilyAlertController? familyAlertController;
   final FamilyPushService? familyPushService;
   final DeviceTokenCoordinator? deviceTokenCoordinator;
@@ -344,6 +349,10 @@ class _DrugTimeAppState extends State<DrugTimeApp> with WidgetsBindingObserver {
   AuthController get _auth => widget.authController;
   late final AdherenceHistoryController _history = AdherenceHistoryController(
     widget.adherenceHistoryRepository,
+    scheduleSource: widget.scheduleSource ??
+        (widget.preview && widget.medicationRepository != null
+            ? _PreviewScheduleSource(widget.medicationRepository!)
+            : null),
     clock: widget.clock,
   );
   late final ProfileController _profiles =
@@ -766,4 +775,37 @@ class _FallbackReminderScheduler implements ReminderScheduler {
 
   @override
   Future<void> cancelAllForSchedule(int scheduleId) async {}
+}
+
+/// Adapts the preview medication store to the same calendar input as the API.
+class _PreviewScheduleSource implements ScheduleRemoteDataSource {
+  const _PreviewScheduleSource(this.repository);
+
+  final MedicationRepository repository;
+
+  @override
+  Future<List<LocalMedicationSchedule>> fetchSchedules({
+    required String patientId,
+  }) async {
+    final medications = await repository.fetchAll();
+    return [
+      for (final (index, medication) in medications.indexed)
+        if (medication.status == MedicationStatus.active)
+          for (final (slot, time) in medication.times.indexed)
+            LocalMedicationSchedule(
+              id: -(index * 10 + slot + 1),
+              patientUserId: patientId,
+              userMedicationId: -(index + 1),
+              medicationId: -(index + 1),
+              medicationName: medication.name,
+              quantityPerDose: medication.dosePerIntake.toString(),
+              dosesPerDay: medication.times.length,
+              intakeTime: time.format(),
+              daysOfWeek: const [1, 2, 3, 4, 5, 6, 7],
+              reminderEnabled: medication.reminderEnabled,
+              effectiveFrom: DateTime.utc(1),
+              serverSyncedAt: DateTime.utc(1),
+            ),
+    ];
+  }
 }

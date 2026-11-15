@@ -1,19 +1,28 @@
 import 'package:flutter/widgets.dart';
 
+import '../../../../core/api/api_exception.dart';
+import '../../../../core/storage/local_db/local_models.dart';
+import '../../../../core/sync/schedule_sync_service.dart';
+import '../../domain/schedule_occurrences.dart';
+
 import '../../domain/entities/adherence_history.dart';
 import '../../domain/entities/adherence_history_failure.dart';
 import '../../domain/repositories/adherence_history_repository.dart';
 import '../utils/adherence_history_format.dart';
 
 class AdherenceHistoryController extends ChangeNotifier {
-  AdherenceHistoryController(this._repository, {DateTime Function()? clock})
-      : _clock = clock ?? DateTime.now {
+  AdherenceHistoryController(this._repository,
+      {DateTime Function()? clock, ScheduleRemoteDataSource? scheduleSource})
+      : _scheduleSource = scheduleSource,
+        _clock = clock ?? DateTime.now {
     selectedDay = today;
     selectedMonth = HistoryFormat.month(selectedDay);
   }
 
   final AdherenceHistoryRepository? _repository;
   final DateTime Function() _clock;
+  final ScheduleRemoteDataSource? _scheduleSource;
+  Map<DateTime, DateHistoryGroup> _upcomingGroups = {};
   late DateTime selectedMonth;
   HistoryMode mode = HistoryMode.date;
   late DateTime selectedDay;
@@ -63,6 +72,7 @@ class AdherenceHistoryController extends ChangeNotifier {
     _contentRevision++;
     _generation++;
     history = null;
+    _upcomingGroups = {};
     error = null;
     _expanded.clear();
     loading = false;
@@ -112,7 +122,7 @@ class AdherenceHistoryController extends ChangeNotifier {
       selectedDay = selectedMonth;
     }
     final request = _generation;
-    final patient = _patientId;
+    final patient = _patientId!;
     final requestedMode = mode;
     final range = HistoryFormat.period(selectedMonth, _clock());
     loading = true;
@@ -127,7 +137,30 @@ class AdherenceHistoryController extends ChangeNotifier {
           result.to != range.to) {
         throw const HistoryFailure(HistoryFailureKind.invalidResponse);
       }
+      final source = _scheduleSource;
+      if (source != null &&
+          requestedMode == HistoryMode.date &&
+          selectedMonth == HistoryFormat.month(today)) {
+        final List<LocalMedicationSchedule> schedules =
+            await source.fetchSchedules(patientId: patient);
+        if (_disposed || request != _generation) return;
+        _upcomingGroups = mergeUpcomingDoses(
+          schedules: schedules,
+          history: result.dates,
+          firstDay: selectedMonth,
+          lastDay: DateTime.utc(selectedMonth.year, selectedMonth.month + 1, 0),
+          now: _clock(),
+        );
+      }
       history = result;
+    } on ApiException catch (failure) {
+      if (_disposed || request != _generation) return;
+      error = HistoryFailure(switch (failure.statusCode) {
+        401 => HistoryFailureKind.unauthorized,
+        403 => HistoryFailureKind.forbidden,
+        _ => HistoryFailureKind.unavailable,
+      });
+      if (error!.removesAccess) _accessRevision++;
     } on HistoryFailure catch (failure) {
       if (_disposed || request != _generation) return;
       history = null;
@@ -177,6 +210,7 @@ class AdherenceHistoryController extends ChangeNotifier {
   }
 
   DateHistoryGroup? dayGroup(DateTime day) {
+    if (_upcomingGroups[day] case final group?) return group;
     for (final group in history?.dates ?? <DateHistoryGroup>[]) {
       if (group.date == day) return group;
     }
