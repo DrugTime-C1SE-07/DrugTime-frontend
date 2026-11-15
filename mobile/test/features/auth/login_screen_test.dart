@@ -10,6 +10,8 @@ import 'package:drugtime_mobile/features/auth/presentation/widgets/phone_input_f
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:drugtime_mobile/features/consent/presentation/screens/legal_document_screen.dart';
 import 'package:drugtime_mobile/features/consent/presentation/widgets/terms_agreement_row.dart';
+import 'package:drugtime_mobile/shared/widgets/mascot/mascot_controller.dart';
+import 'package:drugtime_mobile/shared/widgets/mascot/mascot_view.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -58,9 +60,11 @@ void main() {
     await pumpLogin(tester, selectEmail: false);
     Future<void> expectFocusedBorder(Finder field) async {
       await tester.ensureVisible(field);
-      await tester.tap(find.descendant(of: field, matching: find.byType(TextField)));
+      await tester
+          .tap(find.descendant(of: field, matching: find.byType(TextField)));
       await tester.pump();
-      final containers = find.descendant(of: field, matching: find.byType(Container));
+      final containers =
+          find.descendant(of: field, matching: find.byType(Container));
       final focused = tester.widgetList<Container>(containers).any((container) {
         final decoration = container.decoration;
         return decoration is BoxDecoration &&
@@ -69,6 +73,7 @@ void main() {
       });
       expect(focused, isTrue);
     }
+
     await expectFocusedBorder(find.byType(PhoneInputField));
     await tester.tap(find.text('Email').first);
     await tester.pumpAndSettle();
@@ -190,6 +195,44 @@ void main() {
       expect(repo.requestedEmailOtps, ['lan@example.com']);
       expect(find.byType(EmailOtpScreen), findsOneWidget);
       expect(auth.termsAccepted, isTrue);
+    });
+
+    // màn OTP cũng có linh vật riêng → chỉ lấy linh vật của màn đăng nhập
+    MascotMood mascotMood(WidgetTester tester) => tester
+        .widget<MascotView>(find.descendant(
+          of: find.byType(LoginMobileScreen, skipOffstage: false),
+          matching: find.byType(MascotView, skipOffstage: false),
+        ))
+        .controller
+        .mood;
+
+    testWidgets(
+        'adhoc-20261115 AC5: chưa tick → linh vật lo lắng; tick lại → về đứng chờ',
+        (tester) async {
+      await pumpLogin(tester);
+      await tester.enterText(emailField, 'lan@example.com');
+
+      await tapSendOtp(tester);
+
+      expect(repo.requestedEmailOtps, isEmpty);
+      expect(termsError, findsOneWidget);
+      expect(mascotMood(tester), MascotMood.concerned);
+
+      await tick(tester);
+      expect(mascotMood(tester), MascotMood.idle);
+    });
+
+    testWidgets(
+        'adhoc-20261115 AC7: gửi mã thành công → linh vật ăn mừng rồi sang màn OTP',
+        (tester) async {
+      await pumpLogin(tester);
+      await tester.enterText(emailField, 'lan@example.com');
+      await tick(tester);
+
+      await tapSendOtp(tester);
+
+      expect(find.byType(EmailOtpScreen), findsOneWidget);
+      expect(mascotMood(tester), MascotMood.celebrate);
     });
 
     testWidgets(

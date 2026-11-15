@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -7,7 +9,7 @@ import '../../../../app/theme/app_theme.dart';
 /// - Rộng 327px, Cao 73px
 /// - Label: 13px / line-height 19px [AppColors.ink]
 /// - Khung nhập: Cao 48px, viền 1px [AppColors.border], bo góc 8px, nền [AppColors.surface]
-/// - Tiền tố: '+84' (15px / line-height 22px [AppColors.ink])
+/// - Tiền tố: cờ Việt Nam ([VietnamFlag], 22×15) + '+84' (15px / line-height 22px [AppColors.ink])
 /// - Đường phân cách: 1px x 22px [AppColors.border]
 /// - Placeholder: '090 123 4567'
 class PhoneInputField extends StatefulWidget {
@@ -71,7 +73,9 @@ class _PhoneInputFieldState extends State<PhoneInputField> {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  // prefix
+                  // prefix: cờ Việt Nam + mã quốc gia
+                  const VietnamFlag(),
+                  const SizedBox(width: 6.0),
                   const Text(
                     '+84',
                     style: TextStyle(
@@ -171,4 +175,64 @@ class _VietnamesePhoneFormatter extends TextInputFormatter {
       selection: TextSelection.collapsed(offset: formatted.length),
     );
   }
+}
+
+/// Cờ Việt Nam vẽ bằng code (nền đỏ, sao vàng 5 cánh). Không dùng emoji 🇻🇳 vì
+/// trên một số máy emoji cờ hiện thành hai chữ "VN".
+class VietnamFlag extends StatelessWidget {
+  const VietnamFlag({super.key, this.width = 22.0});
+
+  final double width;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      label: 'Việt Nam',
+      image: true,
+      child: CustomPaint(
+        size: Size(width, width * 15 / 22),
+        painter: const _VietnamFlagPainter(),
+      ),
+    );
+  }
+}
+
+class _VietnamFlagPainter extends CustomPainter {
+  const _VietnamFlagPainter();
+
+  static const _red = Color(0xFFDA251D);
+  static const _yellow = Color(0xFFFFCD00);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final flag = RRect.fromRectAndRadius(
+        Offset.zero & size, Radius.circular(size.height * .2));
+    canvas.drawRRect(flag, Paint()..color = _red);
+
+    // sao 5 cánh: bán kính ngoài = 0,3 chiều cao cờ, tâm giữa cờ
+    final c = size.center(Offset.zero);
+    final outer = size.height * .3, inner = outer * .382;
+    final star = Path();
+    for (var i = 0; i < 10; i++) {
+      final r = i.isEven ? outer : inner;
+      final a = -math.pi / 2 + i * math.pi / 5;
+      final p = c + Offset(math.cos(a) * r, math.sin(a) * r);
+      if (i == 0) {
+        star.moveTo(p.dx, p.dy);
+      } else {
+        star.lineTo(p.dx, p.dy);
+      }
+    }
+    canvas.drawPath(star..close(), Paint()..color = _yellow);
+
+    canvas.drawRRect(
+        flag,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = .6
+          ..color = const Color(0x33000000));
+  }
+
+  @override
+  bool shouldRepaint(_VietnamFlagPainter oldDelegate) => false;
 }

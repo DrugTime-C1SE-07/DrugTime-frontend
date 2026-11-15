@@ -13,6 +13,9 @@ abstract final class AppAssets {
 
   static const logo = '$_icons/logo.png';
 
+  /// Chữ logo "DrugTime" (nền trong suốt), cắt từ splash_logo.png.
+  static const logoWordmark = '$_icons/logo-wordmark.png';
+
   static const mascotAngry = '$_icons/mascot-angry.png';
   static const mascotCooking = '$_icons/mascot-cooking.png';
   static const mascotHappy = '$_icons/mascot-happy.png';
@@ -24,6 +27,7 @@ abstract final class AppAssets {
 
   static const all = [
     logo,
+    logoWordmark,
     mascotAngry,
     mascotCooking,
     mascotHappy,

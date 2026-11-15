@@ -8,6 +8,7 @@ import 'package:drugtime_mobile/features/auth/presentation/screens/complete_prof
 import 'package:drugtime_mobile/features/auth/presentation/screens/login_mobile_screen.dart';
 import 'package:drugtime_mobile/features/auth/presentation/state/auth_controller.dart';
 import 'package:drugtime_mobile/features/medication/data/repositories/in_memory_medication_repository.dart';
+import 'package:drugtime_mobile/shared/widgets/mascot/mascot_view.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -84,13 +85,15 @@ void main() {
   });
 
   testWidgets(
-      'màn Đăng nhập dùng mascot-hello thay cho logo vẽ bằng code (AC21)',
+      'màn Đăng nhập: linh vật vẽ bằng code và chữ logo dạng hình (AC21, adhoc-20261115 AC1)',
       (tester) async {
     _setScreen(tester, const Size(412, 915));
     await _pumpScreen(tester, const LoginMobileScreen());
 
-    expect(_assetImage('assets/icons/login-mascot-figma.png'), findsOneWidget);
-    expect(find.text('DrugTime'), findsOneWidget);
+    expect(find.byType(MascotView), findsOneWidget);
+    expect(_assetImage(AppAssets.logoWordmark), findsOneWidget);
+    expect(_assetImage('assets/icons/login-mascot-figma.png'), findsNothing);
+    expect(find.text('DrugTime'), findsNothing);
     expect(find.text('Đăng nhập'), findsWidgets);
     expect(
       find
