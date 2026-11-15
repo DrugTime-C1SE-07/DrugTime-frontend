@@ -6,9 +6,81 @@ import 'package:drugtime_mobile/features/adherence_history/presentation/screens/
 import 'package:drugtime_mobile/features/adherence_history/presentation/screens/medication_history_screen.dart';
 import 'package:drugtime_mobile/features/adherence_history/presentation/widgets/adherence_calendar.dart';
 import 'package:drugtime_mobile/features/adherence_history/presentation/widgets/dose_history_tile.dart';
+import 'package:drugtime_mobile/core/storage/local_db/local_models.dart';
+import 'package:drugtime_mobile/core/sync/schedule_sync_service.dart';
+import 'package:drugtime_mobile/features/adherence_history/presentation/screens/adherence_history_screen.dart';
+import 'package:drugtime_mobile/features/adherence_history/presentation/state/adherence_history_controller.dart';
 import 'adherence_history_test_helpers.dart';
 
+class _ScheduleSource implements ScheduleRemoteDataSource {
+  List<LocalMedicationSchedule> schedules = [];
+
+  @override
+  Future<List<LocalMedicationSchedule>> fetchSchedules({
+    required String patientId,
+  }) async =>
+      schedules;
+}
+
 void main() {
+  testWidgets('refresh on tab return shows both newly saved future doses',
+      (tester) async {
+    final now = DateTime.parse('2026-10-21T08:36:00+07:00');
+    final source = _ScheduleSource();
+    final controller = AdherenceHistoryController(FakeHistoryRepository(),
+        clock: () => now, scheduleSource: source)
+      ..setPatient('one');
+    addTearDown(controller.dispose);
+    Future<void> showTab(bool active) async {
+      await tester.pumpWidget(MaterialApp(
+        home: AdherenceHistoryScope(
+          controller: controller,
+          child: Scaffold(body: AdherenceHistoryScreen(active: active)),
+        ),
+      ));
+      await tester.pumpAndSettle();
+    }
+
+    await showTab(true);
+    expect(find.textContaining('Sắp tới'), findsNothing);
+    await showTab(false);
+    source.schedules = [
+      for (final (id, time) in [
+        (1, '13:00:00'),
+        (2, '20:00:00'),
+        (3, '13:01:00')
+      ])
+        LocalMedicationSchedule(
+          id: id,
+          patientUserId: 'one',
+          userMedicationId: 1,
+          medicationId: 1,
+          medicationName: 'Thuốc thử nghiệm',
+          quantityPerDose: '1',
+          dosesPerDay: 2,
+          intakeTime: time,
+          daysOfWeek: const [3],
+          reminderEnabled: true,
+          effectiveFrom: now,
+          serverSyncedAt: now,
+        ),
+    ];
+    await showTab(true);
+    expect(find.text('13:00'), findsOneWidget);
+    final midday = find.byKey(const ValueKey('BUỔI TRƯA'));
+    expect(find.text('BUỔI TRƯA'), findsOneWidget);
+    expect(find.descendant(of: midday, matching: find.byType(DoseHistoryTile)),
+        findsNWidgets(2));
+
+    final evening = find.text('20:00');
+    await tester.scrollUntilVisible(evening, 150,
+        scrollable: find.byType(Scrollable).first);
+    expect(evening, findsOneWidget);
+    await tester.tap(evening);
+    await tester.pumpAndSettle();
+    expect(find.text('Chi tiết liều dùng'), findsOneWidget);
+  });
+
   testWidgets('day defaults to today and week selection updates inline',
       (tester) async {
     final repo = FakeHistoryRepository();
@@ -21,8 +93,8 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('history-week-19')));
     await tester.pumpAndSettle();
     expect(c.selectedDay, DateTime.utc(2026, 10, 19));
-    expect(find.text('66,67%'), findsOneWidget);
-    expect(find.textContaining('Tạm tính'), findsOneWidget);
+    expect(find.text('Thứ 2: 19/10'), findsOneWidget);
+    expect(find.text('2/4 liều đã uống'), findsOneWidget);
     expect(c.selectedGroup?.doses, hasLength(4));
     expect(find.byType(DoseHistoryTile), findsWidgets);
     expect(find.byType(AdherenceMonthScreen), findsNothing);
@@ -38,7 +110,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(c.selectedDay, DateTime.utc(2026, 10, 19));
     expect(find.byType(DoseHistoryTile), findsNothing);
-    expect(find.text('66,67%'), findsOneWidget);
+    expect(find.text('Thứ 2, 19/10/2026'), findsOneWidget);
     final button = find.byKey(const Key('history-view-day'));
     await tester.ensureVisible(button);
     await tester.tap(button);
@@ -68,15 +140,19 @@ void main() {
     open();
     await tester.pumpAndSettle();
     expect(find.byType(AdherenceMonthScreen), findsOneWidget);
-    await tester.tap(find.byTooltip('Tháng trước'));
+    await tester.tap(find.byTooltip('Chọn tháng'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Tháng trước'));
     await tester.pumpAndSettle();
     expect(c.selectedDay, DateTime.utc(2026, 9, 1));
     expect(find.byType(AdherenceMonthScreen), findsOneWidget);
     expect(find.text('Tháng 9, 2026'), findsOneWidget);
-    await tester.tap(find.byTooltip('Tháng sau'));
+    await tester.tap(find.byTooltip('Chọn tháng'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Tháng sau'));
     await tester.pumpAndSettle();
     expect(c.selectedDay, c.today);
-    expect(find.text('Xem ngày'), findsOneWidget);
+    expect(find.text('Xem chi tiết ngày hôm nay'), findsOneWidget);
     expect(repo.calls.length, 3);
   });
 
@@ -105,8 +181,8 @@ void main() {
     await tester.tap(tile);
     await tester.pumpAndSettle();
     expect(c.expanded(7), isTrue);
-    expect(find.textContaining('Đã uống ·'), findsOneWidget);
-    expect(find.textContaining('Trễ ·'), findsOneWidget);
+    expect(find.text('Đã uống'), findsOneWidget);
+    expect(find.text('Trễ'), findsOneWidget);
     expect(find.text('Bỏ lỡ'), findsOneWidget);
     expect(find.text('Chờ'), findsOneWidget);
     expect(find.text('Chưa ghi nhận đã uống'), findsNothing);
@@ -131,7 +207,7 @@ void main() {
     repo.statuses = [];
     await tester.tap(find.text('Thử lại'));
     await tester.pumpAndSettle();
-    expect(find.text('Chưa tính'), findsOneWidget);
+    expect(find.text('0/0 liều đã uống'), findsOneWidget);
     expect(find.text('Chưa có lịch sử'), findsOneWidget);
     repo.delayed = true;
     final pending = c.load();
@@ -192,10 +268,15 @@ void main() {
     final c = await pumpHistory(tester, repo);
     await c.selectDay(DateTime.utc(2026, 10, 19));
     await tester.pumpAndSettle();
-    expect(find.text('66,67%'), findsOneWidget);
+    expect(find.text('Thứ 2: 19/10'), findsOneWidget);
     expect(find.text('25%'), findsNothing);
-    expect(find.text('2/4 đã uống'), findsOneWidget);
-    expect(find.textContaining('1 chờ'), findsOneWidget);
+    expect(find.text('2/4 liều đã uống'), findsOneWidget);
+    expect(
+        tester
+            .widget<LinearProgressIndicator>(
+                find.byType(LinearProgressIndicator))
+            .value,
+        0.5);
     expect(find.textContaining('liều còn lại'), findsNothing);
   });
 
@@ -206,11 +287,16 @@ void main() {
     final c = await pumpHistory(tester, repo);
     await c.selectDay(DateTime.utc(2026, 10, 19));
     await tester.pumpAndSettle();
-    expect(find.text('100%'), findsOneWidget);
-    expect(find.text('1/2 đã uống'), findsOneWidget);
-    expect(find.textContaining('Tạm tính'), findsOneWidget);
+    expect(find.text('100%'), findsNothing);
+    expect(find.text('1/2 liều đã uống'), findsOneWidget);
+    expect(
+        tester
+            .widget<LinearProgressIndicator>(
+                find.byType(LinearProgressIndicator))
+            .value,
+        0.5);
     expect(find.text('Đủ liều'), findsNothing);
     expect(find.textContaining('Tất cả đúng giờ'), findsNothing);
-    expect(find.textContaining('Trễ ·'), findsOneWidget);
+    expect(find.text('Trễ'), findsOneWidget);
   });
 }

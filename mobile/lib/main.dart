@@ -160,6 +160,7 @@ Future<void> main() async {
     familyPushService: push,
     deviceTokenCoordinator: tokens,
     familyConnectivity: PollingConnectivityMonitor(),
+    scheduleSource: ApiScheduleRemoteDataSource(apiClient),
     adherenceHistoryRepository: RemoteAdherenceHistoryRepository(apiClient),
     adherenceRepository: RemoteAdherenceRepository(apiClient),
     medicationRepository: RemoteMedicationRepository(apiClient),
