@@ -1,16 +1,19 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:flutter/services.dart';
 
 import '../../../../app/router.dart';
 import '../../../../app/theme/app_theme.dart';
+import '../../../../shared/widgets/mascot/mascot_controller.dart';
 import '../../domain/entities/login_method.dart';
 import '../state/auth_controller.dart';
+import '../widgets/login_hero.dart';
 import '../widgets/otp_header.dart';
-import '../widgets/floating_pills.dart';
-import '../widgets/mascot_protect_widget.dart';
 import '../widgets/otp_pin_input.dart';
 import '../widgets/otp_resend_row.dart';
+import '../widgets/pill_sky_scene.dart';
 
 /// Màn hình:
 /// - S00c-otp · Xác thực OTP (Số điện thoại)
@@ -74,15 +77,48 @@ class OtpVerificationScreen extends StatefulWidget {
 class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
   final TextEditingController _pinController = TextEditingController();
   final FocusNode _pinFocusNode = FocusNode();
+  final _mascot = MascotController();
+  Timer? _peekTimer;
 
   bool _localHasError = false;
   String? _localErrorMessage;
 
   @override
+  void initState() {
+    super.initState();
+    _pinFocusNode.addListener(_onPinFocus);
+  }
+
+  @override
   void dispose() {
+    _peekTimer?.cancel();
+    _pinFocusNode.removeListener(_onPinFocus);
     _pinController.dispose();
     _pinFocusNode.dispose();
+    _mascot.dispose();
     super.dispose();
+  }
+
+  bool get _reduceMotion =>
+      MediaQuery.maybeDisableAnimationsOf(context) ?? false;
+
+  /// Linh vật che mắt khi người dùng nhập mã, bỏ focus thì về đứng chờ.
+  void _onPinFocus() {
+    if (_pinFocusNode.hasFocus) {
+      _mascot.play(MascotMood.cover);
+    } else if (_mascot.mood == MascotMood.cover) {
+      _mascot.play(MascotMood.idle);
+    }
+  }
+
+  /// Gõ một chữ số: linh vật hé một mắt rồi che lại.
+  void _peek() {
+    if (_mascot.mood != MascotMood.cover) return;
+    _mascot.setPeek(true);
+    _peekTimer?.cancel();
+    _peekTimer = Timer(const Duration(milliseconds: 700), () {
+      if (mounted) _mascot.setPeek(false);
+    });
   }
 
   Future<void> _handleVerify(AuthController? controller) async {
@@ -93,6 +129,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
         _localHasError = true;
         _localErrorMessage = 'Vui lòng nhập đủ 6 chữ số mã OTP';
       });
+      _mascot.play(MascotMood.concerned);
       return;
     }
 
@@ -111,6 +148,12 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
     if (!mounted) return;
 
     if (success) {
+      // linh vật ăn mừng một nhịp rồi mới chuyển màn
+      _mascot.play(MascotMood.celebrate);
+      if (!_reduceMotion) {
+        await Future<void>.delayed(const Duration(milliseconds: 450));
+        if (!mounted) return;
+      }
       _showSuccessAndNavigate(needsProfile: controller.needsProfile);
     } else {
       setState(() {
@@ -118,6 +161,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
         _localErrorMessage =
             controller.errorMessage ?? 'Mã xác thực không đúng';
       });
+      _mascot.play(MascotMood.concerned);
     }
   }
 
@@ -226,16 +270,33 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
     return PopScope(
       canPop: !isLoading,
       child: AnnotatedRegion<SystemUiOverlayStyle>(
-        value: SystemUiOverlayStyle.light,
+        // nền phần đầu sáng → icon thanh trạng thái tối (như màn đăng nhập)
+        value: SystemUiOverlayStyle.dark,
         child: Scaffold(
           backgroundColor: Colors.white,
-          body: SafeArea(
-            child: _buildContent(
-              context: context,
-              controller: authController,
-              isLoading: isLoading,
-              errorMessage: errorMessage,
-              isPhone: isPhone,
+          // sau thanh trạng thái: màu đỉnh trời; sau thanh điều hướng: trắng như sheet
+          body: DecoratedBox(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  PillSkyScenePainter.skyTop,
+                  PillSkyScenePainter.skyTop,
+                  Colors.white,
+                  Colors.white,
+                ],
+                stops: [0, .5, .5, 1],
+              ),
+            ),
+            child: SafeArea(
+              child: _buildContent(
+                context: context,
+                controller: authController,
+                isLoading: isLoading,
+                errorMessage: errorMessage,
+                isPhone: isPhone,
+              ),
             ),
           ),
         ),
@@ -250,102 +311,125 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
     required String? errorMessage,
     required bool isPhone,
   }) {
-    return SingleChildScrollView(
-      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-      child: Column(
-        children: [
-          SizedBox(
-            height: 196,
-            width: double.infinity,
-            child: ColoredBox(
-                color: AppColors.brand,
-                child: Stack(children: [
-                  Positioned(
-                      top: -120,
-                      right: -110,
-                      child: Container(
-                        width: 300,
-                        height: 300,
-                        decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: Colors.white.withValues(alpha: .06)),
-                      )),
-                  const Positioned.fill(child: FloatingPills()),
-                  const Center(child: MascotProtectWidget()),
-                  Positioned(
-                      top: 4,
-                      left: 20,
-                      child: _buildBackRow(context, isLoading)),
-                ])),
-          ),
-          Container(
-            color: AppColors.brand,
-            child: Container(
-              width: double.infinity,
-              decoration: const BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
-              ),
-              padding: const EdgeInsets.fromLTRB(20, 26, 20, 36),
-              child: Center(
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 430),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      OtpHeader(
-                          method: widget.method,
-                          targetIdentifier: widget.targetIdentifier),
-                      const SizedBox(height: 20),
-                      OtpPinInput(
-                        controller: _pinController,
-                        focusNode: _pinFocusNode,
-                        hasError: _localHasError,
-                        enabled: !isLoading,
-                        onChanged: (_) {
-                          if (_localHasError) {
-                            setState(() {
-                              _localHasError = false;
-                              _localErrorMessage = null;
-                            });
-                          }
-                        },
-                        onCompleted: (_) => _handleVerify(controller),
+    return LayoutBuilder(
+      builder: (context, constraints) => SingleChildScrollView(
+        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+        child: ConstrainedBox(
+          constraints: BoxConstraints(minHeight: constraints.maxHeight),
+          child: IntrinsicHeight(
+            child: Column(
+              children: [
+                // phần đầu dùng chung với màn đăng nhập, thấp hơn để vừa bàn phím
+                SizedBox(
+                  height: (constraints.maxHeight * .30).clamp(220.0, 280.0),
+                  width: double.infinity,
+                  child: Stack(children: [
+                    Positioned.fill(
+                      child: LoginHero(
+                        entrance: kAlwaysCompleteAnimation,
+                        mascot: _mascot,
+                        showBrand: false,
+                        entranceMood: MascotMood.idle,
                       ),
-                      if (errorMessage != null) ...[
-                        const SizedBox(height: 8),
-                        Text(errorMessage,
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(color: AppColors.danger)),
-                      ],
-                      const SizedBox(height: 20),
-                      if (isLoading)
-                        const Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              SizedBox(
-                                  width: 16,
-                                  height: 16,
-                                  child: CircularProgressIndicator(
-                                      strokeWidth: 2)),
-                              SizedBox(width: 8),
-                              Text('Đang xác thực…'),
-                            ])
-                      else
-                        OtpResendRow(
-                            initialCountdown: 60,
-                            onResend: () => _handleResend(controller)),
-                      if (!isLoading && _localHasError)
-                        _buildVerifyButton(context, isLoading, controller),
-                      const SizedBox(height: 12),
-                      _buildWrongRow(isPhone, isLoading),
-                    ],
+                    ),
+                    Positioned(
+                        top: 4,
+                        left: 20,
+                        child: _buildBackRow(context, isLoading)),
+                  ]),
+                ),
+                Expanded(
+                  child: ColoredBox(
+                    color: PillSkyScenePainter.skyBottom,
+                    child: _buildSheet(
+                      context: context,
+                      controller: controller,
+                      isLoading: isLoading,
+                      errorMessage: errorMessage,
+                      isPhone: isPhone,
+                    ),
                   ),
                 ),
-              ),
+              ],
             ),
           ),
-        ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSheet({
+    required BuildContext context,
+    required AuthController? controller,
+    required bool isLoading,
+    required String? errorMessage,
+    required bool isPhone,
+  }) {
+    return Container(
+      width: double.infinity,
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
+      ),
+      padding: const EdgeInsets.fromLTRB(20, 26, 20, 36),
+      child: Align(
+        alignment: Alignment.topCenter,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 430),
+          child: Column(
+            children: [
+              OtpHeader(
+                  method: widget.method,
+                  targetIdentifier: widget.targetIdentifier),
+              const SizedBox(height: 20),
+              OtpPinInput(
+                controller: _pinController,
+                focusNode: _pinFocusNode,
+                hasError: _localHasError,
+                enabled: !isLoading,
+                onChanged: (_) {
+                  _peek();
+                  if (_localHasError) {
+                    setState(() {
+                      _localHasError = false;
+                      _localErrorMessage = null;
+                    });
+                  }
+                },
+                onCompleted: (_) => _handleVerify(controller),
+              ),
+              if (errorMessage != null) ...[
+                const SizedBox(height: 8),
+                Text(errorMessage,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(color: AppColors.danger)),
+              ],
+              const SizedBox(height: 20),
+              if (isLoading)
+                const Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2)),
+                      SizedBox(width: 8),
+                      Text('Đang xác thực…'),
+                    ])
+              else
+                OtpResendRow(
+                    initialCountdown: 60,
+                    onResend: () => _handleResend(controller)),
+              // cụm nút và dòng đổi email/số bám đáy sheet
+              const Spacer(),
+              const SizedBox(height: 20),
+              if (!isLoading && _localHasError)
+                _buildVerifyButton(context, isLoading, controller),
+              const SizedBox(height: 12),
+              _buildWrongRow(isPhone, isLoading),
+            ],
+          ),
+        ),
       ),
     );
   }

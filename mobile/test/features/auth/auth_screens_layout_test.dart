@@ -2,7 +2,7 @@ import 'package:drugtime_mobile/core/widgets/home_indicator.dart';
 import 'package:drugtime_mobile/app/theme/app_theme.dart';
 import 'package:drugtime_mobile/features/auth/presentation/widgets/otp_resend_row.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
-import 'package:drugtime_mobile/features/auth/presentation/widgets/floating_pills.dart';
+import 'package:drugtime_mobile/features/auth/presentation/widgets/login_hero.dart';
 import 'package:drugtime_mobile/core/widgets/status_bar_compact.dart';
 import 'package:drugtime_mobile/features/auth/presentation/screens/login_mobile_screen.dart';
 import 'package:drugtime_mobile/features/auth/presentation/screens/otp_verification_screen.dart';
@@ -53,9 +53,12 @@ Future<void> _unmount(WidgetTester tester) =>
     tester.pumpWidget(const SizedBox());
 
 void main() {
-  testWidgets('sheet đăng nhập phủ tới đáy vùng an toàn', (tester) async {
+  testWidgets('sheet đăng nhập phủ tới đáy vùng an toàn sau hiệu ứng vào màn',
+      (tester) async {
     _setScreen(tester, const Size(375, 1000));
     await _pump(tester, const LoginMobileScreen());
+    // hiệu ứng vào màn 2 s; linh vật chạy liên tục nên không dùng pumpAndSettle
+    await tester.pump(const Duration(milliseconds: 2100));
     final sheet = find.byKey(const Key('login-sheet'));
     expect(sheet, findsOneWidget);
     expect(tester.getBottomLeft(sheet).dy, closeTo(976, 0.1));
@@ -69,7 +72,7 @@ void main() {
         const FakeAccessibilityFeatures(disableAnimations: true);
     addTearDown(tester.platformDispatcher.clearAccessibilityFeaturesTestValue);
     await _pump(tester, const LoginMobileScreen());
-    expect(find.byType(FloatingPills), findsOneWidget);
+    expect(find.byType(LoginHero), findsOneWidget);
     await tester.pumpAndSettle();
     expect(tester.binding.hasScheduledFrame, isFalse);
     await _unmount(tester);
@@ -124,7 +127,10 @@ void main() {
         await _unmount(tester);
       });
 
-      testWidgets('icon status bar màu sáng trên nền xanh', (tester) async {
+      // Đăng nhập và OTP đều có phần đầu nền trời sáng → icon thanh trạng thái tối.
+      const barStyle = SystemUiOverlayStyle.dark;
+      testWidgets('icon status bar tương phản với nền phần đầu',
+          (tester) async {
         _setScreen(tester, const Size(412, 915));
         await _pump(tester, build());
 
@@ -132,7 +138,7 @@ void main() {
           find.byWidgetPredicate(
             (widget) =>
                 widget is AnnotatedRegion<SystemUiOverlayStyle> &&
-                widget.value == SystemUiOverlayStyle.light,
+                widget.value == barStyle,
           ),
           findsOneWidget,
         );
