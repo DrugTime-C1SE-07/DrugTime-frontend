@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../features/medication_capture/presentation/screens/capture_flow_screen.dart';
+import '../features/medication_capture/presentation/screens/scan_medication_screen.dart';
 import '../features/medication_capture/domain/capture_models.dart';
 
 import '../features/adherence/domain/repositories/adherence_repository.dart';
@@ -26,7 +27,6 @@ import '../features/medication/data/repositories/in_memory_medication_repository
 import '../features/medication/domain/entities/medication.dart';
 import '../features/medication/presentation/screens/edit_medication_screen.dart';
 import '../features/medication/presentation/screens/medication_detail_screen.dart';
-import '../features/medication/presentation/screens/add_medication_screen.dart';
 import '../features/medication/presentation/screens/drug_selection_demo_screen.dart';
 import '../features/reminder/domain/entities/dose_reminder.dart';
 import '../features/reminder/presentation/screens/dose_reminder_screen.dart';
@@ -46,6 +46,7 @@ abstract final class AppRoutes {
   static const home = '/';
   static const addMedication = '/medications/add';
   static const captureMedication = '/medications/capture';
+  static const scanMedication = '/medications/scan';
   static const drugSelectionDemo = '/medications/selection-demo';
   static const medicationDetail = '/medications/detail';
   static const editMedication = '/medications/edit';
@@ -89,12 +90,17 @@ final _patientUuid = RegExp(
 
 Route<dynamic>? onGenerateRoute(
   RouteSettings settings, {
-  AppTab initialTab = AppTab.medications,
+  AppTab initialTab = AppTab.home,
   bool preview = false,
   AdherenceRepository? adherenceRepository,
   ValueListenable<bool>? familyAdherenceAvailability,
 }) {
   return switch (settings.name) {
+    AppRoutes.scanMedication => MaterialPageRoute<Medication>(
+        settings: settings,
+        fullscreenDialog: true,
+        builder: (_) => const ScanMedicationScreen(),
+      ),
     AppRoutes.captureMedication => MaterialPageRoute<CaptureResult>(
         settings: settings,
         fullscreenDialog: true,
@@ -159,7 +165,7 @@ Route<dynamic>? onGenerateRoute(
       ),
     AppRoutes.addMedication => MaterialPageRoute<Medication>(
         settings: settings,
-        builder: (_) => const AddMedicationScreen(),
+        builder: (_) => const ScanMedicationScreen(),
       ),
     AppRoutes.medicationDetail => MaterialPageRoute<void>(
         settings: settings,

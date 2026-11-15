@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../../../app/theme/app_theme.dart';
 import '../../../../app/router.dart';
@@ -36,9 +37,11 @@ class AddMedicationScreen extends StatefulWidget {
     super.key,
     this.captureLauncher,
     this.foodInteractionRepository,
+    this.scannedDrug,
   });
 
   final FoodInteractionRepository? foodInteractionRepository;
+  final DrugCatalogItem? scannedDrug;
   final Future<CaptureResult?> Function(BuildContext)? captureLauncher;
 
   @override
@@ -69,6 +72,12 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
   Uint8List? _captureBytes;
   Timer? _captureExpiry;
   CaptureServices? _captureServices;
+
+  @override
+  void initState() {
+    super.initState();
+    _drug = widget.scannedDrug;
+  }
 
   @override
   void didChangeDependencies() {
@@ -266,13 +275,25 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
       return;
     }
 
+    if (widget.scannedDrug != null &&
+        (drug.name.trim().isEmpty ||
+            drug.strength.trim().isEmpty ||
+            drug.dosageForm.trim().isEmpty ||
+            drug.unit.trim().isEmpty ||
+            drug.unit == 'liều')) {
+      _toast(
+          'Hãy chọn thuốc có đủ tên, hàm lượng, dạng thuốc và đơn vị từ danh mục.');
+      return;
+    }
+
     final controller = MedicationScope.read(context);
     final navigator = Navigator.of(context);
     setState(() => _saving = true);
 
     final candidateId = int.tryParse(drug.id);
     if (candidateId != null) {
-      final patientId = AuthScope.maybeOf(context)?.currentSession?.userId ?? '';
+      final patientId =
+          AuthScope.maybeOf(context)?.currentSession?.userId ?? '';
       try {
         final existingIds = controller.medications
             .where((m) => m.isActive)
@@ -291,15 +312,18 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
         if (checkResult.hasInteractions) {
           if (!mounted) return;
           setState(() => _saving = false);
-          final proceed = await showInteractionWarningDialog(context, checkResult);
+          final proceed =
+              await showInteractionWarningDialog(context, checkResult);
           if (proceed != true) {
             return;
           }
           if (mounted) setState(() => _saving = true);
-        } else if (checkResult.isInsufficientData || checkResult.insufficientDataMedications.isNotEmpty) {
+        } else if (checkResult.isInsufficientData ||
+            checkResult.insufficientDataMedications.isNotEmpty) {
           if (!mounted) return;
           setState(() => _saving = false);
-          final proceed = await showInsufficientDataDialog(context, checkResult);
+          final proceed =
+              await showInsufficientDataDialog(context, checkResult);
           if (proceed != true) {
             return;
           }
@@ -414,6 +438,9 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
   Widget build(BuildContext context) {
     final drug = _drug;
     final inUse = drug != null && MedicationScope.of(context).isInUse(drug.id);
+    if (widget.scannedDrug != null && drug != null) {
+      return _buildScanSchedule(drug, inUse);
+    }
 
     return PopScope(
       canPop: false,
@@ -714,6 +741,308 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
     );
   }
 
+  Widget _buildScanSchedule(DrugCatalogItem drug, bool inUse) {
+    return PopScope(
+      canPop: !_dirty || _saving,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _leaveIfConfirmed();
+      },
+      child: Scaffold(
+        backgroundColor: const Color(0xFFF4F6F5),
+        appBar: AppBar(
+            title: const Text('Lịch uống'),
+            centerTitle: true,
+            leading: Padding(
+                padding: const EdgeInsets.all(6),
+                child: IconButton.filled(
+                    tooltip: 'Quay lại',
+                    style: IconButton.styleFrom(
+                        backgroundColor: const Color(0xFFE3F2EF),
+                        foregroundColor: AppColors.brand),
+                    onPressed: () => Navigator.of(context).maybePop(),
+                    icon: const Icon(LucideIcons.chevronLeft))),
+            backgroundColor: const Color(0xFFF4F6F5)),
+        body: ListView(padding: const EdgeInsets.all(20), children: [
+          const Text('Bước 2/3 · Lịch uống',
+              style: TextStyle(
+                  color: AppColors.brand, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 12),
+          Row(
+              children: List.generate(
+                  3,
+                  (index) => Expanded(
+                      child: Container(
+                          height: 5,
+                          margin: EdgeInsets.only(right: index == 2 ? 0 : 6),
+                          decoration: BoxDecoration(
+                              color: index < 2
+                                  ? AppColors.brand
+                                  : const Color(0xFFE1E5E3),
+                              borderRadius: BorderRadius.circular(4)))))),
+          const SizedBox(height: 20),
+          Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                  color: Colors.white, borderRadius: BorderRadius.circular(16)),
+              child: Row(children: [
+                Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                        color: const Color(0xFFFFEFDF),
+                        borderRadius: BorderRadius.circular(12)),
+                    child: Center(
+                        child: SizedBox.square(
+                            dimension: 30,
+                            child:
+                                Stack(alignment: Alignment.center, children: [
+                              Transform.rotate(
+                                  angle: -0.785398,
+                                  child: ClipRRect(
+                                      borderRadius: BorderRadius.circular(8),
+                                      child: const SizedBox(
+                                          width: 23,
+                                          height: 11,
+                                          child: Row(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.stretch,
+                                              children: [
+                                                Expanded(
+                                                    child: ColoredBox(
+                                                        color:
+                                                            Color(0xFFFFAC56))),
+                                                Expanded(
+                                                    child: ColoredBox(
+                                                        color:
+                                                            Color(0xFFF9FAFA)))
+                                              ])))),
+                              const Icon(LucideIcons.pill,
+                                  size: 30, color: Color(0xFF17396F)),
+                            ])))),
+                const SizedBox(width: 12),
+                Expanded(
+                    child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                      Text(drug.name, style: AppTextStyles.bodyStrong),
+                      Text(
+                          [drug.dosageForm]
+                              .where((v) => v.isNotEmpty)
+                              .join(' · '),
+                          style: AppTextStyles.caption)
+                    ])),
+                TextButton(
+                    onPressed: _pickDrug,
+                    style: TextButton.styleFrom(
+                        backgroundColor: const Color(0xFFE4F2EF),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12))),
+                    child: const Text('Đổi'))
+              ])),
+          if (inUse)
+            const Padding(
+                padding: EdgeInsets.only(top: 8),
+                child: Text(
+                    'Thuốc này đã có trong danh sách đang dùng. Hãy kiểm tra để tránh trùng liều.')),
+          if (drug.strength.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Align(
+                alignment: Alignment.centerLeft,
+                child: Chip(
+                    label: Text(drug.strength),
+                    backgroundColor: Colors.white,
+                    side: const BorderSide(color: Color(0xFFE1E5E3)))),
+          ],
+          const SizedBox(height: 16),
+          Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                  color: Colors.white, borderRadius: BorderRadius.circular(16)),
+              child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          const Flexible(
+                              child: Text('Mỗi lần uống',
+                                  style: AppTextStyles.bodyStrong)),
+                          const SizedBox(width: 8),
+                          Container(
+                              padding: const EdgeInsets.all(3),
+                              decoration: BoxDecoration(
+                                  color: const Color(0xFFF2F2F0),
+                                  borderRadius: BorderRadius.circular(40)),
+                              child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    IconButton(
+                                        tooltip: 'Giảm liều',
+                                        onPressed: _dose - 1 >=
+                                                (_dose < 1 ? _dose : 1)
+                                            ? () => _update(() => _dose -= 1)
+                                            : null,
+                                        style: IconButton.styleFrom(
+                                            backgroundColor: Colors.white,
+                                            foregroundColor: AppColors.brand,
+                                            disabledBackgroundColor:
+                                                Colors.white),
+                                        icon: const Icon(Icons.remove)),
+                                    Padding(
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 12),
+                                        child: Semantics(
+                                            liveRegion: true,
+                                            child: Text(
+                                                '${formatQuantity(_dose)} ${drug.unit}',
+                                                style:
+                                                    AppTextStyles.bodyStrong))),
+                                    IconButton(
+                                        tooltip: 'Tăng liều',
+                                        onPressed: _dose + 1 <= 10
+                                            ? () => _update(() => _dose += 1)
+                                            : null,
+                                        style: IconButton.styleFrom(
+                                            backgroundColor: AppColors.brand,
+                                            foregroundColor: Colors.white),
+                                        icon: const Icon(Icons.add)),
+                                  ])),
+                        ]),
+                    const Divider(height: 32),
+                    const Text('Giờ uống',
+                        style: TextStyle(
+                            color: Color(0xFF6B737D),
+                            fontWeight: FontWeight.w600)),
+                    const SizedBox(height: 8),
+                    Wrap(spacing: 8, runSpacing: 8, children: [
+                      for (final (i, t) in _times.indexed)
+                        SizedBox(
+                            height: 48,
+                            child: InputChip(
+                                visualDensity: VisualDensity.compact,
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 4, vertical: 8),
+                                backgroundColor: const Color(0xFFE5F3F0),
+                                side: BorderSide.none,
+                                shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8)),
+                                labelStyle: const TextStyle(
+                                    color: AppColors.brand,
+                                    fontWeight: FontWeight.bold),
+                                deleteIconColor: AppColors.brand,
+                                label: Text(t.format()),
+                                onPressed: () => _editTime(i),
+                                onDeleted: _times.length <= 1
+                                    ? null
+                                    : () => _update(() {
+                                          _times = [..._times]..removeAt(i);
+                                          _frequency =
+                                              DoseFrequency.forTimeCount(
+                                                  _times.length);
+                                        }))),
+                      if (_times.length < 6)
+                        SizedBox(
+                            height: 48,
+                            child: ActionChip(
+                                visualDensity: VisualDensity.compact,
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 4, vertical: 8),
+                                backgroundColor: Colors.white,
+                                shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8)),
+                                label: const Text('+ Thêm giờ'),
+                                onPressed: () async {
+                                  final selected = await showTimePicker(
+                                      context: context,
+                                      initialTime:
+                                          const TimeOfDay(hour: 12, minute: 0));
+                                  if (!mounted || selected == null) return;
+                                  final t =
+                                      DoseTime(selected.hour, selected.minute);
+                                  if (_times.contains(t)) {
+                                    _toast('Giờ uống đã tồn tại.');
+                                    return;
+                                  }
+                                  _update(() {
+                                    _times = [..._times, t]..sort();
+                                    _frequency = DoseFrequency.forTimeCount(
+                                        _times.length);
+                                  });
+                                })),
+                    ]),
+                    const SizedBox(height: 20),
+                    const Text('Uống khi nào',
+                        style: TextStyle(
+                            color: Color(0xFF6B737D),
+                            fontWeight: FontWeight.w600)),
+                    const SizedBox(height: 8),
+                    Row(children: [
+                      for (final (index, timing)
+                          in IntakeTiming.values.indexed) ...[
+                        if (index > 0) const SizedBox(width: 8),
+                        Expanded(
+                            child: SizedBox(
+                                height: 48,
+                                child: ChoiceChip(
+                                  visualDensity: VisualDensity.compact,
+                                  showCheckmark: false,
+                                  padding: const EdgeInsets.symmetric(vertical: 2),
+                                  labelPadding: const EdgeInsets.symmetric(
+                                      horizontal: 4, vertical: 2),
+                                  label: Center(
+                                      heightFactor: 1,
+                                      child: FittedBox(
+                                          fit: BoxFit.scaleDown,
+                                          child: Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                if (_timing == timing) ...[
+                                                  const Icon(Icons.check,
+                                                      color: Colors.white,
+                                                      size: 17),
+                                                  const SizedBox(width: 5)
+                                                ],
+                                                Text(timing ==
+                                                        IntakeTiming.anytime
+                                                    ? 'Bất kỳ'
+                                                    : timing.label),
+                                              ]))),
+                                  selected: _timing == timing,
+                                  selectedColor: AppColors.brand,
+                                  backgroundColor: Colors.white,
+                                  shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                      side: const BorderSide(
+                                          color: Color(0xFFE1E5E3))),
+                                  labelStyle: TextStyle(
+                                      color: _timing == timing
+                                          ? Colors.white
+                                          : Colors.black87),
+                                  checkmarkColor: Colors.white,
+                                  onSelected: (_) =>
+                                      _update(() => _timing = timing),
+                                ))),
+                      ],
+                    ]),
+                  ])),
+        ]),
+        bottomNavigationBar: ColoredBox(
+            color: Colors.white,
+            child: SafeArea(
+                child: Padding(
+                    padding: const EdgeInsets.all(20),
+                    child: FilledButton.icon(
+                        onPressed: _saving ? null : _save,
+                        style: FilledButton.styleFrom(
+                            minimumSize: const Size.fromHeight(52)),
+                        icon: const Icon(LucideIcons.arrowRight),
+                        label: Text(_saving ? 'Đang lưu…' : 'Tiếp tục'))))),
+      ),
+    );
+  }
+
+  /// Tóm tắt ngay trên nút Lưu để người dùng rà lại trước khi xác nhận.
   String? _summary() {
     final drug = _drug;
     if (drug == null) return null;
