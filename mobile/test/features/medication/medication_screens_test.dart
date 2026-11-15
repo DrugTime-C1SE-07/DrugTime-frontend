@@ -1,3 +1,4 @@
+import 'package:drugtime_mobile/features/medication_capture/domain/ocr_models.dart';
 import 'package:drugtime_mobile/app/app.dart';
 import 'package:drugtime_mobile/features/medication_capture/domain/capture_models.dart';
 import 'package:drugtime_mobile/features/auth/data/repositories/in_memory_auth_repository.dart';
@@ -14,6 +15,19 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 /// Repository mẫu ghi lại lời gọi và cho phép giả lỗi cho lần gọi kế tiếp của từng thao tác.
+class _OcrCatalogRepository extends RecordingRepository {
+  @override
+  Future<List<DrugCatalogItem>> searchCatalog(String query) async => const [
+        DrugCatalogItem(
+            id: '2',
+            name: 'Thuốc dạng lỏng',
+            activeIngredient: 'Hoạt chất',
+            strength: '5 mg/ml',
+            dosageForm: 'Dung dịch',
+            unit: 'ml'),
+      ];
+}
+
 class RecordingRepository extends InMemoryMedicationRepository {
   RecordingRepository({super.seed});
 
@@ -87,13 +101,12 @@ class CatalogRecordingRepository extends RecordingRepository {
 }
 
 Future<void> pickDrug(WidgetTester tester, String query, String name) async {
-  await tester.tap(find.text('Tìm tên thuốc, hoạt chất…'));
+  await tester.tap(find.byType(TextField).last);
   await tester.pumpAndSettle();
   await tester.enterText(find.byType(TextField).last, query);
+  await tester.pump(const Duration(milliseconds: 300));
   await tester.pumpAndSettle();
   await tester.tap(find.text(name));
-  await tester.pumpAndSettle();
-  await tester.tap(find.text('Xác nhận thuốc'));
   await tester.pumpAndSettle();
 }
 
@@ -174,6 +187,62 @@ void main() {
     expect(repository.addCalls, isEmpty);
     controller.dispose();
   });
+  for (final strength in ['5 mg/ml', null]) {
+    testWidgets(
+        'OCR puts the selected ID and catalog dose unit on step 2 ($strength)',
+        (tester) async {
+      final repository = _OcrCatalogRepository();
+      final controller = MedicationController(repository);
+      final selected = OcrCandidate(
+        id: 2,
+        name: 'Thuốc dạng lỏng',
+        activeIngredient: 'Hoạt chất',
+        strengthText: strength,
+        dosageForm: 'Dung dịch',
+        hasActiveIngredients: true,
+        score: .75,
+      );
+      const other = OcrCandidate(
+        id: 1,
+        name: 'Thuốc khác',
+        activeIngredient: null,
+        strengthText: null,
+        dosageForm: null,
+        hasActiveIngredients: false,
+        score: .9,
+      );
+      await tester.pumpWidget(MaterialApp(
+        home: MedicationScope(
+          controller: controller,
+          child: AddMedicationScreen(
+            captureLauncher: (_) async => CaptureResult.candidates(
+              OcrMatchResult(
+                  status: OcrMatchStatus.lowConfidence,
+                  items: [other, selected],
+                  preselectedId: other.id,
+                  suggestedQuery: null,
+                  reasons: []),
+              selectedCandidate: selected,
+            ),
+          ),
+        ),
+      ));
+      await tester.tap(find.text('Quét vỏ hộp để tự điền'));
+      await tester.pumpAndSettle();
+      final selectedDrug =
+          tester.widget<DrugPickerField>(find.byType(DrugPickerField)).value!;
+      expect(selectedDrug.id, '2');
+      expect(selectedDrug.unit, 'ml');
+      expect(selectedDrug.strength, strength ?? '');
+      expect(find.text('Lịch uống'), findsWidgets);
+      expect(find.text('Thuốc khác'), findsNothing);
+      expect(find.textContaining('HSD'), findsNothing);
+      expect(find.textContaining('Quy cách'), findsNothing);
+      expect(repository.addCalls, isEmpty);
+      await tester.pumpWidget(const SizedBox());
+      controller.dispose();
+    });
+  }
   group('S06 · Thuốc của tôi', () {
     testWidgets('hiện danh sách, cảnh báo sắp hết và lọc theo trạng thái',
         (tester) async {
@@ -298,6 +367,7 @@ void main() {
       await tester.tap(find.byType(DrugPickerField));
       await tester.pumpAndSettle();
       await tester.enterText(find.byType(TextField).last, 'losartan');
+      await tester.pump(const Duration(milliseconds: 300));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Losartan 50mg'));
       await tester.pumpAndSettle();
@@ -318,6 +388,7 @@ void main() {
       await tester.tap(find.byType(DrugPickerField));
       await tester.pumpAndSettle();
       await tester.enterText(find.byType(TextField).last, 'losartan');
+      await tester.pump(const Duration(milliseconds: 300));
       await tester.pumpAndSettle();
       expect(find.text('Đang dùng'), findsOneWidget);
       await tester.tap(find.text('Losartan 50mg'));
@@ -354,17 +425,16 @@ void main() {
       final repository = CatalogRecordingRepository();
       await pumpApp(tester, repository: repository);
       await openAddScreen(tester);
-      await tester.tap(find.byType(DrugPickerField));
+      await tester.tap(find.byType(TextField));
       await tester.pumpAndSettle();
       await tester.enterText(find.byType(TextField).last, 'Cùng');
+      await tester.pump(const Duration(milliseconds: 300));
       await tester.pumpAndSettle();
       expect(find.text('Cùng tên'), findsNWidgets(2));
       expect(find.text('5 mg'), findsOneWidget);
       await tester.tap(find.text('Cùng tên').last);
       await tester.pumpAndSettle();
       expect(repository.addCalls, isEmpty);
-      await tester.tap(find.text('Xác nhận thuốc'));
-      await tester.pumpAndSettle();
       final picked =
           tester.widget<DrugPickerField>(find.byType(DrugPickerField)).value;
       expect(picked, same(repository.items.last));
@@ -397,13 +467,12 @@ void main() {
       await pumpApp(tester);
       await openAddScreen(tester);
 
-      await tester.tap(find.text('Tìm tên thuốc, hoạt chất…'));
+      await tester.tap(find.byType(TextField).last);
       await tester.pumpAndSettle();
       await tester.enterText(find.byType(TextField).last, 'amlo');
+      await tester.pump(const Duration(milliseconds: 300));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Amlodipin 5mg'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Xác nhận thuốc'));
       await tester.pumpAndSettle();
 
       // Hàm lượng tự điền từ danh mục.
@@ -424,6 +493,11 @@ void main() {
       await tester.tap(find.text('Lưu thuốc'));
       await tester.pumpAndSettle();
 
+      if (find.text('Về trang chủ').evaluate().isNotEmpty) {
+        await tester.tap(find.text('Về trang chủ'));
+        await tester.pumpAndSettle();
+      }
+
       expect(find.text('Thuốc của tôi'), findsOneWidget);
       expect(find.text('Amlodipin 5mg'), findsOneWidget);
       expect(find.textContaining('Đã thêm Amlodipin 5mg'), findsOneWidget);
@@ -434,14 +508,13 @@ void main() {
       await pumpApp(tester);
       await openAddScreen(tester);
 
-      await tester.tap(find.text('Tìm tên thuốc, hoạt chất…'));
+      await tester.tap(find.byType(TextField).last);
       await tester.pumpAndSettle();
       await tester.enterText(find.byType(TextField).last, 'losartan');
+      await tester.pump(const Duration(milliseconds: 300));
       await tester.pumpAndSettle();
       expect(find.text('Đang dùng'), findsOneWidget);
       await tester.tap(find.text('Losartan 50mg'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Xác nhận thuốc'));
       await tester.pumpAndSettle();
 
       expect(find.textContaining('đã có trong danh sách đang dùng'),
@@ -455,13 +528,12 @@ void main() {
       await pumpApp(tester, repository: repository);
       await openAddScreen(tester);
 
-      await tester.tap(find.text('Tìm tên thuốc, hoạt chất…'));
+      await tester.tap(find.byType(TextField).last);
       await tester.pumpAndSettle();
       await tester.enterText(find.byType(TextField).last, 'amlo');
+      await tester.pump(const Duration(milliseconds: 300));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Amlodipin 5mg'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Xác nhận thuốc'));
       await tester.pumpAndSettle();
 
       await tester.tap(find.text('Tiếp tục'));
@@ -479,29 +551,45 @@ void main() {
       final saved = await repository.fetchAll();
       expect(saved, hasLength(before + 1));
       expect(saved.where((m) => m.catalogId == 'amlodipin-5'), hasLength(1));
+      if (find.text('Về trang chủ').evaluate().isNotEmpty) {
+        await tester.tap(find.text('Về trang chủ'));
+        await tester.pumpAndSettle();
+      }
       expect(find.text('Thuốc của tôi'), findsOneWidget);
     });
 
-    testWidgets('hỏi xác nhận trước khi bỏ thông tin đã nhập', (tester) async {
+    testWidgets('Lùi hệ thống quay lại từng bước và thoát không cảnh báo',
+        (tester) async {
       await pumpApp(tester);
       await openAddScreen(tester);
 
+      await pickDrug(tester, 'amlo', 'Amlodipin 5mg');
+      await tester.tap(find.text('Tiếp tục'));
+      await tester.pumpAndSettle();
+      expect(find.byType(FigmaConfirmSummaryCard), findsOneWidget);
+      expect(find.text('Đổi'), findsNothing);
+
+      await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+      expect(find.byType(FigmaScheduleInputCard), findsOneWidget);
+
+      await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+      expect(find.text('Tìm thuốc'), findsOneWidget);
+
+      await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+      expect(find.text('Thuốc của tôi'), findsOneWidget);
+      expect(find.byType(AlertDialog), findsNothing);
+
+      await openAddScreen(tester);
       await pickDrug(tester, 'amlo', 'Amlodipin 5mg');
       await tester.tap(find.byType(BackButton));
       await tester.pumpAndSettle();
       await tester.tap(find.byType(BackButton));
       await tester.pumpAndSettle();
-      expect(find.text('Bỏ thông tin đã nhập?'), findsOneWidget);
-
-      await tester.tap(find.text('Tiếp tục nhập'));
-      await tester.pumpAndSettle();
-      expect(find.text('Thêm thuốc mới'), findsOneWidget);
-
-      await tester.tap(find.byType(BackButton));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Bỏ'));
-      await tester.pumpAndSettle();
       expect(find.text('Thuốc của tôi'), findsOneWidget);
+      expect(find.byType(AlertDialog), findsNothing);
     });
   });
 
@@ -531,6 +619,11 @@ void main() {
 
       await tester.tap(find.text('Lưu thuốc'));
       await tester.pumpAndSettle();
+
+      if (find.text('Về trang chủ').evaluate().isNotEmpty) {
+        await tester.tap(find.text('Về trang chủ'));
+        await tester.pumpAndSettle();
+      }
 
       expect(find.text('Thuốc của tôi'), findsOneWidget);
       expect(repository.addCalls, hasLength(2));
@@ -590,6 +683,7 @@ void main() {
 
       await tester.tap(find.text('Tiếp tục'));
       await tester.pumpAndSettle();
+      expect(find.text('Tối đa 6 viên'), findsOneWidget);
       await tester.tap(find.text('Lưu thuốc'));
       await tester.pumpAndSettle();
       final draft = repository.addCalls.single.$1;
@@ -635,10 +729,10 @@ void main() {
       expect(find.bySemanticsLabel('Đang dùng, 4 thuốc'), findsOneWidget);
     });
 
-    testWidgets('sheet danh mục: chưa gõ thì gợi ý, không tìm', (tester) async {
+    testWidgets('ô tìm danh mục: chưa gõ thì gợi ý', (tester) async {
       await pumpApp(tester);
       await openAddScreen(tester);
-      await tester.tap(find.text('Tìm tên thuốc, hoạt chất…'));
+      await tester.tap(find.byType(TextField).last);
       await tester.pumpAndSettle();
 
       expect(find.text('Gõ có dấu hay không dấu đều được, ví dụ: thuoc ho.'),

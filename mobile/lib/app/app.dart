@@ -402,7 +402,11 @@ class _DrugTimeAppState extends State<DrugTimeApp> with WidgetsBindingObserver {
       _familyChanged();
     });
     final syncEngine = widget.doseOutboxSyncEngine;
-    if (syncEngine != null) unawaited(syncEngine.start());
+    if (syncEngine != null) {
+      unawaited(syncEngine.start().catchError((Object _) {
+        debugPrint('Không khởi tạo được đồng bộ liều lúc mở ứng dụng.');
+      }));
+    }
     _auth.addListener(_onAuthChanged);
     _setupNotificationHandling();
     _consents.addListener(_onConsentChanged);

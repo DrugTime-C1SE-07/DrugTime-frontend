@@ -81,6 +81,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
   Timer? _peekTimer;
 
   bool _localHasError = false;
+  bool _verifying = false;
   String? _localErrorMessage;
 
   @override
@@ -144,8 +145,10 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
       return;
     }
 
+    setState(() => _verifying = true);
     final success = await controller.verifyOtp(token: pin);
     if (!mounted) return;
+    setState(() => _verifying = false);
 
     if (success) {
       // linh vật ăn mừng một nhịp rồi mới chuyển màn
@@ -386,7 +389,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
                 controller: _pinController,
                 focusNode: _pinFocusNode,
                 hasError: _localHasError,
-                enabled: !isLoading,
+                enabled: !_verifying,
                 onChanged: (_) {
                   _peek();
                   if (_localHasError) {
@@ -405,7 +408,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
                     style: const TextStyle(color: AppColors.danger)),
               ],
               const SizedBox(height: 20),
-              if (isLoading)
+              if (_verifying)
                 const Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
@@ -415,15 +418,16 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
                           child: CircularProgressIndicator(strokeWidth: 2)),
                       SizedBox(width: 8),
                       Text('Đang xác thực…'),
-                    ])
-              else
-                OtpResendRow(
-                    initialCountdown: 60,
-                    onResend: () => _handleResend(controller)),
+                    ]),
+              OtpResendRow(
+                  initialCountdown: 60,
+                  isResending: isLoading,
+                  onResend: () => _handleResend(controller)),
               // cụm nút và dòng đổi email/số bám đáy sheet
               const Spacer(),
               const SizedBox(height: 20),
-              if (!isLoading && _localHasError)
+              if (!isLoading &&
+                  (_localHasError || _pinController.text.length == 6))
                 _buildVerifyButton(context, isLoading, controller),
               const SizedBox(height: 12),
               _buildWrongRow(isPhone, isLoading),

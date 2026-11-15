@@ -71,15 +71,33 @@ class DosageFormIcon extends StatelessWidget {
     this.dosageForm,
     this.size = 24,
     this.color = AppColors.brand,
+    this.backgroundColor,
   });
 
   final String? dosageForm;
   final double size;
   final Color color;
+  final Color? backgroundColor;
 
   @override
   Widget build(BuildContext context) {
     final type = parseDosageForm(dosageForm);
+    if (backgroundColor case final bg?) {
+      return Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          color: bg,
+          borderRadius: BorderRadius.circular(size / 3),
+        ),
+        alignment: Alignment.center,
+        child: _buildIcon(type, size * 0.65),
+      );
+    }
+    return _buildIcon(type, size);
+  }
+
+  Widget _buildIcon(DosageFormType type, double size) {
     switch (type) {
       case DosageFormType.capsule:
         return PillIcon(size: size, color: color);

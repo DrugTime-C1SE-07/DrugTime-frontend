@@ -1,3 +1,4 @@
+import '../../../medication/presentation/widgets/medication_step_progress.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../../app/theme/app_theme.dart';
@@ -50,6 +51,7 @@ class CameraCaptureScreen extends StatelessWidget {
                     ),
                   ]),
                 ),
+                const MedicationStepProgress(currentStep: 0),
                 Expanded(
                   child: LayoutBuilder(builder: (context, constraints) {
                     final wide = constraints.maxWidth > 600 &&
@@ -69,6 +71,13 @@ class CameraCaptureScreen extends StatelessWidget {
                             controls,
                           ]);
                   }),
+                ),
+                TextButton.icon(
+                  onPressed: onClose,
+                  style:
+                      TextButton.styleFrom(foregroundColor: AppColors.onCamera),
+                  icon: const Icon(Icons.search),
+                  label: const Text('Tìm tên'),
                 ),
               ]),
             ),
@@ -363,5 +372,54 @@ class _CaptureAction extends StatelessWidget {
             ),
           ],
         ],
+      );
+}
+
+/// The post-capture screens reuse the finder without retaining a camera image.
+class CaptureSheetLayout extends StatelessWidget {
+  const CaptureSheetLayout({super.key, required this.sheet});
+  final Widget sheet;
+
+  @override
+  Widget build(BuildContext context) => ColoredBox(
+        color: AppColors.cameraCanvas,
+        child: SafeArea(
+          child: Column(children: [
+            const MedicationStepProgress(currentStep: 0),
+            Expanded(
+              child: LayoutBuilder(
+                  builder: (context, size) => Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          Align(
+                            alignment: Alignment.topCenter,
+                            child: SizedBox(
+                              height: size.maxHeight * .55,
+                              width: size.maxWidth,
+                              child: const CaptureViewfinder(),
+                            ),
+                          ),
+                          Align(
+                            alignment: Alignment.bottomCenter,
+                            child: ConstrainedBox(
+                              constraints: BoxConstraints(
+                                maxWidth: 540,
+                                maxHeight: size.maxHeight *
+                                    (size.maxHeight < 460 ? 1 : .85),
+                              ),
+                              child: Material(
+                                color: AppColors.surface,
+                                borderRadius: const BorderRadius.vertical(
+                                    top: Radius.circular(24)),
+                                clipBehavior: Clip.antiAlias,
+                                child: sheet,
+                              ),
+                            ),
+                          ),
+                        ],
+                      )),
+            ),
+          ]),
+        ),
       );
 }

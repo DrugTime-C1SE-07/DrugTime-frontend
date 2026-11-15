@@ -1,0 +1,12 @@
+group = 'vn.drugtime.sessionstore'
+version = '1.0'
+
+apply plugin: 'com.android.library'
+
+android {
+    namespace = 'vn.drugtime.sessionstore'
+    compileSdk = 36
+    defaultConfig {
+        minSdk = 24
+    }
+}

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
@@ -15,6 +17,7 @@ import 'core/config/app_config.dart';
 import 'core/storage/local_db/local_db.dart';
 import 'core/contracts/dose_outbox.dart';
 import 'core/notification/reminder_notification_scheduler.dart';
+import 'core/notification/reminder_occurrence_generator.dart';
 import 'core/notification/reminder_sync_coordinator.dart';
 import 'core/storage/local_db/local_medication_store.dart';
 import 'core/storage/local_db/sqlite_dose_outbox.dart';
@@ -67,7 +70,11 @@ Future<void> main() async {
 
   final authController = AuthController(authRepository);
   final notificationService = NotificationService();
-  await notificationService.init();
+  final android = defaultTargetPlatform == TargetPlatform.android;
+  final (_, pushEnabled) = await (
+    notificationService.init(),
+    android ? initializeFamilyFirebase() : Future.value(false),
+  ).wait;
 
   // Khởi tạo cơ sở dữ liệu cục bộ và hàng đợi outbox (Task 2.07 & 2.24)
   final secureStorage = SecureStorage();
@@ -97,8 +104,6 @@ Future<void> main() async {
 
   final alerts = FamilyAlertController(RemoteFamilyAlertRepository(apiClient));
 
-  final android = !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
-  final pushEnabled = android && await initializeFamilyFirebase();
   final doseSync = _buildDoseOutboxSyncEngine(
     apiClient,
     authController,
@@ -135,8 +140,6 @@ Future<void> main() async {
       },
       clearNotifications: notificationService.clearFamily,
     );
-
-    await push.start();
   }
 
   authController.beforeSignOut = (session) async {
@@ -182,6 +185,30 @@ Future<void> main() async {
     profileRepository: profileRepository,
     healthSetupRepository: RemoteHealthSetupRepository(apiClient),
   ));
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    unawaited(push.start().catchError((Object _) {
+      debugPrint('Không khởi tạo được nhận thông báo đẩy.');
+    }));
+    unawaited(_restoreMissingReminders(localStore, scheduler));
+  });
+}
+
+Future<void> _restoreMissingReminders(
+  SqliteLocalMedicationStore localStore,
+  ReminderNotificationScheduler scheduler,
+) async {
+  try {
+    final schedules = await localStore.getActiveSchedules();
+    if (schedules.isEmpty) return;
+    final now = DateTime.now().toUtc();
+    await scheduler.scheduleMissingOccurrences(generateOccurrences(
+      schedules: schedules,
+      from: now,
+      to: now.add(const Duration(days: 7)),
+    ));
+  } catch (_) {
+    debugPrint('Không khôi phục được lịch nhắc uống thuốc khi mở ứng dụng.');
+  }
 }
 
 ApiClient _buildApiClient(AuthController auth) => ApiClient(

@@ -14,7 +14,10 @@ dependencies:
   cupertino_icons: ^1.0.6
   flutter_svg: ^2.0.17
   flutter_secure_storage: ^10.3.4
+  drugtime_session_store:
+    path: packages/drugtime_session_store
   path: ^1.9.0
+  unorm_dart: 0.3.3
   sqflite_sqlcipher: ^3.2.1
   http: ^1.6.0
   flutter_local_notifications: ^17.2.2

@@ -48,7 +48,9 @@ class OtpHeader extends StatelessWidget {
           // subheading (13px regular with masked target)
           Text.rich(
             TextSpan(
-              text: isPhone ? 'Mã 6 số đã gửi tới số ' : 'Mã 6 số đã gửi tới ',
+              text: isPhone
+                  ? 'Nhập mã 6 số nhận được qua số '
+                  : 'Nhập mã 6 số nhận được qua email ',
               style: const TextStyle(
                 fontSize: 17.0,
                 fontWeight: FontWeight.w400,

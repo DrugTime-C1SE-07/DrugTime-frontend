@@ -7,8 +7,9 @@ import '../../../../app/theme/app_theme.dart';
 /// 2. Lịch uống
 /// 3. Xác nhận
 ///
-/// Hiển thị 3 vạch tiến trình ngang với tên bước hiển thị trên vạch tương ứng,
-/// vạch đang hoạt động nổi bật với màu thương hiệu, không hiển thị chuỗi "Bước x/3".
+/// Hiển thị 3 vạch tiến trình ngang; chỉ vạch đang hoạt động mới có nhãn tên
+/// bước phía trên — đúng theo thiết kế Figma StepProgress/1of3, 2of3, 3of3.
+/// Không hiển thị chuỗi "Bước x/3".
 class MedicationStepProgress extends StatelessWidget {
   const MedicationStepProgress({
     super.key,
@@ -35,32 +36,32 @@ class MedicationStepProgress extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          // 3 vạch tiến trình ngang với tên tiến trình xuất hiện ở trên vạch tương ứng của bước hiện tại
           Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               for (int i = 0; i < stepLabels.length; i++) ...[
                 if (i > 0) const SizedBox(width: 8),
                 Expanded(
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 6),
-                        child: Text(
-                          stepLabels[i],
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: AppTextStyles.caption.copyWith(
-                            fontWeight: i == currentStep
-                                ? FontWeight.w600
-                                : FontWeight.w500,
-                            color: i == currentStep
-                                ? AppColors.brand
-                                : i < currentStep
-                                    ? AppColors.inkMuted
-                                    : AppColors.inkDisabled,
-                          ),
-                        ),
+                      SizedBox(
+                        height: 20,
+                        child: i == currentStep
+                            ? Text(
+                                stepLabels[i],
+                                textAlign: TextAlign.center,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: AppTextStyles.caption.copyWith(
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.brand,
+                                ),
+                              )
+                            : null,
                       ),
+                      const SizedBox(height: 6),
                       Container(
                         height: 4,
                         decoration: BoxDecoration(

@@ -48,12 +48,9 @@ AuthController _signedInAuth({String userId = 'patient-uuid-1'}) =>
       ),
     );
 
-Future<void> _confirmDrugIfPresent(WidgetTester tester) async {
-  final confirmBtn = find.text('Xác nhận thuốc');
-  if (confirmBtn.evaluate().isNotEmpty) {
-    await tester.tap(confirmBtn);
-    await tester.pumpAndSettle();
-  }
+Future<void> _reviewSchedule(WidgetTester tester) async {
+  await tester.tap(find.widgetWithText(FilledButton, 'Tiếp tục'));
+  await tester.pumpAndSettle();
 }
 
 void main() {
@@ -85,15 +82,16 @@ void main() {
       await tester.pumpAndSettle();
 
       // Open catalog sheet
-      await tester.tap(find.text('Tìm tên thuốc, hoạt chất…'));
+      await tester.tap(find.byType(TextField).last);
       await tester.pumpAndSettle();
       await tester.enterText(find.byType(TextField).last, 'ator');
+      await tester.pump(const Duration(milliseconds: 300));
       await tester.pumpAndSettle();
 
       // Select Atorvastatin (matches grapefruit warning)
       await tester.tap(find.text('Atorvastatin 20mg'));
       await tester.pumpAndSettle();
-      await _confirmDrugIfPresent(tester);
+      await _reviewSchedule(tester);
 
       // Scroll to Save button
       await tester.scrollUntilVisible(
@@ -114,7 +112,9 @@ void main() {
 
       // Still on AddMedicationScreen, medication was not added
       expect(find.text('Thêm thuốc mới'), findsOneWidget);
-      expect(medController.medications.any((m) => m.name == 'Atorvastatin 20mg'), isFalse);
+      expect(
+          medController.medications.any((m) => m.name == 'Atorvastatin 20mg'),
+          isFalse);
 
       // Tap Save again
       await tester.tap(find.text('Lưu thuốc'));
@@ -125,7 +125,9 @@ void main() {
       await tester.pumpAndSettle();
 
       // Medication should now be saved!
-      expect(medController.medications.any((m) => m.name == 'Atorvastatin 20mg'), isTrue);
+      expect(
+          medController.medications.any((m) => m.name == 'Atorvastatin 20mg'),
+          isTrue);
     });
 
     testWidgets(
@@ -221,13 +223,14 @@ void main() {
       await tester.pumpAndSettle();
 
       // Open catalog sheet & select drug
-      await tester.tap(find.text('Tìm tên thuốc, hoạt chất…'));
+      await tester.tap(find.byType(TextField).last);
       await tester.pumpAndSettle();
       await tester.enterText(find.byType(TextField).last, 'ator');
+      await tester.pump(const Duration(milliseconds: 300));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Atorvastatin 20mg'));
       await tester.pumpAndSettle();
-      await _confirmDrugIfPresent(tester);
+      await _reviewSchedule(tester);
 
       // Tap save
       await tester.scrollUntilVisible(
@@ -247,7 +250,9 @@ void main() {
       await tester.pumpAndSettle();
 
       // Saved successfully
-      expect(medController.medications.any((m) => m.name == 'Atorvastatin 20mg'), isTrue);
+      expect(
+          medController.medications.any((m) => m.name == 'Atorvastatin 20mg'),
+          isTrue);
     });
   });
 }

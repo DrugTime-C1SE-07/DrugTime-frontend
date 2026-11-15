@@ -74,9 +74,17 @@ class AuthController extends ChangeNotifier {
   Future<void> initSession() async {
     _isLoading = true;
     notifyListeners();
-    _currentSession = await _repository.getCurrentSession();
-    _isLoading = false;
-    notifyListeners();
+    try {
+      _currentSession = await _repository
+          .getCurrentSession()
+          .timeout(const Duration(seconds: 5));
+    } catch (_) {
+      _currentSession = null;
+      _errorMessage = 'Không đọc được phiên đăng nhập đã lưu.';
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
   }
 
   /// Gửi mã OTP sau khi kiểm tra tính hợp lệ của định dạng dữ liệu đầu vào.
