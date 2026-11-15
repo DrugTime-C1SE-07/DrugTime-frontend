@@ -19,10 +19,15 @@ class _HealthProfileIntroScreenState extends State<HealthProfileIntroScreen> {
   Future<void> _openSetup() async {
     if (_openingSetup) return;
     _openingSetup = true;
+    final introRoute = ModalRoute.of(context);
     try {
-      final completed =
-          await Navigator.of(context).pushNamed<bool>(AppRoutes.healthSetup);
-      if (mounted && completed == true) Navigator.of(context).pop();
+      final completed = await Navigator.of(context).pushNamed<bool>(
+        AppRoutes.healthSetup,
+        arguments: introRoute,
+      );
+      if (mounted && completed == true && introRoute?.isCurrent == true) {
+        Navigator.of(context).pop();
+      }
     } finally {
       _openingSetup = false;
     }
@@ -37,6 +42,9 @@ class _HealthProfileIntroScreenState extends State<HealthProfileIntroScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final compact = MediaQuery.sizeOf(context).height < 720;
+    final mascotFrame = compact ? 140.0 : 190.0;
+    final mascotSize = compact ? 108.0 : 144.0;
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.dark,
       child: Scaffold(
@@ -52,6 +60,7 @@ class _HealthProfileIntroScreenState extends State<HealthProfileIntroScreen> {
           child: SafeArea(
             minimum: const EdgeInsets.only(bottom: 12),
             child: CustomScrollView(
+              physics: const BouncingScrollPhysics(),
               slivers: [
                 SliverPadding(
                   padding: const EdgeInsets.fromLTRB(20, 4, 20, 0),
@@ -79,8 +88,8 @@ class _HealthProfileIntroScreenState extends State<HealthProfileIntroScreen> {
                         const SizedBox(height: 16),
                         Center(
                           child: Container(
-                            width: 190,
-                            height: 190,
+                            width: mascotFrame,
+                            height: mascotFrame,
                             alignment: Alignment.center,
                             decoration: const BoxDecoration(
                               color: Color(0x99FFFFFF),
@@ -88,14 +97,14 @@ class _HealthProfileIntroScreenState extends State<HealthProfileIntroScreen> {
                             ),
                             child: Image.asset(
                               AppAssets.mascotProtect,
-                              width: 144,
-                              height: 144,
+                              width: mascotSize,
+                              height: mascotSize,
                               fit: BoxFit.contain,
                               excludeFromSemantics: true,
                             ),
                           ),
                         ),
-                        const SizedBox(height: 78),
+                        SizedBox(height: compact ? 28 : 78),
                         Text(
                           'Thiết lập hồ sơ sức khỏe',
                           textAlign: TextAlign.center,

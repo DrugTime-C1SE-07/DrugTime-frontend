@@ -184,6 +184,7 @@ class HealthSetupForm<T> extends StatelessWidget {
     final unknown =
         draft.ids.where((id) => !options.any((item) => item.id == id));
     return ListView(
+      physics: const BouncingScrollPhysics(),
       padding: const EdgeInsets.fromLTRB(20, 2, 20, 16),
       children: [
         Text(allergy ? 'Bước 1/2 · Dị ứng' : 'Bước 2/2 · Bệnh nền',

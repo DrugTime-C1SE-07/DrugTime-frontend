@@ -39,21 +39,24 @@ class HealthSetupCompleteScreen extends StatelessWidget {
             SafeArea(
               bottom: false,
               child: LayoutBuilder(builder: (context, box) {
-                final gap = box.maxHeight >= 600 ? 76.0 : 28.0;
+                final compact = box.maxHeight < 600;
+                final gap = compact ? 28.0 : 76.0;
+                final mascotFrame = compact ? 144.0 : 190.0;
                 return ListView(
+                  physics: const BouncingScrollPhysics(),
                   padding: EdgeInsets.fromLTRB(20, gap, 20, 26),
                   children: [
                     Center(
                         child: Container(
-                      width: 190,
-                      height: 190,
+                      width: mascotFrame,
+                      height: mascotFrame,
                       decoration: const BoxDecoration(
                           color: Color(0xa3ffffff), shape: BoxShape.circle),
                       alignment: Alignment.center,
                       child: Image.asset(
                           'assets/images/health_setup/mascot.png',
-                          width: 142,
-                          height: 129,
+                          width: compact ? 108 : 142,
+                          height: compact ? 98 : 129,
                           excludeFromSemantics: true),
                     )),
                     SizedBox(height: gap),
@@ -69,7 +72,7 @@ class HealthSetupCompleteScreen extends StatelessWidget {
                         textAlign: TextAlign.center,
                         style:
                             TextStyle(color: healthSetupMuted, fontSize: 16)),
-                    const SizedBox(height: 50),
+                    SizedBox(height: compact ? 24 : 50),
                     DecoratedBox(
                       decoration: BoxDecoration(
                           color: Colors.white,

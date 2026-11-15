@@ -4,11 +4,17 @@ import '../../domain/repositories/health_setup_repository.dart';
 import '../state/health_setup_controller.dart';
 import '../widgets/health_setup_custom_sheet.dart';
 import '../widgets/health_setup_form.dart';
+import '../widgets/health_setup_motion.dart';
 import 'health_setup_complete_screen.dart';
 
 class HealthSetupScreen extends StatefulWidget {
-  const HealthSetupScreen({super.key, required this.repository});
+  const HealthSetupScreen({
+    super.key,
+    required this.repository,
+    this.onLeave,
+  });
   final HealthSetupRepository? repository;
+  final VoidCallback? onLeave;
 
   @override
   State<HealthSetupScreen> createState() => _HealthSetupScreenState();
@@ -31,9 +37,14 @@ class _HealthSetupScreenState extends State<HealthSetupScreen> {
     super.dispose();
   }
 
+  void _leave() {
+    widget.onLeave?.call();
+    Navigator.pop(context, true);
+  }
+
   void _back() {
     if (_controller.saved != null) {
-      Navigator.pop(context, true);
+      _leave();
       return;
     }
     if (_controller.saving) return;
@@ -58,7 +69,7 @@ class _HealthSetupScreenState extends State<HealthSetupScreen> {
     }
     final result = await _controller.finish(includeConditions: include);
     if (mounted && result == HealthSetupSaveResult.skipped) {
-      Navigator.pop(context, true);
+      _leave();
     }
   }
 
@@ -102,13 +113,16 @@ class _HealthSetupScreenState extends State<HealthSetupScreen> {
               onPopInvokedWithResult: (didPop, _) {
                 if (!didPop && !_controller.saving) _back();
               },
-              child: saved != null
-                  ? HealthSetupCompleteScreen(
-                      snapshot: saved,
-                      allergens: _controller.allergenOptions,
-                      conditions: _controller.conditionOptions,
-                      onHome: () => Navigator.pop(context, true))
-                  : _form(),
+              child: HealthSetupAnimatedStep(
+                child: saved != null
+                    ? HealthSetupCompleteScreen(
+                        key: const ValueKey('complete'),
+                        snapshot: saved,
+                        allergens: _controller.allergenOptions,
+                        conditions: _controller.conditionOptions,
+                        onHome: _leave)
+                    : KeyedSubtree(key: const ValueKey('form'), child: _form()),
+              ),
             ),
           );
         },
@@ -156,25 +170,28 @@ class _HealthSetupScreenState extends State<HealthSetupScreen> {
                         ))
                       : AbsorbPointer(
                           absorbing: _controller.saving,
-                          child: _allergy
-                              ? HealthSetupForm(
-                                  key: const ValueKey('allergies'),
-                                  allergy: true,
-                                  options: _controller.allergenOptions,
-                                  draft: _controller.allergyDraft,
-                                  warning: warning,
-                                  onChanged: () =>
-                                      setState(() => _inputError = null),
-                                  onAdd: _showCustom)
-                              : HealthSetupForm(
-                                  key: const ValueKey('conditions'),
-                                  allergy: false,
-                                  options: _controller.conditionOptions,
-                                  draft: _controller.conditionDraft,
-                                  warning: warning,
-                                  onChanged: () =>
-                                      setState(() => _inputError = null),
-                                  onAdd: _showCustom),
+                          child: HealthSetupAnimatedStep(
+                            direction: _allergy ? -1 : 1,
+                            child: _allergy
+                                ? HealthSetupForm(
+                                    key: const ValueKey('allergies'),
+                                    allergy: true,
+                                    options: _controller.allergenOptions,
+                                    draft: _controller.allergyDraft,
+                                    warning: warning,
+                                    onChanged: () =>
+                                        setState(() => _inputError = null),
+                                    onAdd: _showCustom)
+                                : HealthSetupForm(
+                                    key: const ValueKey('conditions'),
+                                    allergy: false,
+                                    options: _controller.conditionOptions,
+                                    draft: _controller.conditionDraft,
+                                    warning: warning,
+                                    onChanged: () =>
+                                        setState(() => _inputError = null),
+                                    onAdd: _showCustom),
+                          ),
                         ),
             ),
           ],

@@ -42,6 +42,7 @@ import '../features/profile/presentation/screens/medical_profile_screen.dart';
 import '../features/profile/presentation/screens/health_profile_intro_screen.dart';
 import '../features/profile/domain/repositories/health_setup_repository.dart';
 import '../features/profile/presentation/screens/health_setup_screen.dart';
+import '../features/profile/presentation/widgets/health_setup_motion.dart';
 import 'theme/app_theme.dart';
 
 abstract final class AppRoutes {
@@ -141,13 +142,26 @@ Route<dynamic>? onGenerateRoute(
         settings: settings, builder: (_) => const PersonalProfileScreen()),
     AppRoutes.medicalProfile => MaterialPageRoute<void>(
         settings: settings, builder: (_) => const MedicalProfileScreen()),
-    AppRoutes.healthProfileIntro => MaterialPageRoute<void>(
+    AppRoutes.healthProfileIntro => healthSetupPageRoute<void>(
         settings: settings, builder: (_) => const HealthProfileIntroScreen()),
-    AppRoutes.healthSetup => MaterialPageRoute<bool>(
+    AppRoutes.healthSetup => healthSetupPageRoute<bool>(
         settings: settings,
         builder: (context) => AuthScope.of(context).isAuthenticated
             ? ConsentGate(
-                child: HealthSetupScreen(repository: healthSetupRepository))
+                child: HealthSetupScreen(
+                  repository: healthSetupRepository,
+                  onLeave: () {
+                    final intro = settings.arguments;
+                    final navigator = Navigator.of(context);
+                    if (intro is ModalRoute<void> &&
+                        intro.settings.name == AppRoutes.healthProfileIntro &&
+                        intro.isActive &&
+                        intro.navigator == navigator) {
+                      navigator.removeRoute(intro);
+                    }
+                  },
+                ),
+              )
             : const LoginMobileScreen(),
       ),
     AppRoutes.caregivers => MaterialPageRoute<CaregiversScreenResult>(

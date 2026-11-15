@@ -138,6 +138,8 @@ class HomeScreen extends StatelessWidget {
                                         onPressed: () =>
                                             showWelcomeOnboardingSheet(
                                           context,
+                                          setupRoute:
+                                              AppRoutes.healthProfileIntro,
                                           onSetup: () => Navigator.of(context)
                                               .pushNamed<void>(
                                                   AppRoutes.healthProfileIntro),

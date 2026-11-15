@@ -11,6 +11,7 @@ import '../../../../core/utils/app_assets.dart';
 Future<void> showWelcomeOnboardingSheet(
   BuildContext context, {
   required VoidCallback onSetup,
+  String? setupRoute,
 }) async {
   final setup = await showModalBottomSheet<bool>(
     context: context,
@@ -25,7 +26,12 @@ Future<void> showWelcomeOnboardingSheet(
     barrierColor: const Color(0x800B1F1C),
     backgroundColor: Colors.transparent,
     elevation: 0,
-    builder: (_) => const _WelcomeOnboardingSheet(),
+    builder: (sheetContext) => _WelcomeOnboardingSheet(
+      onSetup: setupRoute == null
+          ? null
+          : () => Navigator.of(sheetContext)
+              .pushReplacementNamed<void, bool>(setupRoute),
+    ),
   );
   if (setup == true && context.mounted) onSetup();
 }
@@ -62,7 +68,9 @@ const _buttonStyle = TextStyle(
 );
 
 class _WelcomeOnboardingSheet extends StatefulWidget {
-  const _WelcomeOnboardingSheet();
+  const _WelcomeOnboardingSheet({this.onSetup});
+
+  final VoidCallback? onSetup;
 
   @override
   State<_WelcomeOnboardingSheet> createState() =>
@@ -109,7 +117,12 @@ class _WelcomeOnboardingSheetState extends State<_WelcomeOnboardingSheet>
 
   void _dismiss([bool? setup]) {
     if (mounted && ModalRoute.of(context)?.isCurrent == true) {
-      Navigator.of(context).pop(setup);
+      final replace = widget.onSetup;
+      if (setup == true && replace != null) {
+        replace();
+      } else {
+        Navigator.of(context).pop(setup);
+      }
     }
   }
 

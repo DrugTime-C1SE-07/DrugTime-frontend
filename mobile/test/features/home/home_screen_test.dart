@@ -54,7 +54,7 @@ void main() {
       await tester.tapAt(setupPosition);
       await tester.pumpAndSettle();
 
-      expect(observer.introPushes, 1);
+      expect(observer.introReplacements, 1);
       expect(find.byType(HealthProfileIntroScreen), findsOneWidget);
       expect(find.text('Chào mừng đến với DrugTime!'), findsNothing);
 
@@ -182,10 +182,13 @@ class _HomePreviewBinding extends AutomatedTestWidgetsFlutterBinding {
 }
 
 class _IntroRouteObserver extends NavigatorObserver {
-  int introPushes = 0;
+  int introReplacements = 0;
 
   @override
-  void didPush(Route<dynamic> route, Route<dynamic>? previousRoute) {
-    if (route.settings.name == AppRoutes.healthProfileIntro) introPushes++;
+  void didReplace({Route<dynamic>? newRoute, Route<dynamic>? oldRoute}) {
+    if (newRoute?.settings.name == AppRoutes.healthProfileIntro &&
+        oldRoute is ModalBottomSheetRoute<bool>) {
+      introReplacements++;
+    }
   }
 }

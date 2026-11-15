@@ -1,9 +1,19 @@
+import 'package:drugtime_mobile/app/router.dart';
+import 'package:drugtime_mobile/features/auth/data/repositories/in_memory_auth_repository.dart';
+import 'package:drugtime_mobile/features/auth/presentation/state/auth_controller.dart';
+import 'package:drugtime_mobile/features/consent/data/repositories/in_memory_consent_repository.dart';
+import 'package:drugtime_mobile/features/consent/domain/entities/consent.dart';
+import 'package:drugtime_mobile/features/consent/presentation/state/consent_controller.dart';
+import 'package:drugtime_mobile/features/profile/presentation/screens/health_profile_intro_screen.dart';
 import 'package:drugtime_mobile/features/profile/domain/entities/health_setup.dart';
 import 'package:drugtime_mobile/features/profile/domain/repositories/health_setup_repository.dart';
 import 'package:drugtime_mobile/features/profile/presentation/screens/health_setup_screen.dart';
 import 'package:drugtime_mobile/features/profile/presentation/state/health_setup_controller.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+import '../../core/notification/device_token_coordinator_test.dart'
+    show tokenSession;
 
 class _Repository implements HealthSetupRepository {
   HealthSetupSnapshot current = const HealthSetupSnapshot(
@@ -58,6 +68,70 @@ class _Repository implements HealthSetupRepository {
 }
 
 void main() {
+  testWidgets('Authenticated onboarding returns home directly after saving',
+      (tester) async {
+    await tester.binding.setSurfaceSize(const Size(390, 844));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final auth = AuthController(InMemoryAuthRepository(
+      initialSession: tokenSession('health-setup'),
+      simulatedDelay: Duration.zero,
+    ));
+    final consents = ConsentController(InMemoryConsentRepository(
+      granted: {ConsentPurpose.terms, ConsentPurpose.healthData},
+    ));
+    addTearDown(auth.dispose);
+    addTearDown(consents.dispose);
+    await auth.initSession();
+    final repository = _Repository();
+
+    await tester.pumpWidget(AuthScope(
+      controller: auth,
+      child: ConsentScope(
+        controller: consents,
+        child: MaterialApp(
+          onGenerateRoute: (settings) =>
+              onGenerateRoute(settings, healthSetupRepository: repository),
+          home: Builder(
+            builder: (context) => Scaffold(
+              body: TextButton(
+                onPressed: () => Navigator.pushNamed(
+                  context,
+                  AppRoutes.healthProfileIntro,
+                ),
+                child: const Text('Trang chủ'),
+              ),
+            ),
+          ),
+        ),
+      ),
+    ));
+
+    Future<void> tap(String label) async {
+      final target = find.text(label).hitTestable();
+      expect(target, findsOneWidget);
+      await tester.tap(target);
+      await tester.pumpAndSettle();
+    }
+
+    await tap('Trang chủ');
+    await tester.ensureVisible(find.text('Tiếp tục đến dị ứng'));
+    await tap('Tiếp tục đến dị ứng');
+    await tap('Penicillin');
+    await tap('Tiếp tục');
+    await tap('Tôi không có bệnh nền đã biết');
+    await tap('Tiếp tục');
+    expect(repository.saveCalls, 1);
+
+    await tester.tap(find.text('Vào ứng dụng'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 140));
+    expect(find.byType(HealthProfileIntroScreen, skipOffstage: false),
+        findsNothing);
+    await tester.pumpAndSettle();
+    expect(find.text('Trang chủ'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('empty backend condition catalog still allows custom declaration',
       (tester) async {
     final repo = _Repository()..emptyConditionCatalog = true;
