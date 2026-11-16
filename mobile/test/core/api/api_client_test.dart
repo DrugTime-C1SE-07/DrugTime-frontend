@@ -123,6 +123,28 @@ void main() {
         throwsA(isA<ApiException>()));
   });
 
+  test('getBytes trả body nhị phân và gắn bearer (task 5.11)', () async {
+    final client =
+        ApiClient(baseUrl: base(), authTokenProvider: () async => 'app-token');
+
+    final bytes = await client.getBytes('/meal-images/42');
+
+    expect(bytes, utf8.encode('{"ok": true}'));
+    expect(methods.single, 'GET');
+    expect(uris.single.path, '/meal-images/42');
+    expect(authHeaders.single, 'Bearer app-token');
+  });
+
+  test('getBytes lỗi 404 ném ApiException giữ mã (task 5.11)', () async {
+    status = 404;
+    final client = ApiClient(baseUrl: base());
+
+    await expectLater(
+      client.getBytes('/meal-images/9'),
+      throwsA(isA<ApiException>().having((e) => e.statusCode, 'status', 404)),
+    );
+  });
+
   test('gắn Authorization: Bearer khi có token', () async {
     final client =
         ApiClient(baseUrl: base(), authTokenProvider: () async => 'app-token');

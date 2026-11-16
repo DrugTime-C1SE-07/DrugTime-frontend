@@ -1,4 +1,7 @@
 import 'dart:async';
+import '../features/meal_suggestion/domain/repositories/allergy_profile_repository.dart';
+import '../features/meal_suggestion/domain/repositories/meal_suggestion_repository.dart';
+import '../features/meal_suggestion/presentation/state/dietary_session.dart';
 
 import '../core/sync/schedule_sync_service.dart';
 
@@ -76,6 +79,8 @@ class DrugTimeApp extends StatefulWidget {
     this.inviteLinkSource,
     this.profileRepository,
     this.healthSetupRepository,
+    this.mealSuggestionRepository,
+    this.allergyProfileRepository,
     this.doseOutboxSyncEngine,
     this.localMedicationStore,
     this.doseOutbox,
@@ -133,6 +138,12 @@ class DrugTimeApp extends StatefulWidget {
   final InviteLinkSource? inviteLinkSource;
   final ProfileRepository? profileRepository;
   final HealthSetupRepository? healthSetupRepository;
+
+  /// Gợi ý bữa ăn (task 5.11); mặc định dữ liệu mẫu trong bộ nhớ.
+  final MealSuggestionRepository? mealSuggestionRepository;
+
+  /// Hồ sơ dị ứng cho gợi ý bữa ăn; mặc định mock (nối API hồ sơ sức khỏe ở task sau).
+  final AllergyProfileRepository? allergyProfileRepository;
   final DoseOutboxSyncEngine? doseOutboxSyncEngine;
 
   /// Kho lưu trữ lịch và liều thuốc cục bộ (dùng tra cứu khi bấm thông báo).
@@ -613,6 +624,8 @@ class _DrugTimeAppState extends State<DrugTimeApp> with WidgetsBindingObserver {
       _history.setPatient(user);
       _profiles.clear();
       _profileUser = user;
+      // Hạn chế ăn uống khai trong phiên không được sang tài khoản khác (task 5.11).
+      DietarySession.instance.clear();
     }
     if (_wasAuthenticated && !authenticated) {
       _medications.clear();
@@ -711,6 +724,8 @@ class _DrugTimeAppState extends State<DrugTimeApp> with WidgetsBindingObserver {
         adherenceRepository: widget.adherenceRepository,
         healthSetupRepository: widget.healthSetupRepository,
         familyAdherenceAvailability: _familyAdherenceAvailability,
+        mealSuggestionRepository: widget.mealSuggestionRepository,
+        allergyProfileRepository: widget.allergyProfileRepository,
       );
 
   Widget _buildApp() {

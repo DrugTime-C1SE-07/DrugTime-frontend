@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
 
@@ -60,8 +61,35 @@ class ApiClient {
   /// Trả `null` với 204 (không có body).
   Future<Object?> delete(String path) => _send('DELETE', path);
 
+  /// Body nhị phân (ví dụ ảnh món qua `GET /meal-images/{id}`, task 5.11). Cùng xác thực,
+  /// timeout và cách báo lỗi với các hàm JSON.
+  Future<Uint8List> getBytes(String path) async =>
+      (await _exchange('GET', path)).bodyBytes;
+
   /// Trả body JSON đã giải mã, hoặc `null` khi body rỗng (ví dụ 204).
   Future<Object?> _send(
+    String method,
+    String path, {
+    Map<String, String>? query,
+    Object? body,
+    bool hasBody = false,
+    int? expectedStatus,
+    String? sessionToken,
+  }) async {
+    final response = await _exchange(
+      method,
+      path,
+      query: query,
+      body: body,
+      hasBody: hasBody,
+      expectedStatus: expectedStatus,
+      sessionToken: sessionToken,
+    );
+    if (response.bodyBytes.isEmpty) return null;
+    return jsonDecode(utf8.decode(response.bodyBytes));
+  }
+
+  Future<http.Response> _exchange(
     String method,
     String path, {
     Map<String, String>? query,
@@ -111,8 +139,7 @@ class ApiClient {
         throw ApiException('Unexpected response status',
             statusCode: response.statusCode);
       }
-      if (response.bodyBytes.isEmpty) return null;
-      return jsonDecode(utf8.decode(response.bodyBytes));
+      return response;
     } on ApiException {
       rethrow;
     } on TimeoutException catch (error) {

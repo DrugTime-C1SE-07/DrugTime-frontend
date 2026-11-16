@@ -43,6 +43,13 @@ import '../features/profile/domain/repositories/health_setup_repository.dart';
 import '../features/profile/presentation/screens/health_setup_screen.dart';
 import '../features/profile/presentation/widgets/health_setup_motion.dart';
 import 'theme/app_theme.dart';
+import '../features/meal_suggestion/data/repositories/in_memory_meal_suggestion_repository.dart';
+import '../features/meal_suggestion/data/repositories/mock_allergy_profile_repository.dart';
+import '../features/meal_suggestion/domain/repositories/allergy_profile_repository.dart';
+import '../features/meal_suggestion/domain/repositories/meal_suggestion_repository.dart';
+import '../features/meal_suggestion/presentation/screens/meal_suggestion_screen.dart';
+import '../shared/widgets/coming_soon_view.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 enum HomeEntry { profileCompleted }
 
@@ -78,6 +85,9 @@ abstract final class AppRoutes {
   static const familyShareLink = '/family/share-link';
   static const linkConsentConfirmation = '/family/requests/confirm';
   static const familyAdherence = '/family/adherence';
+  // Task 5.11: gợi ý bữa ăn (nút "Dumi AI") và route khai dị ứng (tạm là màn giữ chỗ).
+  static const mealSuggestion = '/meal-suggestions';
+  static const allergyDeclaration = '/profile/allergies';
 }
 
 final RouteObserver<PageRoute<dynamic>> familyAdherenceRouteObserver =
@@ -103,6 +113,8 @@ Route<dynamic>? onGenerateRoute(
   AdherenceRepository? adherenceRepository,
   HealthSetupRepository? healthSetupRepository,
   ValueListenable<bool>? familyAdherenceAvailability,
+  MealSuggestionRepository? mealSuggestionRepository,
+  AllergyProfileRepository? allergyProfileRepository,
 }) {
   return switch (settings.name) {
     AppRoutes.scanMedication => MaterialPageRoute<Medication>(
@@ -312,6 +324,28 @@ Route<dynamic>? onGenerateRoute(
             availability: familyAdherenceAvailability,
           );
         },
+      ),
+    AppRoutes.mealSuggestion => MaterialPageRoute<void>(
+        settings: settings,
+        builder: (_) => ConsentGate(
+          child: MealSuggestionScreen(
+            repository:
+                mealSuggestionRepository ?? InMemoryMealSuggestionRepository(),
+            allergyRepository:
+                allergyProfileRepository ?? MockAllergyProfileRepository(),
+            onDeclareAllergy: (context) =>
+                Navigator.of(context).pushNamed(AppRoutes.allergyDeclaration),
+          ),
+        ),
+      ),
+    // Màn khai dị ứng làm sau (01 mục A); nối tới màn hồ sơ sức khỏe ở task nối dị ứng.
+    AppRoutes.allergyDeclaration => MaterialPageRoute<void>(
+        settings: settings,
+        builder: (_) => Scaffold(
+          appBar: AppBar(title: const Text('Khai dị ứng')),
+          body: const ComingSoonView(
+              title: 'Khai dị ứng', icon: LucideIcons.shieldAlert),
+        ),
       ),
     _ => null,
   };
