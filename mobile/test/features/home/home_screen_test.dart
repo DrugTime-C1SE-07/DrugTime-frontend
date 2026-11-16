@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:drugtime_mobile/features/home/presentation/home_screen.dart';
+import 'package:drugtime_mobile/features/home/presentation/home_schedule_controller.dart';
 import 'package:drugtime_mobile/features/profile/domain/entities/health_profile.dart';
 import 'package:drugtime_mobile/features/profile/domain/entities/profile_failure.dart';
 import 'package:drugtime_mobile/features/profile/presentation/state/profile_controller.dart';
@@ -8,16 +9,39 @@ import 'package:flutter_test/flutter_test.dart';
 import '../profile/profile_test_helpers.dart';
 
 void main() {
-  Future<void> showHome(
-      WidgetTester tester, ProfileController controller) async {
+  Future<void> showHome(WidgetTester tester, ProfileController controller,
+      {HomeScheduleController? schedule}) async {
+    final home = HomeScreen(active: true, onFamily: () {}, onSchedule: () {});
     await tester.pumpWidget(ProfileScope(
         controller: controller,
         child: MaterialApp(
             home: Scaffold(
-                body: HomeScreen(
-                    active: true, onFamily: () {}, onSchedule: () {})))));
+                body: schedule == null
+                    ? home
+                    : HomeScheduleScope(controller: schedule, child: home)))));
     await tester.pump();
   }
+
+  testWidgets(
+      'banner changes directly from morning to noon to night in Vietnam',
+      (tester) async {
+    var now = DateTime.utc(2026, 11, 16, 3, 59);
+    final schedule = HomeScheduleController(
+        null, null, (_, __) async => HomeConfirmation.failed,
+        clock: () => now);
+    final profile = ProfileController(FakeProfileRepository());
+    addTearDown(schedule.dispose);
+    addTearDown(profile.dispose);
+    await showHome(tester, profile, schedule: schedule);
+    expect(find.text('Chào buổi sáng'), findsOneWidget);
+    now = DateTime.utc(2026, 11, 16, 4);
+    await tester.pump(const Duration(minutes: 1));
+    expect(find.text('Chào buổi trưa'), findsOneWidget);
+    now = DateTime.utc(2026, 11, 16, 11);
+    await tester.pump(const Duration(minutes: 1));
+    expect(find.text('Chào buổi tối'), findsOneWidget);
+    expect(find.text('Chào buổi chiều'), findsNothing);
+  });
 
   testWidgets('skeleton transitions to real name and empty schedule',
       (tester) async {
