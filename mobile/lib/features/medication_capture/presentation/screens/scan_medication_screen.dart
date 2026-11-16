@@ -11,6 +11,7 @@ import '../../../medication/domain/entities/medication.dart';
 import '../../../medication/presentation/screens/add_medication_screen.dart';
 import '../../../medication/presentation/widgets/drug_catalog_sheet.dart';
 import '../../data/capture_services.dart';
+import '../../domain/capture_models.dart';
 import '../../domain/ocr_models.dart';
 import '../state/capture_controller.dart';
 import '../state/capture_scope.dart';
@@ -127,6 +128,8 @@ class _ScanMedicationScreenState extends State<ScanMedicationScreen>
   Timer? _timer;
   bool? _preview;
   bool _busy = false;
+  bool _retryingGallery = false;
+  String _failureTitle = 'Chưa đọc được vỏ hộp';
   int _generation = 0;
   _Screen _screen = _Screen.camera;
   String? _failure;
@@ -223,6 +226,7 @@ class _ScanMedicationScreenState extends State<ScanMedicationScreen>
   Future<void> _capture({bool gallery = false}) async {
     if (_busy) return;
     _busy = true;
+    _failureTitle = 'Chưa đọc được vỏ hộp';
     final generation = ++_generation;
     if (_preview == true) {
       setState(() {
@@ -247,15 +251,21 @@ class _ScanMedicationScreenState extends State<ScanMedicationScreen>
       return;
     }
     final camera = _camera!;
+    PhotoPickOutcome? pickOutcome;
     if (gallery) {
-      await camera.pickPhoto();
+      pickOutcome = await camera.pickPhoto();
     } else {
       await camera.takePhoto();
     }
     if (!mounted || generation != _generation) return;
-    if (!camera.canUseImage) {
+    if (pickOutcome == PhotoPickOutcome.canceled) {
+      setState(() => _busy = false);
+      return;
+    }
+    if (pickOutcome == PhotoPickOutcome.failed || !camera.canUseImage) {
       _busy = false;
       setState(() {
+        _failureTitle = gallery ? 'Không mở được ảnh' : 'Không chụp được ảnh';
         _failure = camera.error ??
             (camera.image == null
                 ? 'Không chụp được ảnh. Hãy thử lại.'
@@ -272,6 +282,7 @@ class _ScanMedicationScreenState extends State<ScanMedicationScreen>
     if (lease == null) {
       _busy = false;
       setState(() {
+        _failureTitle = 'Không chuẩn bị được ảnh';
         _failure = camera.error ?? 'Không chuẩn bị được ảnh.';
         _screen = _Screen.failure;
       });
@@ -289,7 +300,9 @@ class _ScanMedicationScreenState extends State<ScanMedicationScreen>
     await _ocr!.start();
     if (!mounted || generation != _generation) return;
     final result = _ocr!.result;
-    if (result?.status == OcrMatchStatus.matched && result!.items.isNotEmpty) {
+    if (result != null &&
+        result.status != OcrMatchStatus.noMatch &&
+        result.items.isNotEmpty) {
       setState(() {
         _candidate = result.items.first;
         _screen = _Screen.result;
@@ -297,8 +310,18 @@ class _ScanMedicationScreenState extends State<ScanMedicationScreen>
       });
     } else {
       setState(() {
-        _failure = _ocr?.failure?.message ??
-            'Chưa đọc được hoặc chưa tìm thấy thuốc phù hợp.';
+        final failure = _ocr?.failure;
+        _failureTitle = switch (failure?.kind) {
+          OcrFailureKind.noText => 'Chưa đọc được chữ trên bao bì',
+          OcrFailureKind.invalidImage => 'Không mở được ảnh',
+          OcrFailureKind.recognition => 'Chưa đọc được vỏ hộp',
+          null when result != null => 'Không tìm thấy thuốc phù hợp',
+          _ => 'Chưa hoàn tất nhận diện',
+        };
+        _failure = failure?.message ??
+            (result?.status == OcrMatchStatus.lowConfidence
+                ? 'Kết quả chưa đủ tin cậy. Hãy chọn ảnh rõ tên thuốc hơn.'
+                : 'Hãy thử ảnh khác hoặc nhập tay để tìm thuốc.');
         _screen = _Screen.failure;
         _busy = false;
       });
@@ -361,6 +384,19 @@ class _ScanMedicationScreenState extends State<ScanMedicationScreen>
         _failure = 'Chưa đọc được vỏ hộp. Hãy quét lại.';
         _screen = _Screen.failure;
       });
+    }
+  }
+
+  Future<void> _chooseAnotherPhoto() async {
+    if (_retryingGallery) return;
+    setState(() => _retryingGallery = true);
+    try {
+      await _retake();
+      if (mounted && !_invalidated && _screen == _Screen.camera) {
+        await _capture(gallery: true);
+      }
+    } finally {
+      if (mounted) setState(() => _retryingGallery = false);
     }
   }
 
@@ -617,8 +653,16 @@ class _ScanMedicationScreenState extends State<ScanMedicationScreen>
                   padding: const EdgeInsets.all(20),
                   child: SizedBox(
                       width: double.infinity,
-                      child: FilledButton(
-                          onPressed: _retake, child: const Text('Quét lại')))),
+                      child: Column(children: [
+                        if (!_invalidated && _preview != true)
+                          TextButton(
+                              onPressed:
+                                  _retryingGallery ? null : _chooseAnotherPhoto,
+                              child: const Text('Chọn ảnh khác')),
+                        FilledButton(
+                            onPressed: _retryingGallery ? null : _retake,
+                            child: const Text('Quét lại')),
+                      ]))),
           ]))),
     );
   }
@@ -684,9 +728,17 @@ class _ScanMedicationScreenState extends State<ScanMedicationScreen>
             const SizedBox(height: 10),
             const Text('Ảnh chỉ xử lý trên điện thoại của bạn',
                 style: TextStyle(color: Colors.white70)),
-            if (_preview != true && _camera?.source.ready == false)
+            if (_preview != true &&
+                _camera?.permissionStatus ==
+                    CapturePermission.permanentlyDenied)
               TextButton(
-                  onPressed: _camera?.requestPermission,
+                  onPressed:
+                      _camera?.busy == true ? null : _camera?.openSettings,
+                  child: const Text('Mở cài đặt'))
+            else if (_preview != true && _camera?.source.ready == false)
+              TextButton(
+                  onPressed:
+                      _camera?.busy == true ? null : _camera?.requestPermission,
                   child: const Text('Cho phép camera')),
           ])));
 
@@ -705,9 +757,9 @@ class _ScanMedicationScreenState extends State<ScanMedicationScreen>
                     child: const Icon(LucideIcons.scanLine,
                         color: Color(0xFFE77D0A), size: 64)),
                 const SizedBox(height: 24),
-                const Text('Chưa đọc được vỏ hộp',
-                    style:
-                        TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                Text(_failureTitle,
+                    style: const TextStyle(
+                        fontSize: 20, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 10),
                 Text(_failure ?? 'Hãy quét lại theo gợi ý bên dưới.',
                     textAlign: TextAlign.center),
@@ -828,9 +880,11 @@ class _ScanMedicationScreenState extends State<ScanMedicationScreen>
                   decoration: BoxDecoration(
                       color: const Color(0xFFE6F5EC),
                       borderRadius: BorderRadius.circular(30)),
-                  child: const Text(
-                      '✓  Đã nhận diện',
-                      style: TextStyle(
+                  child: Text(
+                      _ocr?.result?.status == OcrMatchStatus.lowConfidence
+                          ? 'Gợi ý phù hợp nhất'
+                          : '✓  Đã nhận diện',
+                      style: const TextStyle(
                           color: Color(0xFF138349),
                           fontWeight: FontWeight.bold))),
               const SizedBox(height: 14),
@@ -851,6 +905,7 @@ class _ScanMedicationScreenState extends State<ScanMedicationScreen>
                       title: Text(_candidate?.name ?? ''),
                       subtitle: Text([
                         _candidate?.activeIngredient,
+                        _candidate?.strengthText,
                         _candidate?.dosageForm
                       ]
                           .whereType<String>()

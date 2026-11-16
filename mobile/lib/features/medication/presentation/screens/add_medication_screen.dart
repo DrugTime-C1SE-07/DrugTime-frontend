@@ -20,7 +20,6 @@ import '../widgets/drug_catalog_sheet.dart';
 import '../widgets/medication_error_messages.dart';
 import '../widgets/medication_form_fields.dart';
 import '../widgets/medication_labels.dart';
-import '../widgets/medication_step_progress.dart';
 import '../../../auth/presentation/state/auth_controller.dart';
 import '../../../interaction_check/presentation/widgets/interaction_warning_dialog.dart';
 
@@ -43,23 +42,12 @@ class AddMedicationScreen extends StatefulWidget {
   final FoodInteractionRepository? foodInteractionRepository;
   final DrugCatalogItem? scannedDrug;
   final Future<CaptureResult?> Function(BuildContext)? captureLauncher;
-  final bool openCaptureOnStart;
 
   @override
   State<AddMedicationScreen> createState() => _AddMedicationScreenState();
 }
 
 class _AddMedicationScreenState extends State<AddMedicationScreen> {
-  @override
-  void initState() {
-    super.initState();
-    if (widget.openCaptureOnStart) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) unawaited(_openCapture());
-      });
-    }
-  }
-
   final _drugFieldKey = GlobalKey();
   final _stockController = TextEditingController();
 
@@ -124,7 +112,8 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
         final matches = result!.matches!;
         final candidate = matches.items.cast<dynamic>().firstWhere(
               (item) => item.id == matches.preselectedId,
-              orElse: () => matches.items.isNotEmpty ? matches.items.first : null,
+              orElse: () =>
+                  matches.items.isNotEmpty ? matches.items.first : null,
             );
         if (candidate != null) {
           setState(() {
@@ -220,7 +209,8 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
     _update(() {
       _drug = picked;
       _showDrugError = false;
-      _currentStep = 1; // Tự động sang bước 2 (Lịch uống) theo Figma S07-M1 -> S07-M2
+      _currentStep =
+          1; // Tự động sang bước 2 (Lịch uống) theo Figma S07-M1 -> S07-M2
     });
   }
 
@@ -430,6 +420,11 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
       ),
     );
     return discard ?? false;
+  }
+
+  Future<void> _leaveIfConfirmed() async {
+    final leave = await _confirmDiscard();
+    if (leave && mounted) Navigator.of(context).pop();
   }
 
   Future<void> _handleBack() async {
@@ -998,7 +993,8 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
                                 child: ChoiceChip(
                                   visualDensity: VisualDensity.compact,
                                   showCheckmark: false,
-                                  padding: const EdgeInsets.symmetric(vertical: 2),
+                                  padding:
+                                      const EdgeInsets.symmetric(vertical: 2),
                                   labelPadding: const EdgeInsets.symmetric(
                                       horizontal: 4, vertical: 2),
                                   label: Center(
@@ -1057,7 +1053,8 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
   String? _summary() {
     final drug = _drug;
     if (drug == null) return null;
-    final dose = '${formatQuantity(_dose)} ${drug.unit.isEmpty ? "viên" : drug.unit}';
+    final dose =
+        '${formatQuantity(_dose)} ${drug.unit.isEmpty ? "viên" : drug.unit}';
     if (_frequency.isAsNeeded) {
       return '$dose mỗi lần · Khi cần · tối đa $_maxDoses lần/ngày';
     }

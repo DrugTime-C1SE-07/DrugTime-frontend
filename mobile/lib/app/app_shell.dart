@@ -12,6 +12,8 @@ import '../features/family_link/presentation/state/invite_link_controller.dart';
 import '../features/medication/presentation/screens/my_medications_screen.dart';
 import '../features/profile/presentation/screens/profile_screen.dart';
 import '../features/home/presentation/home_screen.dart';
+import '../features/home/presentation/widgets/home_navigation_bar.dart';
+import '../features/medication/presentation/state/medication_controller.dart';
 import 'router.dart';
 import '../core/preview/app_preview_scope.dart';
 import 'theme/app_theme.dart';
@@ -111,8 +113,6 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   Widget build(BuildContext context) {
     final medications =
         context.dependOnInheritedWidgetOfExactType<MedicationScope>()?.notifier;
-    final profile =
-        context.dependOnInheritedWidgetOfExactType<ProfileScope>()?.notifier;
     final emptyHome = _tab == AppTab.home &&
         medications != null &&
         medications.hasLoaded &&

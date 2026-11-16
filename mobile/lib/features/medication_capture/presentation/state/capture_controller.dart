@@ -3,6 +3,8 @@ import 'package:flutter/foundation.dart';
 import '../../domain/capture_models.dart';
 import '../../domain/capture_ports.dart';
 
+enum PhotoPickOutcome { selected, canceled, failed }
+
 class CaptureController extends ChangeNotifier {
   CaptureController(
       {required this.source,
@@ -164,8 +166,8 @@ class CaptureController extends ChangeNotifier {
     }
   }
 
-  Future<void> pickPhoto() async {
-    if (busy || _closed) return;
+  Future<PhotoPickOutcome> pickPhoto() async {
+    if (busy || _closed) return PhotoPickOutcome.canceled;
     busy = true;
     error = null;
     _changed();
@@ -175,14 +177,19 @@ class CaptureController extends ChangeNotifier {
       final bytes = await source.pick();
       if (!_closed && generation == _generation && bytes != null) {
         await accept(bytes);
+        return canUseImage
+            ? PhotoPickOutcome.selected
+            : PhotoPickOutcome.failed;
       } else if (!_closed && bytes == null) {
         busy = false;
         await requestPermission(request: false);
       }
+      return PhotoPickOutcome.canceled;
     } catch (e) {
       if (!_closed && generation == _generation) {
         error = _message(e, 'Không mở được ảnh. Hãy chọn ảnh khác.');
       }
+      return PhotoPickOutcome.failed;
     } finally {
       if (!_closed && generation == _generation) {
         busy = false;
