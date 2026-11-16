@@ -17,6 +17,9 @@ import '../core/notification/reminder_sync_coordinator.dart';
 import '../core/platform/keyguard_service.dart';
 import '../core/storage/local_db/local_medication_store.dart';
 import '../core/storage/local_db/local_models.dart';
+import '../features/home/presentation/home_schedule_controller.dart';
+import '../features/adherence_history/domain/entities/adherence_history.dart';
+import '../features/reminder/presentation/state/dose_reminder_controller.dart';
 import '../core/sync/sync_engine.dart';
 import '../features/adherence/domain/repositories/adherence_repository.dart';
 import '../features/auth/presentation/state/auth_controller.dart';
@@ -371,6 +374,65 @@ class _DrugTimeAppState extends State<DrugTimeApp> with WidgetsBindingObserver {
   );
   late final ProfileController _profiles =
       ProfileController(widget.profileRepository);
+  late final HomeScheduleController _homeSchedule = HomeScheduleController(
+    widget.adherenceHistoryRepository,
+    widget.scheduleSource ??
+        (widget.preview && widget.medicationRepository != null
+            ? _PreviewScheduleSource(widget.medicationRepository!)
+            : null),
+    _confirmHomeDose,
+    clock: widget.clock,
+  );
+
+  void _updateHomeAccess() {
+    _homeSchedule.setAccess(
+      _auth.isAuthenticated ? _auth.currentSession?.userId : null,
+      _consents.hasHealthData,
+    );
+  }
+
+  Future<HomeConfirmation> _confirmHomeDose(
+      String patient, HistoryDose dose) async {
+    bool hasAccess() =>
+        mounted &&
+        _auth.isAuthenticated &&
+        _auth.currentSession?.userId == patient &&
+        _consents.hasHealthData;
+    final outbox = widget.doseOutbox;
+    if (!hasAccess() || outbox == null) return HomeConfirmation.failed;
+    final item = DoseReminderItem(
+      medicationScheduleId: dose.scheduleId,
+      scheduledAt: dose.scheduledAt.toUtc(),
+      medicationName: dose.medicationName,
+      dosageText: '',
+      instruction: '',
+    );
+    final controller = DoseReminderController(
+      group: DoseReminderGroup([item]),
+      outbox: outbox,
+      scheduler: widget.reminderScheduler ?? _FallbackReminderScheduler(),
+      clock: widget.clock,
+    );
+    try {
+      if (!await controller.confirmItem(item)) return HomeConfirmation.failed;
+      final record = controller.recordOf(item)!;
+      if (!hasAccess()) return HomeConfirmation.failed;
+      await widget.doseOutboxSyncEngine?.syncNow();
+      if (!hasAccess()) return HomeConfirmation.failed;
+      final status = await outbox
+          .watchStatus(record.clientUuid)
+          .first
+          .timeout(const Duration(seconds: 5), onTimeout: () => null);
+      return switch (status ?? record.syncState) {
+        DoseLogSyncState.synced => HomeConfirmation.synced,
+        DoseLogSyncState.failed => HomeConfirmation.failed,
+        DoseLogSyncState.pendingUpload => HomeConfirmation.pending,
+      };
+    } finally {
+      controller.dispose();
+    }
+  }
+
   String? _profileUser;
   bool _hadHealthConsent = false;
 
@@ -382,6 +444,7 @@ class _DrugTimeAppState extends State<DrugTimeApp> with WidgetsBindingObserver {
     }
     if (!_hadHealthConsent && granted) _history.allowFreshRead();
     _hadHealthConsent = granted;
+    _updateHomeAccess();
     _familyChanged();
   }
 
@@ -544,11 +607,13 @@ class _DrugTimeAppState extends State<DrugTimeApp> with WidgetsBindingObserver {
     }
     _history.setPatient(
         _auth.isAuthenticated ? _auth.currentSession?.userId : null);
+    _updateHomeAccess();
     _familyChanged();
   }
 
   void _onAuthChanged() {
     if (!_sessionLoaded) return;
+    _updateHomeAccess();
     unawaited(_captures.bindSession(
         _auth.isAuthenticated ? _auth.currentSession?.accessToken : null));
     _familyChanged();
@@ -605,6 +670,7 @@ class _DrugTimeAppState extends State<DrugTimeApp> with WidgetsBindingObserver {
     _auth.removeListener(_onAuthChanged);
     _consents.removeListener(_onConsentChanged);
     _profiles.dispose();
+    _homeSchedule.dispose();
     _history.dispose();
     final syncEngine = widget.doseOutboxSyncEngine;
     if (syncEngine != null) unawaited(syncEngine.dispose());
@@ -636,8 +702,12 @@ class _DrugTimeAppState extends State<DrugTimeApp> with WidgetsBindingObserver {
                 controller: _profiles,
                 child: AdherenceHistoryScope(
                   controller: _history,
-                  child:
-                      _sessionLoaded ? _buildApp() : const _SessionLoadingApp(),
+                  child: HomeScheduleScope(
+                    controller: _homeSchedule,
+                    child: _sessionLoaded
+                        ? _buildApp()
+                        : const _SessionLoadingApp(),
+                  ),
                 ),
               ),
             ),

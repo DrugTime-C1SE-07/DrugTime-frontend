@@ -10,21 +10,31 @@ import '../features/family_link/presentation/state/family_link_scope.dart';
 import '../features/family_link/presentation/state/incoming_requests_controller.dart';
 import '../features/family_link/presentation/state/invite_link_controller.dart';
 import '../features/medication/presentation/screens/my_medications_screen.dart';
+import '../features/medication/presentation/state/medication_controller.dart';
+import '../features/profile/presentation/state/profile_controller.dart';
+import '../features/home/presentation/widgets/home_navigation_bar.dart';
 import '../features/profile/presentation/screens/profile_screen.dart';
 import '../features/home/presentation/home_screen.dart';
-import '../features/home/presentation/widgets/home_navigation_bar.dart';
+import '../features/home/presentation/screens/home_screen.dart' as empty;
+import '../features/auth/presentation/widgets/welcome_onboarding_sheet.dart';
 import '../features/medication/presentation/state/medication_controller.dart';
+import '../features/profile/presentation/state/profile_controller.dart';
 import 'router.dart';
 import '../core/preview/app_preview_scope.dart';
 import 'theme/app_theme.dart';
 
 enum AppTab { home, medications, reminders, family, profile }
 
-/// Khung chính với thanh điều hướng dưới 5 tab.
+/// Khung chính với thanh điều hướng dưới dùng chung.
 class AppShell extends StatefulWidget {
-  const AppShell({super.key, this.initialTab = AppTab.home});
+  const AppShell({
+    super.key,
+    this.initialTab = AppTab.home,
+    this.showWelcome = false,
+  });
 
   final AppTab initialTab;
+  final bool showWelcome;
 
   /// Chuyển sang [tab] từ một màn nằm trong shell. Không có shell phía trên (màn mở bằng route
   /// riêng) thì không làm gì.
@@ -47,7 +57,19 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     WidgetsBinding.instance.addObserver(this);
     // Shell chỉ dựng khi đã đăng nhập và qua cổng consent: link mời mở app trước đó (kể cả
     // trước khi đăng nhập) được xử lý tại đây.
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
+      final profile =
+          context.getInheritedWidgetOfExactType<ProfileScope>()?.notifier;
+      if (profile != null) unawaited(profile.load());
+      if (widget.showWelcome && _tab == AppTab.home) {
+        _refreshPendingRequests();
+        await showWelcomeOnboardingSheet(
+          context,
+          onSetup: () =>
+              Navigator.of(context).pushNamed(AppRoutes.healthProfileIntro),
+        );
+      }
       if (!mounted) return;
       _invites = FamilyLinkScope.read(context).invites
         ..addListener(_openPendingInvite);
@@ -62,7 +84,11 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     final requests = FamilyLinkScope.maybeOf(context)?.incomingRequests;
     if (requests != _incomingRequests) {
       _incomingRequests = requests;
-      _refreshPendingRequests();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && identical(requests, _incomingRequests)) {
+          _refreshPendingRequests();
+        }
+      });
     }
   }
 
@@ -113,14 +139,14 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   Widget build(BuildContext context) {
     final medications =
         context.dependOnInheritedWidgetOfExactType<MedicationScope>()?.notifier;
-    final emptyHome = _tab == AppTab.home &&
-        medications != null &&
-        medications.hasLoaded &&
-        !medications.isLoading &&
-        medications.loadError == null &&
-        medications.medications.isEmpty;
+    final profile =
+        context.dependOnInheritedWidgetOfExactType<ProfileScope>()?.notifier;
+    final useExistingHome = profile?.error != null ||
+        (medications != null &&
+            medications.hasLoaded &&
+            medications.loadError == null &&
+            medications.medications.isNotEmpty);
     return Scaffold(
-      extendBody: emptyHome,
       appBar:
           AppPreviewScope.maybeOf(context) != null && _tab != AppTab.reminders
               ? const PreferredSize(
@@ -136,19 +162,25 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       body: IndexedStack(
         index: _tab.index,
         children: [
-          HomeScreen(
+          if (useExistingHome)
+            HomeScreen(
               active: _tab == AppTab.home,
               onFamily: () => _select(AppTab.family),
-              onSchedule: () => _select(AppTab.reminders)),
+              onSchedule: () => _select(AppTab.reminders),
+            )
+          else
+            empty.HomeScreen(
+              displayName: profile?.profile?.fullName,
+              onFamily: () => _select(AppTab.family),
+              onMedications: () => _select(AppTab.medications),
+            ),
           const MyMedicationsScreen(),
           AdherenceHistoryScreen(active: _tab == AppTab.reminders),
           FamilyTabScreen(active: _tab == AppTab.family),
           ProfileScreen(active: _tab == AppTab.profile),
         ],
       ),
-      bottomNavigationBar: emptyHome
-          ? HomeNavigationBar(onSelected: _select)
-          : ListenableBuilder(
+      bottomNavigationBar: ListenableBuilder(
         listenable: _incomingRequests ?? _emptyNotifier,
         builder: (context, _) {
           return Container(

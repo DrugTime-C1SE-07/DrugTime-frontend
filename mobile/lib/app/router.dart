@@ -51,6 +51,8 @@ import '../features/meal_suggestion/presentation/screens/meal_suggestion_screen.
 import '../shared/widgets/coming_soon_view.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
+enum HomeEntry { profileCompleted }
+
 abstract final class AppRoutes {
   static const familyAlerts = '/family/alerts';
   static const familyAlertDetail = '/family/alerts/detail';
@@ -186,7 +188,12 @@ Route<dynamic>? onGenerateRoute(
     // Mọi đường vào Trang chủ đi qua cổng consent (chưa có health_data thì hiện màn đồng ý).
     AppRoutes.home => MaterialPageRoute<void>(
         settings: settings,
-        builder: (_) => ConsentGate(child: AppShell(initialTab: initialTab)),
+        builder: (_) => ConsentGate(
+          child: AppShell(
+            initialTab: initialTab,
+            showWelcome: settings.arguments == HomeEntry.profileCompleted,
+          ),
+        ),
       ),
     AppRoutes.consent => MaterialPageRoute<bool>(
         settings: settings,
