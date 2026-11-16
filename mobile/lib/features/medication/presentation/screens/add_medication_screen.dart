@@ -38,6 +38,7 @@ class AddMedicationScreen extends StatefulWidget {
     this.captureLauncher,
     this.foodInteractionRepository,
     this.scannedDrug,
+    this.openCaptureOnStart = false,
   });
 
   final FoodInteractionRepository? foodInteractionRepository;
@@ -53,6 +54,7 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
   @override
   void initState() {
     super.initState();
+    _drug = widget.scannedDrug;
     if (widget.openCaptureOnStart) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) unawaited(_openCapture());
@@ -83,12 +85,6 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
   Uint8List? _captureBytes;
   Timer? _captureExpiry;
   CaptureServices? _captureServices;
-
-  @override
-  void initState() {
-    super.initState();
-    _drug = widget.scannedDrug;
-  }
 
   @override
   void didChangeDependencies() {

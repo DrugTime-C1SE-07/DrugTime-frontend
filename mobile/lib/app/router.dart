@@ -44,6 +44,8 @@ import '../features/profile/presentation/screens/health_setup_screen.dart';
 import '../features/profile/presentation/widgets/health_setup_motion.dart';
 import 'theme/app_theme.dart';
 
+enum HomeEntry { profileCompleted }
+
 abstract final class AppRoutes {
   static const familyAlerts = '/family/alerts';
   static const familyAlertDetail = '/family/alerts/detail';
@@ -174,7 +176,12 @@ Route<dynamic>? onGenerateRoute(
     // Mọi đường vào Trang chủ đi qua cổng consent (chưa có health_data thì hiện màn đồng ý).
     AppRoutes.home => MaterialPageRoute<void>(
         settings: settings,
-        builder: (_) => ConsentGate(child: AppShell(initialTab: initialTab)),
+        builder: (_) => ConsentGate(
+          child: AppShell(
+            initialTab: initialTab,
+            showWelcome: settings.arguments == HomeEntry.profileCompleted,
+          ),
+        ),
       ),
     AppRoutes.consent => MaterialPageRoute<bool>(
         settings: settings,
