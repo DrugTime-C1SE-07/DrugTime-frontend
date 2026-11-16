@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../../../../app/router.dart';
 import '../../../../app/theme/app_theme.dart';
 import '../../../consent/domain/entities/consent.dart';
 import '../../../consent/presentation/state/consent_controller.dart';
@@ -64,7 +65,92 @@ class _CaregiversScreenState extends State<CaregiversScreen> {
                   const SharingConsentBanner(key: Key('caregivers-consent-banner')),
                   const SizedBox(height: AppSpacing.md),
                 ],
+                // Intro text chuẩn Figma S08-3
+                const Text(
+                  'Người thân được mời sẽ nhận cảnh báo khi bạn bỏ lỡ liều thuốc và có thể xem lịch uống thuốc của bạn.',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Color(0xFF5B6169),
+                    height: 1.45,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                // Tiêu đề section: ĐANG GIÁM SÁT
+                if (_controller.items.isNotEmpty) ...[
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'ĐANG GIÁM SÁT',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF5B6169),
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                      Text(
+                        '${_controller.items.length} người',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Color(0xFF5B6169),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                ],
                 ..._body(context, sharingGranted),
+                // Nút mời người thân giám sát & Thẻ lưu ý bảo mật dữ liệu chuẩn Figma S08-3
+                if (_controller.isLoaded && _controller.items.isNotEmpty) ...[
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    height: 48,
+                    child: ElevatedButton.icon(
+                      key: const Key('caregivers-invite-button'),
+                      onPressed: () => Navigator.of(context).pushNamed(AppRoutes.familyShareLink),
+                      icon: const Icon(Icons.person_add_outlined, size: 20),
+                      label: const Text(
+                        'Mời người thân giám sát',
+                        style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.brand,
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF8FAFC),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: const Color(0xFFE2E8F0)),
+                    ),
+                    child: const Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(Icons.shield_outlined, size: 18, color: Color(0xFF5B6169)),
+                        SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Người giám sát chỉ thấy lịch uống thuốc và cảnh báo — không xem được chi tiết dị ứng, bệnh nền hay hồ sơ y tế của bạn.',
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: Color(0xFF5B6169),
+                              height: 1.4,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ],
             ),
           ),

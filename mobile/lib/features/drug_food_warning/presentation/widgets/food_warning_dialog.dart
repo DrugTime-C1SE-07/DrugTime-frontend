@@ -291,8 +291,8 @@ class FoodWarningDialog extends StatelessWidget {
                       onPressed: () => Navigator.of(context).pop(true),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: hasContraindication
-                            ? AppColors.danger
-                            : AppColors.brand,
+                            ? const Color(0xFFDC2626)
+                            : const Color(0xFF01554F),
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(vertical: 14),
                         shape: RoundedRectangleBorder(
@@ -354,30 +354,30 @@ class _FoodWarningAccordionCardState extends State<FoodWarningAccordionCard> {
 
     switch (item.severity) {
       case FoodInteractionSeverity.contraindicated:
-        cardBorder = const Color(0xFFFECACA);
-        cardBg = const Color(0xFFFEF2F2);
+        cardBorder = const Color(0xFFDC2626);
+        cardBg = const Color(0xFFFEE2E2);
         badgeBg = const Color(0xFF991B1B);
         badgeFg = Colors.white;
         severitySubtitle = 'Chống chỉ định · ${item.foodCategory}';
         break;
       case FoodInteractionSeverity.severe:
-        cardBorder = const Color(0xFFFED7AA);
-        cardBg = const Color(0xFFFFF7ED);
-        badgeBg = const Color(0xFFC2410C);
+        cardBorder = const Color(0xFFF97316);
+        cardBg = const Color(0xFFFFEADD);
+        badgeBg = const Color(0xFFB74F28);
         badgeFg = Colors.white;
         severitySubtitle = 'Nghiêm trọng · ${item.foodCategory}';
         break;
       case FoodInteractionSeverity.moderate:
         cardBorder = const Color(0xFFFDE68A);
         cardBg = const Color(0xFFFEFCE8);
-        badgeBg = const Color(0xFFD97706);
+        badgeBg = const Color(0xFF854D0E);
         badgeFg = Colors.white;
         severitySubtitle = 'Thận trọng · ${item.foodCategory}';
         break;
       case FoodInteractionSeverity.minor:
-        cardBorder = const Color(0xFFBFDBFE);
-        cardBg = const Color(0xFFEFF6FF);
-        badgeBg = const Color(0xFF2563EB);
+        cardBorder = const Color(0xFFE2E8F0);
+        cardBg = const Color(0xFFF8FAFC);
+        badgeBg = const Color(0xFF15803D);
         badgeFg = Colors.white;
         severitySubtitle = 'Theo dõi · ${item.foodCategory}';
         break;
@@ -487,16 +487,16 @@ class _FoodWarningAccordionCardState extends State<FoodWarningAccordionCard> {
                     vertical: AppSpacing.sm,
                   ),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFF9FAFB),
+                    color: Colors.white,
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: const Color(0xFFE5E7EB)),
+                    border: Border.all(color: const Color(0xFFE4E4E1)),
                   ),
                   child: Row(
                     children: [
                       const Icon(
                         Icons.restaurant_menu,
                         size: 18,
-                        color: AppColors.brand,
+                        color: Color(0xFF01554F),
                       ),
                       const SizedBox(width: AppSpacing.sm),
                       Expanded(
@@ -504,7 +504,7 @@ class _FoodWarningAccordionCardState extends State<FoodWarningAccordionCard> {
                           TextSpan(
                             style: const TextStyle(
                               fontSize: 13,
-                              color: AppColors.ink,
+                              color: Color(0xFF211D1D),
                               fontWeight: FontWeight.w600,
                             ),
                             children: [
@@ -531,7 +531,7 @@ class _FoodWarningAccordionCardState extends State<FoodWarningAccordionCard> {
                 // Khi mở rộng: Bung chi tiết (Căn thẳng tắp cột nhãn 92px)
                 if (_isExpanded) ...[
                   const SizedBox(height: AppSpacing.md),
-                  const Divider(height: 1, color: Color(0xFFF3F4F6)),
+                  const Divider(height: 1, color: Color(0xFFF0F0EE)),
                   const SizedBox(height: AppSpacing.md),
 
                   // Dòng 1: Nguy cơ (Nhãn cố định 92px)
@@ -545,7 +545,7 @@ class _FoodWarningAccordionCardState extends State<FoodWarningAccordionCard> {
                           style: TextStyle(
                             fontSize: 13,
                             fontWeight: FontWeight.bold,
-                            color: Color(0xFFB91C1C),
+                            color: Color(0xFF991B1B),
                           ),
                         ),
                       ),
@@ -575,7 +575,7 @@ class _FoodWarningAccordionCardState extends State<FoodWarningAccordionCard> {
                           style: TextStyle(
                             fontSize: 13,
                             fontWeight: FontWeight.bold,
-                            color: Color(0xFF047857),
+                            color: Color(0xFF01554F),
                           ),
                         ),
                       ),

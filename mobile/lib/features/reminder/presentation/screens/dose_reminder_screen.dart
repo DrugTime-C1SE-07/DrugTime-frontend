@@ -268,22 +268,26 @@ class _DoseReminderScreenState extends State<DoseReminderScreen> {
       children: [
         Container(
           padding: const EdgeInsets.symmetric(
-            horizontal: AppSpacing.md,
-            vertical: AppSpacing.sm,
+            horizontal: 16,
+            vertical: 8,
           ),
           decoration: BoxDecoration(
-            color: const Color(0xFF1D746E),
-            borderRadius: BorderRadius.circular(999),
+            color: Colors.white.withValues(alpha: 0.18),
+            borderRadius: BorderRadius.circular(9999),
           ),
           child: const Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.notifications_none, size: 18, color: Colors.white),
-              SizedBox(width: AppSpacing.sm),
+              Icon(Icons.notifications_none, size: 16, color: Colors.white),
+              SizedBox(width: 8),
               Flexible(
                 child: Text(
                   'DrugTime · Đến giờ uống thuốc',
-                  style: TextStyle(color: Colors.white),
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
               ),
             ],
@@ -295,9 +299,9 @@ class _DoseReminderScreenState extends State<DoseReminderScreen> {
             _timeLabel,
             style: const TextStyle(
               color: Colors.white,
-              fontSize: 64,
+              fontSize: 72,
               height: 1,
-              fontWeight: FontWeight.w600,
+              fontWeight: FontWeight.w700,
               fontFeatures: [FontFeature.tabularFigures()],
             ),
           ),
@@ -305,7 +309,11 @@ class _DoseReminderScreenState extends State<DoseReminderScreen> {
         const SizedBox(height: AppSpacing.sm),
         Text(
           _dateLabel,
-          style: AppTextStyles.body.copyWith(color: AppColors.onBrand),
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 17,
+            fontWeight: FontWeight.w400,
+          ),
         ),
       ],
     );
@@ -399,32 +407,32 @@ class _DoseReminderScreenState extends State<DoseReminderScreen> {
     return Semantics(
       label: 'Biểu tượng nhắc uống thuốc',
       child: Container(
-        width: 150,
-        height: 150,
-        decoration: const BoxDecoration(
+        width: 176,
+        height: 176,
+        decoration: BoxDecoration(
           shape: BoxShape.circle,
-          color: Color(0xFF146C66),
+          color: Colors.white.withValues(alpha: 0.12),
         ),
         alignment: Alignment.center,
         child: Container(
-          width: 112,
-          height: 112,
-          decoration: const BoxDecoration(
+          width: 136,
+          height: 136,
+          decoration: BoxDecoration(
             shape: BoxShape.circle,
-            color: Color(0xFF4C8E89),
+            color: Colors.white.withValues(alpha: 0.20),
           ),
           alignment: Alignment.center,
           child: Container(
-            width: 78,
-            height: 78,
+            width: 96,
+            height: 96,
             decoration: const BoxDecoration(
               shape: BoxShape.circle,
-              color: AppColors.brandTint,
+              color: Color(0xFFE6F4F2),
             ),
             child: const Icon(
               Icons.medication_outlined,
-              size: 38,
-              color: AppColors.brand,
+              size: 44,
+              color: Color(0xFF01554F),
             ),
           ),
         ),
@@ -479,37 +487,55 @@ class _DoseReminderScreenState extends State<DoseReminderScreen> {
       children: [
         SizedBox(
           width: double.infinity,
-          height: AppSizes.primaryButton,
+          height: 56,
           child: FilledButton.icon(
             style: FilledButton.styleFrom(
-              backgroundColor: AppColors.surface,
-              foregroundColor: AppColors.brand,
+              backgroundColor: Colors.white,
+              foregroundColor: const Color(0xFF01554F),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              textStyle: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+              ),
             ),
             onPressed: canConfirm ? handleConfirm : null,
-            icon: const Icon(Icons.check),
+            icon: const Icon(Icons.check, size: 22),
             label: Text(confirmLabel),
           ),
         ),
         const SizedBox(height: AppSpacing.sm),
         SizedBox(
           width: double.infinity,
-          height: AppSizes.tapTarget,
+          height: 48,
           child: OutlinedButton.icon(
             style: OutlinedButton.styleFrom(
-              foregroundColor: AppColors.onBrand,
-              side: const BorderSide(color: Color(0xFF7AB0AC)),
+              foregroundColor: Colors.white,
+              side: const BorderSide(color: Colors.white, width: 1.5),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              textStyle: const TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w500,
+              ),
             ),
             onPressed: busy || allConfirmed ? null : _snooze,
-            icon: const ClockIcon(color: AppColors.onBrand, size: 20),
+            icon: const ClockIcon(color: Colors.white, size: 18),
             label: const Text('Nhắc lại sau 10 phút'),
           ),
         ),
         SizedBox(
           width: double.infinity,
-          height: AppSizes.tapTarget,
+          height: 48,
           child: TextButton(
             style: TextButton.styleFrom(
               foregroundColor: const Color(0xFFD9E7E6),
+              textStyle: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+              ),
             ),
             onPressed: busy
                 ? null

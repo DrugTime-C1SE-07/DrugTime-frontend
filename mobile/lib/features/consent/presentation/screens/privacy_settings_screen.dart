@@ -92,7 +92,10 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
 
     return Scaffold(
       backgroundColor: AppColors.canvas,
-      appBar: AppBar(title: const Text('Quyền riêng tư'), backgroundColor: AppColors.canvas),
+      appBar: AppBar(
+        title: const Text('Quyền riêng tư & Bảo mật'),
+        backgroundColor: AppColors.canvas,
+      ),
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.all(AppSpacing.page),
@@ -116,7 +119,50 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
               ),
               const SizedBox(height: AppSpacing.md),
               OutlinedButton(onPressed: consents.load, child: const Text('Thử lại')),
-            ] else
+            ] else ...[
+              const Text(
+                'QUYỀN RIÊNG TƯ DỮ LIỆU',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 0.5,
+                  color: AppColors.inkMuted,
+                ),
+              ),
+              const SizedBox(height: AppSpacing.xs + 2),
+              Material(
+                color: AppColors.surface,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  side: const BorderSide(color: Color(0xFFE4E4E1)),
+                ),
+                clipBehavior: Clip.antiAlias,
+                child: ListTile(
+                  key: const Key('privacy-link-caregivers'),
+                  leading: const Icon(Icons.people_outline, color: Color(0xFF5B6169)),
+                  title: const Text(
+                    'Ai có thể xem hồ sơ của tôi',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                      color: AppColors.ink,
+                    ),
+                  ),
+                  trailing: const Icon(Icons.chevron_right, color: Color(0xFFA6A6A6)),
+                  onTap: () => Navigator.of(context).pushNamed(AppRoutes.caregivers),
+                ),
+              ),
+              const SizedBox(height: AppSpacing.lg),
+              const Text(
+                'MỤC ĐÍCH SỬ DỤNG DỮ LIỆU',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 0.5,
+                  color: AppColors.inkMuted,
+                ),
+              ),
+              const SizedBox(height: AppSpacing.xs + 2),
               for (final purpose in ConsentPurpose.toggleable) ...[
                 ConsentPurposeCard(
                   purpose: purpose,
@@ -125,6 +171,36 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
                 ),
                 const SizedBox(height: AppSpacing.md),
               ],
+              Container(
+                padding: const EdgeInsets.all(AppSpacing.md),
+                decoration: BoxDecoration(
+                  color: AppColors.surfaceMuted,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(
+                      Icons.shield_outlined,
+                      size: 18,
+                      color: Color(0xFF5B6169),
+                    ),
+                    SizedBox(width: AppSpacing.sm),
+                    Expanded(
+                      child: Text(
+                        'Dữ liệu sức khỏe của bạn được mã hoá và không bao giờ được chia sẻ với bên thứ ba nếu không có sự đồng ý của bạn.',
+                        style: TextStyle(
+                          fontSize: 13,
+                          height: 1.4,
+                          color: AppColors.inkMuted,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: AppSpacing.md),
+            ],
             const SizedBox(height: AppSpacing.md),
             const _LegalLink(
               key: Key('privacy-link-terms'),
