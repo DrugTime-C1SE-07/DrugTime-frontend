@@ -20,7 +20,6 @@ import '../widgets/drug_catalog_sheet.dart';
 import '../widgets/medication_error_messages.dart';
 import '../widgets/medication_form_fields.dart';
 import '../widgets/medication_labels.dart';
-import '../widgets/medication_step_progress.dart';
 import '../../../auth/presentation/state/auth_controller.dart';
 import '../../../interaction_check/presentation/widgets/interaction_warning_dialog.dart';
 
@@ -43,23 +42,12 @@ class AddMedicationScreen extends StatefulWidget {
   final FoodInteractionRepository? foodInteractionRepository;
   final DrugCatalogItem? scannedDrug;
   final Future<CaptureResult?> Function(BuildContext)? captureLauncher;
-  final bool openCaptureOnStart;
 
   @override
   State<AddMedicationScreen> createState() => _AddMedicationScreenState();
 }
 
 class _AddMedicationScreenState extends State<AddMedicationScreen> {
-  @override
-  void initState() {
-    super.initState();
-    if (widget.openCaptureOnStart) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) unawaited(_openCapture());
-      });
-    }
-  }
-
   final _drugFieldKey = GlobalKey();
   final _stockController = TextEditingController();
 
