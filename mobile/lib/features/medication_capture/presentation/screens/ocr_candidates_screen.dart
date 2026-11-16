@@ -9,11 +9,16 @@ class OcrCandidatesScreen extends StatelessWidget {
     required this.onRetake,
     required this.onExit,
     this.onSelectCandidate,
+    this.onManualSearch,
+    this.onShowSuggestions,
+    this.showCandidates = true,
   });
 
   final OcrMatchResult result;
   final VoidCallback onRetake, onExit;
   final ValueChanged<OcrCandidate>? onSelectCandidate;
+  final VoidCallback? onManualSearch, onShowSuggestions;
+  final bool showCandidates;
 
   @override
   Widget build(BuildContext context) {
@@ -73,7 +78,18 @@ class OcrCandidatesScreen extends StatelessWidget {
                 ),
               ),
             ],
-            for (final c in result.items) ...[
+            if (onManualSearch != null) ...[
+              const SizedBox(height: 16),
+              FilledButton(
+                  onPressed: onManualSearch,
+                  child: const Text('Tìm thuốc thủ công')),
+            ],
+            if (onShowSuggestions != null && !showCandidates)
+              TextButton(
+                  onPressed: onShowSuggestions,
+                  child: const Text('Xem gợi ý khác')),
+            for (final c
+                in showCandidates ? result.items : const <OcrCandidate>[]) ...[
               const SizedBox(height: 16),
               Card(
                 elevation: 0,
@@ -90,7 +106,8 @@ class OcrCandidatesScreen extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Expanded(
-                            child: Text(c.name, style: AppTextStyles.bodyStrong),
+                            child:
+                                Text(c.name, style: AppTextStyles.bodyStrong),
                           ),
                           if (c.score > 0)
                             Container(
@@ -136,7 +153,8 @@ class OcrCandidatesScreen extends StatelessWidget {
                               onExit();
                             }
                           },
-                          icon: const Icon(Icons.check_circle_outline, size: 18),
+                          icon:
+                              const Icon(Icons.check_circle_outline, size: 18),
                           label: const Text('Đúng thuốc này'),
                         ),
                       ),
@@ -153,7 +171,7 @@ class OcrCandidatesScreen extends StatelessWidget {
             const SizedBox(height: 8),
             TextButton(
               onPressed: onExit,
-              child: const Text('Quay về tìm kiếm'),
+              child: const Text('Quay về form'),
             ),
           ],
         ),

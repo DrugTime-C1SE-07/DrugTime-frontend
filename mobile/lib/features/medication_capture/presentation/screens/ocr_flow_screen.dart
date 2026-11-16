@@ -1,5 +1,8 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import '../../../medication/domain/entities/medication.dart';
+import '../../../medication/domain/entities/dose_unit.dart';
+import '../../../medication/presentation/widgets/drug_catalog_sheet.dart';
 import '../../data/capture_services.dart';
 import '../../domain/capture_models.dart';
 import '../../domain/ocr_models.dart';
@@ -17,7 +20,7 @@ class OcrFlowScreen extends StatefulWidget {
   final PreparedMedicationImage image;
   final CaptureServices services;
   final VoidCallback onRetake;
-  final ValueChanged<OcrMatchResult?> onExit;
+  final ValueChanged<CaptureResult?> onExit;
   @override
   State<OcrFlowScreen> createState() => _OcrFlowScreenState();
 }
@@ -26,6 +29,9 @@ class _OcrFlowScreenState extends State<OcrFlowScreen>
     with WidgetsBindingObserver {
   late final OcrController _controller;
   bool _leaving = false;
+  bool _manualOffered = false;
+  bool _searching = false;
+  bool _showCandidates = false;
   @override
   void initState() {
     super.initState();
@@ -42,10 +48,9 @@ class _OcrFlowScreenState extends State<OcrFlowScreen>
     }
   }
 
-  Future<void> _leave({bool retake = false, bool result = false}) async {
+  Future<void> _leave({bool retake = false, DrugCatalogItem? drug}) async {
     if (_leaving) return;
     _leaving = true;
-    final matches = result ? _controller.result : null;
     final clean = await _controller.close();
     if (!mounted) return;
     _leaving = false;
@@ -56,8 +61,38 @@ class _OcrFlowScreenState extends State<OcrFlowScreen>
     if (retake) {
       widget.onRetake();
     } else {
-      widget.onExit(matches);
+      widget.onExit(drug == null ? null : CaptureResult.selected(drug));
     }
+  }
+
+  Future<void> _manualSearch(OcrMatchResult result) async {
+    if (_leaving || _searching) return;
+    final epoch = widget.services.epoch;
+    final token = widget.services.sessionToken;
+    _searching = true;
+    try {
+      final drug = await showDrugCatalogSheet(context,
+          initialQuery: result.suggestedQuery);
+      if (mounted &&
+          drug != null &&
+          widget.services.sameSession(epoch, token)) {
+        await _leave(drug: drug);
+      }
+    } finally {
+      _searching = false;
+    }
+  }
+
+  void _select(OcrCandidate candidate) {
+    unawaited(_leave(
+        drug: DrugCatalogItem(
+      id: candidate.id.toString(),
+      name: candidate.name,
+      activeIngredient: candidate.activeIngredient ?? '',
+      strength: candidate.strengthText ?? '',
+      dosageForm: candidate.dosageForm ?? '',
+      unit: doseUnitFor(candidate.dosageForm),
+    )));
   }
 
   Future<void> _retryCleanup() async {
@@ -91,10 +126,25 @@ class _OcrFlowScreenState extends State<OcrFlowScreen>
           builder: (context, _) {
             final result = _controller.result, failure = _controller.failure;
             if (result != null) {
+              final low = result.status == OcrMatchStatus.lowConfidence;
+              if (low && !_manualOffered) {
+                _manualOffered = true;
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (mounted && identical(_controller.result, result)) {
+                    unawaited(_manualSearch(result));
+                  }
+                });
+              }
               return OcrCandidatesScreen(
                   result: result,
                   onRetake: () => unawaited(_leave(retake: true)),
-                  onExit: () => unawaited(_leave(result: true)));
+                  onExit: () => unawaited(_leave()),
+                  onSelectCandidate: _select,
+                  onManualSearch: () => unawaited(_manualSearch(result)),
+                  showCandidates: !low || _showCandidates,
+                  onShowSuggestions: low
+                      ? () => setState(() => _showCandidates = true)
+                      : null);
             }
             if (failure != null) {
               return Scaffold(

@@ -1,3 +1,4 @@
+import 'package:drugtime_mobile/features/medication_capture/domain/capture_models.dart';
 import 'package:drugtime_mobile/features/medication/domain/entities/medication.dart';
 import 'package:drugtime_mobile/features/medication/presentation/screens/add_medication_screen.dart';
 import 'package:drugtime_mobile/features/medication/presentation/state/medication_controller.dart';
@@ -7,6 +8,31 @@ import 'package:flutter_test/flutter_test.dart';
 import 'medication_screens_test.dart' show RecordingRepository;
 
 void main() {
+  testWidgets('aborted OCR leaves the drug selection step unchanged',
+      (tester) async {
+    final repository = RecordingRepository();
+    final controller = MedicationController(repository);
+    addTearDown(controller.dispose);
+    var captures = 0;
+    await tester.pumpWidget(MedicationScope(
+      controller: controller,
+      child: MaterialApp(
+        home: AddMedicationScreen(
+          openCaptureOnStart: true,
+          captureLauncher: (_) async {
+            captures++;
+            return const CaptureResult.aborted();
+          },
+        ),
+      ),
+    ));
+    await tester.pumpAndSettle();
+    expect(captures, 1);
+    expect(find.text('Quét vỏ thuốc'), findsOneWidget);
+    expect(find.byTooltip('Tăng liều'), findsNothing);
+    expect(repository.addCalls, isEmpty);
+  });
+
   Future<void> openScreen(WidgetTester tester) async {
     final controller = MedicationController(RecordingRepository());
     addTearDown(controller.dispose);

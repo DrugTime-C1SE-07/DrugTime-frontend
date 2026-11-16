@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:drugtime_mobile/features/medication_capture/domain/ocr_models.dart';
+import 'package:drugtime_mobile/features/medication_capture/domain/capture_models.dart';
 import 'package:drugtime_mobile/features/medication_capture/presentation/screens/ocr_flow_screen.dart';
 import 'ocr_controller_test.dart'
     show FakeMatcher, FakeReader, testServices, testLease;
@@ -114,10 +114,10 @@ void main() {
     await tester.pump();
     services.dispose();
   });
-  testWidgets(
-      'successful close hands off candidates without an image or selection',
+  testWidgets('back from candidates does not hand off an unselected drug',
       (tester) async {
-    OcrMatchResult? handedOff;
+    CaptureResult? handedOff;
+    var didExit = false;
     final services = testServices();
     await services.bindSession('A');
     await tester.pumpWidget(MaterialApp(
@@ -126,12 +126,14 @@ void main() {
             services: services,
             onRetake: () {},
             onExit: (result) {
+              didExit = true;
               handedOff = result;
             })));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Quay về form'));
     await tester.pumpAndSettle();
-    expect(handedOff?.items.single.id, 1);
+    expect(didExit, isTrue);
+    expect(handedOff, isNull);
     await tester.pumpWidget(const SizedBox());
     await tester.pump();
     services.dispose();

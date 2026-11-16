@@ -15,7 +15,9 @@ const catalogSearchDebounce = Duration(milliseconds: 300);
 typedef CatalogSearch = Future<List<DrugCatalogItem>> Function(String query);
 
 Future<DrugCatalogItem?> showDrugCatalogSheet(BuildContext context,
-    {CatalogSearch? search, bool Function(String)? isInUse}) {
+    {CatalogSearch? search,
+    bool Function(String)? isInUse,
+    String? initialQuery}) {
   return showModalBottomSheet<DrugCatalogItem>(
     context: context,
     isScrollControlled: true,
@@ -25,7 +27,8 @@ Future<DrugCatalogItem?> showDrugCatalogSheet(BuildContext context,
       child: MediaQuery.removeViewInsets(
         context: context,
         removeBottom: true,
-        child: DrugCatalogSheet(search: search, isInUse: isInUse),
+        child: DrugCatalogSheet(
+            search: search, isInUse: isInUse, initialQuery: initialQuery),
       ),
     ),
   );
@@ -33,7 +36,10 @@ Future<DrugCatalogItem?> showDrugCatalogSheet(BuildContext context,
 
 /// Tìm & chọn thuốc từ danh mục chuẩn (S06a).
 class DrugCatalogSheet extends StatefulWidget {
-  const DrugCatalogSheet({super.key, this.search, this.isInUse});
+  const DrugCatalogSheet(
+      {super.key, this.search, this.isInUse, this.initialQuery});
+
+  final String? initialQuery;
 
   final CatalogSearch? search;
   final bool Function(String)? isInUse;
@@ -64,6 +70,11 @@ class _DrugCatalogSheetState extends State<DrugCatalogSheet> {
         : null;
     _searchCatalog = widget.search ?? controller!.searchCatalog;
     _isInUse = widget.isInUse ?? controller!.isInUse;
+    final initialQuery = widget.initialQuery?.trim();
+    if (initialQuery != null && initialQuery.isNotEmpty) {
+      _textController.text = initialQuery;
+      _onChanged(initialQuery);
+    }
   }
 
   @override
