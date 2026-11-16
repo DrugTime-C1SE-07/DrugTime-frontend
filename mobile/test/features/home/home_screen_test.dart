@@ -1,5 +1,11 @@
 import 'dart:async';
+import 'package:drugtime_mobile/app/app.dart';
+import 'package:drugtime_mobile/app/router.dart';
+import 'package:drugtime_mobile/features/auth/data/repositories/in_memory_auth_repository.dart';
+import 'package:drugtime_mobile/features/auth/domain/entities/auth_session.dart';
+import 'package:drugtime_mobile/features/auth/presentation/state/auth_controller.dart';
 import 'package:drugtime_mobile/features/home/presentation/home_screen.dart';
+import 'package:drugtime_mobile/features/medication/data/repositories/in_memory_medication_repository.dart';
 import 'package:drugtime_mobile/features/profile/domain/entities/health_profile.dart';
 import 'package:drugtime_mobile/features/profile/domain/entities/profile_failure.dart';
 import 'package:drugtime_mobile/features/profile/presentation/state/profile_controller.dart';
@@ -8,6 +14,53 @@ import 'package:flutter_test/flutter_test.dart';
 import '../profile/profile_test_helpers.dart';
 
 void main() {
+  testWidgets('profile completion opens welcome once over the empty home',
+      (tester) async {
+    tester.view.physicalSize = const Size(375, 812);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final auth = AuthController(InMemoryAuthRepository(
+      simulatedDelay: Duration.zero,
+      initialSession: AuthSession(
+        userId: 'u-1',
+        accessToken: 'test-token',
+        expiresAt: DateTime.now().add(const Duration(days: 1)),
+        profileComplete: true,
+      ),
+    ));
+    await tester.pumpWidget(DrugTimeApp(
+      authController: auth,
+      profileRepository: FakeProfileRepository(),
+      medicationRepository: InMemoryMedicationRepository(seed: []),
+    ));
+    await tester.pumpAndSettle();
+    final welcome = find.text('Chào mừng đến với DrugTime!');
+    expect(welcome, findsNothing);
+    final navbar = find.byType(NavigationBar);
+    Navigator.of(tester.element(navbar)).pushReplacementNamed(
+      AppRoutes.home,
+      arguments: HomeEntry.profileCompleted,
+    );
+    await tester.pumpAndSettle();
+    expect(welcome, findsOneWidget);
+    await tester.tap(find.text('Để sau'));
+    await tester.pumpAndSettle();
+    expect(welcome, findsNothing);
+    expect(find.text('Chưa có lịch uống thuốc'), findsOneWidget);
+    expect(tester.widget<NavigationBar>(navbar).selectedIndex, 0);
+    for (final [index, label] in [
+      [1, 'Thuốc'],
+      [2, 'Lịch nhắc'],
+      [3, 'Hồ sơ'],
+      [0, 'Trang chủ'],
+    ]) {
+      await tester.tap(find.byTooltip(label as String));
+      await tester.pumpAndSettle();
+      expect(tester.widget<NavigationBar>(navbar).selectedIndex, index);
+    }
+    expect(welcome, findsNothing);
+  });
+
   Future<void> showHome(
       WidgetTester tester, ProfileController controller) async {
     await tester.pumpWidget(ProfileScope(

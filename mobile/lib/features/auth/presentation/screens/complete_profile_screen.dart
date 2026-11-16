@@ -50,9 +50,14 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
     );
     if (!mounted) return;
     if (ok) {
-      Navigator.of(context).pushNamedAndRemoveUntil(AppRoutes.home, (_) => false);
+      Navigator.of(context).pushNamedAndRemoveUntil(
+        AppRoutes.home,
+        (_) => false,
+        arguments: HomeEntry.profileCompleted,
+      );
     } else if (!controller.isAuthenticated) {
-      Navigator.of(context).pushNamedAndRemoveUntil(AppRoutes.login, (_) => false);
+      Navigator.of(context)
+          .pushNamedAndRemoveUntil(AppRoutes.login, (_) => false);
     }
   }
 
@@ -96,7 +101,8 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
               key: const Key('profile-full-name'),
               controller: _nameController,
               textCapitalization: TextCapitalization.words,
-              decoration: const InputDecoration(hintText: 'Ví dụ: Nguyễn Thị Lan'),
+              decoration:
+                  const InputDecoration(hintText: 'Ví dụ: Nguyễn Thị Lan'),
             ),
             const SizedBox(height: AppSpacing.lg),
             const Text('Ngày sinh', style: AppTextStyles.bodyStrong),
@@ -106,7 +112,9 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
               onPressed: controller.isLoading ? null : _pickDate,
               icon: const Icon(Icons.calendar_today_outlined),
               label: Text(
-                _dateOfBirth == null ? 'Chọn ngày sinh' : _formatDate(_dateOfBirth!),
+                _dateOfBirth == null
+                    ? 'Chọn ngày sinh'
+                    : _formatDate(_dateOfBirth!),
               ),
               style: OutlinedButton.styleFrom(
                 minimumSize: const Size.fromHeight(AppSizes.field),
@@ -138,7 +146,8 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
             const SizedBox(height: AppSpacing.xl),
             FilledButton(
               key: const Key('profile-submit'),
-              onPressed: controller.isLoading ? null : () => _submit(controller),
+              onPressed:
+                  controller.isLoading ? null : () => _submit(controller),
               style: FilledButton.styleFrom(
                 minimumSize: const Size.fromHeight(AppSizes.primaryButton),
               ),
