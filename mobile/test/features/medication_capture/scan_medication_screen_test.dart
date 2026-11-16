@@ -6,15 +6,140 @@ import 'package:drugtime_mobile/features/medication/data/repositories/in_memory_
 import 'package:drugtime_mobile/features/medication/presentation/state/medication_controller.dart';
 import 'package:drugtime_mobile/core/preview/app_preview_scope.dart';
 import 'package:drugtime_mobile/features/medication_capture/data/capture_services.dart';
+import 'package:drugtime_mobile/features/medication_capture/domain/capture_models.dart';
 import 'package:drugtime_mobile/features/medication_capture/domain/ocr_models.dart';
 import 'package:drugtime_mobile/features/medication_capture/presentation/state/capture_scope.dart';
-import 'capture_controller_test.dart' show TestSource, TestStore, TestProcessor;
+import 'capture_controller_test.dart'
+    show TestSource, TestStore, TestProcessor, makeImage;
 import 'ocr_controller_test.dart' show FakeReader, FakeMatcher;
 import 'package:drugtime_mobile/features/medication_capture/presentation/screens/scan_medication_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  Future<void> openScan(WidgetTester tester, TestSource source,
+      FakeReader reader, FakeMatcher matcher,
+      {TestProcessor? processor}) async {
+    final services = CaptureServices(
+        store: TestStore(),
+        processor: processor ?? TestProcessor(),
+        newSource: () => source,
+        reader: reader,
+        matching: matcher);
+    await services.bindSession('test-session');
+    addTearDown(services.dispose);
+    await tester.pumpWidget(CaptureScope(
+        services: services,
+        child: const MaterialApp(home: ScanMedicationScreen())));
+    await tester.pumpAndSettle();
+  }
+
+  testWidgets('canceling gallery keeps the scan open without running OCR',
+      (tester) async {
+    final source = TestSource()..access = CapturePermission.denied;
+    final reader = FakeReader();
+    await openScan(tester, source, reader, FakeMatcher());
+    await tester.tap(find.byTooltip('Thư viện'));
+    await tester.pumpAndSettle();
+    expect(find.byTooltip('Thư viện'), findsOneWidget);
+    expect(reader.calls, 0);
+    source.picked = makeImage();
+    await tester.tap(find.byTooltip('Thư viện'));
+    await tester.pumpAndSettle();
+    expect(reader.calls, 1);
+    expect(find.text('Thuốc kiểm thử'), findsOneWidget);
+  });
+
+  testWidgets('permanent camera denial opens app settings', (tester) async {
+    final source = TestSource()..access = CapturePermission.permanentlyDenied;
+    await openScan(tester, source, FakeReader(), FakeMatcher());
+    await tester.tap(find.text('Mở cài đặt'));
+    await tester.pumpAndSettle();
+    expect(source.settingsCalls, 1);
+  });
+
+  testWidgets('camera asks for permission only after tapping allow',
+      (tester) async {
+    final source = TestSource()..access = CapturePermission.denied;
+    await openScan(tester, source, FakeReader(), FakeMatcher());
+    expect(source.statusRequests, isNot(contains(true)));
+    source.access = CapturePermission.granted;
+    await tester.tap(find.text('Cho phép camera'));
+    await tester.pumpAndSettle();
+    expect(source.statusRequests, contains(true));
+    expect(find.byKey(const Key('test-camera')), findsOneWidget);
+  });
+
+  testWidgets('gallery can retry after an image processing error',
+      (tester) async {
+    final source = TestSource()..picked = makeImage();
+    final processor = TestProcessor()..failProcessing = true;
+    final reader = FakeReader();
+    await openScan(tester, source, reader, FakeMatcher(), processor: processor);
+    await tester.tap(find.byTooltip('Thư viện'));
+    await tester.pumpAndSettle();
+    expect(find.text('Không mở được ảnh'), findsOneWidget);
+    expect(reader.calls, 0);
+    processor.failProcessing = false;
+    await tester.tap(find.text('Chọn ảnh khác'));
+    await tester.pumpAndSettle();
+    expect(find.text('Thuốc kiểm thử'), findsOneWidget);
+  });
+
+  testWidgets('gallery no match is distinct from unreadable text',
+      (tester) async {
+    final matcher = FakeMatcher()
+      ..result = OcrMatchResult(
+          status: OcrMatchStatus.noMatch,
+          items: [],
+          preselectedId: null,
+          suggestedQuery: null,
+          reasons: []);
+    await openScan(
+        tester, TestSource()..picked = makeImage(), FakeReader(), matcher);
+    await tester.tap(find.byTooltip('Thư viện'));
+    await tester.pumpAndSettle();
+    expect(find.text('Không tìm thấy thuốc phù hợp'), findsOneWidget);
+  });
+
+  testWidgets('low confidence shows the top candidate for direct confirmation',
+      (tester) async {
+    final matcher = FakeMatcher()
+      ..result = OcrMatchResult(
+          status: OcrMatchStatus.lowConfidence,
+          items: const [
+            OcrCandidate(
+                id: 1,
+                name: 'Metformin',
+                activeIngredient: 'Metformin',
+                strengthText: '500 mg',
+                dosageForm: 'Viên nén',
+                hasActiveIngredients: true,
+                score: 0.65),
+            OcrCandidate(
+                id: 2,
+                name: 'Thuốc khác',
+                activeIngredient: null,
+                strengthText: '850 mg',
+                dosageForm: null,
+                hasActiveIngredients: false,
+                score: 0.45),
+          ],
+          preselectedId: null,
+          suggestedQuery: null,
+          reasons: ['below_threshold']);
+    await openScan(
+        tester, TestSource()..picked = makeImage(), FakeReader(), matcher);
+    await tester.tap(find.byTooltip('Thư viện'));
+    await tester.pumpAndSettle();
+    expect(find.text('Gợi ý phù hợp nhất'), findsOneWidget);
+    expect(find.text('Thuốc khác'), findsNothing);
+    expect(find.textContaining('500 mg'), findsOneWidget);
+    expect(find.byKey(const Key('scan-result-sheet')), findsOneWidget);
+    expect(find.text('Đúng thuốc này'), findsOneWidget);
+    expect(find.text('Không tìm thấy thuốc phù hợp'), findsNothing);
+  });
+
   Future<void> openPreview(WidgetTester tester) async {
     await tester.pumpWidget(AppPreviewScope(
         clock: DateTime.utc(2026),
