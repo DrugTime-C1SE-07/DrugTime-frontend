@@ -109,7 +109,18 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
+    final medications =
+        context.dependOnInheritedWidgetOfExactType<MedicationScope>()?.notifier;
+    final profile =
+        context.dependOnInheritedWidgetOfExactType<ProfileScope>()?.notifier;
+    final emptyHome = _tab == AppTab.home &&
+        medications != null &&
+        medications.hasLoaded &&
+        !medications.isLoading &&
+        medications.loadError == null &&
+        medications.medications.isEmpty;
     return Scaffold(
+      extendBody: emptyHome,
       appBar:
           AppPreviewScope.maybeOf(context) != null && _tab != AppTab.reminders
               ? const PreferredSize(
@@ -135,7 +146,9 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
           ProfileScreen(active: _tab == AppTab.profile),
         ],
       ),
-      bottomNavigationBar: ListenableBuilder(
+      bottomNavigationBar: emptyHome
+          ? HomeNavigationBar(onSelected: _select)
+          : ListenableBuilder(
         listenable: _incomingRequests ?? _emptyNotifier,
         builder: (context, _) {
           return Container(

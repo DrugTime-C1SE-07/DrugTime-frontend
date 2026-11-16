@@ -38,6 +38,10 @@ import 'app_shell.dart';
 import '../features/profile/presentation/screens/profile_screen.dart';
 import '../features/profile/presentation/screens/personal_profile_screen.dart';
 import '../features/profile/presentation/screens/medical_profile_screen.dart';
+import '../features/profile/presentation/screens/health_profile_intro_screen.dart';
+import '../features/profile/domain/repositories/health_setup_repository.dart';
+import '../features/profile/presentation/screens/health_setup_screen.dart';
+import '../features/profile/presentation/widgets/health_setup_motion.dart';
 import 'theme/app_theme.dart';
 
 abstract final class AppRoutes {
@@ -62,6 +66,8 @@ abstract final class AppRoutes {
   static const profile = '/profile';
   static const personalProfile = '/profile/personal';
   static const medicalProfile = '/profile/medical';
+  static const healthProfileIntro = '/onboarding/health-profile';
+  static const healthSetup = '/onboarding/health-profile/setup';
   static const caregivers = '/profile/caregivers';
   static const familyMyCode = '/family/my-code';
   static const familyScanCode = '/family/follow/scan';
@@ -93,6 +99,7 @@ Route<dynamic>? onGenerateRoute(
   AppTab initialTab = AppTab.home,
   bool preview = false,
   AdherenceRepository? adherenceRepository,
+  HealthSetupRepository? healthSetupRepository,
   ValueListenable<bool>? familyAdherenceAvailability,
 }) {
   return switch (settings.name) {
@@ -140,6 +147,28 @@ Route<dynamic>? onGenerateRoute(
         settings: settings, builder: (_) => const PersonalProfileScreen()),
     AppRoutes.medicalProfile => MaterialPageRoute<void>(
         settings: settings, builder: (_) => const MedicalProfileScreen()),
+    AppRoutes.healthProfileIntro => healthSetupPageRoute<void>(
+        settings: settings, builder: (_) => const HealthProfileIntroScreen()),
+    AppRoutes.healthSetup => healthSetupPageRoute<bool>(
+        settings: settings,
+        builder: (context) => AuthScope.of(context).isAuthenticated
+            ? ConsentGate(
+                child: HealthSetupScreen(
+                  repository: healthSetupRepository,
+                  onLeave: () {
+                    final intro = settings.arguments;
+                    final navigator = Navigator.of(context);
+                    if (intro is ModalRoute<void> &&
+                        intro.settings.name == AppRoutes.healthProfileIntro &&
+                        intro.isActive &&
+                        intro.navigator == navigator) {
+                      navigator.removeRoute(intro);
+                    }
+                  },
+                ),
+              )
+            : const LoginMobileScreen(),
+      ),
     AppRoutes.caregivers => MaterialPageRoute<CaregiversScreenResult>(
         settings: settings, builder: (_) => const CaregiversScreen()),
     // Mọi đường vào Trang chủ đi qua cổng consent (chưa có health_data thì hiện màn đồng ý).
