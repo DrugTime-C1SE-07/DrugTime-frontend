@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
 import '../../../../app/router.dart';
+import '../../../profile/presentation/state/profile_controller.dart';
 import '../../../../app/theme/app_theme.dart';
 import '../../../../core/utils/app_assets.dart';
 import '../../../auth/presentation/widgets/welcome_onboarding_sheet.dart';
@@ -29,14 +30,20 @@ class HomeScreen extends StatelessWidget {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
 
   static void _add(BuildContext context, {bool scan = false}) =>
-      Navigator.of(context).pushNamed(AppRoutes.addMedication, arguments: scan);
+      Navigator.of(context)
+          .pushNamed(scan ? AppRoutes.scanMedication : AppRoutes.addMedication);
 
   @override
   Widget build(BuildContext context) {
     final medications =
         context.dependOnInheritedWidgetOfExactType<MedicationScope>()?.notifier;
     final error = medications?.loadError;
-    final loading = medications == null ||
+    final loading = (context
+                .dependOnInheritedWidgetOfExactType<ProfileScope>()
+                ?.notifier
+                ?.loading ??
+            false) ||
+        medications == null ||
         medications.isLoading ||
         (!medications.hasLoaded && error == null);
     final emptyHome =
@@ -79,7 +86,7 @@ class HomeScreen extends StatelessWidget {
                 SafeArea(
                   bottom: false,
                   child: Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+                    padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
                     child: Stack(
                       children: [
                         Padding(
@@ -123,6 +130,14 @@ class HomeScreen extends StatelessWidget {
                                         fontWeight: FontWeight.w700,
                                       ),
                                     ),
+                                    if (loading) ...[
+                                      const SizedBox(height: 12),
+                                      const Row(children: [
+                                        _Bone(width: 80, height: 28),
+                                        SizedBox(width: 8),
+                                        Expanded(child: _Bone(height: 28)),
+                                      ]),
+                                    ],
                                     if (emptyHome) ...[
                                       const SizedBox(height: 4),
                                       TextButton(
@@ -179,18 +194,19 @@ class HomeScreen extends StatelessWidget {
                           ),
                         ),
                         const SizedBox(height: 172),
-                        Positioned(
-                          right: -5,
-                          top: 66,
-                          child: IgnorePointer(
-                            child: Image.asset(
-                              AppAssets.mascotHappy,
-                              width: 92,
-                              height: 85,
-                              excludeFromSemantics: true,
+                        if (!loading)
+                          Positioned(
+                            right: -5,
+                            top: 66,
+                            child: IgnorePointer(
+                              child: Image.asset(
+                                AppAssets.mascotHappy,
+                                width: 92,
+                                height: 85,
+                                excludeFromSemantics: true,
+                              ),
                             ),
                           ),
-                        ),
                       ],
                     ),
                   ),
@@ -232,7 +248,7 @@ class HomeScreen extends StatelessWidget {
                           fontWeight: FontWeight.w700)),
                   const SizedBox(height: 12),
                   if (loading)
-                    const Center(child: CircularProgressIndicator())
+                    const _HomeSkeleton()
                   else if (error != null) ...[
                     Text(medicationErrorMessage(error)),
                     TextButton(
@@ -368,5 +384,82 @@ class _Shortcut extends StatelessWidget {
             ),
           ),
         ),
+      );
+}
+
+class _Bone extends StatelessWidget {
+  const _Bone({this.width, required this.height});
+  final double? width;
+  final double height;
+  @override
+  Widget build(BuildContext context) => Container(
+        width: width,
+        height: height,
+        decoration: BoxDecoration(
+          color: const Color(0xFFE4E8E6),
+          borderRadius: BorderRadius.circular(12),
+        ),
+      );
+}
+
+class _HomeSkeleton extends StatelessWidget {
+  const _HomeSkeleton();
+  @override
+  Widget build(BuildContext context) => Semantics(
+        label: 'Đang tải lịch uống thuốc',
+        child: Column(children: [
+          for (final tall in [false, false, true])
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child:
+                  Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                SizedBox(
+                    width: 30,
+                    child: Column(children: [
+                      Container(
+                          width: 2, height: 20, color: const Color(0xFFE4E8E6)),
+                      Container(
+                          width: 24,
+                          height: 24,
+                          decoration: const BoxDecoration(
+                              color: Color(0xFFE4E8E6),
+                              shape: BoxShape.circle)),
+                      Container(
+                          width: 2,
+                          height: tall ? 134 : 32,
+                          color: const Color(0xFFE4E8E6)),
+                    ])),
+                Expanded(
+                    child: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16)),
+                  child: Column(children: [
+                    Row(children: [
+                      const _Bone(width: 48, height: 48),
+                      const SizedBox(width: 12),
+                      const Expanded(
+                          child: Column(children: [
+                        _Bone(height: 14),
+                        SizedBox(height: 8),
+                        _Bone(height: 16),
+                      ])),
+                      if (!tall) ...[
+                        const SizedBox(width: 8),
+                        const Flexible(child: _Bone(width: 96, height: 48)),
+                      ],
+                    ]),
+                    if (tall) ...[
+                      const SizedBox(height: 12),
+                      const _Bone(height: 16, width: 140),
+                      const SizedBox(height: 12),
+                      const _Bone(height: 56, width: double.infinity),
+                    ],
+                  ]),
+                )),
+              ]),
+            ),
+        ]),
       );
 }
