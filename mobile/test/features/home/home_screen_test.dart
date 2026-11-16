@@ -1,194 +1,86 @@
-import 'dart:io';
-import 'dart:ui' as ui;
-
-import 'package:drugtime_mobile/app/theme/app_theme.dart';
-import 'package:drugtime_mobile/core/utils/app_assets.dart';
-import 'package:drugtime_mobile/features/home/presentation/widgets/home_navigation_bar.dart';
-import 'package:drugtime_mobile/features/home/presentation/screens/home_screen.dart';
-import 'package:drugtime_mobile/features/medication/data/repositories/in_memory_medication_repository.dart';
-import 'package:drugtime_mobile/features/medication/presentation/state/medication_controller.dart';
-import 'package:drugtime_mobile/app/router.dart';
-import 'package:drugtime_mobile/features/profile/presentation/screens/health_profile_intro_screen.dart';
+import 'dart:async';
+import 'package:drugtime_mobile/features/home/presentation/home_screen.dart';
+import 'package:drugtime_mobile/features/profile/domain/entities/health_profile.dart';
+import 'package:drugtime_mobile/features/profile/domain/entities/profile_failure.dart';
+import 'package:drugtime_mobile/features/profile/presentation/state/profile_controller.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import '../profile/profile_test_helpers.dart';
 
 void main() {
-  _HomePreviewBinding();
-  setUpAll(() async {
-    final font = FontLoader('WelcomeInter');
-    for (final weight in ['Regular', 'Medium', 'SemiBold', 'Bold']) {
-      font.addFont(rootBundle.load('assets/fonts/Inter-$weight.ttf'));
-    }
-    await font.load();
-  });
-  for (final useSystemBack in [false, true]) {
-    testWidgets(
-        'Welcome setup opens S08a once and returns via '
-        '${useSystemBack ? 'system back' : 'skip'}', (tester) async {
-      final controller = MedicationController(
-        InMemoryMedicationRepository(seed: []),
-      );
-      addTearDown(controller.dispose);
-      final observer = _IntroRouteObserver();
-      await controller.load();
-      await tester.pumpWidget(
-        MedicationScope(
-          controller: controller,
-          child: MaterialApp(
-            onGenerateRoute: onGenerateRoute,
-            navigatorObservers: [observer],
-            home: Scaffold(
-              body: HomeScreen(onFamily: () {}, onMedications: () {}),
-            ),
-          ),
-        ),
-      );
-      final home = tester.element(find.byType(HomeScreen));
-      await tester.tap(find.text('Bắt đầu nào!'));
-      await tester.pumpAndSettle();
-      final setup = find.text('Thiết lập hồ sơ sức khỏe');
-      final setupPosition = tester.getCenter(setup);
-      await tester.tap(setup);
-      await tester.tapAt(setupPosition);
-      await tester.pumpAndSettle();
-
-      expect(observer.introReplacements, 1);
-      expect(find.byType(HealthProfileIntroScreen), findsOneWidget);
-      expect(find.text('Chào mừng đến với DrugTime!'), findsNothing);
-
-      // The fixture has no profile or consent scope. This flow works without
-      // accessing either controller.
-      if (useSystemBack) {
-        await tester.binding.handlePopRoute();
-      } else {
-        await tester.tap(find.text('Bỏ qua'));
-      }
-      await tester.pumpAndSettle();
-
-      expect(tester.element(find.byType(HomeScreen)), same(home));
-      expect(find.byType(HealthProfileIntroScreen), findsNothing);
-      expect(find.text('Chào mừng đến với DrugTime!'), findsNothing);
-      expect(tester.takeException(), isNull);
-    });
-  }
-  testWidgets('Empty home waits for data and opens the welcome popup',
-      (tester) async {
-    final controller =
-        MedicationController(InMemoryMedicationRepository(seed: []));
-    await tester.binding.setSurfaceSize(const Size(375, 812));
-    addTearDown(() => tester.binding.setSurfaceSize(null));
-    addTearDown(controller.dispose);
-    const previewKey = ValueKey('home-preview');
-    await tester.pumpWidget(RepaintBoundary(
-      key: previewKey,
-      child: MedicationScope(
+  Future<void> showHome(
+      WidgetTester tester, ProfileController controller) async {
+    await tester.pumpWidget(ProfileScope(
         controller: controller,
         child: MaterialApp(
-          theme: buildAppTheme(),
-          debugShowCheckedModeBanner: false,
-          builder: (context, child) => MediaQuery(
-            data: MediaQuery.of(context).copyWith(
-              padding: const EdgeInsets.only(top: 44, bottom: 21),
-            ),
-            child: child!,
-          ),
-          home: Scaffold(
-            extendBody: true,
-            body: HomeScreen(
-              displayName: 'Anh Bẻo',
-              onFamily: () {},
-              onMedications: () {},
-            ),
-            bottomNavigationBar: HomeNavigationBar(onSelected: (_) {}),
-          ),
-        ),
-      ),
-    ));
-    final empty = find.text('Chưa có lịch uống thuốc');
-    expect(empty, findsNothing);
-    expect(find.text('Bắt đầu nào!'), findsNothing);
-    await controller.load();
-    await tester.pumpAndSettle();
-    expect(empty, findsOneWidget);
-    expect(tester.getTopLeft(find.text('Chào buổi sáng')).dy, closeTo(62, 0.1));
-    expect(tester.getTopLeft(find.text('Anh Bẻo')).dy, closeTo(86, 0.1));
-    expect(tester.getTopLeft(find.text('Bắt đầu nào!')).dy, closeTo(138, 0.1));
-    expect(tester.getTopLeft(find.text('Dumi AI')).dy, closeTo(282, 0.1));
-    final path = Platform.environment['HOME_POPUP_PREVIEW'];
-    if (path != null) {
-      final context = tester.element(find.byType(HomeScreen));
-      await tester.runAsync(() async {
-        await Future.wait([
-          precacheImage(const AssetImage(AppAssets.mascotHappy), context),
-          precacheImage(const AssetImage(AppAssets.mascotCooking), context),
-        ]);
-      });
-    }
-
-    final home = tester.element(find.byType(HomeScreen));
-    await tester.tap(find.text('Bắt đầu nào!'));
-    await tester.pumpAndSettle();
-    expect(find.text('Chào mừng đến với DrugTime!'), findsOneWidget);
-    expect(tester.element(find.byType(HomeScreen)), same(home));
-    expect(empty, findsOneWidget);
-    expect(find.byType(HomeNavigationBar), findsOneWidget);
-
-    if (path != null) {
-      final boundary = tester.renderObject<RenderRepaintBoundary>(
-        find.byKey(previewKey),
-      );
-      await tester.runAsync(() async {
-        final image = await boundary.toImage();
-        final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
-        image.dispose();
-        await File(path).writeAsBytes(bytes!.buffer.asUint8List());
-      });
-    }
-    await tester.tap(find.text('Để sau'));
-    await tester.pumpAndSettle();
-    expect(empty, findsOneWidget);
-  });
-
-  testWidgets('Home navigation matches the iOS reference inset',
-      (tester) async {
-    await tester.binding.setSurfaceSize(const Size(375, 812));
-    addTearDown(() => tester.binding.setSurfaceSize(null));
-    await tester.pumpWidget(MaterialApp(
-      theme: buildAppTheme().copyWith(platform: TargetPlatform.iOS),
-      builder: (context, child) => MediaQuery(
-        data: MediaQuery.of(context).copyWith(
-          padding: const EdgeInsets.only(bottom: 34),
-          viewPadding: const EdgeInsets.only(bottom: 34),
-        ),
-        child: child!,
-      ),
-      home: Scaffold(
-        bottomNavigationBar: HomeNavigationBar(onSelected: (_) {}),
-      ),
-    ));
-    final surface = find.descendant(
-      of: find.byType(HomeNavigationBar),
-      matching: find.byType(Material),
-    );
-    expect(tester.getRect(surface), const Rect.fromLTWH(16, 734, 343, 58));
-  });
-}
-
-class _HomePreviewBinding extends AutomatedTestWidgetsFlutterBinding {
-  @override
-  bool get disableShadows => false;
-}
-
-class _IntroRouteObserver extends NavigatorObserver {
-  int introReplacements = 0;
-
-  @override
-  void didReplace({Route<dynamic>? newRoute, Route<dynamic>? oldRoute}) {
-    if (newRoute?.settings.name == AppRoutes.healthProfileIntro &&
-        oldRoute is ModalBottomSheetRoute<bool>) {
-      introReplacements++;
-    }
+            home: Scaffold(
+                body: HomeScreen(
+                    active: true, onFamily: () {}, onSchedule: () {})))));
+    await tester.pump();
   }
+
+  testWidgets('skeleton transitions to real name and empty schedule',
+      (tester) async {
+    final repo = FakeProfileRepository()
+      ..pendingRead = Completer<HealthProfile>();
+    final controller = ProfileController(repo);
+    addTearDown(controller.dispose);
+    await showHome(tester, controller);
+    expect(
+        find.byWidgetPredicate((widget) =>
+            widget is Semantics &&
+            widget.properties.label == 'Đang tải trang chủ'),
+        findsOneWidget);
+    repo.pendingRead!.complete(const HealthProfile(fullName: 'Tên thật'));
+    await tester.pumpAndSettle();
+    expect(find.text('Tên thật'), findsOneWidget);
+    expect(
+        find.byWidgetPredicate((widget) =>
+            widget is Semantics &&
+            widget.properties.label == 'Đang tải trang chủ'),
+        findsNothing);
+    expect(find.text('Losartan'), findsNothing);
+    expect(find.text('1/4 liều'), findsNothing);
+    expect(find.byType(Image), findsWidgets);
+    final orange = find.byWidgetPredicate((widget) =>
+        widget is ColoredBox && widget.color == const Color(0xFFFFAC56));
+    expect(orange, findsOneWidget);
+    expect(tester.getSize(orange).height, greaterThan(0));
+  });
+
+  testWidgets('network error ends loading and retry loads name',
+      (tester) async {
+    final repo = FakeProfileRepository()
+      ..fetchFailure = const ProfileFailure(ProfileFailureKind.network);
+    final controller = ProfileController(repo);
+    addTearDown(controller.dispose);
+    await showHome(tester, controller);
+    await tester.pumpAndSettle();
+    expect(find.text('Không thể kết nối. Vui lòng thử lại.'), findsOneWidget);
+    expect(
+        find.byWidgetPredicate((widget) =>
+            widget is Semantics &&
+            widget.properties.label == 'Đang tải trang chủ'),
+        findsNothing);
+    repo.fetchFailure = null;
+    await tester.tap(find.text('Tải lại hồ sơ'));
+    await tester.pumpAndSettle();
+    expect(find.text('Nguyễn Mai'), findsOneWidget);
+  });
+
+  testWidgets('revocation and account switch reject old results',
+      (tester) async {
+    final repo = FakeProfileRepository()
+      ..pendingRead = Completer<HealthProfile>();
+    final controller = ProfileController(repo);
+    addTearDown(controller.dispose);
+    await showHome(tester, controller);
+    controller.revoke();
+    repo.pendingRead!.complete(const HealthProfile(fullName: 'Tên cũ'));
+    await tester.pumpAndSettle();
+    expect(find.text('Tên cũ'), findsNothing);
+    expect(controller.profile, isNull);
+    expect(find.text('Cần đồng ý xử lý dữ liệu sức khỏe để tiếp tục.'),
+        findsOneWidget);
+  });
 }

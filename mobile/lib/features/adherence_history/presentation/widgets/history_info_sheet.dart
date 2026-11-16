@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../../app/theme/app_theme.dart';
 import '../../../../core/preview/app_preview_scope.dart';
+import '../../domain/entities/adherence_history.dart';
 import '../state/adherence_history_controller.dart';
 import '../utils/adherence_history_format.dart';
 import 'history_motion.dart';
@@ -154,4 +155,69 @@ class _HistoryInfoButtonState extends State<HistoryInfoButton>
       tooltip: 'Giải thích lịch sử',
       onPressed: _show,
       icon: const Icon(Icons.info_outline));
+}
+
+class DoseDetailScreen extends StatelessWidget {
+  const DoseDetailScreen({super.key, required this.dose, required this.asOf});
+
+  final HistoryDose dose;
+  final DateTime asOf;
+
+  @override
+  Widget build(BuildContext context) {
+    final upcoming = dose.status == HistoryDoseStatus.pending &&
+        dose.scheduledAt.isAfter(asOf);
+    return Scaffold(
+      appBar: AppBar(title: const Text('Chi tiết liều dùng')),
+      body: SafeArea(
+        child: ListView(
+          padding: const EdgeInsets.all(AppSpacing.lg),
+          children: [
+            Card(
+              color: AppColors.brandTint,
+              child: Padding(
+                padding: const EdgeInsets.all(AppSpacing.lg),
+                child: Column(
+                  children: [
+                    const Icon(Icons.medication_outlined),
+                    const SizedBox(height: AppSpacing.sm),
+                    Text(dose.medicationName, style: AppTextStyles.bodyStrong),
+                    const SizedBox(height: 8),
+                    Chip(
+                      avatar: Icon(
+                          upcoming ? Icons.schedule : Icons.info_outline,
+                          size: 16),
+                      label: Text(upcoming
+                          ? 'Sắp tới · ${HistoryFormat.time(dose.scheduledAt)}'
+                          : dose.status.label),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+            const Text('THÔNG TIN LIỀU DÙNG',
+                style: AppTextStyles.captionStrong),
+            const SizedBox(height: 8),
+            Card(
+              margin: EdgeInsets.zero,
+              child: Column(children: [
+                ListTile(
+                  leading: const Icon(Icons.schedule),
+                  title: const Text('Giờ theo lịch'),
+                  subtitle: Text(HistoryFormat.time(dose.scheduledAt)),
+                ),
+                if (dose.takenAt case final taken?)
+                  ListTile(
+                    leading: const Icon(Icons.check),
+                    title: const Text('Giờ ghi nhận'),
+                    subtitle: Text(HistoryFormat.time(taken)),
+                  ),
+              ]),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }

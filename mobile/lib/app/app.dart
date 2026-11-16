@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import '../core/sync/schedule_sync_service.dart';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -8,6 +10,7 @@ import '../core/contracts/dose_outbox.dart';
 import '../core/notification/notification_id.dart';
 import '../core/notification/notification_service.dart';
 import '../core/notification/reminder_scheduler.dart';
+import '../core/notification/reminder_sync_coordinator.dart';
 import '../core/platform/keyguard_service.dart';
 import '../core/storage/local_db/local_medication_store.dart';
 import '../core/storage/local_db/local_models.dart';
@@ -38,6 +41,7 @@ import '../features/family_link/presentation/state/family_link_scope.dart';
 import '../features/family_link/presentation/state/incoming_requests_controller.dart';
 import '../features/family_link/presentation/state/invite_link_controller.dart';
 import '../features/medication/data/repositories/in_memory_medication_repository.dart';
+import '../features/medication/domain/entities/medication.dart';
 import '../features/medication/domain/repositories/medication_repository.dart';
 import '../features/interaction_check/domain/repositories/interaction_check_repository.dart';
 import '../features/medication/presentation/state/medication_controller.dart';
@@ -58,6 +62,7 @@ class DrugTimeApp extends StatefulWidget {
     super.key,
     required this.authController,
     this.adherenceHistoryRepository,
+    this.scheduleSource,
     this.medicationRepository,
     this.interactionCheckRepository,
     this.adherenceRepository,
@@ -72,6 +77,8 @@ class DrugTimeApp extends StatefulWidget {
     this.localMedicationStore,
     this.doseOutbox,
     this.reminderScheduler,
+    this.reminderSyncCoordinator,
+    this.shouldAskReminderPermissions,
     this.keyguardPlatform,
     this.clock,
     this.initialRoute,
@@ -80,7 +87,7 @@ class DrugTimeApp extends StatefulWidget {
     this.notificationService,
     this.captureServices,
     this.ocrMatchingRepository,
-    this.initialTab = AppTab.medications,
+    this.initialTab = AppTab.home,
     this.preview = false,
     this.familyAlertController,
     this.familyPushService,
@@ -93,6 +100,7 @@ class DrugTimeApp extends StatefulWidget {
   final AppTab initialTab;
   final bool preview;
   final AdherenceHistoryRepository? adherenceHistoryRepository;
+  final ScheduleRemoteDataSource? scheduleSource;
   final FamilyAlertController? familyAlertController;
   final FamilyPushService? familyPushService;
   final DeviceTokenCoordinator? deviceTokenCoordinator;
@@ -133,6 +141,12 @@ class DrugTimeApp extends StatefulWidget {
   /// Bộ điều phối hoãn/lên lịch nhắc.
   final ReminderScheduler? reminderScheduler;
 
+  /// Đồng bộ lịch uống và lập lại nhắc khi có phiên hoặc khi sửa thuốc.
+  final ReminderSyncCoordinator? reminderSyncCoordinator;
+
+  /// Chỉ xin quyền nhắc thuốc khi trả `true` (lần đầu sau khi cài); `null` thì luôn xin.
+  final Future<bool> Function()? shouldAskReminderPermissions;
+
   /// Bộ kiểm tra trạng thái màn hình khóa.
   final KeyguardPlatform? keyguardPlatform;
 
@@ -164,6 +178,7 @@ class _DrugTimeAppState extends State<DrugTimeApp> with WidgetsBindingObserver {
   StreamSubscription<bool>? _familyConnection;
   final _familyAdherenceAvailability = ValueNotifier<bool>(false);
   String? _tokenSession;
+  String? _reminderUser;
   bool _foreground = true, _online = true, _openingFamily = false;
   Timer? _expiryTimer;
   // Chỉ cho đọc cảnh báo khi phiên, hồ sơ, consent, mạng và foreground đều sẵn sàng.
@@ -213,12 +228,57 @@ class _DrugTimeAppState extends State<DrugTimeApp> with WidgetsBindingObserver {
         }
       });
     }
+    // Không chờ mạng: offline vẫn lập nhắc từ lịch đã lưu trên máy (QD-33).
+    if (_auth.isAuthenticated &&
+        !_auth.isSigningOut &&
+        session != null &&
+        _reminderUser != session.userId) {
+      _reminderUser = session.userId;
+      unawaited(_activateReminders(session.userId));
+    }
     if (!_auth.isAuthenticated) {
+      _reminderUser = null;
       _tokenSession = null;
       _expiryTimer?.cancel();
       if (_wasAuthenticated) widget.familyPushService?.clear();
     }
     if (ready) _openPendingFamily();
+  }
+
+  // Q1: xin quyền toàn màn hình cùng lúc xin quyền thông báo, khi phiên được kích hoạt.
+  Future<void> _activateReminders(String userId) async {
+    if (await _shouldAskPermissions()) await _askReminderPermissions();
+    await widget.reminderSyncCoordinator?.refresh(userId);
+  }
+
+  Future<bool> _shouldAskPermissions() async {
+    try {
+      return await widget.shouldAskReminderPermissions?.call() ?? true;
+    } on Exception catch (e) {
+      debugPrint('Không đọc được cờ đã xin quyền: $e');
+      return false;
+    }
+  }
+
+  Future<void> _askReminderPermissions() async {
+    final notifications = widget.notificationService;
+    try {
+      await notifications?.requestNotificationsPermission();
+    } on Exception catch (e) {
+      debugPrint('Không xin được quyền thông báo: $e');
+    }
+    try {
+      await notifications?.requestFullScreenIntentPermission();
+    } on Exception catch (e) {
+      debugPrint('Không xin được quyền thông báo toàn màn hình: $e');
+    }
+  }
+
+  void _refreshReminders() {
+    final user = _reminderUser;
+    if (user != null) {
+      unawaited(widget.reminderSyncCoordinator?.refresh(user));
+    }
   }
 
   // Tap cold start giữ lại ID tới khi qua các cổng sẵn sàng và navigator đã được dựng.
@@ -268,6 +328,7 @@ class _DrugTimeAppState extends State<DrugTimeApp> with WidgetsBindingObserver {
   late final MedicationController _medications = MedicationController(
     widget.medicationRepository ?? InMemoryMedicationRepository(),
     interactionCheckRepository: widget.interactionCheckRepository,
+    onChanged: _refreshReminders,
   );
 
   late final ConsentController _consents = ConsentController(
@@ -291,6 +352,10 @@ class _DrugTimeAppState extends State<DrugTimeApp> with WidgetsBindingObserver {
   AuthController get _auth => widget.authController;
   late final AdherenceHistoryController _history = AdherenceHistoryController(
     widget.adherenceHistoryRepository,
+    scheduleSource: widget.scheduleSource ??
+        (widget.preview && widget.medicationRepository != null
+            ? _PreviewScheduleSource(widget.medicationRepository!)
+            : null),
     clock: widget.clock,
   );
   late final ProfileController _profiles =
@@ -621,25 +686,26 @@ class _SessionLoadingScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final width = MediaQuery.sizeOf(context).width;
     return Scaffold(
       backgroundColor: AppColors.canvas,
       body: Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Image.asset(
-              AppAssets.mascotHello,
-              width: (width * 0.7).clamp(0.0, 280.0),
-              cacheWidth: 840,
-              fit: BoxFit.contain,
-              semanticLabel: 'DrugTime',
+            ClipRRect(
+              borderRadius: BorderRadius.circular(10),
+              child: Image.asset(AppAssets.logo, width: 48, height: 48),
             ),
-            const SizedBox(height: AppSpacing.xl),
+            const SizedBox(height: 42),
+            Image.asset(AppAssets.mascotRunning,
+                width: 140, height: 140, fit: BoxFit.contain),
+            const SizedBox(height: 28),
             const SizedBox(
-                width: 24.0,
-                height: 24.0,
-                child: CircularProgressIndicator(strokeWidth: 2.5)),
+                width: 180, child: LinearProgressIndicator(minHeight: 4)),
+            const SizedBox(height: 28),
+            Semantics(
+                liveRegion: true,
+                child: const Text('Đang khởi động DrugTime…')),
           ],
         ),
       ),
@@ -713,4 +779,37 @@ class _FallbackReminderScheduler implements ReminderScheduler {
 
   @override
   Future<void> cancelAllForSchedule(int scheduleId) async {}
+}
+
+/// Adapts the preview medication store to the same calendar input as the API.
+class _PreviewScheduleSource implements ScheduleRemoteDataSource {
+  const _PreviewScheduleSource(this.repository);
+
+  final MedicationRepository repository;
+
+  @override
+  Future<List<LocalMedicationSchedule>> fetchSchedules({
+    required String patientId,
+  }) async {
+    final medications = await repository.fetchAll();
+    return [
+      for (final (index, medication) in medications.indexed)
+        if (medication.status == MedicationStatus.active)
+          for (final (slot, time) in medication.times.indexed)
+            LocalMedicationSchedule(
+              id: -(index * 10 + slot + 1),
+              patientUserId: patientId,
+              userMedicationId: -(index + 1),
+              medicationId: -(index + 1),
+              medicationName: medication.name,
+              quantityPerDose: medication.dosePerIntake.toString(),
+              dosesPerDay: medication.times.length,
+              intakeTime: time.format(),
+              daysOfWeek: const [1, 2, 3, 4, 5, 6, 7],
+              reminderEnabled: medication.reminderEnabled,
+              effectiveFrom: DateTime.utc(1),
+              serverSyncedAt: DateTime.utc(1),
+            ),
+    ];
+  }
 }

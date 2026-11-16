@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../../../../app/theme/app_theme.dart';
-import '../../../../shared/widgets/pill_icon.dart';
 import '../../domain/entities/medication.dart';
+import 'dosage_form_icon.dart';
 import 'medication_labels.dart';
 
 /// Nhãn một trường nhập, kèm dòng gợi ý phía dưới nếu có.
@@ -222,7 +222,7 @@ class _PickedDrug extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        const PillTile(size: 40),
+        DosageFormTile(dosageForm: drug.dosageForm, size: 40),
         const SizedBox(width: AppSpacing.md),
         Expanded(
           child: Column(
@@ -553,3 +553,193 @@ class CautionNote extends StatelessWidget {
     );
   }
 }
+
+/// Thẻ hiển thị tóm tắt thuốc đã chọn ở Bước 2 & 3.
+class SelectedDrugCard extends StatelessWidget {
+  const SelectedDrugCard({
+    super.key,
+    required this.drug,
+    this.onChange,
+  });
+
+  final DrugCatalogItem drug;
+  final VoidCallback? onChange;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(AppRadius.card),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          DosageFormTile(dosageForm: drug.dosageForm, size: 48),
+          const SizedBox(width: AppSpacing.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(drug.name, style: AppTextStyles.bodyStrong),
+                if (drug.strength.isNotEmpty) ...[
+                  const SizedBox(height: 2),
+                  Text('Hàm lượng: ${drug.strength}',
+                      style: AppTextStyles.caption),
+                ],
+                if (drug.activeIngredient.isNotEmpty) ...[
+                  const SizedBox(height: 2),
+                  Text('Hoạt chất: ${drug.activeIngredient}',
+                      style: AppTextStyles.caption
+                          .copyWith(color: AppColors.inkMuted)),
+                ],
+              ],
+            ),
+          ),
+          if (onChange != null)
+            TextButton(
+              onPressed: onChange,
+              child: const Text('Đổi'),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Thẻ tóm tắt toàn bộ thông tin liều và lịch uống ở Bước 3: Xác nhận.
+class ScheduleSummaryCard extends StatelessWidget {
+  const ScheduleSummaryCard({
+    super.key,
+    required this.drug,
+    required this.dose,
+    required this.frequency,
+    required this.times,
+    required this.timing,
+    this.stock,
+    this.maxDoses,
+    this.onEdit,
+  });
+
+  final DrugCatalogItem drug;
+  final double dose;
+  final DoseFrequency frequency;
+  final List<DoseTime> times;
+  final IntakeTiming timing;
+  final int? stock;
+  final int? maxDoses;
+  final VoidCallback? onEdit;
+
+  @override
+  Widget build(BuildContext context) {
+    final doseStr = '${formatQuantity(dose)} ${drug.unit.isEmpty ? "viên" : drug.unit}';
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(AppRadius.card),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              DosageFormTile(dosageForm: drug.dosageForm, size: 44),
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(drug.name, style: AppTextStyles.bodyStrong),
+                    if (drug.strength.isNotEmpty)
+                      Text(drug.strength, style: AppTextStyles.caption),
+                  ],
+                ),
+              ),
+              if (onEdit != null)
+                TextButton.icon(
+                  onPressed: onEdit,
+                  icon: const Icon(Icons.edit_outlined, size: 16),
+                  label: const Text('Sửa'),
+                ),
+            ],
+          ),
+          const Divider(height: 24),
+          _SummaryRow(
+            label: 'Mỗi lần uống',
+            value: doseStr,
+            icon: Icons.medication_outlined,
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          _SummaryRow(
+            label: 'Tần suất',
+            value: frequency.label,
+            icon: Icons.repeat_rounded,
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          if (frequency.isAsNeeded)
+            _SummaryRow(
+              label: 'Giờ uống',
+              value: 'Khi cần (tối đa ${maxDoses ?? defaultMaxDosesPerDay} lần/ngày)',
+              icon: Icons.access_time_rounded,
+            )
+          else
+            _SummaryRow(
+              label: 'Giờ uống',
+              value: times.map((t) => t.format()).join(', '),
+              icon: Icons.access_time_rounded,
+            ),
+          const SizedBox(height: AppSpacing.sm),
+          _SummaryRow(
+            label: 'Thời điểm',
+            value: timing.label,
+            icon: Icons.restaurant_outlined,
+          ),
+          if (stock != null) ...[
+            const SizedBox(height: AppSpacing.sm),
+            _SummaryRow(
+              label: 'Số lượng hiện có',
+              value: '$stock ${drug.unit.isEmpty ? "viên" : drug.unit}',
+              icon: Icons.inventory_2_outlined,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _SummaryRow extends StatelessWidget {
+  const _SummaryRow({
+    required this.label,
+    required this.value,
+    required this.icon,
+  });
+
+  final String label;
+  final String value;
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Icon(icon, size: 18, color: AppColors.brand),
+        const SizedBox(width: AppSpacing.sm),
+        Text('$label: ',
+            style: AppTextStyles.caption.copyWith(color: AppColors.inkMuted)),
+        Expanded(
+          child: Text(
+            value,
+            style: AppTextStyles.bodyStrong,
+            textAlign: TextAlign.end,
+          ),
+        ),
+      ],
+    );
+  }
+}
+

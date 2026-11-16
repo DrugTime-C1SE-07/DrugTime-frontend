@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
+
 enum OcrMatchStatus { matched, lowConfidence, noMatch }
 
 enum OcrStage { preparing, recognizing, matching, result, failure, closed }
@@ -108,7 +110,9 @@ class OcrMatchResult {
     }
 
     int id(Object? v) {
-      if (v is! int || v < 1 || v > 9223372036854775807) bad();
+      if (v is! int || v < 1 ||
+          (kIsWeb && v > 9007199254740991) ||
+          BigInt.from(v) > BigInt.parse('9223372036854775807')) bad();
       return v;
     }
 

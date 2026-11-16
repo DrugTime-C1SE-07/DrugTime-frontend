@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../features/family_link/presentation/screens/enter_link_code_screen.dart';
 import '../features/adherence_history/presentation/screens/adherence_history_screen.dart';
@@ -10,11 +11,7 @@ import '../features/family_link/presentation/state/incoming_requests_controller.
 import '../features/family_link/presentation/state/invite_link_controller.dart';
 import '../features/medication/presentation/screens/my_medications_screen.dart';
 import '../features/profile/presentation/screens/profile_screen.dart';
-import '../features/home/presentation/screens/home_screen.dart';
-import '../features/home/presentation/widgets/home_navigation_bar.dart';
-import '../features/medication/presentation/state/medication_controller.dart';
-import '../features/profile/presentation/state/profile_controller.dart';
-import '../shared/widgets/pill_icon.dart';
+import '../features/home/presentation/home_screen.dart';
 import 'router.dart';
 import '../core/preview/app_preview_scope.dart';
 import 'theme/app_theme.dart';
@@ -23,7 +20,7 @@ enum AppTab { home, medications, reminders, family, profile }
 
 /// Khung chính với thanh điều hướng dưới 5 tab.
 class AppShell extends StatefulWidget {
-  const AppShell({super.key, this.initialTab = AppTab.medications});
+  const AppShell({super.key, this.initialTab = AppTab.home});
 
   final AppTab initialTab;
 
@@ -76,7 +73,8 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
 
   void _refreshPendingRequests() {
     if (!mounted) return;
-    final requests = _incomingRequests ?? FamilyLinkScope.maybeOf(context)?.incomingRequests;
+    final requests =
+        _incomingRequests ?? FamilyLinkScope.maybeOf(context)?.incomingRequests;
     if (requests != null) {
       _incomingRequests = requests;
       unawaited(requests.load());
@@ -139,10 +137,9 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
         index: _tab.index,
         children: [
           HomeScreen(
-            displayName: profile?.profile?.fullName,
-            onFamily: () => _select(AppTab.family),
-            onMedications: () => _select(AppTab.medications),
-          ),
+              active: _tab == AppTab.home,
+              onFamily: () => _select(AppTab.family),
+              onSchedule: () => _select(AppTab.reminders)),
           const MyMedicationsScreen(),
           AdherenceHistoryScreen(active: _tab == AppTab.reminders),
           FamilyTabScreen(active: _tab == AppTab.family),
@@ -154,53 +151,140 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
           : ListenableBuilder(
         listenable: _incomingRequests ?? _emptyNotifier,
         builder: (context, _) {
-          final pendingCount = _incomingRequests?.pendingCount ?? 0;
-          return DecoratedBox(
-            decoration: const BoxDecoration(
-              border: Border(top: BorderSide(color: AppColors.border)),
-            ),
-            child: NavigationBar(
-              selectedIndex: _tab.index,
-              onDestinationSelected: (i) => _select(AppTab.values[i]),
-              destinations: [
-                const NavigationDestination(
-                  icon: Icon(Icons.home_outlined),
-                  selectedIcon: Icon(Icons.home),
-                  label: 'Trang chủ',
-                ),
-                const NavigationDestination(
-                  icon: PillIcon(color: AppColors.inkMuted),
-                  selectedIcon: PillIcon(color: AppColors.brand),
-                  label: 'Thuốc',
-                ),
-                const NavigationDestination(
-                  icon: Icon(Icons.calendar_month_outlined),
-                  selectedIcon: Icon(Icons.calendar_month),
-                  label: 'Lịch nhắc',
-                ),
-                NavigationDestination(
-                  icon: Badge(
-                    isLabelVisible: pendingCount > 0,
-                    label: Text('$pendingCount'),
-                    child: const Icon(Icons.people_outline),
-                  ),
-                  selectedIcon: Badge(
-                    isLabelVisible: pendingCount > 0,
-                    label: Text('$pendingCount'),
-                    child: const Icon(Icons.people),
-                  ),
-                  label: 'Người thân',
-                ),
-                const NavigationDestination(
-                  icon: Icon(Icons.person_outline),
-                  selectedIcon: Icon(Icons.person),
-                  label: 'Hồ sơ',
-                ),
+          return Container(
+            margin: EdgeInsets.fromLTRB(
+                12, 0, 12, MediaQuery.paddingOf(context).bottom + 8),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(24),
+              boxShadow: const [
+                BoxShadow(
+                    color: Color(0x2401554F),
+                    blurRadius: 24,
+                    offset: Offset(0, 8))
               ],
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(24),
+              child: NavigationBarTheme(
+                data: NavigationBarThemeData(
+                  backgroundColor: Colors.white,
+                  indicatorColor: Colors.transparent,
+                  iconTheme:
+                      WidgetStateProperty.resolveWith((states) => IconThemeData(
+                            color: states.contains(WidgetState.selected)
+                                ? const Color(0xFF0B5A8A)
+                                : AppColors.inkMuted,
+                            size: 25,
+                          )),
+                  labelTextStyle:
+                      WidgetStateProperty.resolveWith((states) => TextStyle(
+                            color: states.contains(WidgetState.selected)
+                                ? const Color(0xFF0B5A8A)
+                                : AppColors.inkMuted,
+                            fontSize: 12,
+                            fontWeight: states.contains(WidgetState.selected)
+                                ? FontWeight.w600
+                                : FontWeight.w500,
+                          )),
+                ),
+                child: NavigationBar(
+                  height: 68,
+                  labelBehavior: NavigationDestinationLabelBehavior.alwaysHide,
+                  selectedIndex: switch (_tab) {
+                    AppTab.home || AppTab.family => 0,
+                    AppTab.medications => 1,
+                    AppTab.reminders => 2,
+                    AppTab.profile => 3,
+                  },
+                  onDestinationSelected: (i) => _select([
+                    AppTab.home,
+                    AppTab.medications,
+                    AppTab.reminders,
+                    AppTab.profile
+                  ][i]),
+                  destinations: [
+                    const NavigationDestination(
+                      icon: Icon(LucideIcons.house),
+                      selectedIcon: _SelectedNavigationIcon(
+                          icon: LucideIcons.house, label: 'Trang chủ'),
+                      label: 'Trang chủ',
+                    ),
+                    const NavigationDestination(
+                      icon: Icon(LucideIcons.pill),
+                      selectedIcon: _SelectedNavigationIcon(
+                          icon: LucideIcons.pill, label: 'Thuốc'),
+                      label: 'Thuốc',
+                    ),
+                    const NavigationDestination(
+                      icon: Icon(LucideIcons.calendarClock),
+                      selectedIcon: _SelectedNavigationIcon(
+                          icon: LucideIcons.calendarClock, label: 'Lịch nhắc'),
+                      label: 'Lịch nhắc',
+                    ),
+                    const NavigationDestination(
+                      icon: Icon(LucideIcons.userRound),
+                      selectedIcon: _SelectedNavigationIcon(
+                          icon: LucideIcons.userRound, label: 'Hồ sơ'),
+                      label: 'Hồ sơ',
+                    ),
+                  ],
+                ),
+              ),
             ),
           );
         },
       ),
     );
   }
+}
+
+class _SelectedNavigationIcon extends StatelessWidget {
+  const _SelectedNavigationIcon({required this.icon, required this.label});
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) => Transform.translate(
+      offset: Offset(
+          label == 'Trang chủ'
+              ? 20
+              : label == 'Hồ sơ'
+                  ? -10
+                  : 0,
+          0),
+      child: OverflowBox(
+        maxWidth: 130,
+        maxHeight: 52,
+        child: Container(
+          key: ValueKey('selected-nav-$label'),
+          width: switch (label) {
+            'Thuốc' => 104,
+            'Lịch nhắc' => 126,
+            'Hồ sơ' => 99,
+            _ => 112,
+          },
+          height: 52,
+          padding: const EdgeInsets.symmetric(horizontal: 14),
+          decoration: BoxDecoration(
+            color: const Color(0xFFD9EEFC),
+            borderRadius: BorderRadius.circular(26),
+          ),
+          child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon, color: const Color(0xFF0B5A8A), size: 24),
+                const SizedBox(width: 8),
+                Flexible(
+                    child: Text(label,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                            color: Color(0xFF0B5A8A),
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700))),
+              ]),
+        ),
+      ));
 }

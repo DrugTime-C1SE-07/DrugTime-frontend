@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../features/medication_capture/presentation/screens/capture_flow_screen.dart';
+import '../features/medication_capture/presentation/screens/scan_medication_screen.dart';
 import '../features/medication_capture/domain/capture_models.dart';
 
 import '../features/adherence/domain/repositories/adherence_repository.dart';
@@ -26,7 +27,6 @@ import '../features/medication/data/repositories/in_memory_medication_repository
 import '../features/medication/domain/entities/medication.dart';
 import '../features/medication/presentation/screens/edit_medication_screen.dart';
 import '../features/medication/presentation/screens/medication_detail_screen.dart';
-import '../features/medication/presentation/screens/add_medication_screen.dart';
 import '../features/medication/presentation/screens/drug_selection_demo_screen.dart';
 import '../features/reminder/domain/entities/dose_reminder.dart';
 import '../features/reminder/presentation/screens/dose_reminder_screen.dart';
@@ -34,7 +34,6 @@ import '../features/reminder/presentation/widgets/lockscreen_privacy_gate.dart';
 import '../features/auth/presentation/screens/complete_profile_screen.dart';
 import '../features/auth/presentation/screens/email_otp_screen.dart';
 import '../features/auth/presentation/screens/login_mobile_screen.dart';
-import '../features/auth/presentation/screens/phone_otp_screen.dart';
 import 'app_shell.dart';
 import '../features/profile/presentation/screens/profile_screen.dart';
 import '../features/profile/presentation/screens/personal_profile_screen.dart';
@@ -51,6 +50,7 @@ abstract final class AppRoutes {
   static const home = '/';
   static const addMedication = '/medications/add';
   static const captureMedication = '/medications/capture';
+  static const scanMedication = '/medications/scan';
   static const drugSelectionDemo = '/medications/selection-demo';
   static const medicationDetail = '/medications/detail';
   static const editMedication = '/medications/edit';
@@ -96,13 +96,18 @@ final _patientUuid = RegExp(
 
 Route<dynamic>? onGenerateRoute(
   RouteSettings settings, {
-  AppTab initialTab = AppTab.medications,
+  AppTab initialTab = AppTab.home,
   bool preview = false,
   AdherenceRepository? adherenceRepository,
   HealthSetupRepository? healthSetupRepository,
   ValueListenable<bool>? familyAdherenceAvailability,
 }) {
   return switch (settings.name) {
+    AppRoutes.scanMedication => MaterialPageRoute<Medication>(
+        settings: settings,
+        fullscreenDialog: true,
+        builder: (_) => const ScanMedicationScreen(),
+      ),
     AppRoutes.captureMedication => MaterialPageRoute<CaptureResult>(
         settings: settings,
         fullscreenDialog: true,
@@ -189,9 +194,7 @@ Route<dynamic>? onGenerateRoute(
       ),
     AppRoutes.addMedication => MaterialPageRoute<Medication>(
         settings: settings,
-        builder: (_) => AddMedicationScreen(
-          openCaptureOnStart: settings.arguments == true,
-        ),
+        builder: (_) => const ScanMedicationScreen(),
       ),
     AppRoutes.medicationDetail => MaterialPageRoute<void>(
         settings: settings,
@@ -217,10 +220,7 @@ Route<dynamic>? onGenerateRoute(
       ),
     AppRoutes.otpPhone => MaterialPageRoute<void>(
         settings: settings,
-        builder: (_) {
-          final target = settings.arguments as String?;
-          return PhoneOtpScreen(phoneNumber: target);
-        },
+        builder: (_) => const LoginMobileScreen(),
       ),
     AppRoutes.otpEmail => MaterialPageRoute<void>(
         settings: settings,

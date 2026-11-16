@@ -9,6 +9,11 @@ abstract class FamilyNotificationPlatform {
   Future<void> clearFamily();
 }
 
+/// Nền tảng xin được quyền hiển thị thông báo (POST_NOTIFICATIONS, Android 13+).
+abstract class NotificationPermissionPlatform {
+  Future<bool?> requestNotificationsPermission();
+}
+
 /// Abstraction bọc plugin thông báo để dễ dàng test unit độc lập không cần thiết bị.
 abstract class NotificationPlatform {
   Future<bool?> initialize({
@@ -43,7 +48,10 @@ abstract class NotificationPlatform {
 
 /// Cài đặt mặc định của [NotificationPlatform] sử dụng [FlutterLocalNotificationsPlugin].
 class DefaultNotificationPlatform
-    implements NotificationPlatform, FamilyNotificationPlatform {
+    implements
+        NotificationPlatform,
+        FamilyNotificationPlatform,
+        NotificationPermissionPlatform {
   DefaultNotificationPlatform([FlutterLocalNotificationsPlugin? plugin])
       : _plugin = plugin ?? FlutterLocalNotificationsPlugin();
 
@@ -143,6 +151,14 @@ class DefaultNotificationPlatform
   }
 
   @override
+  Future<bool?> requestNotificationsPermission() async {
+    return _plugin
+        .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin>()
+        ?.requestNotificationsPermission();
+  }
+
+  @override
   Future<bool?> requestFullScreenIntentPermission() async {
     return _plugin
         .resolvePlatformSpecificImplementation<
@@ -232,6 +248,18 @@ class NotificationService {
     final payload = _pendingPayload;
     _pendingPayload = null;
     return payload;
+  }
+
+  /// Xin quyền hiển thị thông báo (Android 13+), không phụ thuộc FCM. Nền tảng không
+  /// hỗ trợ thì coi như đã có quyền.
+  Future<bool?> requestNotificationsPermission() async {
+    final platform = _platform;
+    if (platform is NotificationPermissionPlatform) {
+      // NotificationPermissionPlatform không phải subtype nên không tự promote.
+      return (platform as NotificationPermissionPlatform)
+          .requestNotificationsPermission();
+    }
+    return true;
   }
 
   /// Yêu cầu cấp quyền full-screen intent trên Android 14+ (AC8).
