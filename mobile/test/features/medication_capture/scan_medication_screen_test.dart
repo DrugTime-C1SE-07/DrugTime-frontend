@@ -28,9 +28,13 @@ void main() {
         matching: matcher);
     await services.bindSession('test-session');
     addTearDown(services.dispose);
-    await tester.pumpWidget(CaptureScope(
-        services: services,
-        child: const MaterialApp(home: ScanMedicationScreen())));
+    final medication = MedicationController(InMemoryMedicationRepository());
+    addTearDown(medication.dispose);
+    await tester.pumpWidget(MedicationScope(
+        controller: medication,
+        child: CaptureScope(
+            services: services,
+            child: const MaterialApp(home: ScanMedicationScreen()))));
     await tester.pumpAndSettle();
   }
 
@@ -93,16 +97,20 @@ void main() {
           status: OcrMatchStatus.noMatch,
           items: [],
           preselectedId: null,
-          suggestedQuery: null,
+          suggestedQuery: 'Strepsils Original',
           reasons: []);
     await openScan(
         tester, TestSource()..picked = makeImage(), FakeReader(), matcher);
     await tester.tap(find.byTooltip('Thư viện'));
     await tester.pumpAndSettle();
     expect(find.text('Không tìm thấy thuốc phù hợp'), findsOneWidget);
+    await tester.tap(find.text('Tìm thuốc thủ công'));
+    await tester.pumpAndSettle();
+    final query = tester.widget<TextField>(find.byType(TextField));
+    expect(query.controller!.text, 'Strepsils Original');
   });
 
-  testWidgets('low confidence shows the top candidate for direct confirmation',
+  testWidgets('low confidence does not offer direct confirmation',
       (tester) async {
     final matcher = FakeMatcher()
       ..result = OcrMatchResult(
@@ -132,12 +140,21 @@ void main() {
         tester, TestSource()..picked = makeImage(), FakeReader(), matcher);
     await tester.tap(find.byTooltip('Thư viện'));
     await tester.pumpAndSettle();
-    expect(find.text('Gợi ý phù hợp nhất'), findsOneWidget);
+    expect(find.byType(TextField), findsOneWidget);
+    expect(find.text('Đúng thuốc này'), findsNothing);
+    Navigator.of(tester.element(find.byType(TextField))).pop();
+    await tester.pumpAndSettle();
+    expect(find.text('Xem gợi ý khác'), findsOneWidget);
     expect(find.text('Thuốc khác'), findsNothing);
-    expect(find.textContaining('500 mg'), findsOneWidget);
-    expect(find.byKey(const Key('scan-result-sheet')), findsOneWidget);
-    expect(find.text('Đúng thuốc này'), findsOneWidget);
-    expect(find.text('Không tìm thấy thuốc phù hợp'), findsNothing);
+    await tester.tap(find.text('Xem gợi ý khác'));
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(find.text('Thuốc khác'), 150);
+    final confirm = find.text('Đúng thuốc này').last;
+    await tester.ensureVisible(confirm);
+    await tester.tap(confirm);
+    await tester.pumpAndSettle();
+    expect(find.text('Lịch uống'), findsOneWidget);
+    expect(find.text('Thuốc khác'), findsOneWidget);
   });
 
   Future<void> openPreview(WidgetTester tester) async {

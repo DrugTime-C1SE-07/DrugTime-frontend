@@ -28,14 +28,15 @@ DrugCatalogItem drug(String id, {String? name, bool missing = false}) =>
       strength: missing ? '' : '5 mg',
       dosageForm: missing ? '' : 'Viên nén',
     );
-Future<SearchRepository> mount(WidgetTester tester) async {
+Future<SearchRepository> mount(WidgetTester tester,
+    {String? initialQuery}) async {
   final repo = SearchRepository();
   final controller = MedicationController(repo);
   addTearDown(controller.dispose);
   await tester.pumpWidget(MaterialApp(
       home: MedicationScope(
     controller: controller,
-    child: const Scaffold(body: DrugCatalogSheet()),
+    child: Scaffold(body: DrugCatalogSheet(initialQuery: initialQuery)),
   )));
   await tester.pump();
   return repo;
@@ -47,6 +48,19 @@ Future<void> search(WidgetTester tester, String q) async {
 }
 
 void main() {
+  testWidgets('initial query searches the catalog and waits for selection',
+      (tester) async {
+    final repo = await mount(tester, initialQuery: '  Strepsils Original  ');
+    expect(tester.widget<TextField>(find.byType(TextField)).controller!.text,
+        'Strepsils Original');
+    await tester.pump(catalogSearchDebounce);
+    expect(repo.queries, ['Strepsils Original']);
+    repo.pending.single
+        .complete([drug('strepsils', name: 'Strepsils Original')]);
+    await tester.pump();
+    expect(find.text('Strepsils Original'), findsWidgets);
+  });
+
   testWidgets('empty whitespace, debounce 299/300ms and trimmed final query',
       (tester) async {
     final repo = await mount(tester);

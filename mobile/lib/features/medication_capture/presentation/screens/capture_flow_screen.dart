@@ -7,7 +7,6 @@ import '../state/capture_controller.dart';
 import '../state/capture_scope.dart';
 import 'camera_capture_screen.dart';
 import 'capture_edit_screen.dart';
-import '../../domain/ocr_models.dart';
 import 'ocr_flow_screen.dart';
 
 class CaptureFlowScreen extends StatefulWidget {
@@ -89,9 +88,8 @@ class _CaptureFlowScreenState extends State<CaptureFlowScreen>
     unawaited(_controller.retake());
   }
 
-  void _ocrExit(OcrMatchResult? result) => _finish(result == null
-      ? const CaptureResult.aborted()
-      : CaptureResult.candidates(result));
+  void _ocrExit(CaptureResult? result) =>
+      _finish(result ?? const CaptureResult.aborted());
 
   @override
   void dispose() {

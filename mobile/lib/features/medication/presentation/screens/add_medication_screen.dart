@@ -20,7 +20,6 @@ import '../widgets/drug_catalog_sheet.dart';
 import '../widgets/medication_error_messages.dart';
 import '../widgets/medication_form_fields.dart';
 import '../widgets/medication_labels.dart';
-import '../widgets/medication_step_progress.dart';
 import '../../../auth/presentation/state/auth_controller.dart';
 import '../../../interaction_check/presentation/widgets/interaction_warning_dialog.dart';
 
@@ -115,29 +114,14 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
               arguments: edit ? _captureBytes : null,
             );
 
-      if (result?.kind == CaptureResultKind.candidates &&
-          result?.matches != null) {
-        final matches = result!.matches!;
-        final candidate = matches.items.cast<dynamic>().firstWhere(
-              (item) => item.id == matches.preselectedId,
-              orElse: () =>
-                  matches.items.isNotEmpty ? matches.items.first : null,
-            );
-        if (candidate != null) {
-          setState(() {
-            _drug = DrugCatalogItem(
-              id: candidate.id.toString(),
-              name: candidate.name as String,
-              activeIngredient: (candidate.activeIngredient as String?) ?? '',
-              strength: (candidate.strengthText as String?) ?? '',
-              dosageForm: (candidate.dosageForm as String?) ?? '',
-              unit: 'viên',
-            );
-            _showDrugError = false;
-            _currentStep = 1; // S07-O4: Chuyển sang bước 2 Lịch uống
-            _dirty = true;
-          });
-        }
+      final selected = result?.drug;
+      if (selected != null) {
+        if (!mounted) return;
+        _update(() {
+          _drug = selected;
+          _showDrugError = false;
+          _currentStep = 1;
+        });
       } else if (result?.kind == CaptureResultKind.prepared &&
           result?.image != null) {
         final lease = result!.image!;

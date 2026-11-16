@@ -16,6 +16,7 @@ import '../../domain/ocr_models.dart';
 import '../state/capture_controller.dart';
 import '../state/capture_scope.dart';
 import '../state/ocr_controller.dart';
+import 'ocr_candidates_screen.dart';
 
 /// S07-O: camera, recognition, confirmation and scheduling.
 class ScanMedicationScreen extends StatefulWidget {
@@ -301,7 +302,7 @@ class _ScanMedicationScreenState extends State<ScanMedicationScreen>
     if (!mounted || generation != _generation) return;
     final result = _ocr!.result;
     if (result != null &&
-        result.status != OcrMatchStatus.noMatch &&
+        result.status == OcrMatchStatus.matched &&
         result.items.isNotEmpty) {
       setState(() {
         _candidate = result.items.first;
@@ -312,6 +313,8 @@ class _ScanMedicationScreenState extends State<ScanMedicationScreen>
       setState(() {
         final failure = _ocr?.failure;
         _failureTitle = switch (failure?.kind) {
+          null when result?.status == OcrMatchStatus.lowConfidence =>
+            'Kết quả chưa đủ tin cậy',
           OcrFailureKind.noText => 'Chưa đọc được chữ trên bao bì',
           OcrFailureKind.invalidImage => 'Không mở được ảnh',
           OcrFailureKind.recognition => 'Chưa đọc được vỏ hộp',
@@ -320,11 +323,14 @@ class _ScanMedicationScreenState extends State<ScanMedicationScreen>
         };
         _failure = failure?.message ??
             (result?.status == OcrMatchStatus.lowConfidence
-                ? 'Kết quả chưa đủ tin cậy. Hãy chọn ảnh rõ tên thuốc hơn.'
+                ? 'Hãy tìm trong danh mục hoặc đối chiếu thêm gợi ý với bao bì.'
                 : 'Hãy thử ảnh khác hoặc nhập tay để tìm thuốc.');
         _screen = _Screen.failure;
         _busy = false;
       });
+      if (result?.status == OcrMatchStatus.lowConfidence) {
+        await _manualEntry();
+      }
     }
   }
 
@@ -425,6 +431,10 @@ class _ScanMedicationScreenState extends State<ScanMedicationScreen>
         strength: candidate.strengthText ?? '',
         dosageForm: candidate.dosageForm ?? '',
         unit: doseUnitFor(candidate.dosageForm));
+    await _openDrug(drug);
+  }
+
+  Future<void> _openDrug(DrugCatalogItem drug) async {
     if (!await _closeOcr()) {
       if (mounted) {
         setState(() {
@@ -447,12 +457,33 @@ class _ScanMedicationScreenState extends State<ScanMedicationScreen>
   }
 
   Future<void> _manualEntry() async {
-    final drug = await showDrugCatalogSheet(context);
-    if (!mounted || drug == null) return;
-    final result = await Navigator.of(context).push<Medication>(
-      MaterialPageRoute(builder: (_) => AddMedicationScreen(scannedDrug: drug)),
+    final generation = _generation;
+    final drug = await showDrugCatalogSheet(context,
+        initialQuery: _ocr?.result?.suggestedQuery);
+    if (!mounted || drug == null || generation != _generation) return;
+    await _openDrug(drug);
+  }
+
+  Future<void> _showSuggestions() async {
+    final matches = _ocr?.result;
+    if (matches == null || matches.items.isEmpty) return;
+    final generation = _generation;
+    final selected = await Navigator.of(context).push<OcrCandidate>(
+      MaterialPageRoute(
+          builder: (context) => OcrCandidatesScreen(
+                result: matches,
+                onRetake: () {
+                  Navigator.of(context).pop();
+                  unawaited(_retake());
+                },
+                onExit: () => Navigator.of(context).pop(),
+                onSelectCandidate: (candidate) =>
+                    Navigator.of(context).pop(candidate),
+              )),
     );
-    if (mounted && result != null) Navigator.of(context).pop(result);
+    if (!mounted || selected == null || generation != _generation) return;
+    _candidate = selected;
+    await _confirm();
   }
 
   @override
@@ -654,6 +685,17 @@ class _ScanMedicationScreenState extends State<ScanMedicationScreen>
                   child: SizedBox(
                       width: double.infinity,
                       child: Column(children: [
+                        if (_ocr?.result != null) ...[
+                          const SizedBox(height: 12),
+                          FilledButton(
+                              onPressed: _manualEntry,
+                              child: const Text('Tìm thuốc thủ công')),
+                          if (_ocr?.result?.status ==
+                              OcrMatchStatus.lowConfidence)
+                            TextButton(
+                                onPressed: _showSuggestions,
+                                child: const Text('Xem gợi ý khác')),
+                        ],
                         if (!_invalidated && _preview != true)
                           TextButton(
                               onPressed:
@@ -880,11 +922,8 @@ class _ScanMedicationScreenState extends State<ScanMedicationScreen>
                   decoration: BoxDecoration(
                       color: const Color(0xFFE6F5EC),
                       borderRadius: BorderRadius.circular(30)),
-                  child: Text(
-                      _ocr?.result?.status == OcrMatchStatus.lowConfidence
-                          ? 'Gợi ý phù hợp nhất'
-                          : '✓  Đã nhận diện',
-                      style: const TextStyle(
+                  child: const Text('✓  Đã nhận diện',
+                      style: TextStyle(
                           color: Color(0xFF138349),
                           fontWeight: FontWeight.bold))),
               const SizedBox(height: 14),
@@ -925,6 +964,10 @@ class _ScanMedicationScreenState extends State<ScanMedicationScreen>
                         onPressed: _confirm,
                         child: const Text('Đúng thuốc này')))
               ]),
+              if ((_ocr?.result?.items.length ?? 0) > 1)
+                TextButton(
+                    onPressed: _showSuggestions,
+                    child: const Text('Xem gợi ý khác')),
             ]));
 
   Widget _recognitionStep(
