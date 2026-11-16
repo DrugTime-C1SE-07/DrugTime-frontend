@@ -119,6 +119,25 @@ void main() {
     mockPlatform = MockReminderNotificationPlatform();
   });
 
+  test('khôi phục chỉ những lượt nhắc còn thiếu', () async {
+    final at = DateTime.utc(2026, 10, 9, 1);
+    final scheduler = ReminderNotificationScheduler(
+      platform: mockPlatform,
+      location: vnLocation,
+      clockProvider: () => at.subtract(const Duration(hours: 1)),
+    );
+    mockPlatform.pendingRequests = [
+      PendingNotificationRequest(notificationIdFor(10, at), null, null, null),
+    ];
+
+    await scheduler.scheduleMissingOccurrences([
+      ReminderOccurrence(medicationScheduleId: 10, scheduledAt: at),
+      ReminderOccurrence(medicationScheduleId: 11, scheduledAt: at),
+    ]);
+
+    expect(mockPlatform.zonedScheduleCalls.single.id, notificationIdFor(11, at));
+  });
+
   group(
       'ReminderNotificationScheduler.scheduleOccurrences (AC1, AC2, AC3, AC7)',
       () {

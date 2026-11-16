@@ -8,7 +8,7 @@ import 'ocr_controller_test.dart'
 import 'package:drugtime_mobile/app/app.dart';
 import 'package:drugtime_mobile/features/medication/presentation/screens/add_medication_screen.dart';
 import '../medication/medication_screens_test.dart'
-    show RecordingRepository, signedInAuth;
+    show RecordingRepository, pickDrug, signedInAuth;
 
 void main() {
   testWidgets(
@@ -22,19 +22,12 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.widgetWithText(FilledButton, 'Thêm'));
     await tester.pumpAndSettle();
-    final scrollable = find
-        .descendant(
-            of: find.byType(AddMedicationScreen),
-            matching: find.byType(Scrollable))
-        .first;
-    await tester.scrollUntilVisible(find.byType(TextField), 250,
-        scrollable: scrollable);
-    await tester.enterText(find.byType(TextField), '37');
-    tester.testTextInput.hide();
-    await tester.pump();
-    await tester.scrollUntilVisible(find.text('Quét vỏ thuốc'), -250,
-        scrollable: scrollable);
-    await tester.tap(find.text('Quét vỏ thuốc'));
+    await pickDrug(tester, 'amlo', 'Amlodipin 5mg');
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+    final scan = find.text('Quét vỏ hộp để tự điền');
+    await tester.ensureVisible(scan);
+    await tester.tap(scan);
     await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('Chụp ảnh'));
     await tester.pumpAndSettle();
@@ -42,14 +35,12 @@ void main() {
     await tester.tap(find.text('Dùng ảnh này'));
     await tester.pumpAndSettle();
     expect(find.text('Thuốc kiểm thử'), findsOneWidget);
-    await tester.tap(find.text('Quay về form'));
+    await tester.tap(find.byTooltip('Quay về form'));
     await tester.pumpAndSettle();
     expect(repo.addCalls, isEmpty);
     expect(find.text('Thuốc kiểm thử'), findsNothing);
-    await tester.scrollUntilVisible(find.byType(TextField), 250,
-        scrollable: scrollable);
-    expect(tester.widget<TextField>(find.byType(TextField)).controller!.text,
-        '37');
+    expect(find.byType(AddMedicationScreen), findsOneWidget);
+    expect(find.text('Amlodipin 5mg'), findsOneWidget);
     await tester.pumpWidget(const SizedBox());
     await tester.pump();
     services.dispose();
@@ -102,7 +93,7 @@ void main() {
               exits++;
             })));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Quay về form'));
+    await tester.tap(find.byTooltip('Quay về form'));
     await tester.pumpAndSettle();
     expect(exits, 0);
     expect(find.text('Thử dọn lại'), findsOneWidget);
@@ -114,24 +105,49 @@ void main() {
     await tester.pump();
     services.dispose();
   });
-  testWidgets(
-      'successful close hands off candidates without an image or selection',
+  testWidgets('only the second confirmed candidate is returned after cleanup',
       (tester) async {
-    OcrMatchResult? handedOff;
-    final services = testServices();
+    final matcher = FakeMatcher();
+    matcher.result = OcrMatchResult(
+      status: OcrMatchStatus.lowConfidence,
+      items: [
+        ...matcher.result.items,
+        const OcrCandidate(
+            id: 2,
+            name: 'Thuốc thứ hai',
+            activeIngredient: null,
+            strengthText: null,
+            dosageForm: 'Dung dịch',
+            hasActiveIngredients: false,
+            score: .7),
+      ],
+      preselectedId: null,
+      suggestedQuery: null,
+      reasons: [],
+    );
+    final services = testServices(matcher: matcher);
     await services.bindSession('A');
+    final cleanup = Completer<void>();
+    int? selectedId;
     await tester.pumpWidget(MaterialApp(
-        home: OcrFlowScreen(
-            image: testLease(),
-            services: services,
-            onRetake: () {},
-            onExit: (result) {
-              handedOff = result;
-            })));
+      home: OcrFlowScreen(
+        image: testLease(release: () => cleanup.future),
+        services: services,
+        onRetake: () {},
+        onExit: (_) => fail('Confirmation cancelled'),
+        onConfirmed: (_, candidate) => selectedId = candidate.id,
+      ),
+    ));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Quay về form'));
+    final confirmSecond = find.byKey(const ValueKey('ocr-confirm-2'));
+    await tester.scrollUntilVisible(confirmSecond, 150);
     await tester.pumpAndSettle();
-    expect(handedOff?.items.single.id, 1);
+    await tester.tap(confirmSecond);
+    await tester.pump();
+    expect(selectedId, isNull);
+    cleanup.complete();
+    await tester.pumpAndSettle();
+    expect(selectedId, 2);
     await tester.pumpWidget(const SizedBox());
     await tester.pump();
     services.dispose();

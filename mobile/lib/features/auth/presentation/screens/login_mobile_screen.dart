@@ -108,13 +108,6 @@ class _LoginMobileScreenState extends State<LoginMobileScreen>
     }
   }
 
-  /// Sau khi gửi mã thành công: linh vật ăn mừng, chờ một nhịp rồi mới chuyển màn.
-  Future<void> _celebrate() async {
-    _mascot.play(MascotMood.celebrate);
-    if (_reduceMotion) return;
-    await Future<void>.delayed(const Duration(milliseconds: 450));
-  }
-
   void _select(LoginMethod method) {
     FocusScope.of(context).unfocus();
     setState(() {
@@ -148,15 +141,16 @@ class _LoginMobileScreenState extends State<LoginMobileScreen>
     try {
       if (auth != null) {
         auth.setMethod(LoginMethod.email);
-        final sent = await auth.requestOtp(email);
+        final navigator = Navigator.of(context);
+        final request = auth.requestOtp(email);
+        _mascot.play(MascotMood.celebrate);
+        navigator.pushNamed<void>(AppRoutes.otpEmail, arguments: email);
+        final sent = await request;
         if (!mounted) return;
         if (!sent) {
+          navigator.pop();
           setState(() => _emailError = auth.errorMessage);
-          return;
         }
-        await _celebrate();
-        if (!mounted) return;
-        Navigator.of(context).pushNamed(AppRoutes.otpEmail, arguments: email);
       } else if (widget.onSubmitOtp case final submit?) {
         await submit(email, LoginMethod.email);
         if (mounted) _mascot.play(MascotMood.celebrate);

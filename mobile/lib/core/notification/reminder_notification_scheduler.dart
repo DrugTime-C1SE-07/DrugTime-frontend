@@ -130,6 +130,20 @@ class ReminderNotificationScheduler implements ReminderScheduler {
     }
   }
 
+  Future<void> scheduleMissingOccurrences(
+    Iterable<ReminderOccurrence> occurrences,
+  ) async {
+    final pending = await platform.pendingNotificationRequests();
+    final scheduledIds = pending.map((request) => request.id).toSet();
+    await scheduleOccurrences(occurrences.where((occurrence) {
+      final id = notificationIdFor(
+        occurrence.medicationScheduleId,
+        occurrence.scheduledAt,
+      );
+      return !scheduledIds.contains(id);
+    }));
+  }
+
   /// Lên lịch hoãn cữ thuốc (snooze) đến [remindAt].
   ///
   /// Triển khai interface [ReminderScheduler].
