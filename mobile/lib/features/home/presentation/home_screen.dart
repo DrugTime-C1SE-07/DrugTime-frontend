@@ -183,9 +183,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   child: _Shortcut(
                       label: 'Dumi AI',
                       image: AppAssets.mascotCooking,
-                      onTap: () => ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                              content: Text('Dumi AI đang được phát triển'))))),
+                      onTap: () => Navigator.pushNamed(
+                          context, AppRoutes.mealSuggestion))),
               const SizedBox(width: 10),
               Expanded(
                   child: _Shortcut(
