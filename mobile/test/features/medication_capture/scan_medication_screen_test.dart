@@ -4,7 +4,6 @@ import 'package:drugtime_mobile/features/consent/domain/entities/consent.dart';
 import 'package:drugtime_mobile/features/consent/presentation/state/consent_controller.dart';
 import 'package:drugtime_mobile/features/medication/data/repositories/in_memory_medication_repository.dart';
 import 'package:drugtime_mobile/features/medication/presentation/state/medication_controller.dart';
-import 'package:drugtime_mobile/core/preview/app_preview_scope.dart';
 import 'package:drugtime_mobile/features/medication_capture/data/capture_services.dart';
 import 'package:drugtime_mobile/features/medication_capture/domain/capture_models.dart';
 import 'package:drugtime_mobile/features/medication_capture/domain/ocr_models.dart';
@@ -90,79 +89,173 @@ void main() {
     expect(find.text('Thuốc kiểm thử'), findsOneWidget);
   });
 
-  testWidgets('gallery no match is distinct from unreadable text',
-      (tester) async {
-    final matcher = FakeMatcher()
-      ..result = OcrMatchResult(
-          status: OcrMatchStatus.noMatch,
-          items: [],
-          preselectedId: null,
-          suggestedQuery: 'Strepsils Original',
-          reasons: []);
-    await openScan(
-        tester, TestSource()..picked = makeImage(), FakeReader(), matcher);
+  Future<void> scanGallery(WidgetTester tester, FakeMatcher matcher,
+      {FakeReader? reader, TestSource? source}) async {
+    await openScan(tester, source ?? (TestSource()..picked = makeImage()),
+        reader ?? FakeReader(), matcher);
     await tester.tap(find.byTooltip('Thư viện'));
     await tester.pumpAndSettle();
-    expect(find.text('Không tìm thấy thuốc phù hợp'), findsOneWidget);
-    await tester.tap(find.text('Tìm thuốc thủ công'));
-    await tester.pumpAndSettle();
-    final query = tester.widget<TextField>(find.byType(TextField));
-    expect(query.controller!.text, 'Strepsils Original');
-  });
-
-  testWidgets('low confidence does not offer direct confirmation',
-      (tester) async {
-    final matcher = FakeMatcher()
-      ..result = OcrMatchResult(
-          status: OcrMatchStatus.lowConfidence,
-          items: const [
-            OcrCandidate(
-                id: 1,
-                name: 'Metformin',
-                activeIngredient: 'Metformin',
-                strengthText: '500 mg',
-                dosageForm: 'Viên nén',
-                hasActiveIngredients: true,
-                score: 0.65),
-            OcrCandidate(
-                id: 2,
-                name: 'Thuốc khác',
-                activeIngredient: null,
-                strengthText: '850 mg',
-                dosageForm: null,
-                hasActiveIngredients: false,
-                score: 0.45),
-          ],
-          preselectedId: null,
-          suggestedQuery: null,
-          reasons: ['below_threshold']);
-    await openScan(
-        tester, TestSource()..picked = makeImage(), FakeReader(), matcher);
-    await tester.tap(find.byTooltip('Thư viện'));
-    await tester.pumpAndSettle();
-    expect(find.byType(TextField), findsOneWidget);
-    expect(find.text('Đúng thuốc này'), findsNothing);
-    Navigator.of(tester.element(find.byType(TextField))).pop();
-    await tester.pumpAndSettle();
-    expect(find.text('Xem gợi ý khác'), findsOneWidget);
-    expect(find.text('Thuốc khác'), findsNothing);
-    await tester.tap(find.text('Xem gợi ý khác'));
-    await tester.pumpAndSettle();
-    await tester.scrollUntilVisible(find.text('Thuốc khác'), 150);
-    final confirm = find.text('Đúng thuốc này').last;
-    await tester.ensureVisible(confirm);
-    await tester.tap(confirm);
-    await tester.pumpAndSettle();
-    expect(find.text('Lịch uống'), findsOneWidget);
-    expect(find.text('Thuốc khác'), findsOneWidget);
-  });
-
-  Future<void> openPreview(WidgetTester tester) async {
-    await tester.pumpWidget(AppPreviewScope(
-        clock: DateTime.utc(2026),
-        child: const MaterialApp(home: ScanMedicationScreen())));
-    await tester.pump();
   }
+
+  Future<void> tapVisible(WidgetTester tester, String label) async {
+    await tester.ensureVisible(find.text(label));
+    await tester.pump();
+    await tester.tap(find.text(label));
+    await tester.pumpAndSettle();
+  }
+
+  OcrMatchResult lowConfidence() => OcrMatchResult(
+      status: OcrMatchStatus.lowConfidence,
+      items: const [
+        OcrCandidate(
+            id: 1,
+            name: 'Metformin',
+            activeIngredient: 'Metformin',
+            strengthText: '500 mg',
+            dosageForm: 'Viên nén',
+            hasActiveIngredients: true,
+            score: 0.65),
+        OcrCandidate(
+            id: 2,
+            name: 'Thuốc khác',
+            activeIngredient: null,
+            strengthText: '850 mg',
+            dosageForm: null,
+            hasActiveIngredients: false,
+            score: 0.45),
+      ],
+      preselectedId: null,
+      suggestedQuery: 'metformin',
+      reasons: ['below_threshold']);
+
+  OcrMatchResult noMatch(String? query) => OcrMatchResult(
+      status: OcrMatchStatus.noMatch,
+      items: [],
+      preselectedId: null,
+      suggestedQuery: query,
+      reasons: ['below_threshold']);
+
+  testWidgets('matched shows one large medicine and requires confirm (AC1)',
+      (tester) async {
+    await scanGallery(tester, FakeMatcher());
+    expect(find.byKey(const Key('ocr-single-result')), findsOneWidget);
+    expect(find.text('Thuốc kiểm thử'), findsOneWidget);
+    expect(find.text('Hãy đối chiếu tên và số mg với vỏ hộp'), findsNothing);
+    expect(find.text('Lịch uống'), findsNothing);
+    await tapVisible(tester, 'Đúng thuốc này');
+    expect(find.text('Lịch uống'), findsOneWidget);
+    expect(find.text('Thuốc kiểm thử'), findsOneWidget);
+    expect(find.text('Mỗi lần uống'), findsOneWidget);
+  });
+
+  testWidgets('"not this medicine" opens manual search (AC1)', (tester) async {
+    await scanGallery(tester, FakeMatcher());
+    await tapVisible(tester, 'Không phải thuốc này');
+    expect(find.byType(TextField), findsOneWidget);
+  });
+
+  testWidgets('matched without a read strength reminds to check mg (AC1)',
+      (tester) async {
+    final sample = FakeMatcher().result;
+    await scanGallery(
+        tester,
+        FakeMatcher()
+          ..result = OcrMatchResult(
+              status: OcrMatchStatus.matched,
+              items: sample.items,
+              preselectedId: 1,
+              suggestedQuery: null,
+              reasons: ['strength_unverified']));
+    expect(find.text('Hãy xem số mg trên vỏ hộp'), findsOneWidget);
+  });
+
+  testWidgets(
+      'low confidence shows the first medicine with a check reminder, no search (AC2)',
+      (tester) async {
+    await scanGallery(tester, FakeMatcher()..result = lowConfidence());
+    expect(find.byType(TextField), findsNothing);
+    expect(find.byKey(const Key('ocr-single-result')), findsOneWidget);
+    expect(find.text('Metformin'), findsOneWidget);
+    expect(find.text('Thuốc khác'), findsNothing);
+    expect(find.text('Hãy đối chiếu tên và số mg với vỏ hộp'), findsOneWidget);
+    expect(find.text('Lịch uống'), findsNothing);
+    await tapVisible(tester, 'Đúng thuốc này');
+    expect(find.text('Lịch uống'), findsOneWidget);
+    expect(find.text('Metformin'), findsOneWidget);
+  });
+
+  testWidgets('low confidence "not this medicine" searches the read name (AC2)',
+      (tester) async {
+    await scanGallery(tester, FakeMatcher()..result = lowConfidence());
+    await tapVisible(tester, 'Không phải thuốc này');
+    expect(tester.widget<TextField>(find.byType(TextField)).controller!.text,
+        'metformin');
+  });
+
+  testWidgets(
+      'no match asks to retake and offers manual search, never opens it (AC10)',
+      (tester) async {
+    await scanGallery(tester, FakeMatcher()..result = noMatch('zyrtec'));
+    expect(find.text('Chưa thấy tên thuốc'), findsOneWidget);
+    expect(find.text('Hãy chụp mặt có tên thuốc'), findsOneWidget);
+    expect(find.byType(TextField), findsNothing);
+    expect(find.byKey(const Key('ocr-single-result')), findsNothing);
+    await tapVisible(tester, 'Tìm thuốc thủ công');
+    expect(tester.widget<TextField>(find.byType(TextField)).controller!.text,
+        'zyrtec');
+  });
+
+  testWidgets('no match without a name opens an empty manual search (AC10)',
+      (tester) async {
+    await scanGallery(tester, FakeMatcher()..result = noMatch(null));
+    expect(find.text('Chưa thấy tên thuốc'), findsOneWidget);
+    expect(find.byType(TextField), findsNothing);
+    await tapVisible(tester, 'Tìm thuốc thủ công');
+    expect(tester.widget<TextField>(find.byType(TextField)).controller!.text,
+        isEmpty);
+  });
+
+  testWidgets(
+      'no text twice in a row still asks to retake, never opens search (AC10)',
+      (tester) async {
+    final matcher = FakeMatcher();
+    final source = TestSource()..picked = makeImage();
+    await scanGallery(tester, matcher,
+        reader: FakeReader()..text = ' ', source: source);
+    for (var attempt = 0; attempt < 2; attempt++) {
+      expect(find.text('Chưa thấy tên thuốc'), findsOneWidget);
+      expect(find.byType(TextField), findsNothing);
+      expect(find.text('Tìm thuốc thủ công'), findsOneWidget);
+      await tapVisible(tester, 'Chụp lại');
+      source.picked = makeImage();
+      await tester.tap(find.byTooltip('Thư viện'));
+      await tester.pumpAndSettle();
+    }
+    expect(find.text('Chưa thấy tên thuốc'), findsOneWidget);
+    expect(find.byType(TextField), findsNothing);
+    expect(matcher.calls, 0);
+  });
+
+  testWidgets('camera asks to put the medicine name in the frame (AC9)',
+      (tester) async {
+    await openScan(tester, TestSource(), FakeReader(), FakeMatcher());
+    expect(find.text('Đặt tên thuốc vào trong khung'), findsOneWidget);
+  });
+
+  testWidgets('a blurred photo says why and offers a retake (AC9)',
+      (tester) async {
+    final processor = TestProcessor()..warnings = [CaptureWarning.blurred];
+    final reader = FakeReader();
+    await openScan(
+        tester, TestSource()..picked = makeImage(), reader, FakeMatcher(),
+        processor: processor);
+    await tester.tap(find.byTooltip('Thư viện'));
+    await tester.pumpAndSettle();
+    expect(
+        find.text('Ảnh bị mờ. Hãy giữ máy chắc và chụp lại.'), findsOneWidget);
+    expect(find.text('Chụp lại'), findsOneWidget);
+    expect(reader.calls, 0);
+  });
 
   testWidgets(
       'real flow waits for backend and invalidates late response on tap',
@@ -198,23 +291,24 @@ void main() {
     services.dispose();
   });
 
-  testWidgets('preview waits 1.5 seconds before showing its sample result',
+  testWidgets('recognition and result sheets stay below the photo frame',
       (tester) async {
     await tester.binding.setSurfaceSize(const Size(375, 812));
     addTearDown(() => tester.binding.setSurfaceSize(null));
-    await openPreview(tester);
+    final matcher = FakeMatcher()..pending = Completer<OcrMatchResult>();
+    await openScan(tester, TestSource(), FakeReader(), matcher);
     await tester.tap(find.byTooltip('Chụp ảnh'));
     await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
     expect(find.text('Đang nhận diện thuốc...'), findsOneWidget);
     final frame = tester.getRect(find.byKey(const Key('scan-frame')));
-    final processingSheet =
-        tester.getRect(find.byKey(const Key('scan-result-sheet')));
-    expect(frame.bottom, lessThan(processingSheet.top));
     expect(frame.top, lessThan(220));
-    await tester.pump(const Duration(milliseconds: 1499));
-    expect(find.text('Đang nhận diện thuốc...'), findsOneWidget);
-    await tester.pump(const Duration(milliseconds: 1));
-    expect(find.text('Paracetamol 500mg'), findsOneWidget);
+    expect(
+        frame.bottom,
+        lessThan(
+            tester.getRect(find.byKey(const Key('scan-result-sheet'))).top));
+    matcher.pending!.complete(matcher.result);
+    await tester.pumpAndSettle();
     expect(find.text('Có đúng thuốc trên vỏ hộp không?'), findsOneWidget);
     expect(tester.getRect(find.byKey(const Key('scan-frame'))).top, frame.top);
     expect(
@@ -223,39 +317,23 @@ void main() {
             tester.getRect(find.byKey(const Key('scan-result-sheet'))).top));
   });
 
-  testWidgets('tapping recognition requires a retake, even after timer expires',
+  testWidgets('tapping recognition requires a retake, even after the result',
       (tester) async {
-    await openPreview(tester);
+    final matcher = FakeMatcher()..pending = Completer<OcrMatchResult>();
+    await openScan(tester, TestSource(), FakeReader(), matcher);
     await tester.tap(find.byTooltip('Chụp ảnh'));
     await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
     await tester.tap(find.byKey(const Key('scan-recognizing')));
     await tester.pump();
     expect(find.text('Chưa đọc được vỏ hộp'), findsOneWidget);
-    await tester.pump(const Duration(seconds: 2));
-    expect(find.text('Paracetamol 500mg'), findsNothing);
-    await tester.tap(find.text('Quét lại'));
-    await tester.pump();
+    matcher.pending!.complete(matcher.result);
+    await tester.pumpAndSettle();
+    expect(find.text('Thuốc kiểm thử'), findsNothing);
+    await tapVisible(tester, 'Chụp lại');
     expect(find.byTooltip('Chụp ảnh'), findsOneWidget);
   });
-  testWidgets('confirming preview candidate opens new schedule form',
-      (tester) async {
-    final medication = MedicationController(InMemoryMedicationRepository());
-    addTearDown(medication.dispose);
-    await tester.pumpWidget(MedicationScope(
-        controller: medication,
-        child: AppPreviewScope(
-            clock: DateTime.utc(2026),
-            child: const MaterialApp(home: ScanMedicationScreen()))));
-    await tester.pump();
-    await tester.tap(find.byTooltip('Chụp ảnh'));
-    await tester.pump(const Duration(milliseconds: 1500));
-    await tester.tap(find.text('Đúng thuốc này'));
-    await tester.pumpAndSettle();
-    expect(find.text('Lịch uống'), findsOneWidget);
-    expect(find.text('Paracetamol 500mg'), findsOneWidget);
-    expect(find.text('Mỗi lần uống'), findsOneWidget);
-    expect(find.text('Tiếp tục'), findsOneWidget);
-  });
+
   testWidgets('revoking consent during recognition clears the pending result',
       (tester) async {
     final matcher = FakeMatcher()..pending = Completer<OcrMatchResult>();

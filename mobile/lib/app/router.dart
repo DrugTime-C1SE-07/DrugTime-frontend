@@ -1,8 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import '../features/medication_capture/presentation/screens/capture_flow_screen.dart';
 import '../features/medication_capture/presentation/screens/scan_medication_screen.dart';
-import '../features/medication_capture/domain/capture_models.dart';
 
 import '../features/adherence/domain/repositories/adherence_repository.dart';
 import '../features/adherence/presentation/screens/family_adherence_screen.dart';
@@ -27,7 +25,6 @@ import '../features/medication/data/repositories/in_memory_medication_repository
 import '../features/medication/domain/entities/medication.dart';
 import '../features/medication/presentation/screens/edit_medication_screen.dart';
 import '../features/medication/presentation/screens/medication_detail_screen.dart';
-import '../features/medication/presentation/screens/drug_selection_demo_screen.dart';
 import '../features/reminder/domain/entities/dose_reminder.dart';
 import '../features/reminder/presentation/screens/dose_reminder_screen.dart';
 import '../features/reminder/presentation/widgets/lockscreen_privacy_gate.dart';
@@ -58,9 +55,7 @@ abstract final class AppRoutes {
   static const familyAlertDetail = '/family/alerts/detail';
   static const home = '/';
   static const addMedication = '/medications/add';
-  static const captureMedication = '/medications/capture';
   static const scanMedication = '/medications/scan';
-  static const drugSelectionDemo = '/medications/selection-demo';
   static const medicationDetail = '/medications/detail';
   static const editMedication = '/medications/edit';
   static const login = '/login';
@@ -121,19 +116,6 @@ Route<dynamic>? onGenerateRoute(
         settings: settings,
         fullscreenDialog: true,
         builder: (_) => const ScanMedicationScreen(),
-      ),
-    AppRoutes.captureMedication => MaterialPageRoute<CaptureResult>(
-        settings: settings,
-        fullscreenDialog: true,
-        builder: (_) =>
-            CaptureFlowScreen(initialImage: settings.arguments as Uint8List?),
-      ),
-    AppRoutes.drugSelectionDemo => MaterialPageRoute<void>(
-        settings: settings,
-        builder: (_) => preview && kDebugMode
-            ? const DrugSelectionDemoScreen()
-            : const Scaffold(
-                body: Center(child: Text('Bản xem thử không khả dụng'))),
       ),
     // Kiểm auth/consent cả khi đi vào từ push hoặc điều hướng trực tiếp tới route.
     AppRoutes.familyAlerts => MaterialPageRoute<void>(
