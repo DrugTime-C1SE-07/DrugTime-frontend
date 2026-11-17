@@ -1,6 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:drugtime_mobile/features/medication_capture/domain/ocr_models.dart';
-import 'package:drugtime_mobile/features/medication_capture/domain/capture_models.dart';
 
 Map<String, dynamic> matchedJson() => {
       'status': 'matched',
@@ -22,13 +21,12 @@ Map<String, dynamic> matchedJson() => {
 
 void main() {
   test(
-      'preserves int64, nulls and metadata; result has no selected drug or image',
+      'preserves int64, nulls and metadata',
       () {
     final result = OcrMatchResult.fromJson(matchedJson());
     expect(result.items.single.id, 9223372036854775807);
     expect(result.items.single.strengthText, isNull);
     expect(result.reasons, ['strength_unverified']);
-    expect(CaptureResult.candidates(result).image, isNull);
     expect(() => result.items.clear(), throwsUnsupportedError);
   });
   test('all three statuses; no-match is a successful empty result', () {

@@ -1,6 +1,4 @@
-import '../../medication/domain/entities/medication.dart';
 import 'dart:typed_data';
-import 'ocr_models.dart';
 
 // The classified values remain for existing encrypted image metadata.
 enum PackagingKind { box, blister, unspecified }
@@ -65,34 +63,6 @@ class PreparedMedicationImage {
       Error.throwWithStackTrace(e, stack);
     });
   }
-}
-
-enum CaptureResultKind { aborted, prepared, candidates, selected }
-
-class CaptureResult {
-  const CaptureResult.aborted()
-      : kind = CaptureResultKind.aborted,
-        matches = null,
-        drug = null,
-        image = null;
-  const CaptureResult.prepared(this.image)
-      : kind = CaptureResultKind.prepared,
-        matches = null,
-        drug = null;
-  const CaptureResult.candidates(OcrMatchResult result)
-      : kind = CaptureResultKind.candidates,
-        matches = result,
-        drug = null,
-        image = null;
-  const CaptureResult.selected(this.drug)
-      : kind = CaptureResultKind.selected,
-        matches = null,
-        image = null;
-
-  final DrugCatalogItem? drug;
-  final CaptureResultKind kind;
-  final PreparedMedicationImage? image;
-  final OcrMatchResult? matches;
 }
 
 class CaptureCandidate {

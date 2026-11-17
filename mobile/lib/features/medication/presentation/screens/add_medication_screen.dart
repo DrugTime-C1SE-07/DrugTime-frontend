@@ -1,15 +1,9 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../../../app/theme/app_theme.dart';
-import '../../../../app/router.dart';
-import '../../../medication_capture/domain/capture_models.dart';
-import '../../../medication_capture/data/capture_services.dart';
-import '../../../medication_capture/presentation/state/capture_scope.dart';
-import '../../../../core/preview/app_preview_scope.dart';
 import '../../../../core/storage/local_db/client_uuid.dart';
 import '../../../../shared/widgets/selectable_pill.dart';
 import '../../../../shared/widgets/two_column_grid.dart';
@@ -28,22 +22,18 @@ import '../../../drug_food_warning/domain/repositories/food_interaction_reposito
 import '../../../drug_food_warning/presentation/widgets/food_warning_dialog.dart';
 
 /// S07 · Thêm thuốc mới theo luồng 3 bước Figma (Prototype_DrugTime):
-/// Bước 1: Thêm thuốc (Tìm kiếm / Quét OCR)
+/// Bước 1: Thuốc (từ màn quét `ScanMedicationScreen`, hoặc tìm trong danh mục)
 /// Bước 2: Lịch uống (Liều, Tần suất, Giờ uống, Cách uống)
 /// Bước 3: Xác nhận (Tóm tắt thông tin, kiểm tra tương tác)
 class AddMedicationScreen extends StatefulWidget {
   const AddMedicationScreen({
     super.key,
-    this.captureLauncher,
     this.foodInteractionRepository,
     this.scannedDrug,
-    this.openCaptureOnStart = false,
   });
 
   final FoodInteractionRepository? foodInteractionRepository;
   final DrugCatalogItem? scannedDrug;
-  final Future<CaptureResult?> Function(BuildContext)? captureLauncher;
-  final bool openCaptureOnStart;
 
   @override
   State<AddMedicationScreen> createState() => _AddMedicationScreenState();
@@ -68,116 +58,15 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
   bool _dirty = false;
   bool _showDrugError = false;
   bool _saving = false;
-  bool _openingCapture = false;
-  PreparedMedicationImage? _capture;
-  Uint8List? _captureBytes;
-  Timer? _captureExpiry;
-  CaptureServices? _captureServices;
 
   @override
   void initState() {
     super.initState();
     _drug = widget.scannedDrug;
-    if (widget.openCaptureOnStart) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) unawaited(_openCapture());
-      });
-    }
-  }
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    _captureServices = CaptureScope.maybeOf(context);
-  }
-
-  Future<void> _releaseImage(PreparedMedicationImage lease) async {
-    try {
-      await lease.release();
-    } catch (_) {
-      _captureServices?.cleanupError = 'Chưa dọn được ảnh tạm.';
-      if (mounted) {
-        _toast('Chưa dọn được ảnh tạm. Hãy thử lại.');
-      }
-    }
-  }
-
-  Future<void> _openCapture({bool edit = false}) async {
-    if (_openingCapture) return;
-    _openingCapture = true;
-    PreparedMedicationImage? incoming;
-    try {
-      final result = widget.captureLauncher != null
-          ? await widget.captureLauncher!(context)
-          : await Navigator.of(context).pushNamed<CaptureResult>(
-              AppRoutes.captureMedication,
-              arguments: edit ? _captureBytes : null,
-            );
-
-      final selected = result?.drug;
-      if (selected != null) {
-        if (!mounted) return;
-        _update(() {
-          _drug = selected;
-          _showDrugError = false;
-          _currentStep = 1;
-        });
-      } else if (result?.kind == CaptureResultKind.prepared &&
-          result?.image != null) {
-        final lease = result!.image!;
-        incoming = lease;
-        if (!mounted) {
-          await lease.release();
-          return;
-        }
-        final bytes = await lease.read();
-        if (!mounted) {
-          await lease.release();
-          return;
-        }
-        await _discardCapture();
-        if (!mounted) {
-          await lease.release();
-          return;
-        }
-        setState(() {
-          _capture = lease;
-          _captureBytes = bytes;
-          _dirty = true;
-        });
-        incoming = null;
-        _captureExpiry = Timer(lease.expiresAt.difference(DateTime.now()),
-            () => unawaited(_discardCapture()));
-      }
-    } catch (_) {
-      if (incoming != null) {
-        await _releaseImage(incoming);
-      }
-      if (mounted) _toast('Không mở được ảnh. Hãy thử lại.');
-    } finally {
-      _openingCapture = false;
-    }
-  }
-
-  Future<void> _discardCapture() async {
-    _captureExpiry?.cancel();
-    _captureExpiry = null;
-    final lease = _capture;
-    _capture = null;
-    _captureBytes = null;
-    if (mounted) setState(() {});
-    if (lease != null) {
-      await _releaseImage(lease);
-    }
   }
 
   @override
   void dispose() {
-    _captureExpiry?.cancel();
-    final capture = _capture;
-    _capture = null;
-    _captureBytes = null;
-    if (capture != null) unawaited(_releaseImage(capture));
     _stockController.dispose();
     super.dispose();
   }
@@ -387,7 +276,6 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
       showMedicationFailure(context, failure);
       return;
     }
-    await _discardCapture();
     if (mounted) navigator.pop(created);
   }
 
@@ -480,71 +368,6 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
         AppSpacing.xl,
       ),
       children: [
-        ScanEntryCard(onTap: _openCapture),
-        if (_captureBytes case final bytes?) ...[
-          const SizedBox(height: AppSpacing.md),
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: AppColors.brandTint,
-              borderRadius: BorderRadius.circular(AppRadius.card),
-            ),
-            child: Column(
-              children: [
-                Row(
-                  children: [
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(8),
-                      child: Image.memory(
-                        bytes,
-                        width: 56,
-                        height: 56,
-                        fit: BoxFit.cover,
-                        excludeFromSemantics: true,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    const Expanded(
-                      child: Text('Ảnh đã sẵn sàng',
-                          style: AppTextStyles.bodyStrong),
-                    ),
-                    IconButton(
-                      tooltip: 'Bỏ ảnh',
-                      onPressed: _discardCapture,
-                      icon: const Icon(Icons.close),
-                    ),
-                  ],
-                ),
-                Wrap(
-                  spacing: 8,
-                  children: [
-                    TextButton(
-                      onPressed: () => _openCapture(edit: true),
-                      child: const Text('Xem ảnh'),
-                    ),
-                    TextButton(
-                      onPressed: _openCapture,
-                      child: const Text('Chụp lại'),
-                    ),
-                    TextButton(
-                      onPressed: _pickDrug,
-                      child: const Text('Nhập thủ công'),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ],
-        if (kDebugMode && AppPreviewScope.maybeOf(context) != null)
-          TextButton(
-            onPressed: () =>
-                Navigator.of(context).pushNamed(AppRoutes.drugSelectionDemo),
-            child: const Text('Mẫu · Xem thử chọn và xác nhận thuốc'),
-          ),
-        const SizedBox(height: AppSpacing.xl),
-        const OrDivider(label: 'hoặc nhập thủ công'),
-        const SizedBox(height: AppSpacing.xl),
         const FormFieldLabel('Thuốc'),
         DrugPickerField(
           key: _drugFieldKey,

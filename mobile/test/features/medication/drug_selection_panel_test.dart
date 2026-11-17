@@ -1,13 +1,53 @@
 import 'dart:ui' show Tristate;
 
 import 'package:drugtime_mobile/app/theme/app_theme.dart';
-import 'package:drugtime_mobile/features/medication/data/models/drug_selection_demo_fixtures.dart';
 import 'package:drugtime_mobile/features/medication/domain/entities/medication.dart';
 import 'package:drugtime_mobile/features/medication/presentation/widgets/drug_selection_panel.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-const items = DrugSelectionDemoFixtures.candidates;
+/// Test data (was the demo fixtures, removed with the demo in adhoc-20261116).
+abstract final class _Samples {
+  static const candidates = [
+    DrugCatalogItem(
+        id: 'demo-500',
+        name: 'Thuốc mẫu Paracetamol',
+        activeIngredient: 'Paracetamol',
+        strength: '500 mg',
+        dosageForm: 'Viên nén',
+        unit: 'viên'),
+    DrugCatalogItem(
+        id: 'demo-250',
+        name: 'Thuốc mẫu Paracetamol',
+        activeIngredient: 'Paracetamol',
+        strength: '250 mg',
+        dosageForm: 'Gói bột',
+        unit: 'gói'),
+  ];
+
+  static const missing = [
+    DrugCatalogItem(
+        id: 'demo-missing',
+        name: 'Thuốc mẫu thiếu thông tin',
+        activeIngredient: '',
+        strength: '',
+        dosageForm: '',
+        unit: ''),
+  ];
+
+  static final longList = List<DrugCatalogItem>.unmodifiable([
+    for (var i = 0; i < 30; i++)
+      DrugCatalogItem(
+          id: 'demo-long-$i',
+          name: 'Thuốc mẫu $i với tên rất dài để kiểm tra khả năng đọc và cuộn',
+          activeIngredient: 'Hoạt chất mẫu có tên dài',
+          strength: '500 mg',
+          dosageForm: 'Viên nén',
+          unit: 'viên'),
+  ]);
+}
+
+const items = _Samples.candidates;
 final confirm = find.widgetWithText(FilledButton, 'Xác nhận thuốc');
 Finder candidate(int i) => find.byKey(ValueKey('drug-candidate-$i'));
 
@@ -79,7 +119,7 @@ void main() {
 
   testWidgets('missing fields are unknown without fabricated unit or strength',
       (tester) async {
-    await mount(tester, candidates: DrugSelectionDemoFixtures.missing);
+    await mount(tester, candidates: _Samples.missing);
     await tester.tap(candidate(0));
     await tester.pump();
     for (final label in ['Hoạt chất', 'Hàm lượng', 'Dạng bào chế', 'Đơn vị']) {
@@ -109,10 +149,10 @@ void main() {
         addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
         final results = <DrugCatalogItem>[];
         await mount(tester,
-            candidates: DrugSelectionDemoFixtures.longList,
+            candidates: _Samples.longList,
             onConfirm: results.add);
         final lastName =
-            find.text(DrugSelectionDemoFixtures.longList.last.name);
+            find.text(_Samples.longList.last.name);
         await tester.scrollUntilVisible(lastName, 250,
             maxScrolls: 200, scrollable: find.byType(Scrollable).first);
         await tester.ensureVisible(lastName);
@@ -124,7 +164,7 @@ void main() {
         expect(find.text('Hàm lượng: 500 mg'), findsOneWidget);
         await tester.tap(confirm);
         await tester.pump();
-        expect(results.single, same(DrugSelectionDemoFixtures.longList.last));
+        expect(results.single, same(_Samples.longList.last));
         expect(tester.takeException(), isNull);
       });
     }
