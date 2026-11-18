@@ -57,7 +57,8 @@ void main() {
       () async {
     var calls = 0;
     final response = Completer<HomeConfirmation>();
-    final controller = HomeScheduleController(_History(), _Schedules(), (_, __) {
+    final controller =
+        HomeScheduleController(_History(), _Schedules(), (_, __) {
       calls++;
       return response.future;
     }, clock: () => _now);
@@ -91,5 +92,45 @@ void main() {
     expect(controller.day, isNull);
     expect(controller.failed, isTrue);
     expect(controller.loading, isFalse);
+  });
+
+  group('sự kiện xác nhận cho pet và timeline', () {
+    Future<(HomeScheduleController, HistoryDose)> loaded(
+        Future<HomeConfirmation> Function() outcome) async {
+      final controller = HomeScheduleController(
+          _History(), _Schedules(), (_, __) => outcome(),
+          clock: () => _now);
+      addTearDown(controller.dispose);
+      controller.setAccess('p1', true);
+      await controller.load();
+      return (controller, controller.day!.doses.single);
+    }
+
+    test('synced: confirmedSeq tăng đúng 1 và ghi lastConfirmed', () async {
+      final (c, dose) = await loaded(() async => HomeConfirmation.synced);
+      await c.confirm(dose);
+      expect(c.confirmedSeq, 1);
+      expect(c.confirmFailedSeq, 0);
+      expect(c.lastConfirmed, (dose.scheduleId, dose.scheduledAt.toUtc()));
+    });
+
+    test('failed và exception: confirmFailedSeq tăng, không có lastConfirmed',
+        () async {
+      final (c, dose) = await loaded(() async => HomeConfirmation.failed);
+      await c.confirm(dose);
+      expect(c.confirmFailedSeq, 1);
+      final (c2, dose2) = await loaded(() async => throw StateError('x'));
+      await c2.confirm(dose2);
+      expect(c2.confirmFailedSeq, 1);
+      expect(c.confirmedSeq + c2.confirmedSeq, 0);
+      expect(c.lastConfirmed, isNull);
+    });
+
+    test('pending: không tăng seq nào', () async {
+      final (c, dose) = await loaded(() async => HomeConfirmation.pending);
+      await c.confirm(dose);
+      expect((c.confirmedSeq, c.confirmFailedSeq), (0, 0));
+      expect(c.isPending(dose), isTrue);
+    });
   });
 }

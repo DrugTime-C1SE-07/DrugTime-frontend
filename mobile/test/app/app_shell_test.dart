@@ -11,6 +11,7 @@ import 'package:drugtime_mobile/features/family_link/presentation/screens/family
 import 'package:drugtime_mobile/features/medication/data/repositories/in_memory_medication_repository.dart';
 import 'package:drugtime_mobile/features/profile/presentation/screens/profile_screen.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 Future<void> _pumpLoggedIn(WidgetTester tester,
@@ -139,6 +140,38 @@ void main() {
       expect(pill.left, greaterThanOrEqualTo(bar.left));
       expect(pill.right, lessThanOrEqualTo(bar.right));
     }
+  });
+
+  testWidgets('nhãn của viên chọn hiển thị đủ chữ ở cả 4 tab', (tester) async {
+    await _pumpLoggedIn(tester);
+    for (final label in ['Trang chủ', 'Thuốc', 'Lịch nhắc', 'Hồ sơ']) {
+      await tester.tap(find.byWidgetPredicate((widget) =>
+          widget is NavigationDestination && widget.label == label));
+      await tester.pumpAndSettle();
+      final text = find.byKey(ValueKey('selected-nav-label-$label'));
+      final paragraph = tester.renderObject<RenderParagraph>(text);
+      expect(paragraph.didExceedMaxLines, isFalse, reason: label);
+      expect(tester.widget<Text>(text).overflow, isNot(TextOverflow.ellipsis));
+      // chữ được dựng đủ bề rộng tự nhiên: không bị ép, không cắt
+      expect(
+          paragraph.size.width,
+          greaterThanOrEqualTo(
+              paragraph.getMaxIntrinsicWidth(double.infinity) - .5),
+          reason: label);
+      final bar = tester.getRect(find.byType(NavigationBar));
+      final pill = tester.getRect(find.byKey(ValueKey('selected-nav-$label')));
+      expect(pill.left, greaterThanOrEqualTo(bar.left), reason: label);
+      expect(pill.right, lessThanOrEqualTo(bar.right), reason: label);
+    }
+  });
+
+  testWidgets('thanh điều hướng không cộng đệm đáy hai lần (không hở dưới icon)',
+      (tester) async {
+    tester.view.padding =
+        FakeViewPadding(bottom: 34 * tester.view.devicePixelRatio);
+    addTearDown(tester.view.resetPadding);
+    await _pumpLoggedIn(tester);
+    expect(tester.getSize(find.byType(NavigationBar)).height, 68);
   });
 
   test('AC25: không còn route /dev-catalog', () {

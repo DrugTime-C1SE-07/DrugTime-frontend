@@ -24,6 +24,15 @@ class HomeScheduleController extends ChangeNotifier {
   DateHistoryGroup? day;
   int? streak;
   String? message;
+
+  /// Tăng mỗi lần một liều được ghi nhận và đồng bộ xong (sau khi tải lại lịch).
+  int confirmedSeq = 0;
+
+  /// Tăng mỗi lần ghi nhận liều thất bại.
+  int confirmFailedSeq = 0;
+
+  /// Liều vừa được ghi nhận gần nhất: (scheduleId, scheduledAt UTC).
+  (int, DateTime)? lastConfirmed;
   int get accessRevision => _access;
   final _pending = <(int, DateTime)>{};
 
@@ -154,14 +163,21 @@ class HomeScheduleController extends ChangeNotifier {
       switch (outcome) {
         case HomeConfirmation.synced:
           await load();
+          if (access != _access) return;
+          lastConfirmed = (dose.scheduleId, dose.scheduledAt.toUtc());
+          confirmedSeq++;
         case HomeConfirmation.pending:
           _pending.add((dose.scheduleId, dose.scheduledAt.toUtc()));
           message = 'Đang chờ đồng bộ';
         case HomeConfirmation.failed:
           message = 'Chưa ghi nhận được liều. Hãy thử lại.';
+          confirmFailedSeq++;
       }
     } catch (_) {
-      if (access == _access) message = 'Chưa ghi nhận được liều. Hãy thử lại.';
+      if (access == _access) {
+        message = 'Chưa ghi nhận được liều. Hãy thử lại.';
+        confirmFailedSeq++;
+      }
     } finally {
       if (access == _access) {
         saving = false;

@@ -7,6 +7,8 @@ import 'package:drugtime_mobile/features/auth/domain/entities/auth_session.dart'
 import 'package:drugtime_mobile/features/auth/presentation/state/auth_controller.dart';
 import 'package:drugtime_mobile/features/home/presentation/home_screen.dart';
 import 'package:drugtime_mobile/features/home/presentation/home_schedule_controller.dart';
+import 'package:drugtime_mobile/features/home/presentation/scene/living_banner.dart';
+import 'package:drugtime_mobile/features/home/presentation/scene/pet_props_painter.dart';
 import 'package:drugtime_mobile/features/medication/data/repositories/in_memory_medication_repository.dart';
 import 'package:drugtime_mobile/features/profile/domain/entities/health_profile.dart';
 import 'package:drugtime_mobile/features/profile/domain/entities/profile_failure.dart';
@@ -62,6 +64,8 @@ void main() {
 
     expect(welcome, findsNothing);
     expect(find.text('Chưa có lịch uống thuốc'), findsOneWidget);
+    // trang chủ chưa có thuốc cũng có banner sống (AC15)
+    expect(find.byType(LivingBanner), findsOneWidget);
     expect(tester.widget<NavigationBar>(navbar).selectedIndex, 0);
 
     for (final [index, label] in [
@@ -224,5 +228,50 @@ void main() {
       find.text('Cần đồng ý xử lý dữ liệu sức khỏe để tiếp tục.'),
       findsOneWidget,
     );
+  });
+
+  testWidgets(
+      'trang chủ có thuốc: banner sống, pet chỉ hiện khi tải xong (AC14, AC15)',
+      (tester) async {
+    final repo = FakeProfileRepository()
+      ..pendingRead = Completer<HealthProfile>();
+    final controller = ProfileController(repo);
+    addTearDown(controller.dispose);
+    final schedule = HomeScheduleController(
+        null, null, (_, __) async => HomeConfirmation.failed,
+        clock: () => DateTime.utc(2026, 11, 16, 3));
+    addTearDown(schedule.dispose);
+
+    await showHome(tester, controller, schedule: schedule);
+    expect(find.byType(LivingBanner), findsOneWidget);
+    bool pet() => tester
+        .widgetList<CustomPaint>(find.byType(CustomPaint))
+        .any((c) => c.painter is PetScenePainter);
+    expect(pet(), isFalse);
+
+    repo.pendingRead!.complete(const HealthProfile(fullName: 'Tên thật'));
+    await tester.pumpAndSettle();
+    expect(find.text('Tên thật'), findsOneWidget);
+    expect(pet(), isTrue);
+    // lịch lỗi: banner vẫn dựng, không có chip số liều
+    expect(find.textContaining('liều'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('cuộn xuống thì banner cuộn đi hẳn, không ghim lại một dải',
+      (tester) async {
+    final controller = ProfileController(FakeProfileRepository());
+    addTearDown(controller.dispose);
+    final schedule = HomeScheduleController(
+        null, null, (_, __) async => HomeConfirmation.failed,
+        clock: () => DateTime.utc(2026, 11, 16, 3));
+    addTearDown(schedule.dispose);
+    await showHome(tester, controller, schedule: schedule);
+    await tester.pumpAndSettle();
+    expect(tester.getRect(find.byType(LivingBanner)).height, greaterThan(250));
+    final header = tester
+        .widget<SliverPersistentHeader>(find.byType(SliverPersistentHeader));
+    expect(header.pinned, isFalse);
+    expect(header.floating, isFalse);
   });
 }
