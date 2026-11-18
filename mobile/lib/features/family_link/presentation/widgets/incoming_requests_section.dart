@@ -58,9 +58,11 @@ class IncomingRequestsSection extends StatelessWidget {
               children: [
                 const Row(
                   children: [
-                    Icon(Icons.wifi_off, color: AppColors.cautionText, size: 20),
+                    Icon(Icons.wifi_off,
+                        color: AppColors.cautionText, size: 20),
                     SizedBox(width: AppSpacing.xs),
-                    Text('Không có kết nối mạng', style: AppTextStyles.bodyStrong),
+                    Text('Không có kết nối mạng',
+                        style: AppTextStyles.bodyStrong),
                   ],
                 ),
                 const SizedBox(height: AppSpacing.xs),
@@ -91,7 +93,8 @@ class IncomingRequestsSection extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  caregiverFailureMessage(controller.loadError!) ?? 'Đã có lỗi xảy ra.',
+                  caregiverFailureMessage(controller.loadError!) ??
+                      'Đã có lỗi xảy ra.',
                   style: AppTextStyles.body,
                 ),
                 TextButton(
@@ -125,14 +128,18 @@ class IncomingRequestsSection extends StatelessWidget {
           key: const Key('incoming-requests'),
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text('Yêu cầu theo dõi bạn (${items.length})', style: AppTextStyles.heading),
+            Text('Yêu cầu theo dõi bạn (${items.length})',
+                style: AppTextStyles.heading),
             const SizedBox(height: AppSpacing.sm),
             if (!sharingConsentGranted) ...[
               const SharingConsentBanner(key: Key('incoming-consent-banner')),
               const SizedBox(height: AppSpacing.sm),
             ],
             for (final request in items) ...[
-              _RequestCard(controller: controller, request: request, actionContext: context),
+              _RequestCard(
+                  controller: controller,
+                  request: request,
+                  actionContext: context),
               const SizedBox(height: AppSpacing.sm),
             ],
             const SizedBox(height: AppSpacing.md),
@@ -164,7 +171,8 @@ class SharingConsentBanner extends StatelessWidget {
           ),
           TextButton(
             key: const Key('open-privacy-settings'),
-            onPressed: () => unawaited(Navigator.of(context).pushNamed(AppRoutes.privacySettings)),
+            onPressed: () => unawaited(
+                Navigator.of(context).pushNamed(AppRoutes.privacySettings)),
             child: const Text('Mở Quyền riêng tư'),
           ),
         ],
@@ -190,7 +198,8 @@ class _RequestCard extends StatelessWidget {
     final name = familyDisplayName(request.familyName);
     return Card(
       key: Key('incoming-request-${request.linkId}'),
-      elevation: 0,
+      elevation: 2,
+      shadowColor: const Color(0x221C2024),
       margin: EdgeInsets.zero,
       color: AppColors.surface,
       shape: RoundedRectangleBorder(
@@ -206,7 +215,8 @@ class _RequestCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Text(name, style: AppTextStyles.bodyStrong),
-              if (request.familyPhone != null && request.familyPhone!.trim().isNotEmpty) ...[
+              if (request.familyPhone != null &&
+                  request.familyPhone!.trim().isNotEmpty) ...[
                 const SizedBox(height: 2),
                 Text(
                   'SĐT: ${request.familyPhone}',
@@ -214,7 +224,8 @@ class _RequestCard extends StatelessWidget {
                   style: AppTextStyles.caption,
                 ),
               ],
-              if (request.familyEmail != null && request.familyEmail!.trim().isNotEmpty) ...[
+              if (request.familyEmail != null &&
+                  request.familyEmail!.trim().isNotEmpty) ...[
                 const SizedBox(height: 2),
                 Text(
                   'Email: ${request.familyEmail}',
@@ -235,7 +246,9 @@ class _RequestCard extends StatelessWidget {
                       height: 48,
                       child: OutlinedButton(
                         key: Key('reject-${request.linkId}'),
-                        onPressed: busy ? null : () => unawaited(_reject(actionContext, name)),
+                        onPressed: busy
+                            ? null
+                            : () => unawaited(_reject(actionContext, name)),
                         child: const Text('Từ chối'),
                       ),
                     ),
@@ -246,7 +259,9 @@ class _RequestCard extends StatelessWidget {
                       height: 48,
                       child: FilledButton(
                         key: Key('approve-${request.linkId}'),
-                        onPressed: busy ? null : () => unawaited(_openConfirmation(actionContext)),
+                        onPressed: busy
+                            ? null
+                            : () => unawaited(_openConfirmation(actionContext)),
                         child: const Text('Chấp thuận'),
                       ),
                     ),
@@ -304,7 +319,8 @@ class _RequestCard extends StatelessWidget {
       builder: (dialogContext) => AlertDialog(
         key: const Key('reject-dialog'),
         title: Text('Từ chối $name?'),
-        content: const Text('Người này sẽ không theo dõi được bạn. Họ có thể gửi lại yêu cầu.'),
+        content: const Text(
+            'Người này sẽ không theo dõi được bạn. Họ có thể gửi lại yêu cầu.'),
         actions: [
           TextButton(
             key: const Key('reject-cancel'),

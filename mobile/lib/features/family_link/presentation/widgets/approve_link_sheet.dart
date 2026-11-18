@@ -10,11 +10,16 @@ import 'caregiver_messages.dart';
 ///
 /// Văn bản là mô tả mục đích `family_sharing` phiên bản `consentDocumentVersion`, đúng phiên bản
 /// app gửi kèm khi chấp thuận. Trả `true` khi người dùng tick đồng ý và bấm xác nhận.
-Future<bool> showApproveLinkSheet(BuildContext context, IncomingLinkRequest request) async {
+Future<bool> showApproveLinkSheet(
+    BuildContext context, IncomingLinkRequest request) async {
   final confirmed = await showModalBottomSheet<bool>(
     context: context,
     isScrollControlled: true,
+    backgroundColor: AppColors.surface,
+    shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
     showDragHandle: true,
+    useSafeArea: true,
     builder: (_) => _ApproveLinkSheet(request: request),
   );
   return confirmed ?? false;
@@ -37,13 +42,16 @@ class _ApproveLinkSheetState extends State<_ApproveLinkSheet> {
     final text = consentTexts[ConsentPurpose.familySharing]!;
     final name = familyDisplayName(widget.request.familyName);
     return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(AppSpacing.page, 0, AppSpacing.page, AppSpacing.lg),
+      child: SingleChildScrollView(
+          child: Padding(
+        padding: const EdgeInsets.fromLTRB(
+            AppSpacing.page, 0, AppSpacing.page, AppSpacing.lg),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text('Chấp thuận $name theo dõi bạn?', style: AppTextStyles.heading),
+            Text('Chấp thuận $name theo dõi bạn?',
+                style: AppTextStyles.heading),
             const SizedBox(height: AppSpacing.md),
             Text(text.title, style: AppTextStyles.bodyStrong),
             const SizedBox(height: AppSpacing.xs),
@@ -89,7 +97,7 @@ class _ApproveLinkSheetState extends State<_ApproveLinkSheet> {
             ),
           ],
         ),
-      ),
+      )),
     );
   }
 }

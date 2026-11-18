@@ -47,10 +47,18 @@ import '../features/meal_suggestion/domain/repositories/meal_suggestion_reposito
 import '../features/meal_suggestion/presentation/screens/meal_suggestion_screen.dart';
 import '../shared/widgets/coming_soon_view.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
+import '../features/profile/presentation/screens/notification_preferences_screen.dart';
+import '../features/profile/presentation/screens/reminder_sound_screen.dart';
+import '../features/profile/presentation/screens/profile_settings_screen.dart';
+import '../features/family_link/presentation/screens/invite_caregiver_screen.dart';
 
 enum HomeEntry { profileCompleted }
 
 abstract final class AppRoutes {
+  static const profileInvite = '/profile/invite';
+  static const profileNotifications = '/profile/notifications';
+  static const profileReminderSound = '/profile/notifications/sound';
+  static const profileSettings = '/profile/settings';
   static const familyAlerts = '/family/alerts';
   static const familyAlertDetail = '/family/alerts/detail';
   static const home = '/';
@@ -112,6 +120,19 @@ Route<dynamic>? onGenerateRoute(
   AllergyProfileRepository? allergyProfileRepository,
 }) {
   return switch (settings.name) {
+    AppRoutes.profileInvite => MaterialPageRoute<void>(
+        settings: settings, builder: (_) => const InviteCaregiverScreen()),
+    AppRoutes.profileNotifications => MaterialPageRoute<void>(
+        settings: settings,
+        builder: (_) => const NotificationPreferencesScreen()),
+    AppRoutes.profileReminderSound => MaterialPageRoute<void>(
+        settings: settings, builder: (_) => const ReminderSoundScreen()),
+    AppRoutes.profileSettings => MaterialPageRoute<void>(
+        settings: settings,
+        builder: (_) => ProfileSettingsScreen(
+            args: settings.arguments is ProfileSettingsArgs
+                ? settings.arguments as ProfileSettingsArgs
+                : null)),
     AppRoutes.scanMedication => MaterialPageRoute<Medication>(
         settings: settings,
         fullscreenDialog: true,

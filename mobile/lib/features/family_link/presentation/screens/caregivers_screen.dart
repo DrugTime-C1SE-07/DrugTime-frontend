@@ -3,6 +3,9 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../../../app/theme/app_theme.dart';
+import '../../../../app/router.dart';
+import '../../../../shared/widgets/profile_flow_widgets.dart';
+
 import '../../../consent/domain/entities/consent.dart';
 import '../../../consent/presentation/state/consent_controller.dart';
 import '../../domain/entities/caregiver.dart';
@@ -48,9 +51,12 @@ class _CaregiversScreenState extends State<CaregiversScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final sharingGranted = ConsentScope.of(context).isGranted(ConsentPurpose.familySharing);
+    final sharingGranted =
+        ConsentScope.of(context).isGranted(ConsentPurpose.familySharing);
     return Scaffold(
-      appBar: AppBar(title: const Text('Người giám sát')),
+      appBar: ProfileFlowHeader('Người giám sát',
+          titleScale: MediaQuery.textScalerOf(context).scale(18) / 18,
+          backgroundColor: AppColors.canvas),
       body: SafeArea(
         child: ListenableBuilder(
           listenable: _controller,
@@ -58,13 +64,27 @@ class _CaregiversScreenState extends State<CaregiversScreen> {
             onRefresh: _controller.load,
             child: ListView(
               physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.all(AppSpacing.page),
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
               children: [
                 if (!sharingGranted) ...[
-                  const SharingConsentBanner(key: Key('caregivers-consent-banner')),
+                  const SharingConsentBanner(
+                      key: Key('caregivers-consent-banner')),
                   const SizedBox(height: AppSpacing.md),
                 ],
                 ..._body(context, sharingGranted),
+                const SizedBox(height: 16),
+                const ProfileFlowCard(
+                    shadow: false,
+                    color: AppColors.surfaceMuted,
+                    child: Text(
+                        'Sau khi bạn xác nhận và bật chia sẻ, người thân có thể xem dữ liệu được chia sẻ và nhận cảnh báo bỏ lỡ liều.',
+                        style: AppTextStyles.caption)),
+                const SizedBox(height: 16),
+                ProfileFlowButton(
+                    label: 'Mời người thân',
+                    icon: Icons.person_add_outlined,
+                    onPressed: () =>
+                        Navigator.pushNamed(context, AppRoutes.profileInvite)),
               ],
             ),
           ),
@@ -77,7 +97,8 @@ class _CaregiversScreenState extends State<CaregiversScreen> {
     if (!_controller.isLoaded) {
       if (_controller.loadError case final error?) {
         return [
-          Text(caregiverFailureMessage(error) ?? '', key: const Key('caregivers-load-error')),
+          Text(caregiverFailureMessage(error) ?? '',
+              key: const Key('caregivers-load-error')),
           TextButton(onPressed: _controller.load, child: const Text('Thử lại')),
         ];
       }
@@ -85,13 +106,18 @@ class _CaregiversScreenState extends State<CaregiversScreen> {
     }
     if (_controller.items.isEmpty) return const [_EmptyCaregivers()];
     return [
+      Padding(
+          padding: const EdgeInsets.only(bottom: 16),
+          child: Text('ĐÃ LIÊN KẾT · ${_controller.items.length} người',
+              style: AppTextStyles.caption)),
       for (final caregiver in _controller.items) ...[
         _CaregiverCard(
           key: Key('caregiver-${caregiver.linkId}'),
           caregiver: caregiver,
           busy: _controller.isBusy(caregiver.linkId),
           sharingGranted: sharingGranted,
-          onSharingChanged: (enabled) => unawaited(_setSharing(caregiver, enabled)),
+          onSharingChanged: (enabled) =>
+              unawaited(_setSharing(caregiver, enabled)),
           onRevoke: () => unawaited(_revoke(caregiver)),
         ),
         const SizedBox(height: AppSpacing.sm),
@@ -104,7 +130,8 @@ class _CaregiversScreenState extends State<CaregiversScreen> {
     if (!mounted) return;
     final name = familyDisplayName(caregiver.familyName);
     if (error != null) return _showError(error);
-    _showMessage(enabled ? 'Đã bật chia sẻ với $name.' : 'Đã tắt chia sẻ với $name.');
+    _showMessage(
+        enabled ? 'Đã bật chia sẻ với $name.' : 'Đã tắt chia sẻ với $name.');
   }
 
   Future<void> _revoke(Caregiver caregiver) async {
@@ -179,7 +206,8 @@ class _EmptyCaregivers extends StatelessWidget {
         const SizedBox(height: AppSpacing.lg),
         OutlinedButton(
           key: const Key('caregivers-open-family-tab'),
-          onPressed: () => Navigator.of(context).pop(CaregiversScreen.openFamilyTab),
+          onPressed: () =>
+              Navigator.of(context).pop(CaregiversScreen.openFamilyTab),
           child: const Text('Mở tab Người thân'),
         ),
       ],
@@ -209,7 +237,8 @@ class _CaregiverCard extends StatelessWidget {
     // Tắt luôn được (rút quyền); bật cần đã đồng ý family_sharing.
     final canToggle = !busy && (caregiver.sharingEnabled || sharingGranted);
     return Card(
-      elevation: 0,
+      elevation: 3,
+      shadowColor: const Color(0x331C2024),
       margin: EdgeInsets.zero,
       color: AppColors.surface,
       shape: RoundedRectangleBorder(
@@ -217,11 +246,25 @@ class _CaregiverCard extends StatelessWidget {
         side: const BorderSide(color: AppColors.border),
       ),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg, vertical: AppSpacing.md),
+        padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.lg, vertical: AppSpacing.md),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text(familyDisplayName(caregiver.familyName), style: AppTextStyles.bodyStrong),
+            Row(children: [
+              CircleAvatar(
+                  backgroundColor: AppColors.brandTint,
+                  child: Text(
+                      familyDisplayName(caregiver.familyName)
+                          .characters
+                          .first
+                          .toUpperCase(),
+                      style: const TextStyle(color: AppColors.brand))),
+              const SizedBox(width: 12),
+              Expanded(
+                  child: Text(familyDisplayName(caregiver.familyName),
+                      style: AppTextStyles.bodyStrong))
+            ]),
             const SizedBox(height: AppSpacing.xs),
             Text(
               approvedAt == null
@@ -244,7 +287,13 @@ class _CaregiverCard extends StatelessWidget {
               alignment: Alignment.centerRight,
               child: TextButton(
                 key: Key('revoke-${caregiver.linkId}'),
-                style: TextButton.styleFrom(foregroundColor: AppColors.danger),
+                style: TextButton.styleFrom(
+                    foregroundColor: AppColors.danger,
+                    backgroundColor: AppColors.dangerBg,
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 12),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12))),
                 onPressed: busy ? null : onRevoke,
                 child: busy
                     ? const SizedBox(

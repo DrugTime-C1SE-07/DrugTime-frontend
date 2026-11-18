@@ -4,6 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
 import '../../../../app/theme/app_theme.dart';
+import '../../../../app/router.dart';
+import '../../../../shared/widgets/profile_flow_widgets.dart';
+
 import '../state/family_link_code_controller.dart';
 import '../../domain/entities/family_link_code_failure.dart';
 
@@ -27,11 +30,14 @@ class _FamilyLinkCodeScreenState extends State<FamilyLinkCodeScreen> {
   Widget build(BuildContext context) {
     final controller = FamilyLinkCodeScope.of(context);
     return Scaffold(
-      appBar: AppBar(title: const Text('Mời người thân')),
+      appBar: ProfileFlowHeader('Mã QR của bạn',
+          titleScale: MediaQuery.textScalerOf(context).scale(18) / 18,
+          backgroundColor: AppColors.canvas),
       body: SafeArea(
-        child: Center(
+        child: Align(
+          alignment: Alignment.topCenter,
           child: SingleChildScrollView(
-            padding: const EdgeInsets.all(AppSpacing.page),
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
             child: switch ((
               controller.isLoading,
               controller.code,
@@ -54,40 +60,39 @@ class _FamilyLinkCodeScreenState extends State<FamilyLinkCodeScreen> {
 
   Widget _buildCode(BuildContext context, String code, String qrPayload) =>
       Column(
-        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const Text('Chia sẻ mã này với người thân',
-              style: AppTextStyles.body),
-          const SizedBox(height: AppSpacing.xl),
-          Container(
-            padding: const EdgeInsets.all(AppSpacing.md),
-            decoration: BoxDecoration(
-              color: AppColors.surface,
-              borderRadius: BorderRadius.circular(AppRadius.card),
-              border: Border.all(color: AppColors.border),
-            ),
-            child: QrImageView(
-              key: const Key('family-link-qr'),
-              data: qrPayload,
-              size: 220,
-              semanticsLabel: 'Mã QR liên kết người thân',
-            ),
-          ),
-          const SizedBox(height: AppSpacing.xl),
-          const Text('Mã liên kết', style: AppTextStyles.caption),
-          const SizedBox(height: AppSpacing.sm),
-          SelectableText(
-            code,
-            key: const Key('family-link-code'),
-            style: AppTextStyles.title.copyWith(letterSpacing: 3),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: AppSpacing.lg),
           const Text(
-            'Người thân gửi yêu cầu bằng mã này. Liên kết chỉ được tạo sau khi bạn chấp thuận.',
-            style: AppTextStyles.body,
-            textAlign: TextAlign.center,
-          ),
+              'Nhờ người thân mở DrugTime và chọn Quét mã QR để gửi yêu cầu kết nối.',
+              style: AppTextStyles.caption),
+          const SizedBox(height: 16),
+          ProfileFlowCard(
+              child: Column(children: [
+            QrImageView(
+                key: const Key('family-link-qr'),
+                data: qrPayload,
+                size: 220,
+                semanticsLabel: 'Mã QR liên kết người thân'),
+            const SizedBox(height: 20),
+            const Text('Mã liên kết', style: AppTextStyles.caption),
+            const SizedBox(height: 8),
+            SelectableText(code,
+                key: const Key('family-link-code'),
+                style: AppTextStyles.bodyStrong
+                    .copyWith(fontSize: 18, letterSpacing: 2),
+                textAlign: TextAlign.center),
+          ])),
+          const SizedBox(height: 16),
+          ProfileFlowButton(
+              label: 'Chia sẻ link mời',
+              icon: Icons.share_outlined,
+              onPressed: () =>
+                  Navigator.pushNamed(context, AppRoutes.familyShareLink)),
+          const SizedBox(height: 16),
+          const Text(
+              'Người thân gửi yêu cầu bằng mã này. Liên kết chỉ được tạo sau khi bạn chấp thuận.',
+              style: AppTextStyles.caption,
+              textAlign: TextAlign.center),
         ],
       );
 
