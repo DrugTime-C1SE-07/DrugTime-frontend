@@ -6,6 +6,7 @@ import 'package:cryptography/cryptography.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
+import '../../../core/storage/secure_storage.dart';
 import '../domain/capture_models.dart';
 import '../domain/capture_ports.dart';
 import 'capture_crypto_worker.dart';
@@ -15,12 +16,12 @@ class EncryptedCaptureStore implements CaptureStore {
       {FlutterSecureStorage? keyStorage,
       Future<Directory> Function()? directory,
       DateTime Function()? clock})
-      : _keys = keyStorage ?? const FlutterSecureStorage(),
+      : _keys = SecureStorage(storage: keyStorage),
         _directory = directory ??
             (() async => Directory(p.join((await getTemporaryDirectory()).path,
                 'medication_capture_v1'))),
         _clock = clock ?? DateTime.now;
-  final FlutterSecureStorage _keys;
+  final SecureStorage _keys;
   final Future<Directory> Function() _directory;
   final DateTime Function() _clock;
   static const keyName = 'medication_capture_session_key_v1';
