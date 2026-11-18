@@ -17,7 +17,13 @@ enum MascotMood {
   thinking,
   cover,
   poke,
+
+  /// Đầu bếp đang "nấu": lắc bát, nhún theo nhịp, rau trong bát nảy lên.
+  cooking,
 }
+
+/// Trang phục của linh vật. [chef]: mũ đầu bếp + bát salad ở tay phải.
+enum MascotOutfit { plain, chef }
 
 /// Màn hình điều khiển linh vật qua controller: đổi trạng thái, hướng nhìn, hé mắt.
 class MascotController extends ChangeNotifier {
