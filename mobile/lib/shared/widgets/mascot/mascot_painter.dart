@@ -26,9 +26,11 @@ class _C {
 
 /// Vẽ linh vật trong khung 300×300 từ giá trị hiện tại của [rig].
 class MascotPainter extends CustomPainter {
-  MascotPainter(this.rig) : super(repaint: rig);
+  MascotPainter(this.rig, {this.outfit = MascotOutfit.plain})
+      : super(repaint: rig);
 
   final MascotRig rig;
+  final MascotOutfit outfit;
 
   static final _body = RRect.fromRectAndRadius(
       const Rect.fromLTWH(83, 56, 134, 196), const Radius.circular(67));
@@ -93,7 +95,15 @@ class MascotPainter extends CustomPainter {
     _mouth(canvas);
     _sweat(canvas, r.value('sweat'), T);
     _think(canvas, r.value('think'), T);
-    _arms(canvas, strokes: !behind, hands: true);
+    if (outfit == MascotOutfit.chef) {
+      _arms(canvas, strokes: !behind, hands: false);
+      _bowl(canvas, T);
+      _arms(canvas, strokes: false, hands: true);
+      _hat(canvas);
+      _sparkles(canvas, r.value('spark'), T);
+    } else {
+      _arms(canvas, strokes: !behind, hands: true);
+    }
     _shield(canvas, r.value('shield'));
     canvas.restore();
     canvas.restore();
@@ -461,7 +471,7 @@ class MascotPainter extends CustomPainter {
           text: 'z',
           style: TextStyle(
             fontSize: 18.0 + i * 5,
-            fontWeight: FontWeight.w800,
+            fontWeight: FontWeight.w700,
             color: _C.navy.withValues(alpha: a * math.sin(ph * math.pi)),
           ),
         ),
@@ -507,6 +517,206 @@ class MascotPainter extends CustomPainter {
     }
   }
 
+  // ---------------------------------------------------------------- đầu bếp
+
+  static const _hatLine = Color(0xFF8CC4F0);
+  static const _hatShade = Color(0xFFE3EEF9);
+
+  /// Mũ đầu bếp: bốn múi bông + vành, nghiêng trái như icon gốc; trễ theo thân (hatY, hatT).
+  void _hat(Canvas c) {
+    final r = rig;
+    c.save();
+    c.translate(146, 72 + r.value('hatY').clamp(-14.0, 14.0));
+    c.rotate(-.17 + r.value('hatT').clamp(-.5, .5));
+    c.scale(1.12);
+    final puff = Path()
+      ..addOval(Rect.fromCircle(center: const Offset(-36, -40), radius: 23))
+      ..addOval(Rect.fromCircle(center: const Offset(-12, -58), radius: 27))
+      ..addOval(Rect.fromCircle(center: const Offset(18, -56), radius: 26))
+      ..addOval(Rect.fromCircle(center: const Offset(40, -36), radius: 21))
+      ..addRRect(RRect.fromRectAndRadius(
+          const Rect.fromLTRB(-50, -46, 52, -10), const Radius.circular(14)));
+    final outline = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 3.2
+      ..strokeJoin = StrokeJoin.round
+      ..color = _hatLine;
+    c.drawPath(puff, outline);
+    c.drawPath(
+        puff,
+        Paint()
+          ..shader = const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [_C.white, _hatShade],
+          ).createShader(const Rect.fromLTRB(-60, -86, 62, -8)));
+    final crease = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.2
+      ..strokeCap = StrokeCap.round
+      ..color = _hatLine.withValues(alpha: .45);
+    c.drawArc(Rect.fromCircle(center: const Offset(-12, -58), radius: 27), 2.2,
+        .9, false, crease);
+    c.drawArc(Rect.fromCircle(center: const Offset(18, -56), radius: 26), 2.0,
+        .8, false, crease);
+    c.drawCircle(const Offset(-22, -66), 6, _fill(_C.white, .9));
+    final band = RRect.fromRectAndRadius(
+        const Rect.fromLTRB(-46, -18, 48, 10), const Radius.circular(10));
+    c.drawRRect(
+        band,
+        Paint()
+          ..shader = const LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [_C.white, _hatShade],
+          ).createShader(band.outerRect));
+    c.drawRRect(band, outline);
+    for (final x in [-20.0, 4.0, 28.0]) {
+      c.drawLine(Offset(x, -12), Offset(x, 5), crease);
+    }
+    c.restore();
+  }
+
+  /// Bát salad ở tay phải; rau, trứng, cà chua, cá hồi nảy theo 'toss'.
+  void _bowl(Canvas c, double T) {
+    final r = rig;
+    final hx = r.value('hrx'),
+        hy = r.value('hry') - r.value('hw') * r.value('y');
+    final toss = r.value('toss').clamp(0.0, 1.0);
+    c.save();
+    // bát to cỡ icon gốc, tay đỡ ở mép dưới bên trái
+    c.translate(hx + 22, hy - 24);
+    c.rotate(-.12 + r.value('bowlT').clamp(-.6, .6));
+    c.scale(1.45);
+
+    void item(double x, double y, double phase, void Function() draw) {
+      final up = toss * (7 + phase * 5);
+      c.save();
+      c.translate(x, y - up);
+      c.rotate(toss * (phase - .5) * .5);
+      draw();
+      c.restore();
+    }
+
+    item(-20, -6, .2, () {
+      for (final (dx, dy, rr) in [
+        (-6.0, 0.0, 11.0),
+        (4.0, -4.0, 12.0),
+        (12.0, 2.0, 9.0)
+      ]) {
+        c.drawCircle(Offset(dx, dy), rr, _fill(const Color(0xFF4FAE45)));
+        c.drawCircle(
+            Offset(dx - 2, dy - 3), rr * .55, _fill(const Color(0xFF7DCB5C)));
+      }
+    });
+    item(18, -8, .9, () {
+      final p = Path()
+        ..moveTo(-14, 4)
+        ..quadraticBezierTo(-10, -10, 8, -9)
+        ..quadraticBezierTo(16, -6, 14, 4)
+        ..close();
+      c.drawPath(p, _fill(const Color(0xFFFF8A5B)));
+      final s = Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.6
+        ..strokeCap = StrokeCap.round
+        ..color = const Color(0xFFFFE1D3);
+      for (final x in [-6.0, 0.0, 6.0]) {
+        c.drawLine(Offset(x - 2, -6), Offset(x + 2, 3), s);
+      }
+    });
+    item(-2, -10, .5, () {
+      c.drawCircle(Offset.zero, 8, _fill(const Color(0xFFF2453D)));
+      c.drawCircle(const Offset(-2.5, -2.5), 2.6, _fill(_C.white, .55));
+    });
+    item(-26, -2, .7, () {
+      c.drawOval(Rect.fromCenter(center: Offset.zero, width: 20, height: 15),
+          _fill(_C.white));
+      c.drawCircle(const Offset(1, 0), 5.2, _fill(_C.yellow));
+    });
+    item(6, -2, .35, () {
+      c.drawOval(Rect.fromCenter(center: Offset.zero, width: 16, height: 10),
+          _fill(const Color(0xFF9CCB4F)));
+      c.drawOval(Rect.fromCenter(center: Offset.zero, width: 9, height: 5),
+          _fill(const Color(0xFFCFE69A)));
+    });
+    final body = Path()
+      ..moveTo(-38, 0)
+      ..cubicTo(-36, 26, 36, 26, 38, 0)
+      ..close();
+    c.drawPath(
+        body,
+        Paint()
+          ..shader = const LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [_C.white, Color(0xFFCFE6F8)],
+          ).createShader(const Rect.fromLTRB(-38, 0, 38, 22)));
+    c.drawRRect(
+        RRect.fromRectAndRadius(
+            Rect.fromCenter(center: const Offset(0, 22), width: 26, height: 6),
+            const Radius.circular(3)),
+        _fill(const Color(0xFFB5D7F2)));
+    final line = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.6
+      ..strokeJoin = StrokeJoin.round
+      ..color = _hatLine;
+    c.drawPath(body, line);
+    c.drawPath(
+        Path()
+          ..moveTo(-28, 8)
+          ..quadraticBezierTo(-22, 16, -12, 18),
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 3
+          ..strokeCap = StrokeCap.round
+          ..color = _C.white.withValues(alpha: .9));
+    c.drawOval(
+        Rect.fromCenter(center: Offset.zero, width: 78, height: 9), line);
+    c.restore();
+  }
+
+  /// Hai ngôi sao bốn cánh vàng + hai nét "!" vui vẻ cạnh bát, như icon gốc.
+  void _sparkles(Canvas c, double a, double T) {
+    if (a < .02) return;
+    final star = Path()
+      ..moveTo(0, -10)
+      ..quadraticBezierTo(2, -2, 10, 0)
+      ..quadraticBezierTo(2, 2, 0, 10)
+      ..quadraticBezierTo(-2, 2, -10, 0)
+      ..quadraticBezierTo(-2, -2, 0, -10)
+      ..close();
+    for (final (x, y, s, ph) in [
+      (56.0, 120.0, 1.0, 0.0),
+      (214.0, 70.0, .8, 1.9)
+    ]) {
+      final tw = .75 + .25 * math.sin(T * 3.2 + ph);
+      c.save();
+      c.translate(x, y);
+      c.scale(s * tw);
+      c.drawPath(star, _fill(_C.yellow, a));
+      c.drawPath(
+          star,
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 1.6
+            ..strokeJoin = StrokeJoin.round
+            ..color = _C.yellowLine.withValues(alpha: a));
+      c.restore();
+    }
+    final hx = rig.value('hrx');
+    final hy = rig.value('hry');
+    final dash = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 5
+      ..strokeCap = StrokeCap.round
+      ..color = _C.yellow.withValues(alpha: a * (.7 + .3 * math.sin(T * 6)));
+    c.drawLine(Offset(hx + 10, hy - 78), Offset(hx + 14, hy - 64), dash);
+    c.drawLine(Offset(hx + 30, hy - 74), Offset(hx + 26, hy - 61), dash);
+  }
+
   @override
-  bool shouldRepaint(covariant MascotPainter old) => old.rig != rig;
+  bool shouldRepaint(covariant MascotPainter old) =>
+      old.rig != rig || old.outfit != outfit;
 }

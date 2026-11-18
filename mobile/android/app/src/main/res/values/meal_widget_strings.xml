@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="meal_widget_label">Thực đơn hôm nay</string>
+    <string name="meal_widget_description">Món Dumi gợi ý bạn đã chọn cho Sáng, Trưa, Tối</string>
+    <string name="meal_widget_title">Thực đơn hôm nay</string>
+    <string name="meal_widget_button">Dumi AI</string>
+    <string name="meal_widget_sang">Sáng</string>
+    <string name="meal_widget_trua">Trưa</string>
+    <string name="meal_widget_toi">Tối</string>
+    <string name="meal_widget_not_chosen">Chưa chọn</string>
+    <string name="meal_widget_open_today">Mở Dumi để lên thực đơn hôm nay</string>
+    <string name="meal_widget_signed_out">Đăng nhập để xem thực đơn</string>
+    <string name="meal_widget_meal_sang">Bữa sáng</string>
+    <string name="meal_widget_meal_trua">Bữa trưa</string>
+    <string name="meal_widget_meal_toi">Bữa tối</string>
+</resources>

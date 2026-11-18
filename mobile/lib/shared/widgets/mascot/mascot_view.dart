@@ -14,10 +14,15 @@ import 'mascot_rig.dart';
 /// và không yêu cầu khung hình liên tục.
 class MascotView extends StatefulWidget {
   const MascotView(
-      {super.key, required this.controller, this.size = 220, this.random});
+      {super.key,
+      required this.controller,
+      this.size = 220,
+      this.outfit = MascotOutfit.plain,
+      this.random});
 
   final MascotController controller;
   final double size;
+  final MascotOutfit outfit;
 
   /// Chỉ dùng cho test để chuyển động ngẫu nhiên xác định được.
   final math.Random? random;
@@ -96,6 +101,7 @@ class _MascotViewState extends State<MascotView>
 
   @override
   Widget build(BuildContext context) {
+    _rig.outfit = widget.outfit;
     return Semantics(
       label: 'Linh vật DrugTime',
       image: true,
@@ -105,7 +111,7 @@ class _MascotViewState extends State<MascotView>
         child: RepaintBoundary(
           child: CustomPaint(
             size: Size.square(widget.size),
-            painter: MascotPainter(_rig),
+            painter: MascotPainter(_rig, outfit: widget.outfit),
           ),
         ),
       ),

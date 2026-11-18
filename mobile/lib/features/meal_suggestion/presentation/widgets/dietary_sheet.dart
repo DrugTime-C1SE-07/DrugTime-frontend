@@ -26,9 +26,14 @@ Future<DietaryAnswer?> showDietarySheet(BuildContext context,
 enum _RestrictionMode { none, list, unknown }
 
 class DietarySheet extends StatefulWidget {
-  const DietarySheet({super.key, required this.session});
+  const DietarySheet(
+      {super.key, required this.session, this.onSubmit, this.showTitle = true});
 
   final DietarySession session;
+
+  /// Khác `null`: sheet được nhúng (sheet "Dumi cần biết"), gọi callback thay vì đóng route.
+  final ValueChanged<DietaryAnswer>? onSubmit;
+  final bool showTitle;
 
   @override
   State<DietarySheet> createState() => _DietarySheetState();
@@ -88,9 +93,15 @@ class _DietarySheetState extends State<DietarySheet> {
         DietaryDeclaration.items(_restrictions.map((e) => e.trim()).toList()),
       _ => null,
     };
-    Navigator.of(context).pop(DietaryAnswer(
+    final answer = DietaryAnswer(
         restrictions: restrictions,
-        preferences: _preferences.map((e) => e.trim()).toList()));
+        preferences: _preferences.map((e) => e.trim()).toList());
+    final onSubmit = widget.onSubmit;
+    if (onSubmit != null) {
+      onSubmit(answer);
+    } else {
+      Navigator.of(context).pop(answer);
+    }
   }
 
   Widget _items(List<String> items) => Wrap(
@@ -114,8 +125,10 @@ class _DietarySheetState extends State<DietarySheet> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Trước khi gợi ý', style: AppTextStyles.heading),
-            const SizedBox(height: AppSpacing.xs),
+            if (widget.showTitle) ...[
+              const Text('Trước khi gợi ý', style: AppTextStyles.heading),
+              const SizedBox(height: AppSpacing.xs),
+            ],
             const Text(
                 'Bạn có hạn chế ăn uống nào không? (ví dụ ăn chay, kiêng đường)',
                 style: AppTextStyles.body),

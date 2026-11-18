@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Nền widget "Thực đơn hôm nay": tím nhạt → mint, bo góc theo launcher (Material You). -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <gradient android:angle="315" android:startColor="#FFF4F0FF" android:endColor="#FFE3F5F0" />
+    <corners android:radius="24dp" />
+</shape>

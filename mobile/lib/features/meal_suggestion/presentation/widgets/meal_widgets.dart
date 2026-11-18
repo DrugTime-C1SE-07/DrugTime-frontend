@@ -4,8 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../../../app/theme/app_theme.dart';
-import '../../../../core/utils/app_assets.dart';
 import '../../domain/entities/meal_suggestion.dart';
+import 'meal_ui.dart';
 
 /// Lời miễn trừ hiển thị nguyên văn, không nằm trong tab hay mục thu gọn (R-07, AC10).
 class MealDisclaimer extends StatelessWidget {
@@ -41,6 +41,8 @@ class MealImageView extends StatelessWidget {
     this.height = 180,
     this.borderRadius = BorderRadius.zero,
     this.showAttribution = true,
+    this.placeholderIcon = 'salad',
+    this.alignment = Alignment.center,
   });
 
   final MealDishImage? image;
@@ -49,12 +51,18 @@ class MealImageView extends StatelessWidget {
   final BorderRadius borderRadius;
   final bool showAttribution;
 
+  /// Icon nguyên liệu trên ảnh giữ chỗ (khi chưa có ảnh hoặc ảnh lỗi).
+  final String placeholderIcon;
+
+  /// Căn ảnh trong khung (parallax nhẹ khi vuốt thẻ).
+  final Alignment alignment;
+
   @override
   Widget build(BuildContext context) {
     final current = image;
     final Widget child;
     if (current == null || current.status == MealImageStatus.failed) {
-      child = const _DefaultDishImage();
+      child = _DefaultDishImage(placeholderIcon);
     } else if (!current.isReady) {
       child = const _PendingDishImage();
     } else {
@@ -66,8 +74,10 @@ class MealImageView extends StatelessWidget {
             return Stack(fit: StackFit.expand, children: [
               Image.memory(snapshot.data!,
                   fit: BoxFit.cover,
+                  alignment: alignment,
                   gaplessPlayback: true,
-                  errorBuilder: (_, __, ___) => const _DefaultDishImage()),
+                  errorBuilder: (_, __, ___) =>
+                      _DefaultDishImage(placeholderIcon)),
               Positioned(
                 left: 8,
                 bottom: 8,
@@ -77,7 +87,7 @@ class MealImageView extends StatelessWidget {
               ),
             ]);
           }
-          if (snapshot.hasError) return const _DefaultDishImage();
+          if (snapshot.hasError) return _DefaultDishImage(placeholderIcon);
           return const _PendingDishImage();
         },
       );
@@ -120,17 +130,26 @@ class _ImageLabel extends StatelessWidget {
 }
 
 class _DefaultDishImage extends StatelessWidget {
-  const _DefaultDishImage();
+  const _DefaultDishImage(this.icon);
+
+  final String icon;
 
   @override
   Widget build(BuildContext context) {
-    return ColoredBox(
+    return DecoratedBox(
       key: const ValueKey('meal-image-default'),
-      color: AppColors.brandTint,
-      child: Center(
-        child: Image.asset(AppAssets.mascotCooking, height: 72,
-            errorBuilder: (_, __, ___) =>
-                const Icon(LucideIcons.cookingPot, color: AppColors.brand)),
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFFFFF4E0), Color(0xFFE6F4EC)],
+        ),
+      ),
+      child: LayoutBuilder(
+        builder: (context, box) => Center(
+          child: FoodIcon(icon,
+              size: (box.biggest.shortestSide * .38).clamp(20.0, 80.0)),
+        ),
       ),
     );
   }
@@ -143,7 +162,7 @@ class _PendingDishImage extends StatelessWidget {
   Widget build(BuildContext context) {
     return const ColoredBox(
       key: ValueKey('meal-image-pending'),
-      color: AppColors.surfaceMuted,
+      color: Color(0xFFF1EFEA),
       child: Center(
         child: SizedBox(
             width: 22,
@@ -197,8 +216,8 @@ class MealFoodCheckView extends StatelessWidget {
           ],
         );
       case FoodCheckStatus.daKiemTraKhongThay:
-        return const _CheckNote(
-            'Chưa thấy tương tác trong dữ liệu hiện có', AppColors.surfaceMuted);
+        return const _CheckNote('Chưa thấy tương tác trong dữ liệu hiện có',
+            AppColors.surfaceMuted);
       case FoodCheckStatus.khongDuDuLieu:
         return const _CheckNote(
             'Chưa xác minh được, hãy hỏi dược sĩ', AppColors.cautionBg);
@@ -239,30 +258,3 @@ class MealChip extends StatelessWidget {
 }
 
 String kcalLabel(int kcal) => '~$kcal kcal';
-
-/// Biểu tượng nguyên liệu theo từ khóa tên; không khớp thì dùng biểu tượng theo nhóm.
-IconData ingredientIcon(MealIngredient ingredient) {
-  final name = ingredient.name.toLowerCase();
-  const rules = <(List<String>, IconData)>[
-    (['gạo', 'cơm', 'bún', 'phở', 'miến', 'mì', 'bánh'], LucideIcons.wheat),
-    (['gà', 'vịt'], LucideIcons.drumstick),
-    (['bò', 'heo', 'lợn', 'thịt'], LucideIcons.beef),
-    (['tôm', 'cua', 'mực'], LucideIcons.shrimp),
-    (['cá'], LucideIcons.fish),
-    (['trứng'], LucideIcons.egg),
-    (['sữa'], LucideIcons.milk),
-    (['đậu', 'đỗ'], LucideIcons.bean),
-    (['lạc', 'hạt', 'mè', 'vừng'], LucideIcons.nut),
-    (['cà rốt', 'củ'], LucideIcons.carrot),
-    (['cà chua'], LucideIcons.cherry),
-    (['chanh', 'cam', 'quýt'], LucideIcons.citrus),
-    (['táo', 'chuối', 'dứa', 'xoài', 'quả', 'trái'], LucideIcons.apple),
-    (['rau', 'cải', 'xà lách', 'bí', 'mướp', 'hành', 'ngò', 'rau thơm'],
-        LucideIcons.leafyGreen),
-    (['dầu', 'nước mắm', 'nước tương', 'xì dầu', 'giấm'], LucideIcons.droplet),
-  ];
-  for (final (keys, icon) in rules) {
-    if (keys.any(name.contains)) return icon;
-  }
-  return ingredient.isMain ? LucideIcons.salad : LucideIcons.leaf;
-}

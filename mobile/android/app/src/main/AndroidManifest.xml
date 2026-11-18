@@ -59,6 +59,20 @@
                 android:value="false" />
         </activity>
 
+        <!-- Widget "Thực đơn hôm nay" trên màn hình chính (Dumi AI). Chạm mở MainActivity với
+             drugtime://meal?meal=... qua home_widget (intent tường minh, không cần intent-filter). -->
+        <receiver
+            android:name=".MealMenuWidgetProvider"
+            android:exported="false"
+            android:label="@string/meal_widget_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/meal_menu_widget_info" />
+        </receiver>
+
         <!-- Receiver lên lịch thông báo qua AlarmManager -->
         <receiver android:exported="false" 
             android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationReceiver" />
