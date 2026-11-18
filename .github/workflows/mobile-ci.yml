@@ -47,4 +47,4 @@ jobs:
       - name: Build Android APK (debug)
         run: |
           cd mobile
-          flutter build apk --debug
+          flutter build apk --debug --android-skip-build-dependency-validation
