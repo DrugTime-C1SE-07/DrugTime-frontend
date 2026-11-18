@@ -3,14 +3,18 @@ import 'dart:typed_data';
 
 import 'package:drugtime_mobile/features/consent/domain/entities/consent.dart';
 import 'package:drugtime_mobile/features/consent/domain/repositories/consent_repository.dart';
-import 'package:drugtime_mobile/features/consent/presentation/state/consent_controller.dart';
 import 'package:drugtime_mobile/features/meal_suggestion/domain/entities/allergy_profile.dart';
 import 'package:drugtime_mobile/features/meal_suggestion/domain/entities/meal_suggestion.dart';
 import 'package:drugtime_mobile/features/meal_suggestion/domain/repositories/allergy_profile_repository.dart';
 import 'package:drugtime_mobile/features/meal_suggestion/domain/repositories/meal_suggestion_repository.dart';
+import 'package:drugtime_mobile/features/consent/presentation/state/consent_controller.dart';
+import 'package:drugtime_mobile/features/meal_suggestion/data/meal_choice_store.dart';
+import 'package:drugtime_mobile/features/meal_suggestion/data/meal_widget_bridge.dart';
 import 'package:drugtime_mobile/features/meal_suggestion/presentation/screens/meal_suggestion_screen.dart';
 import 'package:drugtime_mobile/features/meal_suggestion/presentation/state/dietary_session.dart';
-import 'package:drugtime_mobile/features/meal_suggestion/presentation/state/meal_suggestion_controller.dart';
+import 'package:drugtime_mobile/features/meal_suggestion/presentation/state/meal_choice_controller.dart';
+import 'package:drugtime_mobile/features/meal_suggestion/presentation/state/meal_plan_controller.dart';
+import 'package:drugtime_mobile/features/meal_suggestion/presentation/state/meal_plan_scope.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -50,9 +54,15 @@ MealDish dish(
       ingredients: ingredients ??
           const [
             MealIngredient(
-                name: 'Gạo lứt', amount: '60 g', isMain: true, useSparingly: false),
+                name: 'Gạo lứt',
+                amount: '60 g',
+                isMain: true,
+                useSparingly: false),
             MealIngredient(
-                name: 'Ức gà', amount: '120 g', isMain: true, useSparingly: false),
+                name: 'Ức gà',
+                amount: '120 g',
+                isMain: true,
+                useSparingly: false),
             MealIngredient(
                 name: 'Muối',
                 amount: '¼ thìa cà phê',
@@ -72,7 +82,8 @@ MealSuggestionResult result({
     MealSuggestionResult(
       suggestionId: id,
       mealType: type,
-      dishes: dishes ?? [dish('Món A'), dish('Món B'), dish('Món C'), dish('Món D')],
+      dishes: dishes ??
+          [dish('Món A'), dish('Món B'), dish('Món C'), dish('Món D')],
       foodCheck: foodCheck,
       disclaimer: disclaimer,
       refreshesRemaining: refreshesRemaining,
@@ -98,6 +109,9 @@ class FakeMealRepository implements MealSuggestionRepository {
   List<MealDishImage> Function(List<int> ids) imageAnswer = (_) => const [];
   final bytesCalls = <int>[];
 
+  /// `true`: mỗi lời gọi trả một suggestion_id khác nhau (hero tag không trùng giữa các bữa).
+  bool uniqueIds = false;
+
   @override
   Future<MealSuggestionResult> suggest({
     required String patientId,
@@ -109,7 +123,9 @@ class FakeMealRepository implements MealSuggestionRepository {
   }) async {
     calls.add(SuggestCall(
         mealType, allergies, restrictions, preferences, previousSuggestionId));
-    final next = responses.isEmpty ? result(type: mealType) : responses.removeAt(0);
+    final next = responses.isEmpty
+        ? result(id: uniqueIds ? 4000 + calls.length : 3051, type: mealType)
+        : responses.removeAt(0);
     if (next is Completer<MealSuggestionResult>) return next.future;
     if (next is MealSuggestionFailure) throw next;
     return next as MealSuggestionResult;
@@ -126,12 +142,76 @@ class FakeMealRepository implements MealSuggestionRepository {
     bytesCalls.add(image.imageId);
     // PNG 1x1 hợp lệ để Image.memory giải mã được.
     return Uint8List.fromList(const [
-      0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D,
-      0x49, 0x48, 0x44, 0x52, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
-      0x08, 0x06, 0x00, 0x00, 0x00, 0x1F, 0x15, 0xC4, 0x89, 0x00, 0x00, 0x00,
-      0x0D, 0x49, 0x44, 0x41, 0x54, 0x78, 0x9C, 0x63, 0xF8, 0xCF, 0xC0, 0xF0,
-      0x1F, 0x00, 0x05, 0x00, 0x01, 0xFF, 0x89, 0x99, 0x3D, 0x1D, 0x00, 0x00,
-      0x00, 0x00, 0x49, 0x45, 0x4E, 0x44, 0xAE, 0x42, 0x60, 0x82,
+      0x89,
+      0x50,
+      0x4E,
+      0x47,
+      0x0D,
+      0x0A,
+      0x1A,
+      0x0A,
+      0x00,
+      0x00,
+      0x00,
+      0x0D,
+      0x49,
+      0x48,
+      0x44,
+      0x52,
+      0x00,
+      0x00,
+      0x00,
+      0x01,
+      0x00,
+      0x00,
+      0x00,
+      0x01,
+      0x08,
+      0x06,
+      0x00,
+      0x00,
+      0x00,
+      0x1F,
+      0x15,
+      0xC4,
+      0x89,
+      0x00,
+      0x00,
+      0x00,
+      0x0D,
+      0x49,
+      0x44,
+      0x41,
+      0x54,
+      0x78,
+      0x9C,
+      0x63,
+      0xF8,
+      0xCF,
+      0xC0,
+      0xF0,
+      0x1F,
+      0x00,
+      0x05,
+      0x00,
+      0x01,
+      0xFF,
+      0x89,
+      0x99,
+      0x3D,
+      0x1D,
+      0x00,
+      0x00,
+      0x00,
+      0x00,
+      0x49,
+      0x45,
+      0x4E,
+      0x44,
+      0xAE,
+      0x42,
+      0x60,
+      0x82,
     ]);
   }
 }
@@ -186,52 +266,123 @@ class FakeConsentRepository implements ConsentRepository {
       _all().firstWhere((s) => s.purpose == purpose);
 }
 
-class ScreenHarness {
-  ScreenHarness({
+/// Dựng luồng gợi ý bữa ăn thật (sheet → màn chờ → kết quả) với repository giả, mức phiên.
+class FlowHarness {
+  FlowHarness({
     FakeMealRepository? repository,
     AllergyProfile allergy = reportedAllergy,
     bool aiMeal = true,
     bool dietaryDeclared = true,
-  })  : repository = repository ?? FakeMealRepository(),
+    DateTime? clock,
+  })  : repository = repository ?? (FakeMealRepository()..uniqueIds = true),
         allergyRepository = FakeAllergyRepository(allergy),
         consentRepository = FakeConsentRepository(aiMeal: aiMeal),
-        session = DietarySession.instance {
-    session.clear();
+        clock = clock ?? DateTime.utc(2026, 11, 16, 4, 30) {
+    final session = DietarySession.instance..clear();
     if (dietaryDeclared) {
       session
         ..restrictions = const DietaryDeclaration.none()
         ..preferences = const ['Ít cay'];
     }
+    plan = MealPlanController(
+      repository: this.repository,
+      allergyRepository: allergyRepository,
+      session: session,
+      now: () => this.clock,
+    );
+    choices = MealChoiceController(
+        store: store, bridge: bridge, now: () => this.clock);
   }
 
   final FakeMealRepository repository;
   final FakeAllergyRepository allergyRepository;
   final FakeConsentRepository consentRepository;
-  final DietarySession session;
+  DateTime clock;
   late final ConsentController consent = ConsentController(consentRepository);
+  late final MealPlanController plan;
+  late final MealChoiceController choices;
+  final store = MemoryMealChoiceStore();
+  final bridge = RecordingWidgetBridge();
   final allergyRoutes = <String>[];
-  MealSuggestionController? controller;
 
-  Future<void> pump(WidgetTester tester) async {
+  /// Màn "Trang chủ" giả có nút mở luồng.
+  Future<void> pump(WidgetTester tester,
+      {bool reduceMotion = true, MealType? initialMeal}) async {
+    tester.view.physicalSize = const Size(412 * 3, 915 * 3);
+    tester.view.devicePixelRatio = 3;
+    addTearDown(tester.view.reset);
+    if (reduceMotion) {
+      tester.platformDispatcher.accessibilityFeaturesTestValue =
+          const FakeAccessibilityFeatures(disableAnimations: true);
+      addTearDown(
+          tester.platformDispatcher.clearAccessibilityFeaturesTestValue);
+    }
     await consent.load();
     await tester.pumpWidget(ConsentScope(
       controller: consent,
-      child: MaterialApp(
-        home: MealSuggestionScreen(
-          repository: repository,
-          allergyRepository: allergyRepository,
-          patientId: 'patient-1',
-          onDeclareAllergy: (_) => allergyRoutes.add('allergy'),
-          controllerFactory: (id) => controller = MealSuggestionController(
-            repository: repository,
-            allergyRepository: allergyRepository,
-            patientId: id,
-            session: session,
-            initialTab: MealType.trua,
+      child: MealPlanScope(
+        plan: plan,
+        choices: choices,
+        child: MaterialApp(
+          home: Scaffold(
+            body: Center(
+              child: Builder(
+                builder: (context) => TextButton(
+                  onPressed: () =>
+                      Navigator.of(context).push(MaterialPageRoute<void>(
+                    builder: (_) => MealSuggestionScreen(
+                      patientId: 'patient-1',
+                      initialMeal: initialMeal,
+                      onDeclareAllergy: (_) => allergyRoutes.add('allergy'),
+                    ),
+                  )),
+                  child: const Text('Mở Dumi'),
+                ),
+              ),
+            ),
           ),
         ),
       ),
     ));
+  }
+
+  /// Bấm mở luồng và chạy hết màn chờ.
+  Future<void> openToResults(WidgetTester tester) async {
+    await tester.tap(find.text('Mở Dumi'));
+    await settle(tester);
+  }
+
+  /// Chạy hết các Timer của màn chờ (tối thiểu 2,5 s) rồi chờ ổn định.
+  static Future<void> settle(WidgetTester tester) async {
+    for (var i = 0; i < 12; i++) {
+      await tester.pump(const Duration(milliseconds: 500));
+    }
     await tester.pumpAndSettle();
   }
+}
+
+class RecordingWidgetBridge implements MealWidgetBridge {
+  final published = <TodayMenuSnapshot>[];
+
+  @override
+  Future<void> publish(TodayMenuSnapshot snapshot) async =>
+      published.add(snapshot);
+
+  final thumbnails = <MealType, Uint8List?>{};
+  bool pinSupported = false;
+  bool pinOffered = false;
+  int pinRequests = 0;
+
+  @override
+  Future<void> saveThumbnail(MealType meal, Uint8List? png) async =>
+      thumbnails[meal] = png;
+
+  @override
+  Future<bool> shouldOfferPin() async => pinSupported && !pinOffered;
+
+  @override
+  Future<void> markPinOffered() async => pinOffered = true;
+
+  @override
+  Future<void> requestPin() async => pinRequests++;
 }

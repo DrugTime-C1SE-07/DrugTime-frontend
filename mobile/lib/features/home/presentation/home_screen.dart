@@ -16,6 +16,7 @@ import 'scene/greeting_name.dart';
 import 'scene/home_pet_signals.dart';
 import 'scene/living_banner.dart';
 import 'widgets/home_dose_timeline.dart';
+import '../../meal_suggestion/presentation/widgets/today_menu_row.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen(
@@ -254,6 +255,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   onAdd: () => _openMedication(AppRoutes.addMedication),
                   onScan: () => _openMedication(AppRoutes.scanMedication),
                 ),
+              // Món đã chọn hôm nay (Dumi AI); ẩn khi chưa chọn món nào.
+              const TodayMenuRow(),
             ]),
           ),
         ),

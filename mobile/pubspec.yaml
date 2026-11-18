@@ -35,6 +35,7 @@ dependencies:
   firebase_messaging: ^17.0.0
   lucide_icons_flutter: 4.0.3
   unorm_dart: 0.3.3
+  home_widget: ^0.10.0
 
 dev_dependencies:
   flutter_test:
@@ -56,6 +57,7 @@ flutter:
     - assets/icons/home/
     - assets/icons/health_setup/
     - assets/icons/navigation/
+    - assets/icons/food/
     - assets/images/
     - assets/images/health_setup/
 
