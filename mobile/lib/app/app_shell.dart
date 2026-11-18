@@ -220,47 +220,60 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
                                 : FontWeight.w500,
                           )),
                 ),
-                child: NavigationBar(
-                  height: 68,
-                  labelBehavior: NavigationDestinationLabelBehavior.alwaysHide,
-                  selectedIndex: switch (_tab) {
-                    AppTab.home || AppTab.family => 0,
-                    AppTab.medications => 1,
-                    AppTab.reminders => 2,
-                    AppTab.profile => 3,
-                  },
-                  onDestinationSelected: (i) => _select([
-                    AppTab.home,
-                    AppTab.medications,
-                    AppTab.reminders,
-                    AppTab.profile
-                  ][i]),
-                  destinations: [
-                    const NavigationDestination(
-                      icon: Icon(LucideIcons.house),
-                      selectedIcon: _SelectedNavigationIcon(
-                          icon: LucideIcons.house, label: 'Trang chủ'),
-                      label: 'Trang chủ',
-                    ),
-                    const NavigationDestination(
-                      icon: Icon(LucideIcons.pill),
-                      selectedIcon: _SelectedNavigationIcon(
-                          icon: LucideIcons.pill, label: 'Thuốc'),
-                      label: 'Thuốc',
-                    ),
-                    const NavigationDestination(
-                      icon: Icon(LucideIcons.calendarClock),
-                      selectedIcon: _SelectedNavigationIcon(
-                          icon: LucideIcons.calendarClock, label: 'Lịch nhắc'),
-                      label: 'Lịch nhắc',
-                    ),
-                    const NavigationDestination(
-                      icon: Icon(LucideIcons.userRound),
-                      selectedIcon: _SelectedNavigationIcon(
-                          icon: LucideIcons.userRound, label: 'Hồ sơ'),
-                      label: 'Hồ sơ',
-                    ),
-                  ],
+                // Lề dưới của container đã tính khoảng thanh cử chỉ hệ thống; bỏ phần đệm
+                // đáy mà NavigationBar tự thêm (SafeArea bên trong), nếu không thanh bị
+                // cộng hai lần và hở một khoảng dưới icon.
+                child: MediaQuery.removePadding(
+                  context: context,
+                  removeBottom: true,
+                  child: NavigationBar(
+                    height: 68,
+                    labelBehavior:
+                        NavigationDestinationLabelBehavior.alwaysHide,
+                    selectedIndex: switch (_tab) {
+                      AppTab.home || AppTab.family => 0,
+                      AppTab.medications => 1,
+                      AppTab.reminders => 2,
+                      AppTab.profile => 3,
+                    },
+                    onDestinationSelected: (i) => _select([
+                      AppTab.home,
+                      AppTab.medications,
+                      AppTab.reminders,
+                      AppTab.profile
+                    ][i]),
+                    destinations: [
+                      const NavigationDestination(
+                        icon: Icon(LucideIcons.house),
+                        selectedIcon: _SelectedNavigationIcon(
+                            icon: LucideIcons.house,
+                            label: 'Trang chủ',
+                            align: Alignment.centerLeft),
+                        label: 'Trang chủ',
+                      ),
+                      const NavigationDestination(
+                        icon: Icon(LucideIcons.pill),
+                        selectedIcon: _SelectedNavigationIcon(
+                            icon: LucideIcons.pill, label: 'Thuốc'),
+                        label: 'Thuốc',
+                      ),
+                      const NavigationDestination(
+                        icon: Icon(LucideIcons.calendarClock),
+                        selectedIcon: _SelectedNavigationIcon(
+                            icon: LucideIcons.calendarClock,
+                            label: 'Lịch nhắc'),
+                        label: 'Lịch nhắc',
+                      ),
+                      const NavigationDestination(
+                        icon: Icon(LucideIcons.userRound),
+                        selectedIcon: _SelectedNavigationIcon(
+                            icon: LucideIcons.userRound,
+                            label: 'Hồ sơ',
+                            align: Alignment.centerRight),
+                        label: 'Hồ sơ',
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -271,52 +284,46 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   }
 }
 
+/// Viên chọn của tab đang mở: co theo nội dung (icon + nhãn), không cắt chữ.
+///
+/// [align] giữ viên trong thanh ở hai đầu: tab đầu căn trái, tab cuối căn phải
+/// so với ô icon, để phần tràn của viên đi vào trong thay vì ra ngoài thanh.
 class _SelectedNavigationIcon extends StatelessWidget {
-  const _SelectedNavigationIcon({required this.icon, required this.label});
+  const _SelectedNavigationIcon(
+      {required this.icon, required this.label, this.align = Alignment.center});
   final IconData icon;
   final String label;
+  final Alignment align;
 
   @override
-  Widget build(BuildContext context) => Transform.translate(
-      offset: Offset(
-          label == 'Trang chủ'
-              ? 20
-              : label == 'Hồ sơ'
-                  ? -10
-                  : 0,
-          0),
-      child: OverflowBox(
-        maxWidth: 130,
+  Widget build(BuildContext context) => OverflowBox(
+        alignment: align,
+        maxWidth: 150,
         maxHeight: 52,
         child: Container(
           key: ValueKey('selected-nav-$label'),
-          width: switch (label) {
-            'Thuốc' => 104,
-            'Lịch nhắc' => 126,
-            'Hồ sơ' => 99,
-            _ => 112,
-          },
           height: 52,
           padding: const EdgeInsets.symmetric(horizontal: 14),
           decoration: BoxDecoration(
             color: const Color(0xFFD9EEFC),
             borderRadius: BorderRadius.circular(26),
           ),
-          child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(icon, color: const Color(0xFF0B5A8A), size: 24),
-                const SizedBox(width: 8),
-                Flexible(
-                    child: Text(label,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                            color: Color(0xFF0B5A8A),
-                            fontSize: 14,
-                            fontWeight: FontWeight.w700))),
-              ]),
+          // vừa chỗ thì giữ nguyên cỡ; thiếu chỗ (chữ hệ thống to) thì thu nhỏ cả cụm, không cắt chữ
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              Icon(icon, color: const Color(0xFF0B5A8A), size: 24),
+              const SizedBox(width: 8),
+              Text(label,
+                  key: ValueKey('selected-nav-label-$label'),
+                  maxLines: 1,
+                  softWrap: false,
+                  style: const TextStyle(
+                      color: Color(0xFF0B5A8A),
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700)),
+            ]),
+          ),
         ),
-      ));
+      );
 }
