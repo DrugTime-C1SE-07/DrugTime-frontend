@@ -603,7 +603,7 @@ class _EditMedicationScreenState extends State<EditMedicationScreen> {
                 title: const Text('Bật nhắc nhở', style: AppTextStyles.bodyStrong),
                 subtitle: const Text('Nhận thông báo khi đến cữ uống thuốc'),
                 value: _reminderEnabled,
-                activeColor: AppColors.brand,
+                activeThumbColor: AppColors.brand,
                 onChanged: (val) {
                   setState(() {
                     _reminderEnabled = val;

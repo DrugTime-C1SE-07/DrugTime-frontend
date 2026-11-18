@@ -41,6 +41,9 @@ Future<AuthController> pumpApp(
   return auth;
 }
 
+Finder _tab(String label) => find.byWidgetPredicate(
+    (w) => w is NavigationDestination && w.label == label);
+
 void main() {
   for (final trigger in ['logout', '401', 'consent', '403', 'background']) {
     for (final child in [false, true]) {
@@ -49,7 +52,7 @@ void main() {
           (tester) async {
         final repo = FakeHistoryRepository();
         final auth = await pumpApp(tester, repo);
-        await tester.tap(find.text('Lịch nhắc'));
+        await tester.tap(_tab('Lịch nhắc'));
         await tester.pumpAndSettle();
         final context = tester.element(find.byKey(const Key('history-title')));
         final c = AdherenceHistoryScope.read(context);
@@ -113,7 +116,7 @@ void main() {
       final repo = FakeHistoryRepository();
       await pumpApp(tester, repo);
       expect(repo.calls, isEmpty);
-      await tester.tap(find.text('Lịch nhắc'));
+      await tester.tap(_tab('Lịch nhắc'));
       await tester.pumpAndSettle();
       expect(repo.calls.length, 1);
       final c = AdherenceHistoryScope.read(
@@ -144,9 +147,9 @@ void main() {
       expect(repo.calls.length, before + 1);
       expect(find.byType(AdherenceMonthScreen), findsNothing);
       expect(find.byType(MedicationHistoryScreen), findsNothing);
-      await tester.tap(find.text('Thuốc'));
+      await tester.tap(_tab('Thuốc'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Lịch nhắc'));
+      await tester.tap(_tab('Lịch nhắc'));
       await tester.pumpAndSettle();
       expect(repo.calls.length, before + 2);
     });
@@ -156,7 +159,7 @@ void main() {
         (tester) async {
       final repo = FakeHistoryRepository();
       await pumpApp(tester, repo);
-      await tester.tap(find.text('Lịch nhắc'));
+      await tester.tap(_tab('Lịch nhắc'));
       await tester.pumpAndSettle();
       final context = tester.element(find.byKey(const Key('history-title')));
       final c = AdherenceHistoryScope.read(context);
@@ -189,7 +192,7 @@ void main() {
           (tester) async {
         final repo = FakeHistoryRepository();
         final auth = await pumpApp(tester, repo);
-        await tester.tap(find.text('Lịch nhắc'));
+        await tester.tap(_tab('Lịch nhắc'));
         await tester.pumpAndSettle();
         final c = AdherenceHistoryScope.read(
             tester.element(find.byKey(const Key('history-title'))));

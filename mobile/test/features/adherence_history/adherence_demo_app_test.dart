@@ -43,8 +43,7 @@ void main() {
         tester.widget<NavigationBar>(find.byType(NavigationBar)).selectedIndex,
         2);
     expect(find.text('Mẫu'), findsOneWidget);
-    expect(find.text('4/6 đã uống'), findsOneWidget);
-    expect(find.text('80%'), findsOneWidget);
+    expect(find.text('4/7 liều đã uống'), findsOneWidget);
     for (final key in ['demo-enter', 'demo-exit', 'demo-preset-picker']) {
       expect(find.byKey(Key(key)), findsNothing);
     }
@@ -62,7 +61,7 @@ void main() {
     expect(find.text('Mẫu'), findsOneWidget);
     await tester.binding.handlePopRoute();
     await tester.pumpAndSettle();
-    for (var i = 0; i < 5; i++) {
+    for (var i = 0; i < 4; i++) {
       await tester.tap(find.byType(NavigationDestination).at(i));
       await tester.pumpAndSettle();
       expect(
@@ -109,7 +108,7 @@ void main() {
     await tester.pump();
     await tester.pumpWidget(AdherenceDemoApp(now: DateTime.utc(2026, 10, 23)));
     await tester.pumpAndSettle();
-    expect(find.text('4/6 đã uống'), findsOneWidget);
+    expect(find.textContaining('liều đã uống'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 }

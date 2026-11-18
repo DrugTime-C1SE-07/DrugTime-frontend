@@ -1,8 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import '../features/medication_capture/presentation/screens/capture_flow_screen.dart';
 import '../features/medication_capture/presentation/screens/scan_medication_screen.dart';
-import '../features/medication_capture/domain/capture_models.dart';
 
 import '../features/adherence/domain/repositories/adherence_repository.dart';
 import '../features/adherence/presentation/screens/family_adherence_screen.dart';
@@ -25,9 +23,9 @@ import '../features/family_link/presentation/screens/share_invite_link_screen.da
 import '../features/family_link/presentation/state/link_request_controller.dart';
 import '../features/medication/data/repositories/in_memory_medication_repository.dart';
 import '../features/medication/domain/entities/medication.dart';
+import '../features/medication/presentation/screens/add_medication_screen.dart';
 import '../features/medication/presentation/screens/edit_medication_screen.dart';
 import '../features/medication/presentation/screens/medication_detail_screen.dart';
-import '../features/medication/presentation/screens/drug_selection_demo_screen.dart';
 import '../features/reminder/domain/entities/dose_reminder.dart';
 import '../features/reminder/presentation/screens/dose_reminder_screen.dart';
 import '../features/reminder/presentation/widgets/lockscreen_privacy_gate.dart';
@@ -43,6 +41,13 @@ import '../features/profile/domain/repositories/health_setup_repository.dart';
 import '../features/profile/presentation/screens/health_setup_screen.dart';
 import '../features/profile/presentation/widgets/health_setup_motion.dart';
 import 'theme/app_theme.dart';
+import '../features/meal_suggestion/data/repositories/in_memory_meal_suggestion_repository.dart';
+import '../features/meal_suggestion/data/repositories/mock_allergy_profile_repository.dart';
+import '../features/meal_suggestion/domain/repositories/allergy_profile_repository.dart';
+import '../features/meal_suggestion/domain/repositories/meal_suggestion_repository.dart';
+import '../features/meal_suggestion/presentation/screens/meal_suggestion_screen.dart';
+import '../shared/widgets/coming_soon_view.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 enum HomeEntry { profileCompleted }
 
@@ -51,9 +56,7 @@ abstract final class AppRoutes {
   static const familyAlertDetail = '/family/alerts/detail';
   static const home = '/';
   static const addMedication = '/medications/add';
-  static const captureMedication = '/medications/capture';
   static const scanMedication = '/medications/scan';
-  static const drugSelectionDemo = '/medications/selection-demo';
   static const medicationDetail = '/medications/detail';
   static const editMedication = '/medications/edit';
   static const login = '/login';
@@ -78,6 +81,9 @@ abstract final class AppRoutes {
   static const familyShareLink = '/family/share-link';
   static const linkConsentConfirmation = '/family/requests/confirm';
   static const familyAdherence = '/family/adherence';
+  // Task 5.11: gợi ý bữa ăn (nút "Dumi AI") và route khai dị ứng (tạm là màn giữ chỗ).
+  static const mealSuggestion = '/meal-suggestions';
+  static const allergyDeclaration = '/profile/allergies';
 }
 
 final RouteObserver<PageRoute<dynamic>> familyAdherenceRouteObserver =
@@ -103,25 +109,14 @@ Route<dynamic>? onGenerateRoute(
   AdherenceRepository? adherenceRepository,
   HealthSetupRepository? healthSetupRepository,
   ValueListenable<bool>? familyAdherenceAvailability,
+  MealSuggestionRepository? mealSuggestionRepository,
+  AllergyProfileRepository? allergyProfileRepository,
 }) {
   return switch (settings.name) {
     AppRoutes.scanMedication => MaterialPageRoute<Medication>(
         settings: settings,
         fullscreenDialog: true,
         builder: (_) => const ScanMedicationScreen(),
-      ),
-    AppRoutes.captureMedication => MaterialPageRoute<CaptureResult>(
-        settings: settings,
-        fullscreenDialog: true,
-        builder: (_) =>
-            CaptureFlowScreen(initialImage: settings.arguments as Uint8List?),
-      ),
-    AppRoutes.drugSelectionDemo => MaterialPageRoute<void>(
-        settings: settings,
-        builder: (_) => preview && kDebugMode
-            ? const DrugSelectionDemoScreen()
-            : const Scaffold(
-                body: Center(child: Text('Bản xem thử không khả dụng'))),
       ),
     // Kiểm auth/consent cả khi đi vào từ push hoặc điều hướng trực tiếp tới route.
     AppRoutes.familyAlerts => MaterialPageRoute<void>(
@@ -201,7 +196,9 @@ Route<dynamic>? onGenerateRoute(
       ),
     AppRoutes.addMedication => MaterialPageRoute<Medication>(
         settings: settings,
-        builder: (_) => const ScanMedicationScreen(),
+        builder: (_) => initialTab == AppTab.medications
+            ? const AddMedicationScreen()
+            : const ScanMedicationScreen(),
       ),
     AppRoutes.medicationDetail => MaterialPageRoute<void>(
         settings: settings,
@@ -312,6 +309,28 @@ Route<dynamic>? onGenerateRoute(
             availability: familyAdherenceAvailability,
           );
         },
+      ),
+    AppRoutes.mealSuggestion => MaterialPageRoute<void>(
+        settings: settings,
+        builder: (_) => ConsentGate(
+          child: MealSuggestionScreen(
+            repository:
+                mealSuggestionRepository ?? InMemoryMealSuggestionRepository(),
+            allergyRepository:
+                allergyProfileRepository ?? MockAllergyProfileRepository(),
+            onDeclareAllergy: (context) =>
+                Navigator.of(context).pushNamed(AppRoutes.allergyDeclaration),
+          ),
+        ),
+      ),
+    // Màn khai dị ứng làm sau (01 mục A); nối tới màn hồ sơ sức khỏe ở task nối dị ứng.
+    AppRoutes.allergyDeclaration => MaterialPageRoute<void>(
+        settings: settings,
+        builder: (_) => Scaffold(
+          appBar: AppBar(title: const Text('Khai dị ứng')),
+          body: const ComingSoonView(
+              title: 'Khai dị ứng', icon: LucideIcons.shieldAlert),
+        ),
       ),
     _ => null,
   };

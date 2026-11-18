@@ -7,6 +7,23 @@ import 'package:flutter_test/flutter_test.dart';
 import 'medication_screens_test.dart' show RecordingRepository;
 
 void main() {
+  testWidgets(
+      'add form has no camera entry; the drug comes from the catalog (AC16)',
+      (tester) async {
+    final repository = RecordingRepository();
+    final controller = MedicationController(repository);
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(MedicationScope(
+      controller: controller,
+      child: const MaterialApp(home: AddMedicationScreen()),
+    ));
+    await tester.pumpAndSettle();
+    expect(find.text('Quét vỏ thuốc'), findsNothing);
+    expect(find.text('hoặc nhập thủ công'), findsNothing);
+    expect(find.text('Thuốc'), findsOneWidget);
+    expect(repository.addCalls, isEmpty);
+  });
+
   Future<void> openScreen(WidgetTester tester) async {
     final controller = MedicationController(RecordingRepository());
     addTearDown(controller.dispose);

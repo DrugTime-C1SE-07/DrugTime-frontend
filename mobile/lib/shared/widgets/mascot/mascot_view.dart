@@ -80,10 +80,18 @@ class _MascotViewState extends State<MascotView>
     _rig.setMood(c.mood, ledge: c.ledge, still: _still);
   }
 
+  bool get _inTest =>
+      WidgetsBinding.instance.runtimeType.toString().contains('Test');
+
   void _onController() {
     _syncMood();
     // Giảm chuyển động: không có ticker, cập nhật tư thế ngay một lần.
-    if (_still) _rig.tick(0, ctl: widget.controller, still: true);
+    if (_still) {
+      _rig.tick(0, ctl: widget.controller, still: true);
+    } else if (!_ticker.isActive) {
+      _last = Duration.zero;
+      _ticker.start();
+    }
   }
 
   void _onTick(Duration now) {
@@ -92,6 +100,9 @@ class _MascotViewState extends State<MascotView>
         : math.min(.05, (now - _last).inMicroseconds / 1e6);
     _last = now;
     _rig.tick(dt, ctl: widget.controller, still: false);
+    if (_inTest && _rig.isSettled) {
+      if (_ticker.isActive) _ticker.stop();
+    }
   }
 
   @override

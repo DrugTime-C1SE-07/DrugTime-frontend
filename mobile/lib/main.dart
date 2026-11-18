@@ -4,6 +4,8 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'core/notification/device_token_coordinator.dart';
 import 'core/notification/device_token_store.dart';
 import 'core/notification/family_push_service.dart';
+import 'features/meal_suggestion/data/repositories/mock_allergy_profile_repository.dart';
+import 'features/meal_suggestion/data/repositories/remote_meal_suggestion_repository.dart';
 import 'features/family/data/repositories/remote_family_alert_repository.dart';
 import 'features/family/presentation/state/family_alert_controller.dart';
 
@@ -181,6 +183,9 @@ Future<void> main() async {
     notificationService: notificationService,
     profileRepository: profileRepository,
     healthSetupRepository: RemoteHealthSetupRepository(apiClient),
+    mealSuggestionRepository: RemoteMealSuggestionRepository(apiClient),
+    // Task 5.11 Q3: mock hồ sơ dị ứng, nối `GET /profile/health-setup` ở task sau.
+    allergyProfileRepository: MockAllergyProfileRepository(),
   ));
 }
 

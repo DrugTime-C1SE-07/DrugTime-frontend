@@ -1,10 +1,10 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
-import '../../../../core/preview/app_preview_scope.dart';
 import '../../../consent/presentation/state/consent_controller.dart';
 import '../../../medication/domain/entities/dose_unit.dart';
 import '../../../medication/domain/entities/medication.dart';
@@ -16,6 +16,8 @@ import '../../domain/ocr_models.dart';
 import '../state/capture_controller.dart';
 import '../state/capture_scope.dart';
 import '../state/ocr_controller.dart';
+import '../widgets/capture_warning_text.dart';
+import '../widgets/ocr_single_result_card.dart';
 
 /// S07-O: camera, recognition, confirmation and scheduling.
 class ScanMedicationScreen extends StatefulWidget {
@@ -50,68 +52,6 @@ class _ScanCorners extends CustomPainter {
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
-class _PreviewPackage extends StatelessWidget {
-  const _PreviewPackage({this.highlight = false});
-  final bool highlight;
-  @override
-  Widget build(BuildContext context) => Container(
-      width: 250,
-      padding: const EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(
-          color: const Color(0xFFFAF9F5),
-          borderRadius: BorderRadius.circular(8)),
-      child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const ColoredBox(
-                color: Color(0xFFE88110),
-                child: Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    child: Row(children: [
-                      Expanded(
-                          child: Text('Thuốc giảm đau – hạ sốt',
-                              style: TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.bold)))
-                    ]))),
-            const SizedBox(height: 8),
-            Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                child: DecoratedBox(
-                    decoration: _highlightDecoration(),
-                    child: const FittedBox(
-                        child: Text('PARACETAMOL',
-                            style: TextStyle(
-                                color: Color(0xFF233D59),
-                                fontSize: 26,
-                                fontWeight: FontWeight.w900))))),
-            Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                child: DecoratedBox(
-                    decoration: _highlightDecoration(),
-                    child: const Text('500 mg',
-                        style: TextStyle(
-                            color: Color(0xFFE88110),
-                            fontWeight: FontWeight.bold)))),
-            const SizedBox(height: 8),
-            const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 12),
-                child: Text('Hộp 10 vỉ × 10 viên nén',
-                    style: TextStyle(color: Colors.grey))),
-            const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 12),
-                child: Text('Lô SX: 0425  ·  HD: 04/2028',
-                    style: TextStyle(color: Colors.grey))),
-          ]));
-
-  BoxDecoration _highlightDecoration() => BoxDecoration(
-        color: highlight ? const Color(0xFFE1F4EE) : Colors.transparent,
-        border: highlight ? Border.all(color: const Color(0xFF76DACC)) : null,
-        borderRadius: BorderRadius.circular(6),
-      );
-}
-
 enum _Screen { camera, recognizing, result, failure }
 
 class _ScanMedicationScreenState extends State<ScanMedicationScreen>
@@ -125,14 +65,17 @@ class _ScanMedicationScreenState extends State<ScanMedicationScreen>
   OcrController? _ocr;
   OcrCandidate? _candidate;
   Uint8List? _image;
-  Timer? _timer;
-  bool? _preview;
+  bool _started = false;
   bool _busy = false;
   bool _retryingGallery = false;
   String _failureTitle = 'Chưa đọc được vỏ hộp';
   int _generation = 0;
   _Screen _screen = _Screen.camera;
   String? _failure;
+  // The last scan read no usable medicine name: offer manual search next to retake.
+  bool _nameMissed = false;
+  // The shown medicine came from low_confidence: ask to compare it with the box.
+  bool _checkReminder = false;
 
   @override
   void initState() {
@@ -143,23 +86,20 @@ class _ScanMedicationScreenState extends State<ScanMedicationScreen>
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    if (_preview != null) return;
+    if (_started) return;
+    _started = true;
     _route = ModalRoute.of(context);
-    _preview = AppPreviewScope.maybeOf(context) != null;
-    if (!_preview!) {
-      _consent =
-          context.getInheritedWidgetOfExactType<ConsentScope>()?.notifier;
-      _hadConsent = _consent?.hasHealthData ?? false;
-      _consent?.addListener(_consentChanged);
-      _services = CaptureScope.of(context);
-      _camera = CaptureController(
-          source: _services!.newSource(),
-          processor: _services!.processor,
-          store: _services!.store,
-          session: _services);
-      _services!.addListener(_sessionChanged);
-      unawaited(_camera!.start());
-    }
+    _consent = context.getInheritedWidgetOfExactType<ConsentScope>()?.notifier;
+    _hadConsent = _consent?.hasHealthData ?? false;
+    _consent?.addListener(_consentChanged);
+    _services = CaptureScope.of(context);
+    _camera = CaptureController(
+        source: _services!.newSource(),
+        processor: _services!.processor,
+        store: _services!.store,
+        session: _services);
+    _services!.addListener(_sessionChanged);
+    unawaited(_camera!.start());
   }
 
   void _consentChanged() {
@@ -173,7 +113,6 @@ class _ScanMedicationScreenState extends State<ScanMedicationScreen>
     if (_invalidated) return;
     _invalidated = true;
     _generation++;
-    _timer?.cancel();
     _clearImage();
     _candidate = null;
     if (mounted) {
@@ -204,7 +143,6 @@ class _ScanMedicationScreenState extends State<ScanMedicationScreen>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (_preview == true) return;
     if (state == AppLifecycleState.inactive ||
         state == AppLifecycleState.paused) {
       unawaited(_camera?.background());
@@ -228,28 +166,6 @@ class _ScanMedicationScreenState extends State<ScanMedicationScreen>
     _busy = true;
     _failureTitle = 'Chưa đọc được vỏ hộp';
     final generation = ++_generation;
-    if (_preview == true) {
-      setState(() {
-        _screen = _Screen.recognizing;
-        _failure = null;
-      });
-      _timer = Timer(const Duration(milliseconds: 1500), () {
-        if (!mounted || generation != _generation) return;
-        setState(() {
-          _candidate = const OcrCandidate(
-              id: 1,
-              name: 'Paracetamol 500mg',
-              activeIngredient: 'Paracetamol',
-              strengthText: '500 mg',
-              dosageForm: 'Viên nén',
-              hasActiveIngredients: true,
-              score: 0.96);
-          _screen = _Screen.result;
-          _busy = false;
-        });
-      });
-      return;
-    }
     final camera = _camera!;
     PhotoPickOutcome? pickOutcome;
     if (gallery) {
@@ -266,10 +182,13 @@ class _ScanMedicationScreenState extends State<ScanMedicationScreen>
       _busy = false;
       setState(() {
         _failureTitle = gallery ? 'Không mở được ảnh' : 'Không chụp được ảnh';
+        final warning = camera.blockingWarning;
         _failure = camera.error ??
             (camera.image == null
                 ? 'Không chụp được ảnh. Hãy thử lại.'
-                : 'Ảnh chưa đủ rõ. Hãy quét lại.');
+                : warning != null
+                    ? captureWarningMessage(warning)
+                    : 'Ảnh chưa đủ rõ. Hãy chụp lại.');
         _screen = _Screen.failure;
       });
       return;
@@ -300,32 +219,40 @@ class _ScanMedicationScreenState extends State<ScanMedicationScreen>
     await _ocr!.start();
     if (!mounted || generation != _generation) return;
     final result = _ocr!.result;
+    final failure = _ocr?.failure;
+    // matched and low_confidence: show items[0] for the user to check and confirm
+    // (01 §6.1; low_confidence adds a reminder). Never auto-select or auto-add (QD-39).
     if (result != null &&
         result.status != OcrMatchStatus.noMatch &&
         result.items.isNotEmpty) {
       setState(() {
         _candidate = result.items.first;
+        _checkReminder = result.status == OcrMatchStatus.lowConfidence;
         _screen = _Screen.result;
         _busy = false;
       });
-    } else {
-      setState(() {
-        final failure = _ocr?.failure;
+      return;
+    }
+    // Nothing to show: ask for the side with the name; manual search is the user's choice
+    // (PB31), never opened automatically.
+    final noName = result != null || failure?.kind == OcrFailureKind.noText;
+    setState(() {
+      _nameMissed = noName;
+      if (noName) {
+        _failureTitle = 'Chưa thấy tên thuốc';
+        _failure = 'Hãy chụp mặt có tên thuốc';
+      } else {
         _failureTitle = switch (failure?.kind) {
-          OcrFailureKind.noText => 'Chưa đọc được chữ trên bao bì',
           OcrFailureKind.invalidImage => 'Không mở được ảnh',
           OcrFailureKind.recognition => 'Chưa đọc được vỏ hộp',
-          null when result != null => 'Không tìm thấy thuốc phù hợp',
           _ => 'Chưa hoàn tất nhận diện',
         };
-        _failure = failure?.message ??
-            (result?.status == OcrMatchStatus.lowConfidence
-                ? 'Kết quả chưa đủ tin cậy. Hãy chọn ảnh rõ tên thuốc hơn.'
-                : 'Hãy thử ảnh khác hoặc nhập tay để tìm thuốc.');
-        _screen = _Screen.failure;
-        _busy = false;
-      });
-    }
+        _failure =
+            failure?.message ?? 'Hãy thử ảnh khác hoặc nhập tay để tìm thuốc.';
+      }
+      _screen = _Screen.failure;
+      _busy = false;
+    });
   }
 
   Future<bool> _closeOcr() async {
@@ -347,7 +274,6 @@ class _ScanMedicationScreenState extends State<ScanMedicationScreen>
       return;
     }
     _generation++;
-    _timer?.cancel();
     if (!await _closeOcr()) {
       if (mounted) {
         setState(() => _failure = 'Chưa dọn được ảnh tạm. Hãy thử lại.');
@@ -368,7 +294,6 @@ class _ScanMedicationScreenState extends State<ScanMedicationScreen>
   Future<void> _failDuringRecognition() async {
     if (_screen != _Screen.recognizing) return;
     _generation++;
-    _timer?.cancel();
     if (!await _closeOcr()) {
       if (mounted) {
         setState(() {
@@ -402,7 +327,6 @@ class _ScanMedicationScreenState extends State<ScanMedicationScreen>
 
   Future<void> _exit() async {
     _generation++;
-    _timer?.cancel();
     if (!await _closeOcr()) {
       if (mounted) {
         setState(() {
@@ -425,6 +349,10 @@ class _ScanMedicationScreenState extends State<ScanMedicationScreen>
         strength: candidate.strengthText ?? '',
         dosageForm: candidate.dosageForm ?? '',
         unit: doseUnitFor(candidate.dosageForm));
+    await _openDrug(drug);
+  }
+
+  Future<void> _openDrug(DrugCatalogItem drug) async {
     if (!await _closeOcr()) {
       if (mounted) {
         setState(() {
@@ -447,19 +375,17 @@ class _ScanMedicationScreenState extends State<ScanMedicationScreen>
   }
 
   Future<void> _manualEntry() async {
-    final drug = await showDrugCatalogSheet(context);
-    if (!mounted || drug == null) return;
-    final result = await Navigator.of(context).push<Medication>(
-      MaterialPageRoute(builder: (_) => AddMedicationScreen(scannedDrug: drug)),
-    );
-    if (mounted && result != null) Navigator.of(context).pop(result);
+    final generation = _generation;
+    final drug = await showDrugCatalogSheet(context,
+        initialQuery: _ocr?.result?.suggestedQuery);
+    if (!mounted || drug == null || generation != _generation) return;
+    await _openDrug(drug);
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _generation++;
-    _timer?.cancel();
     _services?.removeListener(_sessionChanged);
     _consent?.removeListener(_consentChanged);
     _clearImage();
@@ -562,9 +488,7 @@ class _ScanMedicationScreenState extends State<ScanMedicationScreen>
                                                           color:
                                                               Colors.white))))
                                       : const ColoredBox(
-                                          color: Color(0xFF171A19),
-                                          child: Center(
-                                              child: _PreviewPackage()))),
+                                          color: Color(0xFF171A19))),
                           if (showingResult)
                             Positioned(
                                 top: 48,
@@ -579,12 +503,7 @@ class _ScanMedicationScreenState extends State<ScanMedicationScreen>
                                             ? Image.memory(_image!,
                                                 fit: BoxFit.contain,
                                                 excludeFromSemantics: true)
-                                            : _preview == true
-                                                ? const FittedBox(
-                                                    fit: BoxFit.scaleDown,
-                                                    child: _PreviewPackage(
-                                                        highlight: true))
-                                                : const SizedBox.shrink()))),
+                                            : const SizedBox.shrink()))),
                           if (showingResult)
                             Positioned(
                                 top: 48,
@@ -602,6 +521,23 @@ class _ScanMedicationScreenState extends State<ScanMedicationScreen>
                                     height: 220,
                                     child:
                                         CustomPaint(painter: _ScanCorners()))),
+                          if (_screen == _Screen.camera)
+                            const Positioned(
+                                top: 12,
+                                left: 16,
+                                right: 16,
+                                child: Text('Đặt tên thuốc vào trong khung',
+                                    key: Key('scan-hint'),
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 20,
+                                        fontWeight: FontWeight.bold,
+                                        shadows: [
+                                          Shadow(
+                                              blurRadius: 6,
+                                              color: Colors.black)
+                                        ]))),
                           if (_screen == _Screen.camera)
                             Center(
                                 child: SizedBox(
@@ -644,7 +580,12 @@ class _ScanMedicationScreenState extends State<ScanMedicationScreen>
                                     onTap: _screen == _Screen.recognizing
                                         ? _failDuringRecognition
                                         : null,
-                                    child: _resultSheet())),
+                                    child: _resultSheet(math.max(
+                                        constraints.maxHeight * .5,
+                                        constraints.maxHeight -
+                                            48 -
+                                            frameHeight -
+                                            8)))),
                         ]);
                       })),
             if (_screen == _Screen.camera) _cameraActions(),
@@ -654,14 +595,24 @@ class _ScanMedicationScreenState extends State<ScanMedicationScreen>
                   child: SizedBox(
                       width: double.infinity,
                       child: Column(children: [
-                        if (!_invalidated && _preview != true)
+                        if (_ocr?.result != null || _nameMissed) ...[
+                          const SizedBox(height: 12),
+                          OutlinedButton(
+                              style: OutlinedButton.styleFrom(
+                                  minimumSize: const Size.fromHeight(56)),
+                              onPressed: _manualEntry,
+                              child: const Text('Tìm thuốc thủ công')),
+                        ],
+                        if (!_invalidated)
                           TextButton(
                               onPressed:
                                   _retryingGallery ? null : _chooseAnotherPhoto,
                               child: const Text('Chọn ảnh khác')),
                         FilledButton(
+                            style: FilledButton.styleFrom(
+                                minimumSize: const Size.fromHeight(56)),
                             onPressed: _retryingGallery ? null : _retake,
-                            child: const Text('Quét lại')),
+                            child: const Text('Chụp lại')),
                       ]))),
           ]))),
     );
@@ -682,7 +633,7 @@ class _ScanMedicationScreenState extends State<ScanMedicationScreen>
                             backgroundColor: const Color(0xFF303030),
                             foregroundColor: Colors.white,
                             fixedSize: const Size(56, 56)),
-                        onPressed: _preview == true || _camera?.busy == false
+                        onPressed: _camera?.busy == false
                             ? () => _capture(gallery: true)
                             : null,
                         icon: const Icon(LucideIcons.image),
@@ -692,9 +643,8 @@ class _ScanMedicationScreenState extends State<ScanMedicationScreen>
                         style: TextStyle(color: Colors.white, fontSize: 13))
                   ]),
                   IconButton(
-                      onPressed: _preview == true ||
-                              (_camera?.source.ready == true &&
-                                  _camera?.busy == false)
+                      onPressed: _camera?.source.ready == true &&
+                              _camera?.busy == false
                           ? _capture
                           : null,
                       tooltip: 'Chụp ảnh',
@@ -728,14 +678,13 @@ class _ScanMedicationScreenState extends State<ScanMedicationScreen>
             const SizedBox(height: 10),
             const Text('Ảnh chỉ xử lý trên điện thoại của bạn',
                 style: TextStyle(color: Colors.white70)),
-            if (_preview != true &&
-                _camera?.permissionStatus ==
-                    CapturePermission.permanentlyDenied)
+            if (_camera?.permissionStatus ==
+                CapturePermission.permanentlyDenied)
               TextButton(
                   onPressed:
                       _camera?.busy == true ? null : _camera?.openSettings,
                   child: const Text('Mở cài đặt'))
-            else if (_preview != true && _camera?.source.ready == false)
+            else if (_camera?.source.ready == false)
               TextButton(
                   onPressed:
                       _camera?.busy == true ? null : _camera?.requestPermission,
@@ -788,9 +737,14 @@ class _ScanMedicationScreenState extends State<ScanMedicationScreen>
                         ])),
               ]))));
 
-  Widget _resultSheet() => Container(
+  /// [maxHeight] keeps the sheet below the photo so the box stays visible
+  /// while the user compares it with the one result; the card scrolls.
+  Widget _resultSheet(double maxHeight) => Container(
       key: const Key('scan-result-sheet'),
       width: double.infinity,
+      constraints: _screen == _Screen.result
+          ? BoxConstraints(maxHeight: maxHeight)
+          : null,
       padding: const EdgeInsets.all(20),
       decoration: const BoxDecoration(
           color: Colors.white,
@@ -866,7 +820,8 @@ class _ScanMedicationScreenState extends State<ScanMedicationScreen>
                                 style: TextStyle(fontSize: 12)))
                       ])),
                 ])
-          : Column(mainAxisSize: MainAxisSize.min, children: [
+          : SingleChildScrollView(
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
               Container(
                   width: 40,
                   height: 4,
@@ -874,58 +829,20 @@ class _ScanMedicationScreenState extends State<ScanMedicationScreen>
                       color: const Color(0xFFD6D8D6),
                       borderRadius: BorderRadius.circular(4))),
               const SizedBox(height: 14),
-              Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  decoration: BoxDecoration(
-                      color: const Color(0xFFE6F5EC),
-                      borderRadius: BorderRadius.circular(30)),
-                  child: Text(
-                      _ocr?.result?.status == OcrMatchStatus.lowConfidence
-                          ? 'Gợi ý phù hợp nhất'
-                          : '✓  Đã nhận diện',
-                      style: const TextStyle(
-                          color: Color(0xFF138349),
-                          fontWeight: FontWeight.bold))),
-              const SizedBox(height: 14),
-              Material(
-                  color: Colors.white,
-                  shape: RoundedRectangleBorder(
-                      side: const BorderSide(color: Color(0xFFE4E6E4)),
-                      borderRadius: BorderRadius.circular(16)),
-                  child: ListTile(
-                      leading: Container(
-                          width: 48,
-                          height: 48,
-                          decoration: BoxDecoration(
-                              color: const Color(0xFFFFEEDC),
-                              borderRadius: BorderRadius.circular(12)),
-                          child: const Icon(LucideIcons.pill,
-                              color: Color(0xFF1B4168))),
-                      title: Text(_candidate?.name ?? ''),
-                      subtitle: Text([
-                        _candidate?.activeIngredient,
-                        _candidate?.strengthText,
-                        _candidate?.dosageForm
-                      ]
-                          .whereType<String>()
-                          .where((v) => v.isNotEmpty)
-                          .join(' · ')))),
-              const SizedBox(height: 12),
               const Text('Có đúng thuốc trên vỏ hộp không?',
-                  style: TextStyle(fontWeight: FontWeight.bold)),
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
               const SizedBox(height: 12),
-              Row(children: [
-                Expanded(
-                    child: OutlinedButton(
-                        onPressed: _retake, child: const Text('Quét lại'))),
-                const SizedBox(width: 12),
-                Expanded(
-                    child: FilledButton(
-                        onPressed: _confirm,
-                        child: const Text('Đúng thuốc này')))
-              ]),
-            ]));
+              if (_candidate case final candidate?)
+                OcrSingleResultCard(
+                    candidate: candidate,
+                    strengthUnverified:
+                        _ocr?.result?.reasons.contains('strength_unverified') ??
+                            false,
+                    checkReminder: _checkReminder,
+                    onConfirm: _confirm,
+                    onNotThis: _manualEntry),
+              TextButton(onPressed: _retake, child: const Text('Chụp lại')),
+            ])));
 
   Widget _recognitionStep(
           IconData icon, String label, Color background, Color foreground) =>

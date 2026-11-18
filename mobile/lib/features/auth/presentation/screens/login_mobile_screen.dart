@@ -179,23 +179,25 @@ class _LoginMobileScreenState extends State<LoginMobileScreen>
     final auth = AuthScope.maybeOf(context);
     final sending = _sending || (auth?.isLoading ?? false);
     final content = LayoutBuilder(
-      builder: (context, constraints) => SingleChildScrollView(
-        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-        child: ConstrainedBox(
-          constraints: BoxConstraints(minHeight: constraints.maxHeight),
-          child: IntrinsicHeight(
-            child: Column(
-              children: [
-                SizedBox(
-                  height: (constraints.maxHeight * .44).clamp(300.0, 400.0),
-                  child: LoginHero(
-                    entrance: _intro,
-                    mascot: _mascot,
-                    mascotKey: _mascotKey,
-                  ),
+      builder: (context, constraints) {
+        final heroHeight =
+            (constraints.maxHeight * .44).clamp(200.0, 400.0);
+        final minSheetHeight =
+            math.max(0.0, constraints.maxHeight - heroHeight);
+        final minInnerHeight = math.max(0.0, minSheetHeight - 56.0);
+        return SingleChildScrollView(
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+          child: Column(
+            children: [
+              SizedBox(
+                height: heroHeight,
+                child: LoginHero(
+                  entrance: _intro,
+                  mascot: _mascot,
+                  mascotKey: _mascotKey,
                 ),
-                Expanded(
-                  child: ColoredBox(
+              ),
+              ColoredBox(
                     color: PillSkyScenePainter.skyBottom,
                     child: AnimatedBuilder(
                       animation: _intro,
@@ -212,6 +214,7 @@ class _LoginMobileScreenState extends State<LoginMobileScreen>
                       child: Container(
                         key: const Key('login-sheet'),
                         width: double.infinity,
+                        constraints: BoxConstraints(minHeight: minSheetHeight),
                         decoration: BoxDecoration(
                           color: Colors.white,
                           borderRadius: const BorderRadius.vertical(
@@ -228,7 +231,11 @@ class _LoginMobileScreenState extends State<LoginMobileScreen>
                           alignment: Alignment.topCenter,
                           child: ConstrainedBox(
                             constraints: const BoxConstraints(maxWidth: 430),
-                            child: Column(
+                            child: ConstrainedBox(
+                              constraints:
+                                  BoxConstraints(minHeight: minInnerHeight),
+                              child: IntrinsicHeight(
+                                child: Column(
                               crossAxisAlignment: CrossAxisAlignment.stretch,
                               children: [
                                 const Text('Đăng nhập',
@@ -334,11 +341,11 @@ class _LoginMobileScreenState extends State<LoginMobileScreen>
                     ),
                   ),
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
-        ),
-      ),
+        );
+      },
     );
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.dark,

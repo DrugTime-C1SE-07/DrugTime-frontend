@@ -1,6 +1,8 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../../../../app/theme/app_theme.dart';
+import '../../../../core/preview/app_preview_scope.dart';
 import '../state/adherence_history_controller.dart';
 import '../../domain/entities/adherence_history.dart';
 import '../widgets/history_summary.dart';
@@ -66,7 +68,12 @@ class _AdherenceMonthScreenState extends State<AdherenceMonthScreen> {
                 ),
               ),
             ),
-            const SizedBox(width: 48),
+            SizedBox(
+              width: 48,
+              child: AppPreviewScope.maybeOf(context) != null
+                  ? const Center(child: AppPreviewBadge())
+                  : null,
+            ),
           ]),
           const SizedBox(height: AppSpacing.xl),
           if (c.loading || c.error != null)
@@ -140,8 +147,8 @@ class _SelectedDayCard extends StatelessWidget {
                   child: Text(isToday
                       ? 'Xem chi tiết ngày hôm nay'
                       : 'Xem chi tiết ngày này')),
-              SizedBox(width: 8),
-              Icon(Icons.chevron_right),
+              const SizedBox(width: 8),
+              const Icon(Icons.chevron_right),
             ]),
           ),
         ),
@@ -160,7 +167,29 @@ class _PrototypeCalendar extends StatelessWidget {
     final offset = month.weekday - 1;
     final count = DateTime.utc(month.year, month.month + 1, 0).day;
     final rows = (offset + count + 6) ~/ 7;
-    final cellHeight = MediaQuery.textScalerOf(context).scale(14) + 42;
+    final scaler = MediaQuery.textScalerOf(context);
+    double labelWidth(String value) {
+      final painter = TextPainter(
+        text: TextSpan(
+            text: value,
+            style: DefaultTextStyle.of(context)
+                .style
+                .merge(AppTextStyles.captionStrong)),
+        textScaler: scaler,
+        textDirection: Directionality.of(context),
+        maxLines: 1,
+      )..layout();
+      final width = painter.width;
+      painter.dispose();
+      return width;
+    }
+
+    final minimumWidth = math.max(
+        AppSizes.tapTarget,
+        math.max(labelWidth('88'),
+                math.max(labelWidth('CN'), labelWidth('T2'))) +
+            8);
+    final cellHeight = math.max(56.0, scaler.scale(14) + 42);
     return GestureDetector(
       onHorizontalDragEnd: (details) {
         final velocity = details.primaryVelocity ?? 0;
@@ -171,24 +200,35 @@ class _PrototypeCalendar extends StatelessWidget {
         }
       },
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [
-          for (final weekday in HistoryFormat.weekdays)
-            Expanded(
-                child: Center(
-                    child: Text(weekday,
-                        style: AppTextStyles.captionStrong
-                            .copyWith(color: AppColors.inkMuted)))),
-        ]),
-        const SizedBox(height: 20),
-        Table(children: [
-          for (var row = 0; row < rows; row++)
-            TableRow(children: [
-              for (var col = 0; col < 7; col++)
-                SizedBox(
-                    height: cellHeight,
-                    child: _day(context, row * 7 + col - offset + 1, count)),
-            ]),
-        ]),
+        LayoutBuilder(builder: (context, constraints) {
+          final width = math.max(constraints.maxWidth, minimumWidth * 7);
+          return SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: SizedBox(
+              width: width,
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Row(children: [
+                  for (final weekday in HistoryFormat.weekdays)
+                    Expanded(
+                        child: Center(
+                            child: Text(weekday,
+                                style: AppTextStyles.captionStrong
+                                    .copyWith(color: AppColors.inkMuted)))),
+                ]),
+                const SizedBox(height: 20),
+                Table(children: [
+                  for (var row = 0; row < rows; row++)
+                    TableRow(children: [
+                      for (var col = 0; col < 7; col++)
+                        SizedBox(
+                            height: cellHeight,
+                            child: _day(context, row * 7 + col - offset + 1, count)),
+                    ]),
+                ]),
+              ]),
+            ),
+          );
+        }),
         const SizedBox(height: 28),
         Wrap(spacing: 20, runSpacing: 8, children: [
           _legend(AppColors.safe, 'Đủ liều'),

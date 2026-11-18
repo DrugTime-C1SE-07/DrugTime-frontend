@@ -82,15 +82,25 @@ class ConsentScope extends InheritedNotifier<ConsentController> {
 
   /// Lấy controller và đăng ký rebuild khi trạng thái thay đổi.
   static ConsentController of(BuildContext context) {
-    final scope = context.dependOnInheritedWidgetOfExactType<ConsentScope>();
-    assert(scope != null, 'Không tìm thấy ConsentScope phía trên widget này');
-    return scope!.notifier!;
+    final controller = maybeOf(context);
+    assert(controller != null, 'Không tìm thấy ConsentScope phía trên widget này');
+    return controller!;
+  }
+
+  /// Lấy controller và đăng ký rebuild, hoặc null nếu không có scope.
+  static ConsentController? maybeOf(BuildContext context) {
+    return context.dependOnInheritedWidgetOfExactType<ConsentScope>()?.notifier;
   }
 
   /// Lấy controller mà không rebuild — dùng trong callback / initState.
   static ConsentController read(BuildContext context) {
-    final scope = context.getInheritedWidgetOfExactType<ConsentScope>();
-    assert(scope != null, 'Không tìm thấy ConsentScope phía trên widget này');
-    return scope!.notifier!;
+    final controller = maybeRead(context);
+    assert(controller != null, 'Không tìm thấy ConsentScope phía trên widget này');
+    return controller!;
+  }
+
+  /// Lấy controller mà không rebuild, hoặc null nếu không có scope.
+  static ConsentController? maybeRead(BuildContext context) {
+    return context.getInheritedWidgetOfExactType<ConsentScope>()?.notifier;
   }
 }

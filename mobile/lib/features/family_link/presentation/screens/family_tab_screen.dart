@@ -7,6 +7,7 @@ import '../../../../app/theme/app_theme.dart';
 import '../../../family/presentation/state/family_alert_scope.dart';
 import '../../../consent/domain/entities/consent.dart';
 import '../../../consent/presentation/state/consent_controller.dart';
+import '../../data/repositories/in_memory_caregiver_repository.dart';
 import '../state/family_link_scope.dart';
 import '../state/incoming_requests_controller.dart';
 import '../widgets/incoming_requests_section.dart';
@@ -38,8 +39,9 @@ class _FamilyTabScreenState extends State<FamilyTabScreen> {
       return shared;
     }
     _ownsController = true;
-    return _requests =
-        IncomingRequestsController(FamilyLinkScope.read(context).caregivers);
+    final caregivers =
+        FamilyLinkScope.maybeOf(context)?.caregivers ?? InMemoryCaregiverRepository();
+    return _requests = IncomingRequestsController(caregivers);
   }
 
   @override
@@ -70,7 +72,8 @@ class _FamilyTabScreenState extends State<FamilyTabScreen> {
   Widget build(BuildContext context) {
     final unread = FamilyAlertScope.maybeOf(context)?.unreadCount;
     final sharingGranted =
-        ConsentScope.of(context).isGranted(ConsentPurpose.familySharing);
+        ConsentScope.maybeOf(context)?.isGranted(ConsentPurpose.familySharing) ??
+            true;
     return Scaffold(
       appBar: AppBar(title: const Text('Người thân')),
       body: SafeArea(

@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import '../../../../app/theme/app_theme.dart';
 import '../../domain/entities/adherence_history.dart';
 import '../state/adherence_history_controller.dart';
-import '../utils/adherence_history_format.dart';
 import '../widgets/dose_history_tile.dart';
 import '../widgets/history_summary.dart';
 import '../widgets/history_week_selector.dart';
@@ -220,10 +219,13 @@ class _AdherenceHistoryScreenState extends State<AdherenceHistoryScreen>
               if (c.loading || c.error != null)
                 HistoryLoadState(controller: c, onRetry: widget.onRetry)
               else if (c.history?.mode == HistoryMode.date) ...[
-                _TodayDoseProgress(
-                  summary: group?.summary,
-                  day: c.selectedDay,
-                  today: c.today,
+                HistoryEntrance(
+                  key: ValueKey((c, c.contentRevision, 'summary')),
+                  child: _TodayDoseProgress(
+                    summary: group?.summary,
+                    day: c.selectedDay,
+                    today: c.today,
+                  ),
                 ),
                 const SizedBox(height: AppSpacing.lg),
                 if (doses.isEmpty) const HistoryEmpty(),
