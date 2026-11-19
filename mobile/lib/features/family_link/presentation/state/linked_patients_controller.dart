@@ -52,6 +52,12 @@ class LinkedPatientsController extends ChangeNotifier {
   /// Kiểm tra xem [patientId] có trong danh sách hợp lệ hay không.
   bool hasPatient(String patientId) => _patients.any((p) => p.id == patientId);
 
+  /// Clear the in-memory family directory without touching personal schedules/outbox.
+  void clear() {
+    _patients = [];
+    _notify();
+  }
+
   /// Xử lý khi nhận HTTP 403 Forbidden hoặc thu hồi liên kết đối với [patientId] (AC6, AC9).
   ///
   /// 1. Xóa ngay patient khỏi danh sách state cục bộ để UI cập nhật lập tức.
@@ -82,7 +88,8 @@ class LinkedPatientsController extends ChangeNotifier {
   }
 
   /// Hook thuận tiện truyền vào `AdherenceController.onPatientRevoked`.
-  Future<void> onPatientRevoked(String patientId) => handleRevocation(patientId);
+  Future<void> onPatientRevoked(String patientId) =>
+      handleRevocation(patientId);
 
   /// Đồng bộ danh sách bệnh nhân mới từ server (AC7, AC8).
   ///

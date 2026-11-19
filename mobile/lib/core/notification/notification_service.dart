@@ -9,6 +9,11 @@ abstract class FamilyNotificationPlatform {
   Future<void> clearFamily();
 }
 
+abstract class DoseReminderNotificationPlatform {
+  Future<void> showReceivedReminder(int id, String body);
+  Future<void> clearReceivedReminders();
+}
+
 /// Nền tảng xin được quyền hiển thị thông báo (POST_NOTIFICATIONS, Android 13+).
 abstract class NotificationPermissionPlatform {
   Future<bool?> requestNotificationsPermission();
@@ -51,11 +56,35 @@ class DefaultNotificationPlatform
     implements
         NotificationPlatform,
         FamilyNotificationPlatform,
+        DoseReminderNotificationPlatform,
         NotificationPermissionPlatform {
   DefaultNotificationPlatform([FlutterLocalNotificationsPlugin? plugin])
       : _plugin = plugin ?? FlutterLocalNotificationsPlugin();
 
   final FlutterLocalNotificationsPlugin _plugin;
+
+  @override
+  Future<void> showReceivedReminder(int id, String body) => _plugin.show(
+      0,
+      'DrugTime',
+      'Bạn có lời nhắc mới trên DrugTime',
+      NotificationDetails(
+          android: AndroidNotificationDetails(
+              'family_alerts', 'Cảnh báo người thân',
+              tag: 'dose_reminder_$id',
+              visibility: NotificationVisibility.private,
+              fullScreenIntent: false)),
+      payload: 'dose_reminder:$id');
+
+  @override
+  Future<void> clearReceivedReminders() async {
+    for (final notification in await _plugin.getActiveNotifications()) {
+      if (notification.tag?.startsWith('dose_reminder_') == true &&
+          notification.id != null) {
+        await _plugin.cancel(notification.id!, tag: notification.tag);
+      }
+    }
+  }
 
   @override
   // Tag riêng cho từng cảnh báo; khớp remote để dọn được cả hai nguồn thông báo.
@@ -180,6 +209,30 @@ class NotificationService {
   final NotificationPlatform _platform;
   NotificationPlatform get platform => _platform;
   void Function(int?)? onFamilyAction;
+  void Function(int?)? onReceivedReminderAction;
+  int? _pendingReceivedReminderId;
+  bool _pendingReceivedReminderInvalid = false;
+
+  int? consumeReceivedReminderId() {
+    final id = _pendingReceivedReminderId;
+    _pendingReceivedReminderId = null;
+    return id;
+  }
+
+  bool consumeInvalidReceivedReminder() {
+    final invalid = _pendingReceivedReminderInvalid;
+    _pendingReceivedReminderInvalid = false;
+    return invalid;
+  }
+
+  Future<void> showReceivedReminder(int id, String body) async {
+    final platform = _platform;
+    if (platform is DoseReminderNotificationPlatform) {
+      await (platform as DoseReminderNotificationPlatform)
+          .showReceivedReminder(id, body);
+    }
+  }
+
   int? _pendingFamilyId;
   bool _pendingFamilyInvalid = false;
   bool consumeInvalidFamilyPayload() {
@@ -202,16 +255,32 @@ class NotificationService {
   }
 
   Future<void> clearFamily() async {
+    _pendingReceivedReminderId = null;
+    _pendingReceivedReminderInvalid = false;
     _pendingFamilyId = null;
     _pendingFamilyInvalid = false;
     final platform = _platform;
     if (platform is FamilyNotificationPlatform) {
       await (platform as FamilyNotificationPlatform).clearFamily();
     }
+    if (platform is DoseReminderNotificationPlatform) {
+      await (platform as DoseReminderNotificationPlatform)
+          .clearReceivedReminders();
+    }
   }
 
   // Prefix phân luồng payload; cold start chỉ giữ ID chờ app gắn callback điều hướng.
   bool _handleFamily(String? raw) {
+    if (raw != null && raw.startsWith('dose_reminder:')) {
+      final id = familyNotificationId(raw.substring('dose_reminder:'.length));
+      if (onReceivedReminderAction != null) {
+        onReceivedReminderAction!(id);
+      } else {
+        _pendingReceivedReminderId = id;
+        _pendingReceivedReminderInvalid = id == null;
+      }
+      return true;
+    }
     if (raw == null || !raw.startsWith('family:')) return false;
     final id = familyNotificationId(raw.substring(7));
     if (onFamilyAction != null) {

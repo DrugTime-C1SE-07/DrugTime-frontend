@@ -21,6 +21,21 @@ class FamilyPlatform extends MockNotificationPlatform
   }
 }
 
+class ReceivedReminderPlatform extends FamilyPlatform
+    implements DoseReminderNotificationPlatform {
+  final received = <int>[];
+  int receivedClears = 0;
+  @override
+  Future<void> showReceivedReminder(int id, String body) async {
+    received.add(id);
+  }
+
+  @override
+  Future<void> clearReceivedReminders() async {
+    receivedClears++;
+  }
+}
+
 class MockNotificationPlatform implements NotificationPlatform {
   int initializeCallCount = 0;
   InitializationSettings? lastSettings;
@@ -74,6 +89,29 @@ class MockNotificationPlatform implements NotificationPlatform {
 }
 
 void main() {
+  test(
+      'received reminder taps, cold start IDs and clears use a separate namespace',
+      () async {
+    final platform = ReceivedReminderPlatform();
+    final service = NotificationService(platform: platform);
+    await service.init();
+    platform.onResponseCallback!(const NotificationResponse(
+        notificationResponseType: NotificationResponseType.selectedNotification,
+        payload: 'dose_reminder:7'));
+    expect(service.consumeReceivedReminderId(), 7);
+    expect(service.consumeFamilyId(), isNull);
+    expect(service.pendingPayload, isNull);
+    final taps = <int?>[];
+    service.onReceivedReminderAction = taps.add;
+    platform.onResponseCallback!(const NotificationResponse(
+        notificationResponseType: NotificationResponseType.selectedNotification,
+        payload: 'dose_reminder:8'));
+    expect(taps, [8]);
+    await service.showReceivedReminder(8, 'generic');
+    await service.clearFamily();
+    expect(platform.received, [8]);
+    expect(platform.receivedClears, 1);
+  });
   test(
       'family namespace handles taps and clears family without replacing reminder handler',
       () async {

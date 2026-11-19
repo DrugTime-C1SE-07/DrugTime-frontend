@@ -77,8 +77,8 @@ class _ProfileScreenState extends State<ProfileScreen>
 
   /// Màn Người giám sát trống có nút "Mở tab Người thân": khi đó chuyển tab của shell.
   Future<void> _openCaregivers() async {
-    final result =
-        await Navigator.pushNamed<CaregiversScreenResult>(context, AppRoutes.caregivers);
+    final result = await Navigator.pushNamed<CaregiversScreenResult>(
+        context, AppRoutes.caregivers);
     if (!mounted) return;
     if (result == CaregiversScreen.openFamilyTab) {
       AppShell.showTab(context, AppTab.family);
@@ -165,6 +165,14 @@ class _ProfileScreenState extends State<ProfileScreen>
                   'h-users',
                   _openCaregivers,
                   key: const Key('supervisors-tile'),
+                ),
+                _divider(),
+                _menu(
+                  'Chia sẻ và liên kết',
+                  'Kết nối với người thân',
+                  'h-users',
+                  () => _open(AppRoutes.shareAndLink),
+                  key: const Key('share-and-link-tile'),
                 ),
                 _divider(),
                 _menu(

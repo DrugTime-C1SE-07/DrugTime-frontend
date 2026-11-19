@@ -76,15 +76,18 @@ class FamilyPushService extends ChangeNotifier {
     required this.android,
     required this.showForeground,
     this.onSyncRequest,
+    this.showReminderForeground,
   });
   final bool android;
   final Future<void> Function(int, String) showForeground;
+  final Future<void> Function(int, String)? showReminderForeground;
 
   /// Gọi khi nhận `sync_request` lúc app đang mở: đồng bộ hàng chờ liều rồi gửi checkpoint.
   final Future<Object?> Function()? onSyncRequest;
   final List<StreamSubscription<RemoteMessage>> _subscriptions = [];
   // Push chỉ giữ ID trong RAM; chi tiết luôn lấy qua API sau kiểm quyền.
   int? pendingId;
+  bool pendingIsReminder = false;
   bool invalid = false;
   bool _accepting = true;
   bool _disposed = false;
@@ -94,11 +97,11 @@ class FamilyPushService extends ChangeNotifier {
     if (!android) return;
     _subscriptions.add(FirebaseMessaging.onMessage.listen((m) => unawaited(
         receive(m.data, foreground: true, body: m.notification?.body))));
-    _subscriptions.add(FirebaseMessaging.onMessageOpenedApp
-        .listen((m) => offer(m.data['notification_id'])));
+    _subscriptions.add(
+        FirebaseMessaging.onMessageOpenedApp.listen((m) => offerData(m.data)));
     // Thu tap lúc app bị đóng; app shell đợi phiên/consent trước khi mở chi tiết.
     final initial = await FirebaseMessaging.instance.getInitialMessage();
-    if (!_disposed && initial != null) offer(initial.data['notification_id']);
+    if (!_disposed && initial != null) offerData(initial.data);
   }
 
   Future<void> receive(Map<String, dynamic> data,
@@ -109,6 +112,19 @@ class FamilyPushService extends ChangeNotifier {
       await onSyncRequest?.call();
       return;
     }
+    if (data['type'] == 'dose_reminder') {
+      final id = familyNotificationId(data['reminder_id']);
+      if (id == null) {
+        offerReminder(null);
+        return;
+      }
+      if (foreground) {
+        await showReminderForeground?.call(
+            id, 'Bạn có lời nhắc mới trên DrugTime');
+      }
+      return;
+    }
+    if (data['type'] != null) return;
     final id = familyNotificationId(data['notification_id']);
     if (id == null) {
       offer(null);
@@ -122,6 +138,7 @@ class FamilyPushService extends ChangeNotifier {
   void offer(Object? value) {
     if (!_accepting || _disposed) return;
     pendingId = familyNotificationId(value);
+    pendingIsReminder = false;
     invalid = pendingId == null;
     notifyListeners();
   }
@@ -129,6 +146,23 @@ class FamilyPushService extends ChangeNotifier {
   void consume() {
     pendingId = null;
     invalid = false;
+    pendingIsReminder = false;
+  }
+
+  void offerData(Map<String, dynamic> data) {
+    if (data['type'] == 'dose_reminder') {
+      offerReminder(data['reminder_id']);
+    } else if (data['type'] == null) {
+      offer(data['notification_id']);
+    }
+  }
+
+  void offerReminder(Object? value) {
+    if (!_accepting || _disposed) return;
+    pendingId = familyNotificationId(value);
+    pendingIsReminder = true;
+    invalid = pendingId == null;
+    notifyListeners();
   }
 
   // Đóng nhận tap cũ khi hết phiên; phiên mới phải gọi allow để nhận lại.
