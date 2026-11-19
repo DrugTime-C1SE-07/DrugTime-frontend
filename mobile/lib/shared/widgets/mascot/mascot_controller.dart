@@ -20,10 +20,14 @@ enum MascotMood {
 
   /// Đầu bếp đang "nấu": lắc bát, nhún theo nhịp, rau trong bát nảy lên.
   cooking,
+
+  /// Ôm bụng dịu dàng, một trái tim nhỏ bay lên (chọn tình trạng mang thai / cho con bú).
+  cradle,
 }
 
 /// Trang phục của linh vật. [chef]: mũ đầu bếp + bát salad ở tay phải.
-enum MascotOutfit { plain, chef }
+/// [medic]: mũ y tá có chữ thập + ống nghe, dùng ở các màn hồ sơ sức khỏe.
+enum MascotOutfit { plain, chef, medic }
 
 /// Màn hình điều khiển linh vật qua controller: đổi trạng thái, hướng nhìn, hé mắt.
 class MascotController extends ChangeNotifier {

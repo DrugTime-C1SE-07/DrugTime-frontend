@@ -13,6 +13,7 @@ import '../widgets/meal_ui.dart';
 import 'analysis_timeline.dart';
 import 'galaxy_painter.dart';
 import 'supernova.dart';
+import '../../../../core/motion/shared_axis.dart';
 
 /// Màn chờ "Dumi đang lên thực đơn…" (3 bữa song song) hoặc "Dumi đang tìm món khác…" (một bữa).
 ///
@@ -27,14 +28,8 @@ class AnalyzingView extends StatefulWidget {
   final MealType? refreshMeal;
 
   static Route<bool> route(MealPlanController plan, {MealType? refreshMeal}) =>
-      PageRouteBuilder<bool>(
-        transitionDuration: const Duration(milliseconds: 450),
-        reverseTransitionDuration: const Duration(milliseconds: 600),
-        pageBuilder: (_, __, ___) =>
-            AnalyzingView(plan: plan, refreshMeal: refreshMeal),
-        transitionsBuilder: (_, a, __, child) =>
-            FadeTransition(opacity: a, child: child),
-      );
+      sharedAxisRoute<bool>(
+          builder: (_) => AnalyzingView(plan: plan, refreshMeal: refreshMeal));
 
   @override
   State<AnalyzingView> createState() => _AnalyzingViewState();

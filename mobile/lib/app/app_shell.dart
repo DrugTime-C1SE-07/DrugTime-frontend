@@ -14,6 +14,7 @@ import '../features/medication/presentation/state/medication_controller.dart';
 import '../features/profile/presentation/state/profile_controller.dart';
 import '../features/home/presentation/widgets/home_navigation_bar.dart';
 import '../features/profile/presentation/screens/profile_screen.dart';
+import '../features/profile/presentation/state/health_setup_status_controller.dart';
 import '../features/home/presentation/home_screen.dart';
 import '../features/home/presentation/screens/home_screen.dart' as empty;
 import '../features/auth/presentation/widgets/welcome_onboarding_sheet.dart';
@@ -22,6 +23,7 @@ import '../features/profile/presentation/state/profile_controller.dart';
 import 'router.dart';
 import '../core/preview/app_preview_scope.dart';
 import 'theme/app_theme.dart';
+import '../core/motion/shared_axis.dart';
 
 enum AppTab { home, medications, reminders, family, profile }
 
@@ -62,6 +64,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       final profile =
           context.getInheritedWidgetOfExactType<ProfileScope>()?.notifier;
       if (profile != null) unawaited(profile.load());
+      _reloadHealthSetup();
       if (widget.showWelcome && _tab == AppTab.home) {
         _refreshPendingRequests();
         await showWelcomeOnboardingSheet(
@@ -69,6 +72,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
           onSetup: () =>
               Navigator.of(context).pushNamed(AppRoutes.healthProfileIntro),
         );
+        _reloadHealthSetup();
       }
       if (!mounted) return;
       _invites = FamilyLinkScope.read(context).invites
@@ -96,6 +100,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       _refreshPendingRequests();
+      if (_tab == AppTab.home) _reloadHealthSetup();
     }
   }
 
@@ -123,7 +128,15 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     ));
   }
 
+  /// Home decides "Bắt đầu nào!" from the health-setup snapshot; read it fresh whenever Home
+  /// comes into view (never a cached decision).
+  void _reloadHealthSetup() {
+    if (!mounted) return;
+    unawaited(HealthSetupStatusScope.read(context)?.reload());
+  }
+
   void _select(AppTab tab) {
+    if (tab == AppTab.home && _tab != AppTab.home) _reloadHealthSetup();
     if (tab == AppTab.family) {
       final monitor = FamilyLinkScope.maybeOf(context)?.monitor;
       monitor?.leave();
@@ -166,7 +179,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
                               padding: EdgeInsets.only(right: 16),
                               child: AppPreviewBadge()))))
               : null,
-      body: IndexedStack(
+      body: SharedAxisTabSwitcher(
         index: _tab.index,
         children: [
           if (useExistingHome)

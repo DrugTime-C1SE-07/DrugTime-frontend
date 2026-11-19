@@ -104,6 +104,22 @@ void main() {
       expect(h.allergyRoutes, ['allergy']);
       expect(h.repository.calls, isEmpty);
     });
+
+    testWidgets(
+        'khai dị ứng xong thì quay lại Dumi và lên thực đơn, không khảo sát lại (N7, AC12)',
+        (tester) async {
+      final h = FlowHarness(allergy: const AllergyProfile.unreported())
+        ..declareResult = true
+        ..allergyAfterDeclare = reportedAllergy;
+      await h.pump(tester);
+      await tester.tap(find.text('Mở Dumi'));
+      await tester.pumpAndSettle();
+      await tester.tap(key('declare-allergy'));
+      await FlowHarness.settle(tester);
+      expect(h.allergyRoutes, ['allergy']);
+      expect(find.text('Tính năng này đang được phát triển.'), findsNothing);
+      expect(h.repository.calls, hasLength(3));
+    });
   });
 
   group('màn chờ', () {

@@ -67,6 +67,7 @@ import '../features/profile/domain/repositories/profile_repository.dart';
 import '../features/profile/data/repositories/secure_profile_avatar_preferences.dart';
 import '../features/profile/domain/repositories/health_setup_repository.dart';
 import '../features/profile/presentation/state/profile_controller.dart';
+import '../features/profile/presentation/state/health_setup_status_controller.dart';
 import 'router.dart';
 import 'app_shell.dart';
 import '../core/utils/app_assets.dart';
@@ -430,6 +431,8 @@ class _DrugTimeAppState extends State<DrugTimeApp> with WidgetsBindingObserver {
   );
   late final ProfileController _profiles =
       ProfileController(widget.profileRepository, SecureProfileAvatarPreferences());
+  late final HealthSetupStatusController _healthSetup =
+      HealthSetupStatusController(widget.healthSetupRepository);
   late final HomeScheduleController _homeSchedule = HomeScheduleController(
     widget.adherenceHistoryRepository,
     widget.scheduleSource ??
@@ -504,6 +507,7 @@ class _DrugTimeAppState extends State<DrugTimeApp> with WidgetsBindingObserver {
     final granted = _consents.hasHealthData;
     if (_hadHealthConsent && !granted) {
       _profiles.revoke();
+      _healthSetup.clear();
       _history.revoke();
     }
     if (!_hadHealthConsent && granted) _history.allowFreshRead();
@@ -578,9 +582,9 @@ class _DrugTimeAppState extends State<DrugTimeApp> with WidgetsBindingObserver {
   void _consumeMealLink() {
     final link = _pendingMealLink;
     if (link == null || !_sessionLoaded || !_auth.isAuthenticated) return;
-    void push() => _navigatorKey.currentState?.pushNamed(
-        AppRoutes.mealSuggestion,
-        arguments: MealRouteArgs(initialMeal: link.meal));
+    void push() =>
+        _navigatorKey.currentState?.pushNamed(AppRoutes.mealSuggestion,
+            arguments: MealRouteArgs(initialMeal: link.meal));
     _pendingMealLink = null;
     if (_navigatorKey.currentState != null) {
       push();
@@ -730,6 +734,7 @@ class _DrugTimeAppState extends State<DrugTimeApp> with WidgetsBindingObserver {
     if (switchedUser) {
       _history.setPatient(user);
       unawaited(_profiles.setAccount(user));
+      _healthSetup.clear();
       _profileUser = user;
       // Hạn chế ăn uống khai trong phiên không được sang tài khoản khác (task 5.11).
       DietarySession.instance.clear();
@@ -792,6 +797,7 @@ class _DrugTimeAppState extends State<DrugTimeApp> with WidgetsBindingObserver {
     _auth.removeListener(_onAuthChanged);
     _consents.removeListener(_onConsentChanged);
     _profiles.dispose();
+    _healthSetup.dispose();
     _homeSchedule.dispose();
     _history.dispose();
     final syncEngine = widget.doseOutboxSyncEngine;
@@ -826,16 +832,19 @@ class _DrugTimeAppState extends State<DrugTimeApp> with WidgetsBindingObserver {
               monitor: _monitor,
               child: ProfileScope(
                 controller: _profiles,
-                child: AdherenceHistoryScope(
-                  controller: _history,
-                  child: HomeScheduleScope(
-                    controller: _homeSchedule,
-                    child: MealPlanScope(
-                      plan: _mealPlan,
-                      choices: _mealChoices,
-                      child: _sessionLoaded
-                          ? _buildApp()
-                          : const _SessionLoadingApp(),
+                child: HealthSetupStatusScope(
+                  controller: _healthSetup,
+                  child: AdherenceHistoryScope(
+                    controller: _history,
+                    child: HomeScheduleScope(
+                      controller: _homeSchedule,
+                      child: MealPlanScope(
+                        plan: _mealPlan,
+                        choices: _mealChoices,
+                        child: _sessionLoaded
+                            ? _buildApp()
+                            : const _SessionLoadingApp(),
+                      ),
                     ),
                   ),
                 ),

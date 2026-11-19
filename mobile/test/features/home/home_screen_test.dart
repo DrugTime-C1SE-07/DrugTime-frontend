@@ -127,16 +127,16 @@ void main() {
     addTearDown(profile.dispose);
 
     await showHome(tester, profile, schedule: schedule);
-    expect(find.text('Chào buổi sáng'), findsOneWidget);
+    expect(find.textContaining('Chào buổi sáng'), findsOneWidget);
 
     now = DateTime.utc(2026, 11, 16, 4);
     await tester.pump(const Duration(minutes: 1));
-    expect(find.text('Chào buổi trưa'), findsOneWidget);
+    expect(find.textContaining('Chào buổi trưa'), findsOneWidget);
 
     now = DateTime.utc(2026, 11, 16, 11);
     await tester.pump(const Duration(minutes: 1));
-    expect(find.text('Chào buổi tối'), findsOneWidget);
-    expect(find.text('Chào buổi chiều'), findsNothing);
+    expect(find.textContaining('Chào buổi tối'), findsOneWidget);
+    expect(find.textContaining('Chào buổi chiều'), findsNothing);
   });
 
   testWidgets('skeleton transitions to real name and empty schedule',
@@ -160,7 +160,7 @@ void main() {
     repo.pendingRead!.complete(const HealthProfile(fullName: 'Tên thật'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Tên thật'), findsOneWidget);
+    expect(find.textContaining(', thật'), findsOneWidget);
     expect(
       find.byWidgetPredicate(
         (widget) =>
@@ -206,7 +206,7 @@ void main() {
     await tester.tap(find.text('Tải lại hồ sơ'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Nguyễn Mai'), findsOneWidget);
+    expect(find.textContaining(', Mai'), findsOneWidget);
   });
 
   testWidgets('revocation and account switch reject old results',
@@ -251,14 +251,15 @@ void main() {
 
     repo.pendingRead!.complete(const HealthProfile(fullName: 'Tên thật'));
     await tester.pumpAndSettle();
-    expect(find.text('Tên thật'), findsOneWidget);
+    expect(find.textContaining(', thật'), findsOneWidget);
     expect(pet(), isTrue);
     // lịch lỗi: banner vẫn dựng, không có chip số liều
     expect(find.textContaining('liều'), findsNothing);
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('cuộn xuống thì banner cuộn đi hẳn, không ghim lại một dải',
+  testWidgets(
+      'banner, lối tắt và tiêu đề đứng yên; chỉ danh sách cuộn, chip không bị cắt (AC6, N9)',
       (tester) async {
     final controller = ProfileController(FakeProfileRepository());
     addTearDown(controller.dispose);
@@ -268,10 +269,20 @@ void main() {
     addTearDown(schedule.dispose);
     await showHome(tester, controller, schedule: schedule);
     await tester.pumpAndSettle();
-    expect(tester.getRect(find.byType(LivingBanner)).height, greaterThan(250));
-    final header = tester
-        .widget<SliverPersistentHeader>(find.byType(SliverPersistentHeader));
-    expect(header.pinned, isFalse);
-    expect(header.floating, isFalse);
+    expect(find.byType(SliverPersistentHeader), findsNothing);
+    final banner = tester.getRect(find.byType(LivingBanner));
+    expect(
+        banner.height,
+        HomeLayout.bannerHeight +
+            tester.view.padding.top / tester.view.devicePixelRatio);
+    final header = tester.getRect(find.byKey(const Key('home-today-header')));
+    final shortcut = tester.getRect(find.text('Dumi AI'));
+    await tester.drag(
+        find.byKey(const Key('home-dose-list')), const Offset(0, -400));
+    await tester.pumpAndSettle();
+    expect(tester.getRect(find.byType(LivingBanner)), banner);
+    expect(tester.getRect(find.byKey(const Key('home-today-header'))), header);
+    expect(tester.getRect(find.text('Dumi AI')), shortcut);
+    expect(tester.takeException(), isNull);
   });
 }

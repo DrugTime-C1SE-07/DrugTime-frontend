@@ -1,5 +1,6 @@
 import '../../../../core/api/api_client.dart';
 import '../../../../core/api/api_exception.dart';
+import '../../domain/entities/condition.dart';
 import '../../domain/entities/health_setup.dart';
 import '../../domain/repositories/health_setup_repository.dart';
 
@@ -19,7 +20,8 @@ class RemoteHealthSetupRepository implements HealthSetupRepository {
       'reported' => HealthSetupStep<T>(
           HealthSetupStatus.reported,
           ids: List<T>.from(json['catalog_ids'] as List),
-          names: List<String>.from(json['custom_names'] as List),
+          // The physiological step has no custom names.
+          names: List<String>.from(json['custom_names'] as List? ?? const []),
         ),
       _ => throw const FormatException('Unknown health setup status'),
     };
@@ -35,6 +37,10 @@ class RemoteHealthSetupRepository implements HealthSetupRepository {
       revision,
       _step<String>(json['allergies']),
       _step<int>(json['conditions']),
+      // Absent on an older backend: treat as unreported.
+      json['physiological_states'] == null
+          ? const HealthSetupStep<int>(HealthSetupStatus.unreported)
+          : _step<int>(json['physiological_states']),
     );
   }
 
@@ -45,6 +51,17 @@ class RemoteHealthSetupRepository implements HealthSetupRepository {
             'status': 'reported',
             'catalog_ids': step.ids,
             'custom_names': step.names,
+          },
+        HealthSetupStatus.unreported =>
+          throw ArgumentError('Skipped steps must be omitted'),
+      };
+
+  Map<String, Object?> _encodePhysiological(HealthSetupStep<int> step) =>
+      switch (step.status) {
+        HealthSetupStatus.noneKnown => {'status': 'none_known'},
+        HealthSetupStatus.reported => {
+            'status': 'reported',
+            'catalog_ids': step.ids,
           },
         HealthSetupStatus.unreported =>
           throw ArgumentError('Skipped steps must be omitted'),
@@ -79,7 +96,8 @@ class RemoteHealthSetupRepository implements HealthSetupRepository {
       for (final value in rows) {
         final row = _object(value);
         final id = row['id'] as int;
-        items[id] = HealthSetupOption(id, row['name'] as String);
+        items[id] = HealthSetupOption(id, row['name'] as String,
+            category: ConditionCategory.fromApi(row['category']).api);
       }
       offset += rows.length;
       if (offset >= (body['total'] as int)) return items.values.toList();
@@ -94,6 +112,7 @@ class RemoteHealthSetupRepository implements HealthSetupRepository {
     String revision, {
     HealthSetupStep<String>? allergies,
     HealthSetupStep<int>? conditions,
+    HealthSetupStep<int>? physiological,
   }) async {
     try {
       return _snapshot(await _api.putJson(
@@ -102,6 +121,8 @@ class RemoteHealthSetupRepository implements HealthSetupRepository {
           'revision': revision,
           if (allergies != null) 'allergies': _encode(allergies),
           if (conditions != null) 'conditions': _encode(conditions),
+          if (physiological != null)
+            'physiological_states': _encodePhysiological(physiological),
         },
         expectedStatus: 200,
       ));

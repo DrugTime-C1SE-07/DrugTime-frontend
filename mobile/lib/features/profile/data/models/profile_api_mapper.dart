@@ -46,7 +46,8 @@ abstract final class ProfileApiMapper {
         conditionId: id(j['condition_id']),
         name: j['condition_name'] as String,
         subtype: j['subtype'] as String?,
-        stage: j['stage'] as String?);
+        stage: j['stage'] as String?,
+        category: ConditionCategory.fromApi(j['category']));
   }
 
   static HealthProfile profile(Object? value) {
@@ -80,7 +81,8 @@ abstract final class ProfileApiMapper {
     return ConditionPage(
         items: List.unmodifiable((j['items'] as List).map((e) {
           final item = object(e);
-          return ConditionItem(id(item['id']), item['name'] as String);
+          return ConditionItem(id(item['id']), item['name'] as String,
+              ConditionCategory.fromApi(item['category']));
         })),
         total: j['total'] as int,
         offset: j['offset'] as int);

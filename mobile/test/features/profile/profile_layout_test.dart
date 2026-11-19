@@ -18,7 +18,6 @@ import 'package:drugtime_mobile/features/profile/presentation/state/profile_cont
 import 'package:drugtime_mobile/app/theme/app_theme.dart';
 import 'package:drugtime_mobile/features/profile/domain/entities/condition.dart';
 import 'package:drugtime_mobile/features/profile/domain/entities/health_profile.dart';
-import 'package:drugtime_mobile/features/profile/presentation/widgets/profile_icons.dart';
 import 'profile_test_helpers.dart';
 import 'profile_widget_helpers.dart';
 
@@ -82,8 +81,9 @@ void main() {
         await tester.ensureVisible(find.byKey(const Key('save-profile')));
         await tester.pump();
         expect(tester.takeException(), isNull);
-        await tester.pumpWidget(
-            profileApp(c, const MedicalProfileScreen(), textScale: scale));
+        await tester.pumpWidget(profileApp(
+            c, MedicalProfileScreen(repository: FakeHealthSetupRepository()),
+            textScale: scale));
         await tester.pumpAndSettle();
         expect(tester.takeException(), isNull);
         await tester
@@ -113,7 +113,7 @@ void main() {
     for (final entry in <String, Widget>{
       'profile': const ProfileScreen(),
       'personal': const PersonalProfileScreen(),
-      'medical': const MedicalProfileScreen()
+      'medical': MedicalProfileScreen(repository: FakeHealthSetupRepository())
     }.entries) {
       if (entry.key == 'medical') {
         repo.value = HealthProfile(
@@ -292,7 +292,7 @@ void main() {
       expect(find.text('Nữ'), findsOneWidget);
     });
 
-    testWidgets('S08-2 chip is a 48 high tinted tile with a check icon',
+    testWidgets('health profile disease tile is at least 48 high (AC23)',
         (tester) async {
       phoneView(tester, const Size(375, 812));
       final repo = FakeProfileRepository()
@@ -311,17 +311,20 @@ void main() {
             ]);
       final c = ProfileController(repo);
       addTearDown(c.dispose);
-      await tester.pumpWidget(profileApp(c, const MedicalProfileScreen()));
+      await tester.pumpWidget(profileApp(
+          c, MedicalProfileScreen(repository: FakeHealthSetupRepository())));
       await tester.pumpAndSettle();
 
-      final chip = find.byKey(const Key('condition-chip-1'));
-      expect(tester.getSize(chip).height, 48);
-      final ink = tester.widget<Ink>(
-          find.descendant(of: chip, matching: find.byType(Ink)).first);
-      expect((ink.decoration! as BoxDecoration).color, AppColors.brandTint);
-      expect(find.descendant(of: chip, matching: find.byType(ProfileIcon)),
-          findsOneWidget);
-      expect(find.text('Thêm bệnh khác'), findsOneWidget);
+      // Redesign (feedback 20/11): setup-style tiles, no subtype/stage rows; tiles keep
+      // a touch target well above 48 dp.
+      expect(find.byKey(const Key('condition-add')), findsOneWidget);
+      expect(find.textContaining('phân loại, giai đoạn'), findsNothing);
+      final tile = find.descendant(
+          of: find.byKey(const Key('health-disease-section')),
+          matching: find.text('Tăng huyết áp'));
+      await tester.scrollUntilVisible(tile, 200);
+      final box = find.ancestor(of: tile, matching: find.byType(InkWell)).first;
+      expect(tester.getSize(box).height, greaterThanOrEqualTo(48));
     });
 
     testWidgets('pairs sit side by side at 375 and stack at 320',
@@ -351,14 +354,12 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('LIÊN HỆ'), findsNothing);
       expect(find.text('Chưa khả dụng'), findsWidgets);
-      await tester.pumpWidget(profileApp(c, const MedicalProfileScreen()));
+      await tester.pumpWidget(profileApp(
+          c, MedicalProfileScreen(repository: FakeHealthSetupRepository())));
       await tester.pumpAndSettle();
-      expect(
-          find.textContaining('Khai báo dị ứng chưa khả dụng'), findsOneWidget);
-      final save = find.widgetWithText(FilledButton, 'Lưu thay đổi');
-      await tester.scrollUntilVisible(save, 300);
-      await tester.pumpAndSettle();
-      expect(tester.widget<FilledButton>(save).onPressed, isNull);
+      // Redesign (N2, N8): no "unavailable" blocks and no page-level save button.
+      expect(find.textContaining('chưa khả dụng'), findsNothing);
+      expect(find.widgetWithText(FilledButton, 'Lưu thay đổi'), findsNothing);
       expect(repo.writes, 0);
     });
   });

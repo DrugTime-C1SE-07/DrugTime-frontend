@@ -55,6 +55,8 @@ const _specs = <String, (double, double, double)>{
   'bowlT': (0, 170, 9),
   'toss': (0, 320, 16),
   'spark': (0, 150, 20),
+  // Trái tim nhỏ khi ôm bụng (cradle).
+  'heart': (0, 150, 18),
 };
 
 /// Thời lượng (giây) của các trạng thái tự kết thúc.
@@ -179,7 +181,7 @@ class MascotRig extends ChangeNotifier {
         for (final sp in _s.values) {
           sp.step(h);
         }
-        if (outfit == MascotOutfit.chef) _followThrough();
+        if (outfit != MascotOutfit.plain) _followThrough();
         rem -= h;
       }
       _blink = _blinkStep(dt);
@@ -399,6 +401,24 @@ class MascotRig extends ChangeNotifier {
           'hrx': 178 + pk * 20,
           'hry': 118 + pk * 20,
           'lx': -.8 * pk,
+        };
+      case MascotMood.cradle:
+        // hai tay ôm trước bụng, đung đưa chậm, mắt cười; tim bay lên theo nhịp thở
+        final sway = math.sin(time * 1.6);
+        return {
+          'pop': 1,
+          'y': math.sin(time * 2) * 1.5,
+          'tilt': sway * .045,
+          'hlx': 128 + sway * 2,
+          'hly': 210,
+          'hrx': 172 + sway * 2,
+          'hry': 210,
+          'smile': 1,
+          'mopen': .2,
+          'open': .55,
+          'cheek': 1.15,
+          'heart': 1,
+          'ly': .2,
         };
       case MascotMood.cooking:
         // nhún theo nhịp 2,5 nhịp/giây, lắc bát, tay trái cổ vũ; rau trong bát bật lên mỗi nhịp

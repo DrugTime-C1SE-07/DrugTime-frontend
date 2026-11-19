@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../../core/motion/shared_axis.dart';
 
 const healthSetupMotionDuration = Duration(milliseconds: 280);
 const _easeOut = Cubic(0.23, 1, 0.32, 1);
@@ -61,17 +62,9 @@ class HealthSetupAnimatedStep extends StatelessWidget {
   }
 }
 
+/// Health-setup pages use the app-wide shared-axis route (AC9).
 PageRouteBuilder<T> healthSetupPageRoute<T>({
   required RouteSettings settings,
   required WidgetBuilder builder,
 }) =>
-    PageRouteBuilder<T>(
-      settings: settings,
-      transitionDuration: healthSetupMotionDuration,
-      reverseTransitionDuration: healthSetupMotionDuration,
-      pageBuilder: (context, animation, secondaryAnimation) => builder(context),
-      transitionsBuilder: (context, animation, secondaryAnimation, child) =>
-          MediaQuery.disableAnimationsOf(context)
-              ? child
-              : healthSetupTransition(animation, child),
-    );
+    sharedAxisRoute<T>(settings: settings, builder: builder);

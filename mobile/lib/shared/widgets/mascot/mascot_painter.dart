@@ -101,10 +101,15 @@ class MascotPainter extends CustomPainter {
       _arms(canvas, strokes: false, hands: true);
       _hat(canvas);
       _sparkles(canvas, r.value('spark'), T);
+    } else if (outfit == MascotOutfit.medic) {
+      _stethoscope(canvas);
+      _arms(canvas, strokes: !behind, hands: true);
+      _nurseCap(canvas);
     } else {
       _arms(canvas, strokes: !behind, hands: true);
     }
     _shield(canvas, r.value('shield'));
+    _heart(canvas, r.value('heart'), T);
     canvas.restore();
     canvas.restore();
     canvas.restore();
@@ -515,6 +520,108 @@ class MascotPainter extends CustomPainter {
             ..strokeWidth = 2.5
             ..color = _C.line.withValues(alpha: o));
     }
+  }
+
+  // ---------------------------------------------------------------- y tá
+
+  static const _medicTeal = Color(0xFF01857A);
+  static const _medicTealDark = Color(0xFF01554F);
+  static const _heartPink = Color(0xFFFF6F91);
+
+  /// Mũ y tá trắng bo tròn, chữ thập màu thương hiệu; trễ theo thân như mũ đầu bếp.
+  void _nurseCap(Canvas c) {
+    final r = rig;
+    c.save();
+    c.translate(150, 66 + r.value('hatY').clamp(-12.0, 12.0));
+    c.rotate(-.08 + r.value('hatT').clamp(-.4, .4));
+    final cap = Path()
+      ..moveTo(-44, 10)
+      ..quadraticBezierTo(-46, -22, -26, -30)
+      ..quadraticBezierTo(0, -40, 26, -30)
+      ..quadraticBezierTo(46, -22, 44, 10)
+      ..quadraticBezierTo(0, 2, -44, 10)
+      ..close();
+    c.drawPath(
+        cap.shift(const Offset(0, 3)), _fill(const Color(0xFF0B2A26), .12));
+    c.drawPath(
+        cap,
+        Paint()
+          ..shader = const LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [_C.white, _hatShade],
+          ).createShader(const Rect.fromLTRB(-46, -40, 46, 10)));
+    c.drawPath(
+        cap,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 3
+          ..strokeJoin = StrokeJoin.round
+          ..color = _hatLine);
+    // dải viền màu thương hiệu ở chân mũ
+    final band = Path()
+      ..moveTo(-44, 10)
+      ..quadraticBezierTo(0, 2, 44, 10)
+      ..lineTo(43, 4)
+      ..quadraticBezierTo(0, -4, -43, 4)
+      ..close();
+    c.drawPath(band, _fill(_medicTeal, .9));
+    // chữ thập
+    final cross = RRect.fromRectAndRadius(
+        Rect.fromCenter(center: const Offset(0, -15), width: 8, height: 22),
+        const Radius.circular(2.5));
+    c.drawRRect(cross, _fill(_medicTeal));
+    c.drawRRect(
+        RRect.fromRectAndRadius(
+            Rect.fromCenter(center: const Offset(0, -15), width: 22, height: 8),
+            const Radius.circular(2.5)),
+        _fill(_medicTeal));
+    c.restore();
+  }
+
+  /// Ống nghe vắt quanh cổ, đầu nghe tròn trước ngực.
+  void _stethoscope(Canvas c) {
+    final tube = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 4.2
+      ..strokeCap = StrokeCap.round
+      ..color = _medicTealDark;
+    final path = Path()
+      ..moveTo(112, 140)
+      ..quadraticBezierTo(116, 182, 150, 186)
+      ..quadraticBezierTo(184, 182, 188, 140);
+    c.drawPath(path, tube);
+    c.drawLine(const Offset(150, 186), const Offset(150, 198), tube);
+    c.drawCircle(const Offset(150, 204), 8.5, _fill(_C.white2));
+    c.drawCircle(
+        const Offset(150, 204),
+        8.5,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 3.2
+          ..color = _medicTealDark);
+    c.drawCircle(const Offset(147.5, 201.5), 2.4, _fill(_C.white, .9));
+    for (final x in [112.0, 188.0]) {
+      c.drawCircle(Offset(x, 138), 3.6, _fill(_medicTealDark));
+    }
+  }
+
+  /// Trái tim nhỏ bay lên từ hai bàn tay khi ôm bụng; [a] = độ hiện, nhịp theo [T].
+  void _heart(Canvas c, double a, double T) {
+    if (a < .02) return;
+    final phase = (T * .55) % 1;
+    final y = 196 - phase * 46;
+    final o = a * math.sin(phase * math.pi);
+    final s = 7 + phase * 3;
+    c.save();
+    c.translate(150 + math.sin(T * 3) * 4, y);
+    final heart = Path()
+      ..moveTo(0, s * .9)
+      ..cubicTo(-s * 1.6, -s * .2, -s * .6, -s * 1.4, 0, -s * .45)
+      ..cubicTo(s * .6, -s * 1.4, s * 1.6, -s * .2, 0, s * .9)
+      ..close();
+    c.drawPath(heart, _fill(_heartPink, o));
+    c.restore();
   }
 
   // ---------------------------------------------------------------- đầu bếp

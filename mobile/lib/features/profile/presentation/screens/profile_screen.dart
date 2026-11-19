@@ -192,7 +192,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                       'Hồ sơ sức khỏe',
                       c.profile == null
                           ? 'Thông tin bệnh nền'
-                          : '${c.profile!.conditions.length} bệnh nền',
+                          : '${c.profile!.chronicConditions.length} bệnh nền',
                       'h-heart',
                       () => _open(AppRoutes.medicalProfile),
                       key: const Key('medical-profile-tile'),

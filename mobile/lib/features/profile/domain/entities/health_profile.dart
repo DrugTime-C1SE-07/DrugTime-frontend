@@ -19,6 +19,14 @@ class HealthProfile {
   /// Contact only; it is not a login identifier.
   final String? phone;
   final List<ProfileCondition> conditions;
+
+  /// Chronic diseases only ("bệnh nền"); physiological states are excluded.
+  List<ProfileCondition> get chronicConditions => conditions
+      .where((c) => c.category == ConditionCategory.chronicDisease)
+      .toList(growable: false);
+
+  /// Gender stored as `nam`; the physiological step is hidden for this value (Q7).
+  bool get isMale => gender == 'nam';
 }
 
 class ProfileDraft {
