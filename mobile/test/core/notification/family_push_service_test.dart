@@ -7,6 +7,31 @@ import 'package:drugtime_mobile/features/family/domain/entities/family_alert.dar
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
+  test(
+      'typed reminder push cannot collide with legacy notification ID and stays generic',
+      () async {
+    final shown = <String>[];
+    final push = FamilyPushService(
+        android: true,
+        showForeground: (_, __) async => fail('Wrong namespace'),
+        showReminderForeground: (id, body) async => shown.add('$id:$body'));
+    await push.receive(
+        {'type': 'dose_reminder', 'reminder_id': '9', 'notification_id': '88'},
+        foreground: true, body: 'Do not display health content');
+    expect(shown, ['9:Bạn có lời nhắc mới trên DrugTime']);
+    push.offerData({'type': 'dose_reminder', 'reminder_id': '9'});
+    expect(push.pendingId, 9);
+    expect(push.pendingIsReminder, isTrue);
+    push.consume();
+    push.offerData({'notification_id': '9'});
+    expect(push.pendingId, 9);
+    expect(push.pendingIsReminder, isFalse);
+    push.clear();
+    push.offerReminder('9');
+    expect(push.hasPending, isFalse);
+    push.dispose();
+  });
+
   group('optional Firebase configuration', () {
     const channelPrefix =
         'dev.flutter.pigeon.firebase_core_platform_interface.FirebaseCoreHostApi';

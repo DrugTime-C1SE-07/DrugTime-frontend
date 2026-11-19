@@ -207,6 +207,14 @@ class _ProfileScreenState extends State<ProfileScreen>
                     ),
                     _divider(),
                     _menu(
+                      'Chia sẻ và liên kết',
+                      'Kết nối với người thân',
+                      'h-users',
+                      () => _open(AppRoutes.shareAndLink),
+                      key: const Key('share-and-link-tile'),
+                    ),
+                    _divider(),
+                    _menu(
                       'Thông báo & Nhắc nhở',
                       'Âm thanh, giờ nhắc, nhắc lại',
                       'h-bell',

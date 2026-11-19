@@ -1,5 +1,8 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import '../features/family_link/presentation/screens/share_and_link_screen.dart';
+import '../features/patient_monitor/presentation/patient_monitor_screen.dart';
+import '../features/patient_dose_reminders/presentation/received_reminders_screen.dart';
 import '../features/medication_capture/presentation/screens/scan_medication_screen.dart';
 
 import '../features/adherence/domain/repositories/adherence_repository.dart';
@@ -50,7 +53,12 @@ import '../features/family_link/presentation/screens/invite_caregiver_screen.dar
 
 enum HomeEntry { profileCompleted }
 
+enum PersonalScheduleEntry { open }
+
 abstract final class AppRoutes {
+  static const shareAndLink = '/profile/share-and-link';
+  static const patientMonitor = '/family/patient';
+  static const receivedReminders = '/dose-reminders/received';
   static const profileInvite = '/profile/invite';
   static const profileNotifications = '/profile/notifications';
   static const profileReminderSound = '/profile/notifications/sound';
@@ -114,6 +122,19 @@ Route<dynamic>? onGenerateRoute(
   ValueListenable<bool>? familyAdherenceAvailability,
 }) {
   return switch (settings.name) {
+    AppRoutes.shareAndLink => MaterialPageRoute<void>(
+        settings: settings, builder: (_) => const ShareAndLinkScreen()),
+    AppRoutes.patientMonitor => MaterialPageRoute<void>(
+        settings: settings,
+        builder: (_) => PatientMonitorScreen(
+            patientId: settings.arguments is String
+                ? settings.arguments! as String
+                : '')),
+    AppRoutes.receivedReminders => MaterialPageRoute<void>(
+        settings: settings,
+        builder: (_) => ReceivedRemindersScreen(
+            reminderId:
+                settings.arguments is int ? settings.arguments! as int : null)),
     AppRoutes.profileInvite => MaterialPageRoute<void>(
         settings: settings, builder: (_) => const InviteCaregiverScreen()),
     AppRoutes.profileNotifications => MaterialPageRoute<void>(
@@ -187,7 +208,9 @@ Route<dynamic>? onGenerateRoute(
         settings: settings,
         builder: (_) => ConsentGate(
           child: AppShell(
-            initialTab: initialTab,
+            initialTab: settings.arguments == PersonalScheduleEntry.open
+                ? AppTab.reminders
+                : initialTab,
             showWelcome: settings.arguments == HomeEntry.profileCompleted,
           ),
         ),

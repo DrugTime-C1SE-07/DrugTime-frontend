@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'features/patient_monitor/data/patient_monitor_repository.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'core/notification/device_token_coordinator.dart';
@@ -118,6 +119,11 @@ Future<void> main() async {
       }
     },
     onSyncRequest: doseSync.syncNow,
+    showReminderForeground: (id, body) async {
+      if (authController.isAuthenticated && !authController.isSigningOut) {
+        await notificationService.showReceivedReminder(id, body);
+      }
+    },
   );
 
   DeviceTokenCoordinator? tokens;
@@ -165,6 +171,7 @@ Future<void> main() async {
     familyPushService: push,
     deviceTokenCoordinator: tokens,
     familyConnectivity: PollingConnectivityMonitor(),
+    patientMonitorRepository: PatientMonitorRepository(apiClient),
     scheduleSource: ApiScheduleRemoteDataSource(apiClient),
     adherenceHistoryRepository: RemoteAdherenceHistoryRepository(apiClient),
     adherenceRepository: RemoteAdherenceRepository(apiClient),

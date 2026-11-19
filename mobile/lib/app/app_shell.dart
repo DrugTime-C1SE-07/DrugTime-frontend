@@ -124,6 +124,11 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   }
 
   void _select(AppTab tab) {
+    if (tab == AppTab.family) {
+      final monitor = FamilyLinkScope.maybeOf(context)?.monitor;
+      monitor?.leave();
+      if (_tab == AppTab.family) unawaited(monitor?.loadHub());
+    }
     if (mounted) setState(() => _tab = tab);
   }
 

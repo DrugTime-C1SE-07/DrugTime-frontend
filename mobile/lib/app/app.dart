@@ -1,4 +1,6 @@
 import 'dart:async';
+import '../features/patient_monitor/data/patient_monitor_repository.dart';
+import '../features/patient_monitor/presentation/patient_monitor_controller.dart';
 import '../features/meal_suggestion/domain/repositories/allergy_profile_repository.dart';
 import '../features/meal_suggestion/domain/repositories/meal_suggestion_repository.dart';
 import '../features/meal_suggestion/data/meal_choice_store.dart';
@@ -113,6 +115,7 @@ class DrugTimeApp extends StatefulWidget {
     this.familyPushService,
     this.deviceTokenCoordinator,
     this.familyConnectivity,
+    this.patientMonitorRepository,
   });
 
   /// Trạng thái đăng nhập; app chạy thật dựng với RemoteAuthRepository (xem main.dart).
@@ -125,6 +128,7 @@ class DrugTimeApp extends StatefulWidget {
   final FamilyPushService? familyPushService;
   final DeviceTokenCoordinator? deviceTokenCoordinator;
   final ConnectivityMonitor? familyConnectivity;
+  final PatientMonitorRepository? patientMonitorRepository;
 
   /// Cho phép test/bản build khác thay nguồn dữ liệu thuốc.
   final MedicationRepository? medicationRepository;
@@ -212,6 +216,11 @@ class _DrugTimeAppState extends State<DrugTimeApp> with WidgetsBindingObserver {
 
   StreamSubscription<bool>? _familyConnection;
   final _familyAdherenceAvailability = ValueNotifier<bool>(false);
+  late final PatientMonitorController? _monitor =
+      widget.patientMonitorRepository == null
+          ? null
+          : PatientMonitorController(widget.patientMonitorRepository!,
+              clock: widget.clock);
   String? _tokenSession;
   String? _reminderUser;
   bool _foreground = true, _online = true, _openingFamily = false;
@@ -229,6 +238,16 @@ class _DrugTimeAppState extends State<DrugTimeApp> with WidgetsBindingObserver {
       _online;
   void _familyChanged() {
     final session = _auth.currentSession;
+    final monitorReady = _sessionLoaded &&
+        _auth.isAuthenticated &&
+        !_auth.isSigningOut &&
+        !_auth.needsProfile &&
+        _consents.isLoaded &&
+        !_consents.needsTerms &&
+        _foreground &&
+        _online;
+    _monitor?.setSession(_auth.isAuthenticated ? session?.userId : null,
+        available: monitorReady);
     final ready = _familyReady;
     _familyAdherenceAvailability.value = ready;
     widget.familyAlertController?.setSession(
@@ -327,13 +346,18 @@ class _DrugTimeAppState extends State<DrugTimeApp> with WidgetsBindingObserver {
       _openingFamily = false;
       if (!mounted || !_familyReady || !push.hasPending) return;
       final id = push.pendingId;
+      final receivedReminder = push.pendingIsReminder;
       push.consume();
       if (id == null) {
         _scaffoldMessengerKey.currentState?.showSnackBar(const SnackBar(
             content: Text('Cảnh báo không còn khả dụng. Vui lòng mở hộp thư')));
       }
       _navigatorKey.currentState?.pushNamed(
-          id == null ? AppRoutes.familyAlerts : AppRoutes.familyAlertDetail,
+          receivedReminder
+              ? AppRoutes.receivedReminders
+              : id == null
+                  ? AppRoutes.familyAlerts
+                  : AppRoutes.familyAlertDetail,
           arguments: id);
     });
   }
@@ -503,6 +527,16 @@ class _DrugTimeAppState extends State<DrugTimeApp> with WidgetsBindingObserver {
     widget.familyPushService?.addListener(_openPendingFamily);
     widget.notificationService?.onFamilyAction =
         (id) => widget.familyPushService?.offer(id == null ? null : '$id');
+    widget.notificationService?.onReceivedReminderAction = (id) =>
+        widget.familyPushService?.offerReminder(id == null ? null : '$id');
+    final receivedReminderId =
+        widget.notificationService?.consumeReceivedReminderId();
+    final invalidReceived =
+        widget.notificationService?.consumeInvalidReceivedReminder() ?? false;
+    if (receivedReminderId != null) {
+      widget.familyPushService?.offerReminder('$receivedReminderId');
+    }
+    if (invalidReceived) widget.familyPushService?.offerReminder(null);
     final pendingId = widget.notificationService?.consumeFamilyId();
     final invalidFamily =
         widget.notificationService?.consumeInvalidFamilyPayload() ?? false;
@@ -747,9 +781,11 @@ class _DrugTimeAppState extends State<DrugTimeApp> with WidgetsBindingObserver {
     _expiryTimer?.cancel();
     unawaited(_familyConnection?.cancel());
     _familyAdherenceAvailability.dispose();
+    _monitor?.dispose();
     unawaited(widget.familyConnectivity?.dispose());
     widget.familyPushService?.removeListener(_openPendingFamily);
     widget.notificationService?.onFamilyAction = null;
+    widget.notificationService?.onReceivedReminderAction = null;
     unawaited(widget.deviceTokenCoordinator?.dispose());
     _auth.removeListener(_onAuthChanged);
     _consents.removeListener(_onConsentChanged);
@@ -785,6 +821,7 @@ class _DrugTimeAppState extends State<DrugTimeApp> with WidgetsBindingObserver {
               caregivers: _caregivers,
               invites: _invites,
               incomingRequests: _incomingRequests,
+              monitor: _monitor,
               child: ProfileScope(
                 controller: _profiles,
                 child: AdherenceHistoryScope(

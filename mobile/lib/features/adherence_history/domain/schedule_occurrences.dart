@@ -1,6 +1,14 @@
 import '../../../core/storage/local_db/local_models.dart';
 import 'entities/adherence_history.dart';
 
+/// Vietnam wall date + schedule time -> canonical instant; shared with RAM-only monitoring.
+DateTime scheduleInstant(DateTime day, String intakeTime) {
+  final parts = intakeTime.split(':').map(int.parse).toList();
+  return DateTime.utc(day.year, day.month, day.day, parts[0], parts[1],
+          parts.length > 2 ? parts[2] : 0)
+      .subtract(const Duration(hours: 7));
+}
+
 /// Projects future doses within an inclusive range of Vietnam calendar dates.
 Map<DateTime, DateHistoryGroup> mergeUpcomingDoses({
   required Iterable<LocalMedicationSchedule> schedules,
@@ -23,14 +31,7 @@ Map<DateTime, DateHistoryGroup> mergeUpcomingDoses({
     final before = doses.length;
     for (final schedule in schedules) {
       if (!schedule.daysOfWeek.contains(day.weekday)) continue;
-      final parts = schedule.intakeTime.split(':').map(int.parse).toList();
-      final at = day
-          .add(Duration(
-            hours: parts[0],
-            minutes: parts[1],
-            seconds: parts.length > 2 ? parts[2] : 0,
-          ))
-          .subtract(vietnamOffset);
+      final at = scheduleInstant(day, schedule.intakeTime);
       final endedAt = schedule.endedAt;
       if (!at.isAfter(now) ||
           at.isBefore(schedule.effectiveFrom) ||
