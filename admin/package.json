@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint . --ext .ts,.tsx",
     "audit:ui": "node scripts/audit-ui.mjs",
-    "test:chart": "node --test scripts/chart-geometry.test.mjs"
+    "test:chart": "node --test scripts/chart-geometry.test.mjs",
+    "test:deletion-queue": "node --test scripts/deletion-queue.test.mjs"
   },
   "dependencies": {
     "lucide-react": "^0.360.0",

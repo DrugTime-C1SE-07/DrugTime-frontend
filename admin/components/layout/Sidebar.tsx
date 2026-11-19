@@ -9,6 +9,7 @@ import {
   Notebook,
   PillIcon,
   ScanText,
+  Trash2,
   UserRound,
   type LucideIcon,
 } from "lucide-react";
@@ -48,6 +49,11 @@ const sidebarItems: SidebarItem[] = [
     href: "/dashboard/ocr-review",
     icon: ScanText,
     badge: 3,
+  },
+  {
+    label: "Yêu cầu xóa dữ liệu",
+    href: "/dashboard/deletion-requests",
+    icon: Trash2,
   },
 ];
 

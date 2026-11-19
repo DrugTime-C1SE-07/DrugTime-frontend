@@ -981,3 +981,124 @@ html:has(.admin-theme)::-webkit-scrollbar-track,
     margin-top: 14px;
   }
 }
+
+/* Hàng chờ yêu cầu xóa dữ liệu (task 5.07) */
+.admin-theme .deletion-queue {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.admin-theme .deletion-queue__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.admin-theme .deletion-queue__total {
+  margin: 0;
+  color: var(--color-secondary-text);
+}
+
+.admin-theme .deletion-queue__total strong {
+  color: var(--color-text);
+}
+
+.admin-theme .deletion-queue__refresh {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 14px;
+}
+
+.admin-theme .deletion-queue__card {
+  overflow-x: auto;
+}
+
+.admin-theme .deletion-queue__caption {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.admin-theme .deletion-queue__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.admin-theme .deletion-queue__table th {
+  padding: 12px 16px;
+  text-align: left;
+  font-weight: 600;
+  color: var(--color-muted);
+  background: var(--color-surface-muted);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.admin-theme .deletion-queue__table td {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--color-border-subtle);
+  vertical-align: top;
+}
+
+.admin-theme .deletion-queue__table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.admin-theme .deletion-queue__user-id {
+  font-family: var(--font-mono);
+  overflow-wrap: anywhere;
+}
+
+.admin-theme .deletion-queue__badge {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-warning);
+  background: var(--color-warning-soft);
+}
+
+.admin-theme .deletion-queue__pagination {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  color: var(--color-secondary-text);
+}
+
+.admin-theme .deletion-queue__pagination a {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 14px;
+}
+
+.admin-theme .deletion-queue__status {
+  margin: 0;
+  padding: 24px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+  color: var(--color-secondary-text);
+}
+
+.admin-theme .deletion-queue__status--error {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-color: var(--color-danger-soft);
+  color: var(--color-danger);
+}
+
+.admin-theme .deletion-queue__status--error p {
+  margin: 0;
+}
