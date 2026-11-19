@@ -9,9 +9,11 @@ class ProfileFlowHeader extends StatelessWidget implements PreferredSizeWidget {
       this.backgroundColor = profileFlowCanvas,
       this.leading,
       this.actions,
-      this.titleScale = 1});
+      this.titleScale = 1,
+      this.titleSize = 18});
   final String title;
   final double titleScale;
+  final double titleSize;
   final Color backgroundColor;
   final Widget? leading;
   final List<Widget>? actions;
@@ -28,7 +30,7 @@ class ProfileFlowHeader extends StatelessWidget implements PreferredSizeWidget {
         leadingWidth: 72,
         title: Text(title,
             style: Theme.of(context).textTheme.titleMedium!.copyWith(
-                fontSize: 18,
+                fontSize: titleSize,
                 fontWeight: FontWeight.w700,
                 color: AppColors.ink),
             maxLines: 3,
