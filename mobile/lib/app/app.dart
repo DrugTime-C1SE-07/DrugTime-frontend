@@ -63,6 +63,7 @@ import '../features/medication/domain/repositories/medication_repository.dart';
 import '../features/interaction_check/domain/repositories/interaction_check_repository.dart';
 import '../features/medication/presentation/state/medication_controller.dart';
 import '../features/reminder/domain/entities/dose_reminder.dart';
+import '../features/patient_dose_reminders/application/caregiver_reminder_launcher.dart';
 import '../features/profile/domain/repositories/profile_repository.dart';
 import '../features/profile/data/repositories/secure_profile_avatar_preferences.dart';
 import '../features/profile/domain/repositories/health_setup_repository.dart';
@@ -354,6 +355,11 @@ class _DrugTimeAppState extends State<DrugTimeApp> with WidgetsBindingObserver {
         _scaffoldMessengerKey.currentState?.showSnackBar(const SnackBar(
             content: Text('Cảnh báo không còn khả dụng. Vui lòng mở hộp thư')));
       }
+      final monitor = _monitor;
+      if (receivedReminder && id != null && monitor != null) {
+        unawaited(_openCaregiverReminder(monitor, id));
+        return;
+      }
       _navigatorKey.currentState?.pushNamed(
           receivedReminder
               ? AppRoutes.receivedReminders
@@ -362,6 +368,51 @@ class _DrugTimeAppState extends State<DrugTimeApp> with WidgetsBindingObserver {
                   : AppRoutes.familyAlertDetail,
           arguments: id);
     });
+  }
+
+  /// P1: lời nhắc từ người thân mở màn nhắc toàn phần nếu liều chưa ghi nhận và lịch có
+  /// trên máy; còn lại mở hộp thư lời nhắc như trước.
+  Future<void> _openCaregiverReminder(
+      PatientMonitorController monitor, int id) async {
+    final user = _auth.currentSession?.userId;
+    CaregiverReminderLaunch launch;
+    try {
+      launch = await CaregiverReminderLauncher(
+              repository: monitor.reminders.repository,
+              store: widget.localMedicationStore)
+          .prepare(id);
+    } catch (error, stack) {
+      // Lỗi chưa lường trước: vẫn mở hộp thư để người bệnh xem được lời nhắc, và báo lỗi.
+      FlutterError.reportError(FlutterErrorDetails(
+          exception: error,
+          stack: stack,
+          library: 'caregiver reminder',
+          context: ErrorDescription('while preparing reminder $id')));
+      launch = OpenReceivedReminder(id, 'unexpected_error');
+    }
+    // Phiên đổi (đăng xuất / đổi tài khoản) trong lúc chờ: không mở lời nhắc của phiên cũ.
+    if (!mounted ||
+        !_auth.isAuthenticated ||
+        _auth.currentSession?.userId != user) {
+      return;
+    }
+    final navigator = _navigatorKey.currentState;
+    switch (launch) {
+      case OpenDoseReminder(:final group, :final sender):
+        navigator?.pushNamed(AppRoutes.doseReminder,
+            arguments: DoseReminderRouteArguments(
+              group: group,
+              outbox: widget.doseOutbox ?? _FallbackDoseOutbox(),
+              scheduler:
+                  widget.reminderScheduler ?? _FallbackReminderScheduler(),
+              clock: widget.clock,
+              keyguardPlatform: widget.keyguardPlatform,
+              sender: sender,
+            ));
+      case OpenReceivedReminder(:final reminderId):
+        navigator?.pushNamed(AppRoutes.receivedReminders,
+            arguments: reminderId);
+    }
   }
 
   @override
@@ -429,8 +480,8 @@ class _DrugTimeAppState extends State<DrugTimeApp> with WidgetsBindingObserver {
             : null),
     clock: widget.clock,
   );
-  late final ProfileController _profiles =
-      ProfileController(widget.profileRepository, SecureProfileAvatarPreferences());
+  late final ProfileController _profiles = ProfileController(
+      widget.profileRepository, SecureProfileAvatarPreferences());
   late final HealthSetupStatusController _healthSetup =
       HealthSetupStatusController(widget.healthSetupRepository);
   late final HomeScheduleController _homeSchedule = HomeScheduleController(

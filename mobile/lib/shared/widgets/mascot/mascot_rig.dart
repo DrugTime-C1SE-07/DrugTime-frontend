@@ -65,6 +65,17 @@ const _durations = <MascotMood, double>{
   MascotMood.wave: 2.6,
   MascotMood.celebrate: 2.55,
   MascotMood.poke: 1.0,
+  MascotMood.hug: 1.6,
+  MascotMood.blissful: 1.8,
+};
+
+/// Trạng thái tự kết thúc mà khi giảm chuyển động thì giữ nguyên trạng thái nền
+/// (thay vì về `idle`), để linh vật không đổi tư thế chỉ vì người dùng chạm.
+const _transient = {
+  MascotMood.poke,
+  MascotMood.celebrate,
+  MascotMood.hug,
+  MascotMood.blissful,
 };
 
 double _easeInOut(double u) =>
@@ -112,9 +123,7 @@ class MascotRig extends ChangeNotifier {
   /// được hiển thị bằng trạng thái sẽ quay về, để không kẹt ở một tư thế chuyển tiếp.
   void setMood(MascotMood mood, {required double ledge, bool still = false}) {
     if (still && _durations.containsKey(mood)) {
-      mood = mood == MascotMood.poke || mood == MascotMood.celebrate
-          ? _return
-          : MascotMood.idle;
+      mood = _transient.contains(mood) ? _return : MascotMood.idle;
     }
     // `hidden` không phải trạng thái để quay về: nếu không, wave/poke từ lúc mới hiện sẽ làm linh vật biến mất.
     if (!_durations.containsKey(mood) && mood != MascotMood.hidden) {
@@ -441,6 +450,42 @@ class MascotRig extends ChangeNotifier {
           'cheek': 1,
           'toss': hop,
           'star': hop * .6,
+        };
+      case MascotMood.hug:
+        // dang tay sang hai bên rồi khép vào, đung đưa người, mắt cười híp
+        final close = _easeInOut(math.min(1.0, t / .45));
+        final rock = math.sin(t * 5) * (1 - math.min(1.0, t / 1.6));
+        return {
+          'pop': 1,
+          'y': -2 + breathe,
+          'sq': -.02,
+          'tilt': rock * .07,
+          'hlx': 44 + close * 46,
+          'hly': 176 + close * 10,
+          'hrx': 256 - close * 46,
+          'hry': 176 + close * 10,
+          'open': .45,
+          'smile': 1,
+          'mopen': .5,
+          'cheek': 1.25,
+          'heart': 1,
+        };
+      case MascotMood.blissful:
+        // nhắm mắt, má hồng, nghiêng đầu như được xoa
+        return {
+          'pop': 1,
+          'y': math.sin(time * 2) * 1.5,
+          'sq': .02,
+          'tilt': .08 + math.sin(t * 3) * .03,
+          'open': .05,
+          'smile': 1,
+          'mopen': .25,
+          'cheek': 1.35,
+          'heart': 1,
+          'hlx': 120,
+          'hly': 214,
+          'hrx': 180,
+          'hry': 214,
         };
       case MascotMood.poke:
         return {

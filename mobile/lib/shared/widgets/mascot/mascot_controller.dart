@@ -23,11 +23,37 @@ enum MascotMood {
 
   /// Ôm bụng dịu dàng, một trái tim nhỏ bay lên (chọn tình trạng mang thai / cho con bú).
   cradle,
+
+  /// Dang hai tay ôm bạn bên cạnh, má ửng, tim nhỏ; tự quay về trạng thái trước.
+  hug,
+
+  /// Được xoa đầu: nhắm mắt cười, má ửng đậm, tim bay lên; tự quay về trạng thái trước.
+  blissful,
 }
 
 /// Trang phục của linh vật. [chef]: mũ đầu bếp + bát salad ở tay phải.
 /// [medic]: mũ y tá có chữ thập + ống nghe, dùng ở các màn hồ sơ sức khỏe.
-enum MascotOutfit { plain, chef, medic }
+/// [gardenHat]: mũ cói làm vườn có dải ruy băng. [scarf]: khăn quàng cổ có tua.
+enum MascotOutfit { plain, chef, medic, gardenHat, scarf }
+
+/// Bảng màu phần thân dưới của viên thuốc. [blue] là màu gốc của DrugTime.
+enum MascotPalette {
+  blue(Color(0xFF1B9AFC), Color(0xFF0A7FEF), Color(0xFFB4E4FC),
+      Color(0xFF1D5BB0)),
+  peach(Color(0xFFFF9A62), Color(0xFFF2763A), Color(0xFFFFD9BF),
+      Color(0xFFB4502A));
+
+  const MascotPalette(this.base, this.deep, this.light, this.line);
+
+  /// Màu chính và màu đậm của gradient thân dưới.
+  final Color base, deep;
+
+  /// Vệt sáng trên thân dưới.
+  final Color light;
+
+  /// Viền thân.
+  final Color line;
+}
 
 /// Màn hình điều khiển linh vật qua controller: đổi trạng thái, hướng nhìn, hé mắt.
 class MascotController extends ChangeNotifier {

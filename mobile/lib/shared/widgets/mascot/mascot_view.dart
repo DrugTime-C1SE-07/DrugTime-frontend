@@ -18,11 +18,20 @@ class MascotView extends StatefulWidget {
       required this.controller,
       this.size = 220,
       this.outfit = MascotOutfit.plain,
+      this.palette = MascotPalette.blue,
+      this.onTap,
+      this.semanticLabel = 'Linh vật DrugTime',
       this.random});
 
   final MascotController controller;
   final double size;
   final MascotOutfit outfit;
+  final MascotPalette palette;
+
+  /// Thay phản ứng mặc định khi chạm (phát [MascotMood.poke]).
+  final VoidCallback? onTap;
+
+  final String semanticLabel;
 
   /// Chỉ dùng cho test để chuyển động ngẫu nhiên xác định được.
   final math.Random? random;
@@ -103,15 +112,16 @@ class _MascotViewState extends State<MascotView>
   Widget build(BuildContext context) {
     _rig.outfit = widget.outfit;
     return Semantics(
-      label: 'Linh vật DrugTime',
+      label: widget.semanticLabel,
       image: true,
       child: GestureDetector(
         behavior: HitTestBehavior.translucent,
-        onTap: () => widget.controller.play(MascotMood.poke),
+        onTap: widget.onTap ?? () => widget.controller.play(MascotMood.poke),
         child: RepaintBoundary(
           child: CustomPaint(
             size: Size.square(widget.size),
-            painter: MascotPainter(_rig, outfit: widget.outfit),
+            painter: MascotPainter(_rig,
+                outfit: widget.outfit, palette: widget.palette),
           ),
         ),
       ),

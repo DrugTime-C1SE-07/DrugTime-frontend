@@ -91,9 +91,13 @@ class _ReceivedRemindersScreenState extends State<ReceivedRemindersScreen> {
         await repo.markRead(id);
         if (!current()) return;
         _detail = detail;
-        _doseStatus = matching.isEmpty
+        final dose = matching.isEmpty ? null : matching.first;
+        _doseStatus = dose == null
             ? 'Không ánh xạ được lần uống hiện tại.'
-            : matching.first.status.label;
+            : dose.takenAt != null
+                // liều đã ghi nhận (P1 mở hộp thư thay vì màn xác nhận)
+                ? 'Bạn đã uống lúc ${monitorTime(dose.takenAt!)}'
+                : dose.status.label;
       } else {
         final items = <Map<String, dynamic>>[];
         for (var offset = 0;; offset += 100) {

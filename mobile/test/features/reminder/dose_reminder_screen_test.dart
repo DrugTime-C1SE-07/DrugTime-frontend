@@ -283,6 +283,66 @@ void main() {
 
     expect(outbox.scheduleIds, [1]);
   });
+
+  group('P1 · lời nhắc từ người thân (sender)', () {
+    Future<void> pumpCaregiver(
+        WidgetTester tester, _FakeDoseOutbox outbox) async {
+      tester.platformDispatcher.accessibilityFeaturesTestValue =
+          const FakeAccessibilityFeatures(disableAnimations: true);
+      addTearDown(
+          tester.platformDispatcher.clearAccessibilityFeaturesTestValue);
+      await tester.pumpWidget(MaterialApp(
+        theme: buildAppTheme(),
+        locale: const Locale('vi'),
+        supportedLocales: const [Locale('vi')],
+        localizationsDelegates: GlobalMaterialLocalizations.delegates,
+        home: DoseReminderScreen(
+          arguments: DoseReminderRouteArguments(
+            group: DoseReminderGroup([_item(1, 'Losartan 50mg')]),
+            outbox: outbox,
+            scheduler: _FakeReminderScheduler(),
+            clock: () => DateTime.utc(2026, 9, 25, 15, 15),
+            sender: 'Con Nam',
+          ),
+        ),
+      ));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets(
+        'tiêu đề người nhắc, giờ hiện tại, cảnh hai linh vật, không hoãn (AC10)',
+        (tester) async {
+      await pumpCaregiver(tester, _FakeDoseOutbox());
+      expect(find.text('DrugTime · Con Nam nhắc bạn'), findsOneWidget);
+      expect(find.text('22:15'), findsOneWidget);
+      expect(find.text('Bạn chưa uống liều 20:00'), findsOneWidget);
+      expect(
+          find.textContaining('không phải hướng dẫn uống bù'), findsOneWidget);
+      expect(find.byKey(const Key('dose-reminder-garden')), findsOneWidget);
+      expect(find.text('Nhắc lại sau 10 phút'), findsNothing);
+      expect(find.text('Đã uống'), findsOneWidget);
+      expect(find.text('Bỏ qua liều này'), findsOneWidget);
+      expect(find.textContaining('Gọi'), findsNothing);
+    });
+
+    testWidgets('bấm "Đã uống" hai lần nhanh: chỉ ghi một lần (AC12)',
+        (tester) async {
+      final pending = Completer<LocalDoseLog>();
+      final outbox = _FakeDoseOutbox(completer: pending);
+      await pumpCaregiver(tester, outbox);
+      await tester.tap(find.text('Đã uống'));
+      await tester.pump();
+      await tester.tap(find.text('Đã uống'), warnIfMissed: false);
+      await tester.pump();
+      pending.complete(_record(1,
+          scheduledAt: DateTime.utc(2026, 9, 25, 13),
+          takenAt: DateTime.utc(2026, 9, 25, 15, 15)));
+      await tester.pumpAndSettle();
+      expect(outbox.scheduleIds, [1]);
+      expect(find.text('Đã ghi nhận liều 20:00'), findsOneWidget);
+      expect(find.text('Đóng'), findsOneWidget);
+    });
+  });
 }
 
 Future<void> _tapVisible(WidgetTester tester, Finder finder) async {
