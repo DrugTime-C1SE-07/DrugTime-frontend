@@ -157,6 +157,43 @@ void main() {
     expect(find.text('Đã lưu hồ sơ sức khỏe'), findsOneWidget);
   });
 
+  testWidgets('custom allergy input stops at 40 characters, condition at 120 (AC12)',
+      (tester) async {
+    final repo = _Repository();
+    await tester
+        .pumpWidget(MaterialApp(home: HealthSetupScreen(repository: repo)));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Thêm dị ứng khác'));
+    await tester.tap(find.text('Thêm dị ứng khác'));
+    await tester.pumpAndSettle();
+    expect(tester.widget<TextField>(find.byType(TextField)).maxLength, 40);
+    await tester.enterText(find.byType(TextField), 'x' * 45);
+    await tester.pump();
+    expect(tester.widget<TextField>(find.byType(TextField)).controller!.text,
+        'x' * 40);
+    await tester.tap(find.text('Thêm'));
+    await tester.pumpAndSettle();
+    expect(find.text('x' * 40), findsOneWidget);
+
+    await tester.tap(find.text('Bỏ qua'));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Thêm bệnh nền khác'));
+    await tester.tap(find.text('Thêm bệnh nền khác'));
+    await tester.pumpAndSettle();
+    expect(tester.widget<TextField>(find.byType(TextField)).maxLength, 120);
+  });
+
+  test('draft rejects custom allergy over 40 characters, condition keeps 120 (AC12)',
+      () async {
+    final controller = HealthSetupController(_Repository());
+    addTearDown(controller.dispose);
+    await controller.load();
+    expect(controller.allergyDraft.addCustom('a' * 41), isFalse);
+    expect(controller.allergyDraft.addCustom('a' * 40), isTrue);
+    expect(controller.conditionDraft.addCustom('b' * 41), isTrue);
+    expect(controller.conditionDraft.addCustom('c' * 121), isFalse);
+  });
+
   testWidgets('selects two allergens, keeps draft on back and saves none known',
       (tester) async {
     final repo = _Repository();

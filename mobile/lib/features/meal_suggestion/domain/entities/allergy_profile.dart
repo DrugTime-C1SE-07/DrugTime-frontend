@@ -49,7 +49,7 @@ class AllergyProfile {
         }
         // `reported` mà rỗng là dữ liệu sai: coi như chưa khai, không tự coi là "không dị ứng".
         if (items.isEmpty) return null;
-        return DietaryDeclaration.items(items.take(10).toList());
+        return DietaryDeclaration.items(items);
     }
   }
 }

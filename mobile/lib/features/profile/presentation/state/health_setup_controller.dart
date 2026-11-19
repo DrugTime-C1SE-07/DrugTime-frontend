@@ -3,12 +3,18 @@ import 'package:flutter/foundation.dart';
 import '../../domain/entities/health_setup.dart';
 import '../../domain/repositories/health_setup_repository.dart';
 
+/// Tên dị ứng tự nhập được gửi nguyên sang gợi ý món ăn, mỗi mục tối đa 40 ký tự.
+const maxAllergyNameLength = 40;
+const maxConditionNameLength = 120;
+
 class HealthSetupDraft<T> {
-  HealthSetupDraft(HealthSetupStep<T> step)
+  HealthSetupDraft(HealthSetupStep<T> step,
+      {this.maxNameLength = maxConditionNameLength})
       : ids = Set<T>.of(step.ids),
         names = step.names.toList(),
         noneKnown = step.status == HealthSetupStatus.noneKnown;
 
+  final int maxNameLength;
   final Set<T> ids;
   final List<String> names;
   bool noneKnown;
@@ -31,7 +37,7 @@ class HealthSetupDraft<T> {
     final name = input.trim();
     if (name.isEmpty ||
         names.length >= 30 ||
-        name.runes.length > 120 ||
+        name.runes.length > maxNameLength ||
         name.contains('\u0000') ||
         names.any((value) => value.toLowerCase() == name.toLowerCase())) {
       return false;
@@ -86,7 +92,8 @@ class HealthSetupController extends ChangeNotifier {
       snapshot = profile;
       allergenOptions = allergens;
       conditionOptions = conditions;
-      allergyDraft = HealthSetupDraft(profile.allergies);
+      allergyDraft = HealthSetupDraft(profile.allergies,
+          maxNameLength: maxAllergyNameLength);
       conditionDraft = HealthSetupDraft(profile.conditions);
     } catch (_) {
       if (!_disposed) loadFailed = true;
