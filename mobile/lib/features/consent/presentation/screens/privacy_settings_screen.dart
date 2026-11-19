@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 
 import '../../../../app/router.dart';
 import '../../../../app/theme/app_theme.dart';
+import '../../../../shared/widgets/profile_flow_widgets.dart';
+
 import '../../../medication/presentation/state/medication_controller.dart';
 import '../../domain/entities/consent.dart';
 import '../../domain/entities/consent_failure.dart';
@@ -52,7 +54,8 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context)
           ..hideCurrentSnackBar()
-          ..showSnackBar(SnackBar(content: Text(consentFailureMessage(failure))));
+          ..showSnackBar(
+              SnackBar(content: Text(consentFailureMessage(failure))));
       }
     } finally {
       if (mounted) setState(() => _pending.remove(purpose));
@@ -91,12 +94,43 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
     final loadError = consents.loadError;
 
     return Scaffold(
-      backgroundColor: AppColors.canvas,
-      appBar: AppBar(title: const Text('Quyền riêng tư'), backgroundColor: AppColors.canvas),
+      backgroundColor: profileFlowCanvas,
+      appBar: ProfileFlowHeader('Quyền riêng tư & Bảo mật',
+          titleScale: MediaQuery.textScalerOf(context).scale(18) / 18,
+          backgroundColor: profileFlowCanvas),
       body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.all(AppSpacing.page),
-          children: [
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+          child:
+              Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            const ProfileFlowSection('Bảo mật đăng nhập', children: [
+              ProfileFlowRow('Mở khóa bằng vân tay hoặc Face ID',
+                  icon: Icons.fingerprint,
+                  unavailable: true,
+                  trailing: Icon(Icons.toggle_off_outlined,
+                      color: AppColors.inkDisabled)),
+              ProfileFlowRow('Yêu cầu xác thực lại sau',
+                  icon: Icons.schedule, unavailable: true),
+              ProfileFlowRow('Thiết bị đang đăng nhập',
+                  icon: Icons.phone_android, unavailable: true),
+              ProfileFlowRow('Đăng xuất khỏi tất cả thiết bị khác',
+                  icon: Icons.logout, unavailable: true),
+            ]),
+            const Text('Quyền riêng tư dữ liệu',
+                style: AppTextStyles.bodyStrong),
+            const SizedBox(height: 12),
+            ProfileFlowSection('Quản lý quyền truy cập', children: [
+              ProfileFlowRow('Ai có thể xem hồ sơ của tôi',
+                  icon: Icons.people_outline,
+                  onTap: () =>
+                      Navigator.pushNamed(context, AppRoutes.caregivers)),
+              const ProfileFlowRow(
+                  'Chia sẻ dữ liệu ẩn danh để cải thiện ứng dụng',
+                  icon: Icons.analytics_outlined,
+                  unavailable: true),
+              const ProfileFlowRow('Tải xuống dữ liệu của tôi',
+                  icon: Icons.download_outlined, unavailable: true)
+            ]),
             const Text(
               'Mỗi mục đích được đồng ý hoặc rút riêng. Rút một mục đích không ảnh hưởng các '
               'mục đích khác và có hiệu lực ngay.',
@@ -115,13 +149,16 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
                 style: AppTextStyles.body.copyWith(color: AppColors.danger),
               ),
               const SizedBox(height: AppSpacing.md),
-              OutlinedButton(onPressed: consents.load, child: const Text('Thử lại')),
+              OutlinedButton(
+                  onPressed: consents.load, child: const Text('Thử lại')),
             ] else
               for (final purpose in ConsentPurpose.toggleable) ...[
                 ConsentPurposeCard(
                   purpose: purpose,
                   value: consents.isGranted(purpose),
-                  onChanged: _pending.contains(purpose) ? null : (v) => _toggle(purpose, v),
+                  onChanged: _pending.contains(purpose)
+                      ? null
+                      : (v) => _toggle(purpose, v),
                 ),
                 const SizedBox(height: AppSpacing.md),
               ],
@@ -136,7 +173,7 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
               title: 'Chính sách quyền riêng tư',
               route: AppRoutes.privacyPolicy,
             ),
-          ],
+          ]),
         ),
       ),
     );
@@ -153,7 +190,8 @@ class _LegalLink extends StatelessWidget {
   Widget build(BuildContext context) => ListTile(
         contentPadding: EdgeInsets.zero,
         minTileHeight: AppSizes.tapTarget,
-        leading: const Icon(Icons.description_outlined, color: AppColors.inkMuted),
+        leading:
+            const Icon(Icons.description_outlined, color: AppColors.inkMuted),
         title: Text(title, style: AppTextStyles.body),
         trailing: const Icon(Icons.chevron_right, color: AppColors.inkMuted),
         onTap: () => Navigator.of(context).pushNamed(route),

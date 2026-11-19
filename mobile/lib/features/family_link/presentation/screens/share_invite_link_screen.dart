@@ -5,6 +5,8 @@ import 'package:flutter/services.dart';
 
 import '../../../../app/router.dart';
 import '../../../../app/theme/app_theme.dart';
+import '../../../../shared/widgets/profile_flow_widgets.dart';
+
 import '../../../consent/domain/entities/consent.dart';
 import '../../../consent/presentation/state/consent_controller.dart';
 import '../../../family/presentation/state/family_link_code_controller.dart';
@@ -50,18 +52,22 @@ class _ShareInviteLinkScreenState extends State<ShareInviteLinkScreen> {
     final codes = FamilyLinkCodeScope.of(context);
     final consents = ConsentScope.of(context);
     final code = codes.code?.code;
-    final link = code == null ? null : inviteLinkFor(code, host: scope.inviteLinkHost);
-    final sharingOff = consents.isLoaded && !consents.isGranted(ConsentPurpose.familySharing);
+    final link =
+        code == null ? null : inviteLinkFor(code, host: scope.inviteLinkHost);
+    final sharingOff =
+        consents.isLoaded && !consents.isGranted(ConsentPurpose.familySharing);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Gửi link mời')),
+      appBar: ProfileFlowHeader('Gửi link mời',
+          titleScale: MediaQuery.textScalerOf(context).scale(18) / 18,
+          backgroundColor: AppColors.canvas),
       body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.all(AppSpacing.page),
-          children: [
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+          child:
+              Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
             const Text(
-              'Gửi link này cho người thân qua Zalo, tin nhắn hoặc email. Người thân mở link, '
-              'gửi yêu cầu theo dõi, và chỉ xem được thông tin của bạn sau khi bạn chấp thuận.',
+              'Gửi link cho người thân để họ mở yêu cầu kết nối trong DrugTime.',
               style: AppTextStyles.body,
             ),
             if (sharingOff) ...[
@@ -75,55 +81,86 @@ class _ShareInviteLinkScreenState extends State<ShareInviteLinkScreen> {
             if (link != null)
               ..._buildLink(context, scope, link)
             else if (codes.failure != null)
-              _LoadError(onRetry: () => unawaited(FamilyLinkCodeScope.read(context).load()))
+              _LoadError(
+                  onRetry: () =>
+                      unawaited(FamilyLinkCodeScope.read(context).load()))
             else
               const Center(child: CircularProgressIndicator()),
-          ],
+          ]),
         ),
       ),
     );
   }
 
-  List<Widget> _buildLink(BuildContext context, FamilyLinkScope scope, String link) => [
-        Container(
-          padding: const EdgeInsets.all(AppSpacing.lg),
-          decoration: BoxDecoration(
-            color: AppColors.surface,
-            borderRadius: BorderRadius.circular(AppRadius.card),
-            border: Border.all(color: AppColors.border),
-          ),
-          child: SelectableText(
-            link,
-            key: const Key('invite-link'),
-            style: AppTextStyles.bodyStrong,
-          ),
-        ),
-        const SizedBox(height: AppSpacing.sm),
-        const Text(
-          'Link không hết hạn. Ai có link cũng gửi được yêu cầu, nhưng chỉ người bạn chấp thuận '
-          'mới theo dõi được bạn.',
-          style: AppTextStyles.caption,
-        ),
-        const SizedBox(height: AppSpacing.xl),
-        SizedBox(
-          height: AppSizes.primaryButton,
-          child: FilledButton.icon(
-            key: const Key('invite-share'),
-            onPressed: () => unawaited(scope.sharer.share(inviteShareText(link))),
-            icon: const Icon(Icons.share_outlined),
-            label: const Text('Chia sẻ'),
-          ),
-        ),
-        const SizedBox(height: AppSpacing.md),
-        SizedBox(
-          height: AppSizes.primaryButton,
-          child: OutlinedButton.icon(
-            key: const Key('invite-copy'),
-            onPressed: () => unawaited(_copy(link)),
-            icon: const Icon(Icons.copy_outlined),
-            label: const Text('Sao chép link'),
-          ),
-        ),
+  List<Widget> _buildLink(
+          BuildContext context, FamilyLinkScope scope, String link) =>
+      [
+        ProfileFlowCard(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  SelectableText(link,
+                      key: const Key('invite-link'),
+                      style:
+                          AppTextStyles.caption.copyWith(color: AppColors.ink)),
+                  const SizedBox(height: 16),
+                  FilledButton.icon(
+                      key: const Key('invite-copy'),
+                      onPressed: () => unawaited(_copy(link)),
+                      icon: const Icon(Icons.copy_outlined, size: 18),
+                      label: const Text('Sao chép link'),
+                      style: FilledButton.styleFrom(
+                          minimumSize: const Size(0, 48),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12)))),
+                ])),
+        const SizedBox(height: 20),
+        const Text('Chia sẻ qua', style: AppTextStyles.bodyStrong),
+        const SizedBox(height: 12),
+        Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          for (final item in const [
+            ('Zalo', Icons.chat_bubble_outline),
+            ('SMS', Icons.sms_outlined),
+            ('Email', Icons.mail_outline)
+          ])
+            Expanded(
+                child: Column(children: [
+              IconButton(
+                  onPressed: null,
+                  icon: Icon(item.$2),
+                  style: IconButton.styleFrom(
+                      disabledBackgroundColor: AppColors.surfaceMuted,
+                      disabledForegroundColor: AppColors.inkMuted,
+                      minimumSize: const Size(48, 48))),
+              Text(item.$1,
+                  style: AppTextStyles.caption, textAlign: TextAlign.center),
+              const Text('Chưa khả dụng',
+                  style: TextStyle(fontSize: 12, color: AppColors.inkMuted),
+                  textAlign: TextAlign.center),
+            ])),
+          Expanded(
+              child: Column(children: [
+            IconButton(
+                key: const Key('invite-share'),
+                onPressed: () =>
+                    unawaited(scope.sharer.share(inviteShareText(link))),
+                icon: const Icon(Icons.share_outlined),
+                style: IconButton.styleFrom(
+                    backgroundColor: AppColors.brandTint,
+                    foregroundColor: AppColors.brand,
+                    minimumSize: const Size(48, 48))),
+            const Text('Chia sẻ',
+                style: AppTextStyles.caption, textAlign: TextAlign.center),
+          ])),
+        ]),
+        const SizedBox(height: 20),
+        const ProfileFlowCard(
+            shadow: false,
+            color: AppColors.surfaceMuted,
+            child: Text(
+                'Link không hết hạn. Ai có link cũng gửi được yêu cầu, nhưng chỉ người bạn chấp thuận mới theo dõi được bạn.',
+                style: AppTextStyles.caption)),
       ];
 }
 
@@ -170,7 +207,8 @@ class _LoadError extends StatelessWidget {
     return Column(
       key: const Key('invite-load-error'),
       children: [
-        const Icon(Icons.cloud_off_outlined, size: 48, color: AppColors.inkMuted),
+        const Icon(Icons.cloud_off_outlined,
+            size: 48, color: AppColors.inkMuted),
         const SizedBox(height: AppSpacing.md),
         const Text(
           'Chưa thể tải link mời. Vui lòng thử lại.',

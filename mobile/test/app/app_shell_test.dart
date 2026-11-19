@@ -62,7 +62,7 @@ void main() {
     expect(find.text('S00c · Màn hình Đăng nhập (OTP)'), findsNothing);
   });
 
-  testWidgets('AC25: menu cài đặt của Hồ sơ chỉ còn Đăng xuất', (tester) async {
+  testWidgets('S08: menu cài đặt mở màn mới và giữ Đăng xuất', (tester) async {
     await _pumpLoggedIn(tester);
     await tester.tap(find.byWidgetPredicate((widget) =>
         widget is NavigationDestination && widget.label == 'Hồ sơ'));
@@ -71,7 +71,7 @@ void main() {
     await tester.tap(find.byType(PopupMenuButton<String>));
     await tester.pumpAndSettle();
 
-    expect(find.byType(PopupMenuItem<String>), findsOneWidget);
+    expect(find.byType(PopupMenuItem<String>), findsNWidgets(2));
     expect(find.text('Đăng xuất'), findsOneWidget);
     expect(find.textContaining('UI Catalog'), findsNothing);
   });

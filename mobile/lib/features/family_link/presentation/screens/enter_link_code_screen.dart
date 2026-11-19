@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 
 import '../../../../app/router.dart';
 import '../../../../app/theme/app_theme.dart';
+import '../../../../shared/widgets/profile_flow_widgets.dart';
+
 import '../../domain/entities/link_code.dart';
 import '../state/family_link_scope.dart';
 import '../state/link_request_controller.dart';
@@ -39,8 +41,9 @@ class EnterLinkCodeScreen extends StatefulWidget {
 
 class _EnterLinkCodeScreenState extends State<EnterLinkCodeScreen> {
   late final FamilyLinkScope _scope = FamilyLinkScope.read(context);
-  late final LinkRequestController _controller =
-      LinkRequestController(_scope.repository, inviteLinkHost: _scope.inviteLinkHost);
+  late final LinkRequestController _controller = LinkRequestController(
+      _scope.repository,
+      inviteLinkHost: _scope.inviteLinkHost);
   final _field = TextEditingController();
   bool _navigated = false;
 
@@ -64,8 +67,9 @@ class _EnterLinkCodeScreenState extends State<EnterLinkCodeScreen> {
     final outcome = _controller.outcome;
     if (outcome != null && !_navigated && mounted) {
       _navigated = true;
-      unawaited(Navigator.of(context)
-          .pushReplacementNamed(AppRoutes.familyLinkResult, arguments: outcome));
+      unawaited(Navigator.of(context).pushReplacementNamed(
+          AppRoutes.familyLinkResult,
+          arguments: outcome));
     }
   }
 
@@ -81,12 +85,14 @@ class _EnterLinkCodeScreenState extends State<EnterLinkCodeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Nhập mã liên kết')),
+      appBar: ProfileFlowHeader('Nhập mã liên kết',
+          titleScale: MediaQuery.textScalerOf(context).scale(18) / 18,
+          backgroundColor: profileFlowCanvas),
       body: SafeArea(
         child: ListenableBuilder(
           listenable: _controller,
           builder: (context, _) => ListView(
-            padding: const EdgeInsets.all(AppSpacing.page),
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
             children: [
               const Text(
                 'Nhập mã 10 ký tự mà người thân chia sẻ với bạn. Người thân xem mã trong app '
@@ -130,7 +136,8 @@ class _EnterLinkCodeScreenState extends State<EnterLinkCodeScreen> {
                 const SizedBox(height: AppSpacing.lg),
                 _Notice(
                   key: const Key('link-request-error'),
-                  message: linkSubmitErrorMessage(error, remaining: _controller.remaining),
+                  message: linkSubmitErrorMessage(error,
+                      remaining: _controller.remaining),
                   color: AppColors.danger,
                   background: AppColors.dangerBg,
                 ),
@@ -140,7 +147,9 @@ class _EnterLinkCodeScreenState extends State<EnterLinkCodeScreen> {
                 height: AppSizes.primaryButton,
                 child: FilledButton(
                   key: const Key('link-code-submit'),
-                  onPressed: _controller.canSubmit ? () => unawaited(_controller.submit()) : null,
+                  onPressed: _controller.canSubmit
+                      ? () => unawaited(_controller.submit())
+                      : null,
                   child: _controller.isSending
                       ? const SizedBox(
                           width: 24,
@@ -150,7 +159,9 @@ class _EnterLinkCodeScreenState extends State<EnterLinkCodeScreen> {
                             strokeWidth: 2.5,
                           ),
                         )
-                      : Text(_controller.error?.isRetryable == true ? 'Thử lại' : 'Gửi yêu cầu'),
+                      : Text(_controller.error?.isRetryable == true
+                          ? 'Thử lại'
+                          : 'Gửi yêu cầu'),
                 ),
               ),
               const SizedBox(height: AppSpacing.lg),
@@ -192,7 +203,9 @@ class _Notice extends StatelessWidget {
         children: [
           Icon(Icons.info_outline, color: color, size: 20),
           const SizedBox(width: AppSpacing.sm),
-          Expanded(child: Text(message, style: AppTextStyles.body.copyWith(color: color))),
+          Expanded(
+              child: Text(message,
+                  style: AppTextStyles.body.copyWith(color: color))),
         ],
       ),
     );

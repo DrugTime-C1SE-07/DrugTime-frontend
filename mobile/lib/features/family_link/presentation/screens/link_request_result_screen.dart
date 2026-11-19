@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../app/theme/app_theme.dart';
+import '../../../../shared/widgets/profile_flow_widgets.dart';
 import '../state/link_request_controller.dart';
 
 /// Kết quả gửi yêu cầu: đang chờ patient chấp thuận (Figma S08-3d, đã bỏ tên, avatar và nút hủy
@@ -13,48 +14,69 @@ class LinkRequestResultScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final (icon, title, body) = switch (outcome) {
+    final (asset, title, body) = switch (outcome) {
       LinkSubmitOutcome.waiting => (
-          Icons.hourglass_top_rounded,
+          'assets/icons/mascot-thinking.png',
           'Đang chờ xác nhận',
           'Đã gửi yêu cầu theo dõi. Người thân cần chấp thuận thì bạn mới xem được thông tin '
               'của họ. Bạn chưa xem được gì cho tới lúc đó.',
         ),
       LinkSubmitOutcome.accepted => (
-          Icons.verified_outlined,
+          'assets/icons/mascot-happy.png',
           'Đã được chấp thuận',
           'Người thân đã chấp thuận yêu cầu theo dõi của bạn.',
         ),
     };
     return Scaffold(
-      appBar: AppBar(automaticallyImplyLeading: false, title: const Text('Theo dõi người thân')),
+      backgroundColor: profileFlowCanvas,
       body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(AppSpacing.xl),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(icon, size: 64, color: AppColors.brand),
-                const SizedBox(height: AppSpacing.lg),
-                Text(title, key: const Key('link-result-title'), style: AppTextStyles.heading),
-                const SizedBox(height: AppSpacing.sm),
-                Text(body, style: AppTextStyles.body, textAlign: TextAlign.center),
-                const SizedBox(height: AppSpacing.xl),
-                SizedBox(
-                  width: double.infinity,
-                  height: AppSizes.primaryButton,
-                  child: FilledButton(
-                    key: const Key('link-result-done'),
-                    onPressed: () => Navigator.of(context).pop(),
-                    child: const Text('Xong'),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
+          child: Column(children: [
+        Expanded(
+            child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(24, 40, 24, 24),
+                child: Column(children: [
+                  Container(
+                      width: 116,
+                      height: 116,
+                      padding: const EdgeInsets.all(12),
+                      decoration: const BoxDecoration(
+                          color: AppColors.brandTint,
+                          shape: BoxShape.circle,
+                          boxShadow: AppShadows.cardElevation),
+                      child: Image.asset(asset, excludeFromSemantics: true)),
+                  const SizedBox(height: 24),
+                  Text(title,
+                      key: const Key('link-result-title'),
+                      style: AppTextStyles.title,
+                      textAlign: TextAlign.center),
+                  const SizedBox(height: 12),
+                  Text(body,
+                      style: AppTextStyles.caption,
+                      textAlign: TextAlign.center),
+                  const SizedBox(height: 24),
+                  ProfileFlowCard(
+                      child: Row(children: [
+                    Icon(
+                        outcome == LinkSubmitOutcome.waiting
+                            ? Icons.schedule
+                            : Icons.check_circle_outline,
+                        color: AppColors.brand),
+                    const SizedBox(width: 12),
+                    Expanded(
+                        child: Text(
+                            outcome == LinkSubmitOutcome.waiting
+                                ? 'Chưa có quyền xem dữ liệu'
+                                : 'Quyền xem phụ thuộc vào chia sẻ và sự đồng ý của người thân.',
+                            style: AppTextStyles.caption)),
+                  ])),
+                ]))),
+        Padding(
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+            child: ProfileFlowButton(
+                key: const Key('link-result-done'),
+                label: 'Xong',
+                onPressed: () => Navigator.of(context).pop())),
+      ])),
     );
   }
 }

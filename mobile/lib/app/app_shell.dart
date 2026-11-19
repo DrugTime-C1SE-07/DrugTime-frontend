@@ -147,6 +147,8 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
             medications.loadError == null &&
             medications.medications.isNotEmpty);
     return Scaffold(
+      backgroundColor:
+          _tab == AppTab.profile ? ProfileScreen.canvasColor : null,
       appBar:
           AppPreviewScope.maybeOf(context) != null && _tab != AppTab.reminders
               ? const PreferredSize(
@@ -183,7 +185,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       bottomNavigationBar: ListenableBuilder(
         listenable: _incomingRequests ?? _emptyNotifier,
         builder: (context, _) {
-          return Container(
+          final navBar = Container(
             margin: EdgeInsets.fromLTRB(
                 12, 0, 12, MediaQuery.paddingOf(context).bottom + 8),
             decoration: BoxDecoration(
@@ -278,6 +280,11 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
               ),
             ),
           );
+          // The outer margin already accounts for the system inset on S08.
+          return _tab == AppTab.profile
+              ? MediaQuery.removePadding(
+                  context: context, removeBottom: true, child: navBar)
+              : navBar;
         },
       ),
     );
