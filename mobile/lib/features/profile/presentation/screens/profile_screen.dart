@@ -122,7 +122,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                 child: Row(
                   children: [
                     const Expanded(
-                      child: Text('Hồ sơ', style: AppTextStyles.display),
+                      child: Text('Hồ sơ', style: _s08Title),
                     ),
                     PopupMenuButton<String>(
                       tooltip: 'Cài đặt hồ sơ',
@@ -135,8 +135,8 @@ class _ProfileScreenState extends State<ProfileScreen>
                         padding: EdgeInsets.zero,
                       ),
                       icon: const SizedBox(
-                        width: 20,
-                        height: 20,
+                        width: 24,
+                        height: 24,
                         child:
                             ProfileIcon('h-settings', color: AppColors.brand),
                       ),
@@ -172,10 +172,11 @@ class _ProfileScreenState extends State<ProfileScreen>
               ),
               const SizedBox(height: 16),
               Container(
+                key: const Key('profile-menu'),
                 decoration: BoxDecoration(
                   color: AppColors.surface,
                   borderRadius: BorderRadius.circular(AppRadius.card),
-                  boxShadow: AppShadows.cardElevation,
+                  boxShadow: _menuShadow,
                 ),
                 clipBehavior: Clip.antiAlias,
                 child: Column(
@@ -259,11 +260,11 @@ class _ProfileScreenState extends State<ProfileScreen>
     Key? key,
   }) {
     final (iconBackground, iconColor) = switch (icon) {
-      'h-user' => (const Color(0xFFE6F1FF), const Color(0xFF275A92)),
-      'h-heart' => (const Color(0xFFFCE8EC), const Color(0xFFB51F4A)),
-      'h-users' => (const Color(0xFFEEE9FA), const Color(0xFF604497)),
-      'h-bell' => (const Color(0xFFFFF1DA), const Color(0xFF874607)),
-      'h-help-circle' => (const Color(0xFFE7F3ED), const Color(0xFF21684D)),
+      'h-user' => (const Color(0xFFE6F1FF), const Color(0xFF20568F)),
+      'h-heart' => (const Color(0xFFFCE8EC), const Color(0xFFA12E50)),
+      'h-users' => (const Color(0xFFEEE9FA), const Color(0xFF624394)),
+      'h-bell' => (const Color(0xFFFFF1DA), const Color(0xFF8A4E0B)),
+      'h-help-circle' => (const Color(0xFFE7F3ED), const Color(0xFF256749)),
       _ => (AppColors.brandTint, AppColors.brand),
     };
     return Material(
@@ -295,7 +296,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                       Text(title, style: _profileHeading),
                       if (subtitle != null) ...[
                         const SizedBox(height: 2),
-                        Text(subtitle, style: AppTextStyles.caption),
+                        Text(subtitle, style: _s08Caption),
                       ],
                     ],
                   ),
@@ -322,6 +323,43 @@ const _profileHeading = TextStyle(
   height: 24 / 17,
 );
 
+// Giá trị riêng của Figma S08; token dùng chung giữ nguyên cho màn khác.
+const _s08Title = TextStyle(
+  color: AppColors.ink,
+  fontSize: 28,
+  fontWeight: FontWeight.w700,
+  height: 34 / 28,
+);
+
+const _s08Caption = TextStyle(
+  color: AppColors.inkMuted,
+  fontSize: 14,
+  fontWeight: FontWeight.w400,
+  height: 20 / 14,
+);
+
+const _cardShadow = [
+  BoxShadow(
+      color: Color.fromRGBO(1, 85, 79, 0.0392157),
+      offset: Offset(0, 1),
+      blurRadius: 3),
+  BoxShadow(
+      color: Color.fromRGBO(1, 85, 79, 0.0784314),
+      offset: Offset(0, 4),
+      blurRadius: 12),
+];
+
+const _menuShadow = [
+  BoxShadow(
+      color: Color.fromRGBO(33, 54, 49, 0.0313726),
+      offset: Offset(0, 1),
+      blurRadius: 3),
+  BoxShadow(
+      color: Color.fromRGBO(33, 54, 49, 0.0509804),
+      offset: Offset(0, 3),
+      blurRadius: 12),
+];
+
 class _ProfileCard extends StatelessWidget {
   const _ProfileCard({
     required this.name,
@@ -338,7 +376,7 @@ class _ProfileCard extends StatelessWidget {
         decoration: BoxDecoration(
           color: AppColors.brandTint,
           borderRadius: BorderRadius.circular(AppRadius.card),
-          boxShadow: AppShadows.cardElevation,
+          boxShadow: _cardShadow,
         ),
         child: Material(
           type: MaterialType.transparency,
@@ -353,15 +391,17 @@ class _ProfileCard extends StatelessWidget {
                 padding: const EdgeInsets.all(16),
                 child: Row(
                   children: [
-                    const ProfileAvatar(size: 56),
+                    const ProfileAvatar(size: 56, ringed: false),
                     const SizedBox(width: AppSpacing.lg),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(name, style: _profileHeading),
+                          Text(name,
+                              style: _profileHeading.copyWith(
+                                  fontWeight: FontWeight.w700)),
                           const SizedBox(height: 2),
-                          Text(phone, style: AppTextStyles.caption),
+                          Text(phone, style: _s08Caption),
                         ],
                       ),
                     ),

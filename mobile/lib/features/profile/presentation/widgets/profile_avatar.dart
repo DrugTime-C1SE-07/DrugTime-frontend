@@ -3,8 +3,11 @@ import '../../../../app/theme/app_theme.dart';
 import '../state/profile_controller.dart';
 
 class ProfileAvatar extends StatelessWidget {
-  const ProfileAvatar({super.key, this.size = 84});
+  const ProfileAvatar({super.key, this.size = 84, this.ringed = true});
   final double size;
+
+  /// false: hình tròn brand đặc, chữ 17/700 như avatar thẻ Figma S08.
+  final bool ringed;
   @override
   Widget build(BuildContext context) {
     final c = ProfileScope.of(context);
@@ -29,10 +32,11 @@ class ProfileAvatar extends StatelessWidget {
           width: size,
           height: size,
           child: DecoratedBox(
-            decoration: const BoxDecoration(
-                color: AppColors.brandTint, shape: BoxShape.circle),
+            decoration: BoxDecoration(
+                color: ringed ? AppColors.brandTint : AppColors.brand,
+                shape: BoxShape.circle),
             child: Padding(
-              padding: const EdgeInsets.all(6),
+              padding: EdgeInsets.all(ringed ? 6 : 0),
               child: ClipOval(
                   child: c.avatar == null
                       ? ColoredBox(
@@ -40,9 +44,11 @@ class ProfileAvatar extends StatelessWidget {
                           child: Center(
                               child: Text(initials,
                                   textScaler: TextScaler.noScaling,
-                                  style: TextStyle(
-                                      fontSize: (size - 12) / 3,
-                                      color: AppColors.onBrand))))
+                                  style: ringed
+                                      ? TextStyle(
+                                          fontSize: (size - 12) / 3,
+                                          color: AppColors.onBrand)
+                                      : _solidInitials)))
                       : Image.asset(c.avatar!,
                           fit: BoxFit.cover, excludeFromSemantics: true)),
             ),
@@ -50,3 +56,10 @@ class ProfileAvatar extends StatelessWidget {
         ));
   }
 }
+
+const _solidInitials = TextStyle(
+  color: AppColors.onBrand,
+  fontSize: 17,
+  fontWeight: FontWeight.w700,
+  height: 26 / 17,
+);

@@ -18,6 +18,7 @@ import 'package:drugtime_mobile/features/profile/presentation/state/profile_cont
 import 'package:drugtime_mobile/app/theme/app_theme.dart';
 import 'package:drugtime_mobile/features/profile/domain/entities/condition.dart';
 import 'package:drugtime_mobile/features/profile/domain/entities/health_profile.dart';
+import 'package:drugtime_mobile/features/profile/presentation/widgets/profile_avatar.dart';
 import 'package:drugtime_mobile/features/profile/presentation/widgets/profile_icons.dart';
 import 'profile_test_helpers.dart';
 import 'profile_widget_helpers.dart';
@@ -251,6 +252,165 @@ void main() {
       expect(tile, const Size(AppSizes.iconTile, AppSizes.iconTile));
       expect(tester.widget<Divider>(find.byType(Divider).first).color,
           AppColors.dividerSoft);
+    });
+
+    Future<void> pumpS08(WidgetTester tester,
+        {Size size = const Size(375, 812),
+        double textScale = 1,
+        FakeProfileRepository? repo}) async {
+      phoneView(tester, size);
+      final c = ProfileController(repo ?? FakeProfileRepository());
+      addTearDown(c.dispose);
+      await tester.pumpWidget(
+          profileApp(c, const ProfileScreen(), textScale: textScale));
+      await tester.pumpAndSettle();
+    }
+
+    TextStyle styleOf(WidgetTester tester, String text) =>
+        tester.widget<Text>(find.text(text).first).style!;
+
+    Finder cardAvatar() => find.descendant(
+        of: find.byKey(const Key('profile-card')),
+        matching: find.byType(ProfileAvatar));
+
+    testWidgets('S08 card avatar is a solid 56 brand circle with 17/700 initials',
+        (tester) async {
+      await pumpS08(tester);
+      expect(tester.getSize(cardAvatar()), const Size(56, 56));
+      final circle = tester.widget<DecoratedBox>(find
+          .descendant(of: cardAvatar(), matching: find.byType(DecoratedBox))
+          .first);
+      expect((circle.decoration as BoxDecoration).color, AppColors.brand);
+      expect(
+          tester.getSize(find
+              .descendant(of: cardAvatar(), matching: find.byType(ClipOval))),
+          const Size(56, 56));
+      final initials = styleOf(tester, 'NM');
+      expect(initials.fontSize, 17);
+      expect(initials.fontWeight, FontWeight.w700);
+      expect(initials.height, 26 / 17);
+      expect(initials.color, AppColors.onBrand);
+    });
+
+    testWidgets('S08 name is 17/700, menu titles stay 17/600', (tester) async {
+      await pumpS08(tester);
+      final name = styleOf(tester, 'Nguyễn Mai');
+      expect(name.fontSize, 17);
+      expect(name.fontWeight, FontWeight.w700);
+      expect(name.height, 24 / 17);
+      expect(name.color, AppColors.ink);
+      expect(styleOf(tester, 'Thông tin cá nhân').fontWeight, FontWeight.w600);
+    });
+
+    testWidgets('S08 settings icon is 24 inside the 48 tinted action',
+        (tester) async {
+      await pumpS08(tester);
+      final icon = find.byWidgetPredicate(
+          (w) => w is ProfileIcon && w.name == 'h-settings');
+      expect(tester.getSize(icon), const Size(24, 24));
+      expect(tester.widget<ProfileIcon>(icon).color, AppColors.brand);
+      expect(
+          tester.getSize(find.byTooltip('Cài đặt hồ sơ')), const Size(48, 48));
+    });
+
+    testWidgets('S08 menu icon strokes match Figma', (tester) async {
+      await pumpS08(tester);
+      const expected = {
+        'personal-profile-tile': Color(0xFF20568F),
+        'medical-profile-tile': Color(0xFFA12E50),
+        'supervisors-tile': Color(0xFF624394),
+        'share-and-link-tile': Color(0xFF624394),
+        'notifications-tile': Color(0xFF8A4E0B),
+        'privacy-settings-tile': Color(0xFF01554F),
+        'profile-help-tile': Color(0xFF256749),
+      };
+      for (final entry in expected.entries) {
+        final icon = tester.widget<ProfileIcon>(find
+            .descendant(
+                of: find.byKey(Key(entry.key)),
+                matching: find.byType(ProfileIcon))
+            .first);
+        expect(icon.color, entry.value, reason: entry.key);
+      }
+    });
+
+    testWidgets('S08 card and menu use their own Figma shadows',
+        (tester) async {
+      await pumpS08(tester);
+      BoxDecoration deco(String key) =>
+          tester.widget<Container>(find.byKey(Key(key))).decoration!
+              as BoxDecoration;
+      expect(deco('profile-card').boxShadow, const [
+        BoxShadow(
+            color: Color.fromRGBO(1, 85, 79, 0.0392157),
+            offset: Offset(0, 1),
+            blurRadius: 3),
+        BoxShadow(
+            color: Color.fromRGBO(1, 85, 79, 0.0784314),
+            offset: Offset(0, 4),
+            blurRadius: 12),
+      ]);
+      expect(deco('profile-menu').boxShadow, const [
+        BoxShadow(
+            color: Color.fromRGBO(33, 54, 49, 0.0313726),
+            offset: Offset(0, 1),
+            blurRadius: 3),
+        BoxShadow(
+            color: Color.fromRGBO(33, 54, 49, 0.0509804),
+            offset: Offset(0, 3),
+            blurRadius: 12),
+      ]);
+    });
+
+    testWidgets('S08 title 28/34 and subtitles 14/20', (tester) async {
+      await pumpS08(tester);
+      final title = styleOf(tester, 'Hồ sơ');
+      expect(title.fontSize, 28);
+      expect(title.fontWeight, FontWeight.w700);
+      expect(title.height, 34 / 28);
+      for (final text in ['0912345678', 'Họ tên, ngày sinh, giới tính']) {
+        final style = styleOf(tester, text);
+        expect(style.fontSize, 14, reason: text);
+        expect(style.fontWeight, FontWeight.w400, reason: text);
+        expect(style.height, 20 / 14, reason: text);
+        expect(style.color, AppColors.inkMuted, reason: text);
+      }
+    });
+
+    for (final width in [320.0, 375.0]) {
+      for (final scale in [1.0, 2.0]) {
+        testWidgets('S08 nameless avatar shows ? at $width scale $scale',
+            (tester) async {
+          final repo = FakeProfileRepository()
+            ..value = HealthProfile(
+                fullName: null,
+                dateOfBirth: DateTime(1960, 3, 1),
+                gender: 'nu');
+          await pumpS08(tester,
+              size: Size(width, 812), textScale: scale, repo: repo);
+          expect(tester.takeException(), isNull);
+          expect(find.descendant(of: cardAvatar(), matching: find.text('?')),
+              findsOneWidget);
+          expect(styleOf(tester, '?').fontWeight, FontWeight.w700);
+        });
+      }
+    }
+
+    testWidgets('personal profile avatar keeps its tint ring', (tester) async {
+      phoneView(tester, const Size(375, 812));
+      final c = ProfileController(FakeProfileRepository());
+      addTearDown(c.dispose);
+      await tester.pumpWidget(profileApp(c, const PersonalProfileScreen()));
+      await tester.pumpAndSettle();
+      final avatar = find.byType(ProfileAvatar);
+      final ring = tester.widget<DecoratedBox>(find
+          .descendant(of: avatar, matching: find.byType(DecoratedBox))
+          .first);
+      expect((ring.decoration as BoxDecoration).color, AppColors.brandTint);
+      expect(
+          tester.getSize(
+              find.descendant(of: avatar, matching: find.byType(ClipOval))),
+          const Size(60, 60));
     });
 
     testWidgets('S08 phone subtitle falls back when phone_number is null',
