@@ -30,6 +30,12 @@ class AvatarPickerSheet extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
       child: Column(mainAxisSize: MainAxisSize.min, children: [
         const Text('Chọn ảnh đại diện', style: AppTextStyles.heading),
+        if (c.avatarError != null) ...[
+          const SizedBox(height: AppSpacing.sm),
+          Text(c.avatarError!,
+              style: AppTextStyles.captionStrong
+                  .copyWith(color: AppColors.danger)),
+        ],
         const SizedBox(height: AppSpacing.lg),
         TwoColumnGrid(children: [
           for (var i = 0; i < AppAssets.profileAvatars.length; i++)
@@ -37,9 +43,10 @@ class AvatarPickerSheet extends StatelessWidget {
                 selected: c.avatar == AppAssets.profileAvatars[i],
                 child: OutlinedButton(
                   key: ValueKey('avatar-$i'),
-                  onPressed: () {
-                    c.selectAvatar(AppAssets.profileAvatars[i]);
-                    Navigator.pop(context);
+                  onPressed: () async {
+                    final saved =
+                        await c.selectAvatar(AppAssets.profileAvatars[i]);
+                    if (saved && context.mounted) Navigator.pop(context);
                   },
                   child: Padding(
                       padding: const EdgeInsets.symmetric(vertical: 8),

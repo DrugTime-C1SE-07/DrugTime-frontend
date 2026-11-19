@@ -12,6 +12,7 @@ import '../features/medication/data/repositories/in_memory_medication_repository
 import '../features/medication/domain/repositories/medication_repository.dart';
 import '../features/medication/presentation/state/medication_controller.dart';
 import '../features/profile/domain/repositories/profile_repository.dart';
+import '../features/profile/data/repositories/secure_profile_avatar_preferences.dart';
 import '../features/profile/presentation/state/profile_controller.dart';
 import 'router.dart';
 import '../core/utils/app_assets.dart';
@@ -62,7 +63,7 @@ class _DrugTimeAppState extends State<DrugTimeApp> {
 
   AuthController get _auth => widget.authController;
   late final ProfileController _profiles =
-      ProfileController(widget.profileRepository);
+      ProfileController(widget.profileRepository, SecureProfileAvatarPreferences());
   String? _profileUser;
   bool _hadHealthConsent = false;
 
@@ -96,6 +97,7 @@ class _DrugTimeAppState extends State<DrugTimeApp> {
       _profileUser =
           _auth.isAuthenticated ? _auth.currentSession?.userId : null;
     });
+    await _profiles.setAccount(_profileUser);
     if (_auth.isAuthenticated) unawaited(_medications.load());
   }
 
@@ -106,7 +108,7 @@ class _DrugTimeAppState extends State<DrugTimeApp> {
     final user = authenticated ? _auth.currentSession?.userId : null;
     final switchedUser = user != _profileUser;
     if (switchedUser) {
-      _profiles.clear();
+      unawaited(_profiles.setAccount(user));
       _profileUser = user;
     }
     if (_wasAuthenticated && !authenticated) {
