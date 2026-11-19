@@ -66,6 +66,8 @@ abstract final class ProfileApiMapper {
         'date_of_birth': dateString(draft.dateOfBirth),
         'gender': draft.gender,
         if (draft.email != null) 'email': draft.email!.trim().toLowerCase(),
+        if (draft.phone?.trim().isNotEmpty == true)
+          'phone_number': draft.phone!.trim(),
       };
   static Map<String, String?> metadataChanges(ProfileCondition before,
           {required String? subtype, required String? stage}) =>
@@ -100,9 +102,12 @@ abstract final class ProfileApiMapper {
           ? ProfileFailureKind.consent
           : ProfileFailureKind.forbidden,
       404 => ProfileFailureKind.missing,
-      409 => code == 'email_change_verification_required'
-          ? ProfileFailureKind.emailChangeVerification
-          : ProfileFailureKind.duplicate,
+      409 => switch (code) {
+          'email_change_verification_required' =>
+            ProfileFailureKind.emailChangeVerification,
+          'phone_change_unavailable' => ProfileFailureKind.phoneUnavailable,
+          _ => ProfileFailureKind.duplicate,
+        },
       422 => ProfileFailureKind.validation,
       null => ProfileFailureKind.network,
       _ => ProfileFailureKind.unavailable,

@@ -45,6 +45,9 @@ class ProfilePreviewRepository implements ProfileRepository {
       ),
       gender: draft.gender,
       email: draft.email ?? _profile.email,
+      phone: draft.phone?.trim().isNotEmpty == true
+          ? draft.phone!.trim()
+          : _profile.phone,
       conditions: _profile.conditions,
     );
   }

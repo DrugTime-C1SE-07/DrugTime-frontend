@@ -28,18 +28,25 @@ class ProfileAvatar extends StatelessWidget {
         child: SizedBox(
           width: size,
           height: size,
-          child: ClipOval(
-              child: c.avatar == null
-                  ? ColoredBox(
-                      color: AppColors.brand,
-                      child: Center(
-                          child: Text(initials,
-                              textScaler: TextScaler.noScaling,
-                              style: TextStyle(
-                                  fontSize: size / 3,
-                                  color: AppColors.onBrand))))
-                  : Image.asset(c.avatar!,
-                      fit: BoxFit.cover, excludeFromSemantics: true)),
+          child: DecoratedBox(
+            decoration: const BoxDecoration(
+                color: AppColors.brandTint, shape: BoxShape.circle),
+            child: Padding(
+              padding: const EdgeInsets.all(6),
+              child: ClipOval(
+                  child: c.avatar == null
+                      ? ColoredBox(
+                          color: AppColors.brand,
+                          child: Center(
+                              child: Text(initials,
+                                  textScaler: TextScaler.noScaling,
+                                  style: TextStyle(
+                                      fontSize: (size - 12) / 3,
+                                      color: AppColors.onBrand))))
+                      : Image.asset(c.avatar!,
+                          fit: BoxFit.cover, excludeFromSemantics: true)),
+            ),
+          ),
         ));
   }
 }

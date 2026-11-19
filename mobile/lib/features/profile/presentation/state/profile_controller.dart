@@ -4,10 +4,14 @@ import '../../domain/entities/condition.dart';
 import '../../domain/entities/health_profile.dart';
 import '../../domain/entities/profile_failure.dart';
 import '../../domain/repositories/profile_repository.dart';
+import '../../domain/repositories/profile_avatar_preferences.dart';
 
 class ProfileController extends ChangeNotifier {
-  ProfileController(this._repository);
+  ProfileController(this._repository, [this._avatarPreferences]);
   final ProfileRepository? _repository;
+  final ProfileAvatarPreferences? _avatarPreferences;
+  String? _accountId;
+  int _avatarRead = 0;
   int _generation = 0;
   int _read = 0;
   bool _disposed = false;
@@ -22,6 +26,7 @@ class ProfileController extends ChangeNotifier {
   ProfileFailure? catalogError;
   String? notice;
   String? avatar;
+  String? avatarError;
   int get generation => _generation;
   bool get denied => error?.removesAccess == true;
   bool _valid(int generation) => !_disposed && generation == _generation;
@@ -33,7 +38,7 @@ class ProfileController extends ChangeNotifier {
       _repository ??
       (throw const ProfileFailure(ProfileFailureKind.unsupported));
 
-  void clear() {
+  void clear({bool clearAvatar = true}) {
     _generation++;
     _read++;
     profile = null;
@@ -42,12 +47,16 @@ class ProfileController extends ChangeNotifier {
     hasMore = true;
     loading = saving = catalogLoading = false;
     error = catalogError = null;
-    avatar = notice = null;
+    notice = null;
+    if (clearAvatar) {
+      avatar = null;
+      avatarError = null;
+    }
     _notify();
   }
 
   void revoke() {
-    clear();
+    clear(clearAvatar: false);
     error = const ProfileFailure(ProfileFailureKind.consent);
     _notify();
   }
@@ -57,12 +66,46 @@ class ProfileController extends ChangeNotifier {
     error = failure;
   }
 
-  void selectAvatar(String path) {
+  Future<void> setAccount(String? userId) async {
+    if (_accountId == userId) return;
+    _accountId = userId;
+    final read = ++_avatarRead;
+    clear();
+    if (userId == null || _avatarPreferences == null) return;
+    try {
+      final saved = await _avatarPreferences.read(userId);
+      if (!_disposed && read == _avatarRead && _accountId == userId) {
+        avatar = saved;
+        avatarError = null;
+        _notify();
+      }
+    } catch (_) {
+      if (!_disposed && read == _avatarRead) {
+        avatarError = 'Chưa tải được ảnh đại diện đã lưu.';
+        _notify();
+      }
+    }
+  }
+
+  Future<bool> selectAvatar(String path) async {
     if (!AppAssets.profileAvatars.contains(path)) {
       throw ArgumentError('Unknown avatar');
     }
+    final userId = _accountId;
+    avatarError = null;
+    if (userId != null && _avatarPreferences != null) {
+      try {
+        await _avatarPreferences.write(userId, path);
+      } catch (_) {
+        avatarError = 'Chưa lưu được ảnh đại diện. Vui lòng thử lại.';
+        _notify();
+        return false;
+      }
+    }
+    if (userId != _accountId || _disposed) return false;
     avatar = path;
     _notify();
+    return true;
   }
 
   Future<void> load() async {
