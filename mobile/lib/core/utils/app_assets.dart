@@ -25,6 +25,32 @@ abstract final class AppAssets {
   static const mascotRunning = '$_icons/mascot-running.png';
   static const mascotThinking = '$_icons/mascot-thinking.png';
 
+  /// Icon nguyên liệu màu (SVG) cho các màn gợi ý bữa ăn; không dùng emoji (vẽ khác nhau theo máy).
+  static String foodIcon(String name) => '$_icons/food/$name.svg';
+
+  static const foodIconNames = [
+    'beans',
+    'carrot',
+    'chicken',
+    'egg',
+    'fish',
+    'flame',
+    'garlic',
+    'generic',
+    'leafy',
+    'list',
+    'meat',
+    'mushroom',
+    'oil',
+    'pumpkin',
+    'rice',
+    'salad',
+    'salt',
+    'sauce',
+    'sugar',
+    'tomato',
+  ];
+
   static const all = [
     logo,
     logoWordmark,

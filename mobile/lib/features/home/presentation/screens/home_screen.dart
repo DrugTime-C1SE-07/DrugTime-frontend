@@ -8,6 +8,11 @@ import '../../../../core/utils/app_assets.dart';
 import '../../../auth/presentation/widgets/welcome_onboarding_sheet.dart';
 import '../../../medication/presentation/state/medication_controller.dart';
 import '../../../medication/presentation/widgets/medication_error_messages.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
+import '../scene/banner_chip.dart';
+import '../scene/greeting_name.dart';
+import '../scene/home_pet_signals.dart';
+import '../scene/living_banner.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({
@@ -25,9 +30,6 @@ class HomeScreen extends StatelessWidget {
     fontFamily: 'WelcomeInter',
     color: AppColors.ink,
   );
-
-  static void _message(BuildContext context, String text) =>
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
 
   static void _add(BuildContext context, {bool scan = false}) =>
       Navigator.of(context)
@@ -57,160 +59,71 @@ class HomeScreen extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Stack(
-              children: [
-                Positioned(
-                  top: 0,
-                  left: 0,
-                  right: 0,
-                  height: 236,
-                  child: SvgPicture.asset(
-                    'assets/icons/home/banner.svg',
-                    fit: BoxFit.fill,
-                    excludeFromSemantics: true,
-                  ),
-                ),
-                const Positioned(
-                  top: 212,
-                  left: 0,
-                  right: 0,
-                  height: 48,
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      color: Color(0xFFF7F8F6),
-                      borderRadius:
-                          BorderRadius.vertical(top: Radius.circular(24)),
-                    ),
-                  ),
-                ),
-                SafeArea(
-                  bottom: false,
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
-                    child: Stack(
-                      children: [
-                        Padding(
-                          padding: const EdgeInsets.only(top: 8, right: 96),
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Row(
-                                      children: [
-                                        SvgPicture.asset(
-                                          'assets/icons/home/sun.svg',
-                                          width: 24,
-                                          height: 24,
-                                        ),
-                                        const SizedBox(width: 6),
-                                        Flexible(
-                                          child: Text(
-                                            'Chào buổi sáng',
-                                            style: _ink.copyWith(
-                                              color: const Color(0xFF9A3412),
-                                              fontSize: 14,
-                                              height: 20 / 14,
-                                              fontWeight: FontWeight.w600,
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                    const SizedBox(height: 2),
-                                    Text(
-                                      name == null || name.isEmpty
-                                          ? 'Bạn'
-                                          : name,
-                                      style: _ink.copyWith(
-                                        fontSize: 28,
-                                        height: 34 / 28,
-                                        fontWeight: FontWeight.w700,
-                                      ),
-                                    ),
-                                    if (loading) ...[
-                                      const SizedBox(height: 12),
-                                      const Row(children: [
-                                        _Bone(width: 80, height: 28),
-                                        SizedBox(width: 8),
-                                        Expanded(child: _Bone(height: 28)),
-                                      ]),
-                                    ],
-                                    if (emptyHome) ...[
-                                      const SizedBox(height: 4),
-                                      TextButton(
-                                        style: TextButton.styleFrom(
-                                          backgroundColor: Colors.white,
-                                          foregroundColor: AppColors.ink,
-                                          minimumSize: const Size(0, 32),
-                                          padding: const EdgeInsets.symmetric(
-                                              horizontal: 12, vertical: 4),
-                                          tapTargetSize:
-                                              MaterialTapTargetSize.padded,
-                                        ),
-                                        onPressed: () =>
-                                            showWelcomeOnboardingSheet(
-                                          context,
-                                          setupRoute:
-                                              AppRoutes.healthProfileIntro,
-                                          onSetup: () => Navigator.of(context)
-                                              .pushNamed<void>(
-                                                  AppRoutes.healthProfileIntro),
-                                        ),
-                                        child: Text(
-                                          'Bắt đầu nào!',
-                                          style: _ink.copyWith(
-                                            fontSize: 14,
-                                            height: 20 / 14,
-                                            fontWeight: FontWeight.w600,
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ],
-                                ),
-                              ),
-                            ],
+            LivingBanner(
+              signals:
+                  HomePetSignals.from(null, DateTime.now(), empty: emptyHome),
+              showPet: !loading,
+              sheetColor: const Color(0xFFF7F8F6),
+              title: (context, ink, at) {
+                final greeting = homeGreeting(at);
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Row(children: [
+                      Icon(greeting.night ? LucideIcons.moon : LucideIcons.sun,
+                          size: 22, color: ink),
+                      const SizedBox(width: 6),
+                      Flexible(
+                        child: Text(
+                          greeting.text,
+                          style: _ink.copyWith(
+                            color: ink,
+                            fontSize: 14,
+                            height: 20 / 14,
+                            fontWeight: FontWeight.w600,
                           ),
                         ),
-                        Align(
-                          alignment: Alignment.topRight,
-                          child: IconButton.filled(
-                            tooltip: 'Thông báo',
-                            style: IconButton.styleFrom(
-                              minimumSize: const Size(48, 48),
-                              backgroundColor: Colors.white,
-                              foregroundColor: AppColors.brand,
-                            ),
-                            onPressed: () => Navigator.of(context)
-                                .pushNamed(AppRoutes.familyAlerts),
-                            icon: SvgPicture.asset(
-                              'assets/icons/welcome/bell.svg',
-                              width: 24,
-                              height: 24,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 172),
-                        if (!loading)
-                          Positioned(
-                            right: -5,
-                            top: 66,
-                            child: IgnorePointer(
-                              child: Image.asset(
-                                AppAssets.mascotHappy,
-                                width: 92,
-                                height: 85,
-                                excludeFromSemantics: true,
-                              ),
-                            ),
-                          ),
-                      ],
+                      ),
+                    ]),
+                    const SizedBox(height: 2),
+                    GreetingName(
+                      name == null || name.isEmpty ? 'Bạn' : name,
+                      ink: ink,
+                    ),
+                  ],
+                );
+              },
+              trailing: IconButton.filled(
+                tooltip: 'Thông báo',
+                style: IconButton.styleFrom(
+                  minimumSize: const Size(48, 48),
+                  backgroundColor: Colors.white,
+                  foregroundColor: AppColors.brand,
+                ),
+                onPressed: () =>
+                    Navigator.of(context).pushNamed(AppRoutes.familyAlerts),
+                icon: SvgPicture.asset(
+                  'assets/icons/welcome/bell.svg',
+                  width: 24,
+                  height: 24,
+                ),
+              ),
+              chips: [
+                if (loading) ...const [
+                  _Bone(width: 80, height: 28),
+                  _Bone(width: 140, height: 28),
+                ] else if (emptyHome)
+                  BannerCtaButton(
+                    label: 'Bắt đầu nào!',
+                    bounce: LivingBanner.autoplay,
+                    onPressed: () => showWelcomeOnboardingSheet(
+                      context,
+                      setupRoute: AppRoutes.healthProfileIntro,
+                      onSetup: () => Navigator.of(context)
+                          .pushNamed<void>(AppRoutes.healthProfileIntro),
                     ),
                   ),
-                ),
               ],
             ),
             Padding(
@@ -229,7 +142,8 @@ class HomeScreen extends StatelessWidget {
                       const SizedBox(width: 12),
                       _Shortcut(
                           'Dumi AI',
-                          () => _message(context, 'Dumi AI chưa khả dụng.'),
+                          () => Navigator.of(context)
+                              .pushNamed(AppRoutes.mealSuggestion),
                           Image.asset(AppAssets.mascotCooking,
                               width: 48, height: 48)),
                       const SizedBox(width: 12),

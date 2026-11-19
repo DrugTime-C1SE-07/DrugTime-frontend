@@ -5,6 +5,8 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'core/notification/device_token_coordinator.dart';
 import 'core/notification/device_token_store.dart';
 import 'core/notification/family_push_service.dart';
+import 'features/meal_suggestion/data/meal_choice_store.dart';
+import 'features/meal_suggestion/data/meal_widget_bridge.dart';
 import 'features/meal_suggestion/data/repositories/mock_allergy_profile_repository.dart';
 import 'features/meal_suggestion/data/repositories/remote_meal_suggestion_repository.dart';
 import 'features/family/data/repositories/remote_family_alert_repository.dart';
@@ -193,6 +195,15 @@ Future<void> main() async {
     mealSuggestionRepository: RemoteMealSuggestionRepository(apiClient),
     // Task 5.11 Q3: mock hồ sơ dị ứng, nối `GET /profile/health-setup` ở task sau.
     allergyProfileRepository: MockAllergyProfileRepository(),
+    mealChoiceStore: SecureMealChoiceStore(),
+    // Widget "Thực đơn hôm nay" chỉ có trên Android (iOS ngoài phạm vi).
+    mealWidgetBridge: !kIsWeb && defaultTargetPlatform == TargetPlatform.android
+        ? HomeWidgetMealBridge()
+        : null,
+    mealWidgetLinkSource:
+        !kIsWeb && defaultTargetPlatform == TargetPlatform.android
+            ? HomeWidgetMealLinkSource()
+            : null,
   ));
 }
 

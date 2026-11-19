@@ -12,7 +12,8 @@ import '../widgets/link_request_messages.dart';
 import 'enter_link_code_screen.dart';
 
 /// Dựng phần camera; gọi [onDetect] với nội dung thô của mỗi mã QR đọc được.
-typedef QrScannerBuilder = Widget Function(BuildContext context, ValueChanged<String> onDetect);
+typedef QrScannerBuilder = Widget Function(
+    BuildContext context, ValueChanged<String> onDetect);
 
 /// Người thân quét mã QR của patient (Figma S08-3c). Chỉ nhận `drugtime://link?code=`; mã hợp lệ
 /// đầu tiên được chuyển sang màn nhập mã để gửi, mọi lần đọc sau bị bỏ qua.
@@ -26,8 +27,10 @@ class ScanLinkQrScreen extends StatefulWidget {
   State<ScanLinkQrScreen> createState() => _ScanLinkQrScreenState();
 }
 
-class _ScanLinkQrScreenState extends State<ScanLinkQrScreen> with WidgetsBindingObserver {
-  late final CameraPermission _permission = FamilyLinkScope.read(context).cameraPermission;
+class _ScanLinkQrScreenState extends State<ScanLinkQrScreen>
+    with WidgetsBindingObserver {
+  late final CameraPermission _permission =
+      FamilyLinkScope.read(context).cameraPermission;
   MobileScannerController? _camera;
   CameraPermissionStatus? _status;
   // Hộp thoại quyền làm app inactive rồi resumed; không gửi yêu cầu thứ hai khi yêu cầu trước
@@ -45,7 +48,8 @@ class _ScanLinkQrScreenState extends State<ScanLinkQrScreen> with WidgetsBinding
     if (widget.scannerBuilder == null) {
       _camera = MobileScannerController(formats: const [BarcodeFormat.qrCode]);
     }
-    WidgetsBinding.instance.addPostFrameCallback((_) => unawaited(_requestPermission()));
+    WidgetsBinding.instance
+        .addPostFrameCallback((_) => unawaited(_requestPermission()));
   }
 
   // Chỉ kiểm lại quyền khi quay về từ trang Cài đặt mà màn này đã mở.
@@ -98,7 +102,8 @@ class _ScanLinkQrScreenState extends State<ScanLinkQrScreen> with WidgetsBinding
 
   void _openEnterCode() {
     _handled = true;
-    unawaited(Navigator.of(context).pushReplacementNamed(AppRoutes.familyEnterCode));
+    unawaited(
+        Navigator.of(context).pushReplacementNamed(AppRoutes.familyEnterCode));
   }
 
   @override
@@ -112,7 +117,7 @@ class _ScanLinkQrScreenState extends State<ScanLinkQrScreen> with WidgetsBinding
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: const Color(0xFF101818),
       body: switch (_status) {
         null => const Center(child: CircularProgressIndicator()),
         CameraPermissionStatus.granted => _buildScanner(context),
@@ -128,81 +133,90 @@ class _ScanLinkQrScreenState extends State<ScanLinkQrScreen> with WidgetsBinding
 
   Widget _buildScanner(BuildContext context) {
     final camera = _camera;
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        widget.scannerBuilder?.call(context, _onDetect) ??
-            MobileScanner(
-              controller: camera,
-              onDetect: (capture) {
-                for (final barcode in capture.barcodes) {
-                  if (barcode.rawValue case final raw?) _onDetect(raw);
-                }
-              },
-              errorBuilder: (context, _) => const _CameraError(),
-            ),
-        const _Viewfinder(),
-        SafeArea(
-          child: Column(
-            children: [
-              Padding(
-                padding: const EdgeInsets.all(AppSpacing.sm),
-                child: Row(
-                  children: [
-                    IconButton(
-                      key: const Key('scan-close'),
-                      tooltip: 'Đóng',
-                      color: Colors.white,
-                      icon: const Icon(Icons.close),
-                      onPressed: () => Navigator.of(context).maybePop(),
-                    ),
-                    const Spacer(),
-                    if (camera != null) _TorchButton(camera: camera),
-                  ],
-                ),
-              ),
-              const Spacer(),
-              if (_showInvalid)
-                const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: AppSpacing.xl),
-                  child: Text(
-                    invalidQrMessage,
-                    key: Key('scan-invalid-qr'),
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: AppColors.cautionBg, fontWeight: FontWeight.w600),
-                  ),
-                ),
-              const Padding(
-                padding: EdgeInsets.all(AppSpacing.xl),
-                child: Column(
-                  children: [
-                    Text(
-                      'Đưa mã QR của người thân vào khung hình',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600),
-                    ),
-                    SizedBox(height: AppSpacing.sm),
-                    Text(
-                      'Nhờ người thân mở mục Người thân → Mã liên kết của tôi trong app DrugTime',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(color: Colors.white70),
-                    ),
-                  ],
-                ),
-              ),
-              TextButton.icon(
-                key: const Key('scan-enter-code'),
-                style: TextButton.styleFrom(foregroundColor: Colors.white),
-                onPressed: _openEnterCode,
-                icon: const Icon(Icons.keyboard_outlined),
-                label: const Text('Nhập mã'),
-              ),
-              const SizedBox(height: AppSpacing.lg),
-            ],
+    return Stack(fit: StackFit.expand, children: [
+      widget.scannerBuilder?.call(context, _onDetect) ??
+          MobileScanner(
+            controller: camera,
+            onDetect: (capture) {
+              for (final barcode in capture.barcodes) {
+                if (barcode.rawValue case final raw?) _onDetect(raw);
+              }
+            },
+            errorBuilder: (context, _) => const _CameraError(),
           ),
-        ),
-      ],
-    );
+      SafeArea(
+          child: Column(children: [
+        Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+            child: Row(children: [
+              IconButton(
+                  key: const Key('scan-close'),
+                  tooltip: 'Đóng',
+                  color: AppColors.brand,
+                  style: IconButton.styleFrom(
+                      backgroundColor: AppColors.brandTint,
+                      minimumSize: const Size(48, 48)),
+                  icon: const Icon(Icons.chevron_left),
+                  onPressed: () => Navigator.of(context).maybePop()),
+              const Expanded(
+                  child: Text('Quét mã QR',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w700))),
+              if (camera != null)
+                _TorchButton(camera: camera)
+              else
+                const SizedBox(width: 48),
+            ])),
+        Expanded(
+            child: LayoutBuilder(
+                builder: (context, box) => SingleChildScrollView(
+                      child: ConstrainedBox(
+                          constraints: BoxConstraints(minHeight: box.maxHeight),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 24),
+                            child: Column(children: [
+                              const SizedBox(height: 120),
+                              const _Viewfinder(),
+                              const SizedBox(height: 20),
+                              const Text(
+                                  'Đưa mã QR của người thân vào khung hình',
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w600)),
+                              const SizedBox(height: 8),
+                              const Text(
+                                  'Nhờ người thân mở mục Người thân → Mã liên kết của tôi trong app DrugTime',
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                      color: Colors.white70, fontSize: 14)),
+                              if (_showInvalid)
+                                const Padding(
+                                    padding: EdgeInsets.only(top: 16),
+                                    child: Text(invalidQrMessage,
+                                        key: Key('scan-invalid-qr'),
+                                        textAlign: TextAlign.center,
+                                        style: TextStyle(
+                                            color: AppColors.cautionBg,
+                                            fontWeight: FontWeight.w600))),
+                              const SizedBox(height: 16),
+                              TextButton.icon(
+                                  key: const Key('scan-enter-code'),
+                                  style: TextButton.styleFrom(
+                                      foregroundColor: Colors.white),
+                                  onPressed: _openEnterCode,
+                                  icon: const Icon(Icons.keyboard_outlined),
+                                  label: const Text('Nhập mã')),
+                              const SizedBox(height: 24),
+                            ]),
+                          )),
+                    ))),
+      ])),
+    ]);
   }
 }
 
@@ -214,11 +228,11 @@ class _Viewfinder extends StatelessWidget {
     return IgnorePointer(
       child: Center(
         child: Container(
-          width: 240,
-          height: 240,
+          width: (MediaQuery.sizeOf(context).width - 80).clamp(160, 260),
+          height: (MediaQuery.sizeOf(context).width - 80).clamp(160, 260),
           decoration: BoxDecoration(
-            border: Border.all(color: Colors.white, width: 3),
-            borderRadius: BorderRadius.circular(AppRadius.card),
+            border: Border.all(color: const Color(0xFF78DCCD), width: 2),
+            borderRadius: BorderRadius.circular(2),
           ),
         ),
       ),
@@ -236,7 +250,9 @@ class _TorchButton extends StatelessWidget {
     return ValueListenableBuilder<MobileScannerState>(
       valueListenable: camera,
       builder: (context, state, _) {
-        if (state.torchState == TorchState.unavailable) return const SizedBox.shrink();
+        if (state.torchState == TorchState.unavailable) {
+          return const SizedBox.shrink();
+        }
         final on = state.torchState == TorchState.on;
         return IconButton(
           key: const Key('scan-torch'),
@@ -295,9 +311,11 @@ class _PermissionDenied extends StatelessWidget {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.no_photography_outlined, size: 56, color: AppColors.inkMuted),
+                const Icon(Icons.no_photography_outlined,
+                    size: 56, color: AppColors.inkMuted),
                 const SizedBox(height: AppSpacing.lg),
-                const Text('Chưa có quyền dùng camera', style: AppTextStyles.heading),
+                const Text('Chưa có quyền dùng camera',
+                    style: AppTextStyles.heading),
                 const SizedBox(height: AppSpacing.sm),
                 Text(
                   permanently

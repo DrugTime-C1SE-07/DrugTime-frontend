@@ -29,12 +29,17 @@ void main() {
       sharer: sharer,
       codeRepository: FakeFamilyLinkCodeRepository(codes),
       consents: consents ??
-          const {ConsentPurpose.healthData, ConsentPurpose.familySharing, ConsentPurpose.terms},
+          const {
+            ConsentPurpose.healthData,
+            ConsentPurpose.familySharing,
+            ConsentPurpose.terms
+          },
     );
     await tester.pumpAndSettle();
   }
 
-  testWidgets('AC22: từ tab Người thân mở Gửi link mời, hiện đúng link từ mã', (tester) async {
+  testWidgets('AC22: từ tab Người thân mở Gửi link mời, hiện đúng link từ mã',
+      (tester) async {
     await pumpFamilyLink(
       tester,
       const FamilyTabScreen(),
@@ -49,8 +54,11 @@ void main() {
     expect(find.text(_link), findsOneWidget);
   });
 
-  testWidgets('AC22: Chia sẻ gửi đúng một chuỗi chứa link, không có tên', (tester) async {
+  testWidgets('AC22: Chia sẻ gửi đúng một chuỗi chứa link, không có tên',
+      (tester) async {
     await pumpShare(tester);
+
+    await tester.ensureVisible(find.byKey(const Key('invite-share')));
 
     await tester.tap(find.byKey(const Key('invite-share')));
     await tester.pump();
@@ -60,16 +68,20 @@ void main() {
     expect(sharer.shared.single, contains(_link));
   });
 
-  testWidgets('AC22: Sao chép link ghi đúng link vào clipboard', (tester) async {
+  testWidgets('AC22: Sao chép link ghi đúng link vào clipboard',
+      (tester) async {
     final copied = <Object?>[];
-    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(SystemChannels.platform,
-        (call) async {
-      if (call.method == 'Clipboard.setData') copied.add((call.arguments as Map)['text']);
+    tester.binding.defaultBinaryMessenger
+        .setMockMethodCallHandler(SystemChannels.platform, (call) async {
+      if (call.method == 'Clipboard.setData')
+        copied.add((call.arguments as Map)['text']);
       return null;
     });
     addTearDown(() => tester.binding.defaultBinaryMessenger
         .setMockMethodCallHandler(SystemChannels.platform, null));
     await pumpShare(tester);
+
+    await tester.ensureVisible(find.byKey(const Key('invite-copy')));
 
     await tester.tap(find.byKey(const Key('invite-copy')));
     await tester.pump();
@@ -79,25 +91,31 @@ void main() {
     expect(sharer.shared, isEmpty);
   });
 
-  testWidgets('AC23: chưa đồng ý family_sharing → cảnh báo, mở được Quyền riêng tư, vẫn chia sẻ',
+  testWidgets(
+      'AC23: chưa đồng ý family_sharing → cảnh báo, mở được Quyền riêng tư, vẫn chia sẻ',
       (tester) async {
-    await pumpShare(tester, consents: const {ConsentPurpose.healthData, ConsentPurpose.terms});
+    await pumpShare(tester,
+        consents: const {ConsentPurpose.healthData, ConsentPurpose.terms});
 
     expect(find.byKey(const Key('invite-sharing-off')), findsOneWidget);
     expect(find.byKey(const Key('invite-share')), findsOneWidget);
+
+    await tester.ensureVisible(find.byKey(const Key('invite-open-privacy')));
 
     await tester.tap(find.byKey(const Key('invite-open-privacy')));
     await tester.pumpAndSettle();
     expect(find.byType(PrivacySettingsScreen), findsOneWidget);
   });
 
-  testWidgets('AC23: đã đồng ý family_sharing → không cảnh báo', (tester) async {
+  testWidgets('AC23: đã đồng ý family_sharing → không cảnh báo',
+      (tester) async {
     await pumpShare(tester);
 
     expect(find.byKey(const Key('invite-sharing-off')), findsNothing);
   });
 
-  testWidgets('AC23: tải mã lỗi → thông báo + Thử lại, không có link hay nút chia sẻ',
+  testWidgets(
+      'AC23: tải mã lỗi → thông báo + Thử lại, không có link hay nút chia sẻ',
       (tester) async {
     await pumpShare(tester, codes: [
       const FamilyLinkCodeFailure(FamilyLinkCodeFailureKind.unavailable),
@@ -107,6 +125,8 @@ void main() {
     expect(find.byKey(const Key('invite-link')), findsNothing);
     expect(find.byKey(const Key('invite-share')), findsNothing);
     expect(find.byKey(const Key('invite-copy')), findsNothing);
+
+    await tester.ensureVisible(find.byKey(const Key('invite-retry')));
 
     await tester.tap(find.byKey(const Key('invite-retry')));
     await tester.pumpAndSettle();
