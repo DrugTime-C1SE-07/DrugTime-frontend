@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import '../storage/secure_storage.dart';
 
 // Chỉ lưu metadata vòng đời token trong secure storage, không lưu nội dung cảnh báo.
 class DeviceTokenRecord {
@@ -19,8 +20,8 @@ abstract class DeviceTokenStore {
 
 class SecureDeviceTokenStore implements DeviceTokenStore {
   SecureDeviceTokenStore({FlutterSecureStorage? storage})
-      : _storage = storage ?? const FlutterSecureStorage();
-  final FlutterSecureStorage _storage;
+      : _storage = SecureStorage(storage: storage);
+  final SecureStorage _storage;
   static const _key = 'family_push_token';
   @override
   Future<DeviceTokenRecord?> read() async {

@@ -41,17 +41,21 @@ import '../features/profile/domain/repositories/health_setup_repository.dart';
 import '../features/profile/presentation/screens/health_setup_screen.dart';
 import '../features/profile/presentation/widgets/health_setup_motion.dart';
 import 'theme/app_theme.dart';
-import '../features/meal_suggestion/data/repositories/in_memory_meal_suggestion_repository.dart';
-import '../features/meal_suggestion/data/repositories/mock_allergy_profile_repository.dart';
-import '../features/meal_suggestion/domain/repositories/allergy_profile_repository.dart';
-import '../features/meal_suggestion/domain/repositories/meal_suggestion_repository.dart';
 import '../features/meal_suggestion/presentation/screens/meal_suggestion_screen.dart';
 import '../shared/widgets/coming_soon_view.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
+import '../features/profile/presentation/screens/notification_preferences_screen.dart';
+import '../features/profile/presentation/screens/reminder_sound_screen.dart';
+import '../features/profile/presentation/screens/profile_settings_screen.dart';
+import '../features/family_link/presentation/screens/invite_caregiver_screen.dart';
 
 enum HomeEntry { profileCompleted }
 
 abstract final class AppRoutes {
+  static const profileInvite = '/profile/invite';
+  static const profileNotifications = '/profile/notifications';
+  static const profileReminderSound = '/profile/notifications/sound';
+  static const profileSettings = '/profile/settings';
   static const familyAlerts = '/family/alerts';
   static const familyAlertDetail = '/family/alerts/detail';
   static const home = '/';
@@ -109,10 +113,21 @@ Route<dynamic>? onGenerateRoute(
   AdherenceRepository? adherenceRepository,
   HealthSetupRepository? healthSetupRepository,
   ValueListenable<bool>? familyAdherenceAvailability,
-  MealSuggestionRepository? mealSuggestionRepository,
-  AllergyProfileRepository? allergyProfileRepository,
 }) {
   return switch (settings.name) {
+    AppRoutes.profileInvite => MaterialPageRoute<void>(
+        settings: settings, builder: (_) => const InviteCaregiverScreen()),
+    AppRoutes.profileNotifications => MaterialPageRoute<void>(
+        settings: settings,
+        builder: (_) => const NotificationPreferencesScreen()),
+    AppRoutes.profileReminderSound => MaterialPageRoute<void>(
+        settings: settings, builder: (_) => const ReminderSoundScreen()),
+    AppRoutes.profileSettings => MaterialPageRoute<void>(
+        settings: settings,
+        builder: (_) => ProfileSettingsScreen(
+            args: settings.arguments is ProfileSettingsArgs
+                ? settings.arguments as ProfileSettingsArgs
+                : null)),
     AppRoutes.scanMedication => MaterialPageRoute<Medication>(
         settings: settings,
         fullscreenDialog: true,
@@ -313,11 +328,12 @@ Route<dynamic>? onGenerateRoute(
     AppRoutes.mealSuggestion => MaterialPageRoute<void>(
         settings: settings,
         builder: (_) => ConsentGate(
+          // Thực đơn và món đã chọn nằm ở mức phiên (MealPlanScope trong app.dart).
           child: MealSuggestionScreen(
-            repository:
-                mealSuggestionRepository ?? InMemoryMealSuggestionRepository(),
-            allergyRepository:
-                allergyProfileRepository ?? MockAllergyProfileRepository(),
+            initialMeal: switch (settings.arguments) {
+              MealRouteArgs(:final initialMeal) => initialMeal,
+              _ => null,
+            },
             onDeclareAllergy: (context) =>
                 Navigator.of(context).pushNamed(AppRoutes.allergyDeclaration),
           ),

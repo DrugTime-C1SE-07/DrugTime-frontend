@@ -1,577 +1,641 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:lucide_icons_flutter/lucide_icons.dart';
+import 'package:flutter/services.dart';
+import 'package:image/image.dart' as img;
 
-import '../../../../app/theme/app_theme.dart';
-import '../../../../core/utils/app_assets.dart';
+import '../../../../shared/widgets/mascot/mascot_controller.dart';
+import '../../../../shared/widgets/mascot/mascot_view.dart';
 import '../../../auth/presentation/state/auth_controller.dart';
 import '../../../consent/domain/entities/consent.dart';
-import '../../../consent/domain/entities/consent_failure.dart';
 import '../../../consent/presentation/state/consent_controller.dart';
 import '../../../profile/presentation/state/profile_controller.dart';
+import '../../data/meal_choice_store.dart';
 import '../../domain/entities/meal_suggestion.dart';
-import '../../domain/repositories/allergy_profile_repository.dart';
-import '../../domain/repositories/meal_suggestion_repository.dart';
-import '../state/meal_suggestion_controller.dart';
-import '../widgets/dietary_sheet.dart';
+import '../analyzing/analyzing_view.dart';
+import '../state/meal_choice_controller.dart';
+import '../state/meal_plan_controller.dart';
+import '../state/meal_plan_scope.dart';
+import '../widgets/dish_deck.dart';
+import '../widgets/meal_greeting.dart';
+import '../widgets/meal_setup_sheet.dart';
+import '../widgets/meal_tabs.dart';
+import '../widgets/meal_ui.dart';
 import '../widgets/meal_widgets.dart';
+import '../widgets/refresh_button.dart';
 import 'meal_detail_screens.dart';
 
-/// Màn gợi ý bữa ăn (S05-D, S05-D2; task 5.11). Mở từ nút "Dumi AI" ở Trang chủ.
+/// Tham số route gợi ý bữa ăn: mở sẵn ở bữa [initialMeal] (từ hàng Trang chủ hoặc widget).
+class MealRouteArgs {
+  const MealRouteArgs({this.initialMeal});
+  final MealType? initialMeal;
+}
+
+/// Luồng gợi ý bữa ăn (Dumi AI): sheet "Dumi cần biết" (nếu thiếu) → màn chờ 3 bữa → kết quả.
+///
+/// Thực đơn trong ngày đã có thì vào thẳng kết quả, không gọi API (AC12). Màn này là màn kết
+/// quả; màn chờ được đẩy lên trên rồi pop về, để đĩa món bay vào thẻ (Hero).
 class MealSuggestionScreen extends StatefulWidget {
   const MealSuggestionScreen({
     super.key,
-    required this.repository,
-    required this.allergyRepository,
     required this.onDeclareAllergy,
+    this.initialMeal,
     this.patientId,
-    this.controllerFactory,
   });
 
-  final MealSuggestionRepository repository;
-  final AllergyProfileRepository allergyRepository;
-
-  /// Mở màn khai dị ứng (router truyền vào; màn đó làm sau, 01 mục A).
+  /// Mở màn khai dị ứng (router truyền vào).
   final void Function(BuildContext context) onDeclareAllergy;
+  final MealType? initialMeal;
 
-  /// Mặc định là người dùng đang đăng nhập (gợi ý chỉ cho chính chủ, AC17).
+  /// Mặc định là người dùng đang đăng nhập (gợi ý chỉ cho chính chủ).
   final String? patientId;
-
-  /// Cho test: dựng controller với đồng hồ / nhịp hỏi ảnh riêng.
-  final MealSuggestionController Function(String patientId)? controllerFactory;
 
   @override
   State<MealSuggestionScreen> createState() => _MealSuggestionScreenState();
 }
 
 class _MealSuggestionScreenState extends State<MealSuggestionScreen> {
-  MealSuggestionController? _controller;
-  bool _granting = false;
-  String? _consentError;
+  final mascot = MascotController();
+  late MealPlanController plan;
+  late MealChoiceController choices;
+  bool _booted = false;
+  int _dir = 1;
+  int? _celebrating;
+  Timer? _autoNext, _celebrateTimer, _lookTimer;
 
-  MealSuggestionController get controller => _controller!;
+  /// Đang mở màn chờ "Gợi ý khác": chặn bấm liên tục (mở 2 màn, gọi 2 lần) (AC9b).
+  bool _opening = false;
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    if (_controller != null) return;
-    final patientId = widget.patientId ??
-        AuthScope.read(context).currentSession?.userId ??
-        '';
-    _controller = widget.controllerFactory?.call(patientId) ??
-        MealSuggestionController(
-          repository: widget.repository,
-          allergyRepository: widget.allergyRepository,
-          patientId: patientId,
-        );
-    controller.addListener(_onControllerChanged);
-    final consent = ConsentScope.read(context);
-    if (!consent.isLoaded && !consent.isLoading) unawaited(consent.load());
-    unawaited(controller.loadAllergy().then((_) => _maybeLoad()));
+    if (_booted) return;
+    _booted = true;
+    final scope = MealPlanScope.of(context);
+    plan = scope.plan;
+    choices = scope.choices;
+    final user =
+        widget.patientId ?? AuthScope.maybeOf(context)?.currentSession?.userId;
+    plan.bind(user);
+    unawaited(choices.bind(user));
+    plan.addListener(_onPlan);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _boot());
   }
 
   @override
   void dispose() {
-    controller.removeListener(_onControllerChanged);
-    controller.dispose();
+    plan.removeListener(_onPlan);
+    _autoNext?.cancel();
+    _celebrateTimer?.cancel();
+    _lookTimer?.cancel();
+    mascot.dispose();
     super.dispose();
   }
 
-  bool get _consentGranted =>
-      ConsentScope.read(context).isGranted(ConsentPurpose.aiMeal);
+  bool _consentGranted(ConsentController c) =>
+      c.isGranted(ConsentPurpose.aiMeal);
 
-  /// Server trả 403 dù app thấy đã đồng ý: tải lại consent, không hiện gợi ý (AC2).
-  void _onControllerChanged() {
-    final kind = controller.current.failure?.kind;
-    if (kind == MealFailureKind.consentRevoked ||
-        kind == MealFailureKind.forbidden) {
-      unawaited(ConsentScope.read(context).load());
-    }
-  }
-
-  void _maybeLoad() {
-    if (!mounted || !_consentGranted || !controller.canRequest) return;
-    if (controller.current.status == MealTabStatus.idle) {
-      unawaited(controller.load(controller.tab));
-    }
-  }
-
-  Future<void> _grant() async {
-    setState(() {
-      _granting = true;
-      _consentError = null;
+  /// Server trả 403 dù app thấy đã đồng ý: tải lại consent, không hiện gợi ý.
+  void _onPlan() {
+    final revoked = MealType.values.any((t) {
+      final k = plan.stateOf(t).failure?.kind;
+      return k == MealFailureKind.consentRevoked ||
+          k == MealFailureKind.forbidden;
     });
-    try {
-      await ConsentScope.read(context).grant(ConsentPurpose.aiMeal);
-      _maybeLoad();
-    } on ConsentFailure {
-      _consentError = 'Chưa bật được. Bạn thử lại nhé.';
-    } finally {
-      if (mounted) setState(() => _granting = false);
+    if (revoked && mounted) unawaited(ConsentScope.read(context).load());
+  }
+
+  Future<void> _boot() async {
+    if (!mounted) return;
+    final consent = ConsentScope.read(context);
+    if (!consent.isLoaded) await consent.load();
+    if (!mounted) return;
+    if (plan.hasMenu && _consentGranted(consent)) {
+      _show(widget.initialMeal ?? plan.tab);
+      return;
+    }
+    if (plan.allergy == null && !plan.allergyLoading) {
+      await plan.loadAllergy();
+      if (!mounted) return;
+    }
+    final steps =
+        missingMealSetup(consentGranted: _consentGranted(consent), plan: plan);
+    if (steps.isNotEmpty) {
+      final result = await showMealSetupSheet(context,
+          plan: plan, consent: consent, steps: steps);
+      if (!mounted) return;
+      if (result == MealSetupResult.declareAllergy) {
+        final nav = Navigator.of(context);
+        nav.pop();
+        widget.onDeclareAllergy(nav.context);
+        return;
+      }
+      if (result != MealSetupResult.ready) {
+        Navigator.of(context).pop();
+        return;
+      }
+    }
+    if (plan.hasMenu) {
+      _show(widget.initialMeal ?? plan.tab);
+      return;
+    }
+    final ok =
+        await Navigator.of(context).push<bool>(AnalyzingView.route(plan));
+    if (!mounted) return;
+    if (ok == true && plan.hasMenu) {
+      if (widget.initialMeal case final m?
+          when plan.stateOf(m).status == MealTabStatus.data) {
+        plan.selectTab(m);
+      }
+      _greet();
+    } else if (!plan.hasMenu) {
+      Navigator.of(context).pop();
     }
   }
 
-  Future<void> _askDietary() async {
-    final answer = await showDietarySheet(context, session: controller.session);
-    if (!mounted || answer == null) return;
-    final restrictions = answer.restrictions;
-    if (restrictions == null) return; // "Chưa biết": không gọi API (QD-40)
-    controller.saveDietary(
-        restrictions: restrictions, preferences: answer.preferences);
-    _maybeLoad();
+  void _show(MealType meal) {
+    plan.selectTab(meal);
+    _greet();
+  }
+
+  void _greet() => mascot.play(MascotMood.wave);
+
+  void _select(MealType m, {bool auto = false}) {
+    if (!auto) _autoNext?.cancel();
+    if (m == plan.tab) return;
+    setState(() {
+      _dir = m.index > plan.tab.index ? 1 : -1;
+      _celebrating = null;
+    });
+    plan.selectTab(m);
+    // Dumi liếc theo hướng chuyển bữa rồi nhìn lại người dùng
+    mascot.lookAt(Offset(_dir * .9, 0));
+    _lookTimer?.cancel();
+    _lookTimer = Timer(const Duration(milliseconds: 700), () {
+      if (mounted) mascot.clearLook();
+    });
+  }
+
+  Future<void> _choose(MealType m, MealSuggestionResult r, int index) async {
+    if (choices.isChosen(m, r.suggestionId, index)) {
+      await choices.unchoose(m); // bấm lại "Đã chọn" = bỏ chọn
+      return;
+    }
+    final dish = r.dishes[index];
+    final choice = MealChoice(
+      name: dish.name,
+      kcal: dish.kcalEstimate,
+      suggestionId: r.suggestionId,
+      dishIndex: index,
+      imageId: dish.image?.imageId,
+    );
+    unawaited(
+        choices.choose(m, choice).then((_) => _thumbnail(m, dish, choice)));
+    unawaited(_maybeOfferWidget());
+    HapticFeedback.mediumImpact();
+    mascot.play(MascotMood.celebrate);
+    setState(() => _celebrating = index);
+    _celebrateTimer?.cancel();
+    _celebrateTimer = Timer(const Duration(milliseconds: 1150), () {
+      if (mounted) setState(() => _celebrating = null);
+    });
+    // Q8: tự sang bữa kế nếu bữa đó chưa chọn; bữa Tối thì ở lại.
+    _autoNext?.cancel();
+    final next = m.index + 1 < MealType.values.length
+        ? MealType.values[m.index + 1]
+        : null;
+    if (next != null &&
+        choices.choiceOf(next) == null &&
+        plan.stateOf(next).status == MealTabStatus.data) {
+      _autoNext = Timer(const Duration(milliseconds: 1000), () {
+        if (mounted) _select(next, auto: true);
+      });
+    }
+  }
+
+  /// Ảnh nhỏ 128 px cho widget màn hình chính; ảnh chưa sẵn thì widget dùng icon bữa.
+  Future<void> _thumbnail(MealType m, MealDish dish, MealChoice choice) async {
+    final image = plan.imageOf(dish);
+    if (image == null || !image.isReady) return;
+    try {
+      final bytes = await plan.imageBytes(image);
+      final png = await compute(mealThumbnailPng, bytes);
+      if (png != null) await choices.attachThumbnail(m, choice, png);
+    } on Exception catch (e) {
+      debugPrint('meal thumbnail: $e'); // widget vẫn hiện tên món
+    }
+  }
+
+  bool _offerWidget = false;
+
+  /// Gợi ý một lần "Thêm widget ra màn hình chính" sau lần chọn món đầu tiên.
+  Future<void> _maybeOfferWidget() async {
+    if (_offerWidget) return;
+    final offer = await choices.bridge.shouldOfferPin();
+    if (offer && mounted) setState(() => _offerWidget = true);
+  }
+
+  void _closeWidgetHint({required bool add}) {
+    setState(() => _offerWidget = false);
+    unawaited(choices.bridge.markPinOffered());
+    if (add) unawaited(choices.bridge.requestPin());
+  }
+
+  Future<void> _openDetail(
+      MealType m, MealSuggestionResult r, int index) async {
+    final toggled =
+        await Navigator.of(context).push<bool>(MealDetailScreen.route(
+      plan: plan,
+      meal: m,
+      result: r,
+      index: index,
+      chosen: choices.isChosen(m, r.suggestionId, index),
+    ));
+    if (toggled == true && mounted) await _choose(m, r, index);
+  }
+
+  Future<void> _refresh() async {
+    if (_opening) return;
+    if (plan.refreshLocked) {
+      await showRefreshLimitSheet(context);
+      return;
+    }
+    setState(() => _opening = true);
+    final meal = plan.tab;
+    // "Gợi ý khác" chạy lại màn chờ cho riêng bữa đang xem (AC9).
+    await Navigator.of(context)
+        .push<bool>(AnalyzingView.route(plan, refreshMeal: meal));
+    if (!mounted) return;
+    setState(() => _opening = false);
+    if (plan.lastRefreshFailure?.kind == MealFailureKind.refreshLimit) {
+      await showRefreshLimitSheet(context); // server trả 429 (AC9b)
+    }
+  }
+
+  String _who(BuildContext context) {
+    final scope = context.dependOnInheritedWidgetOfExactType<ProfileScope>();
+    final name = scope?.notifier?.profile?.fullName?.trim();
+    return (name == null || name.isEmpty) ? 'bạn' : name;
   }
 
   @override
   Widget build(BuildContext context) {
-    final consent = ConsentScope.of(context);
-    return Scaffold(
-      backgroundColor: AppColors.canvas,
-      appBar: AppBar(title: const Text('Gợi ý bữa ăn')),
-      body: ListenableBuilder(
-        listenable: controller,
-        builder: (context, _) => ListView(
-          padding: const EdgeInsets.all(AppSpacing.page),
-          children: [
-            _Greeting(type: controller.tab),
-            const SizedBox(height: AppSpacing.md),
-            _MealTabs(
-              selected: controller.tab,
-              onSelected: (t) {
-                controller.selectTab(t);
-                _maybeLoad();
-              },
-            ),
-            const SizedBox(height: AppSpacing.lg),
-            ..._body(consent),
-          ],
+    final mq = MediaQuery.of(context);
+    return MealTypography(
+      child: Scaffold(
+        backgroundColor: MealColors.canvas,
+        body: ListenableBuilder(
+          listenable: Listenable.merge([plan, choices]),
+          builder: (context, _) {
+            final meal = plan.tab;
+            final state = plan.stateOf(meal);
+            return ListView(
+              padding: EdgeInsets.fromLTRB(
+                  0, mq.padding.top + 8, 0, mq.padding.bottom + 28),
+              children: [
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: Row(children: [
+                    RoundIconButton(
+                      icon: Icons.arrow_back_ios_new_rounded,
+                      onTap: () => Navigator.of(context).maybePop(),
+                    ),
+                    const Expanded(
+                      child: Text('Gợi ý bữa ăn',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.w700,
+                              color: MealColors.ink)),
+                    ),
+                    const SizedBox(width: 44),
+                  ]),
+                ),
+                if (plan.hasMenu) ..._results(context, meal, state),
+              ],
+            );
+          },
         ),
       ),
     );
   }
 
-  List<Widget> _body(ConsentController consent) {
-    if (!consent.isGranted(ConsentPurpose.aiMeal)) {
-      if (consent.isLoading && !consent.isLoaded) return const [_Loading()];
-      return [
-        _Notice(
-          icon: LucideIcons.sparkles,
-          title: 'Bật gợi ý bữa ăn',
-          text: 'Dumi dùng tên hoạt chất, bệnh nền, dị ứng và hạn chế ăn uống của bạn '
-              '(không kèm thông tin định danh) để gợi ý món. Bạn tắt được bất cứ lúc nào '
-              'trong Quyền riêng tư.',
-          action: FilledButton(
-            key: const ValueKey('grant-ai-meal'),
-            onPressed: _granting ? null : _grant,
-            child: const Text('Bật gợi ý bữa ăn'),
-          ),
-          footer: _consentError,
-        ),
-      ];
-    }
-    if (controller.allergyLoading || controller.allergy == null) {
-      if (controller.allergyFailed) {
-        return [
-          _Notice(
-            icon: LucideIcons.circleAlert,
-            title: 'Chưa đọc được hồ sơ dị ứng',
-            text: 'Bạn thử lại nhé.',
-            action: OutlinedButton(
-              onPressed: () =>
-                  controller.loadAllergy().then((_) => _maybeLoad()),
-              child: const Text('Thử lại'),
-            ),
-          ),
-        ];
-      }
-      return const [_Loading()];
-    }
-    if (!controller.allergyReported) {
-      return [
-        _Notice(
-          icon: LucideIcons.shieldAlert,
-          title: 'Bạn chưa khai dị ứng',
-          text: 'Dumi cần biết bạn có dị ứng thực phẩm nào không trước khi gợi ý món.',
-          action: FilledButton(
-            key: const ValueKey('declare-allergy'),
-            onPressed: () => widget.onDeclareAllergy(context),
-            child: const Text('Khai dị ứng'),
-          ),
-        ),
-      ];
-    }
-    if (!controller.dietaryDeclared) {
-      return [
-        _Notice(
-          icon: LucideIcons.utensils,
-          title: 'Bạn có hạn chế ăn uống không?',
-          text: 'Khai một lần cho cả phiên dùng app.',
-          action: FilledButton(
-            key: const ValueKey('declare-dietary'),
-            onPressed: _askDietary,
-            child: const Text('Khai hạn chế ăn uống'),
-          ),
-        ),
-      ];
-    }
-    final state = controller.current;
-    switch (state.status) {
-      case MealTabStatus.idle:
-      case MealTabStatus.loading:
-        return const [_Loading(text: 'Dumi đang chọn món cho bạn…')];
-      case MealTabStatus.error:
-        final failure = state.failure!;
-        return [
-          _Notice(
-            icon: LucideIcons.circleAlert,
-            title: 'Chưa có gợi ý',
-            text: failure.message,
-            action: failure.canRetry
-                ? OutlinedButton(
-                    key: const ValueKey('retry'),
-                    onPressed: () => controller.load(controller.tab),
-                    child: const Text('Thử lại'),
-                  )
-                : null,
-          ),
-        ];
-      case MealTabStatus.data:
-        return _data(state);
-    }
-  }
-
-  List<Widget> _data(MealTabState state) {
-    final result = state.result!;
-    final main = state.mainDish!;
-    final remaining = controller.refreshesRemaining ?? 0;
+  List<Widget> _results(
+      BuildContext context, MealType meal, MealTabState state) {
+    final remaining = plan.refreshesRemaining ?? 0;
+    final result = state.result;
     return [
-      _MainCard(
-        dish: main,
-        controller: controller,
-        canRotate: result.dishes.length > 1,
-        onDetail: () => _openDetail(main, result),
-      ),
-      const SizedBox(height: AppSpacing.lg),
-      if (state.otherIndexes.isNotEmpty) ...[
-        Row(children: [
-          Expanded(
-            child: Text('Món khác cho ${result.mealType.mealLabel}',
-                style: AppTextStyles.heading),
+      const SizedBox(height: 10),
+      Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 14),
+        child: Row(children: [
+          SizedBox(
+            width: 76,
+            height: 76,
+            child: MascotView(
+                key: const ValueKey('results-mascot'),
+                controller: mascot,
+                outfit: MascotOutfit.chef,
+                size: 76),
           ),
-          TextButton(
-            key: const ValueKey('see-all'),
-            onPressed: () => Navigator.of(context).push(MaterialPageRoute<void>(
-              builder: (_) =>
-                  MealListScreen(controller: controller, result: result),
-            )),
-            child: const Text('Xem tất cả'),
+          const SizedBox(width: 4),
+          Expanded(
+            child: MealGreeting(meal: meal, dir: _dir, who: _who(context)),
           ),
         ]),
-        SizedBox(
-          height: 190,
-          child: ListView(
-            scrollDirection: Axis.horizontal,
-            children: [
-              for (final i in state.otherIndexes)
-                _OtherDishCard(
-                  dish: result.dishes[i],
-                  controller: controller,
-                  isPreviousMain: i == state.previousMainIndex,
-                  onTap: () => controller.promote(i),
+      ),
+      const SizedBox(height: 12),
+      Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        child: MealPillTabs(
+          key: const ValueKey('meal-tabs'),
+          labels: [for (final t in MealType.values) t.tabLabel],
+          selected: meal.index,
+          onChanged: (i) => _select(MealType.values[i]),
+          badges: {
+            for (final t in MealType.values)
+              if (choices.choiceOf(t) != null)
+                t.index: Icon(Icons.check_circle_rounded,
+                    key: ValueKey('tab-chosen-${t.apiValue}'),
+                    size: 16,
+                    color: MealColors.teal)
+              else if (plan.stateOf(t).status == MealTabStatus.error)
+                t.index: Container(
+                  key: ValueKey('tab-error-${t.apiValue}'),
+                  width: 8,
+                  height: 8,
+                  decoration: const BoxDecoration(
+                      color: MealColors.caution, shape: BoxShape.circle),
                 ),
-            ],
-          ),
+          },
         ),
-        const SizedBox(height: AppSpacing.lg),
-      ],
-      const Text('Nên tránh', style: AppTextStyles.heading),
-      const SizedBox(height: AppSpacing.sm),
-      MealFoodCheckView(result.foodCheck),
-      const SizedBox(height: AppSpacing.lg),
-      OutlinedButton.icon(
-        key: const ValueKey('refresh'),
-        icon: state.refreshing
-            ? const SizedBox(
-                width: 16,
-                height: 16,
-                child: CircularProgressIndicator(strokeWidth: 2))
-            : const Icon(LucideIcons.refreshCw),
-        label: const Text('Gợi ý khác'),
-        onPressed: controller.canRefresh ? controller.refresh : null,
       ),
-      const SizedBox(height: AppSpacing.xs),
-      Text(
-        remaining > 0
-            ? 'Còn $remaining lần gợi ý khác hôm nay'
-            : 'Hôm nay bạn đã dùng hết lượt gợi ý khác',
-        key: const ValueKey('refresh-remaining'),
-        textAlign: TextAlign.center,
-        style: AppTextStyles.caption,
+      const SizedBox(height: 16),
+      AnimatedSwitcher(
+        duration: MediaQuery.disableAnimationsOf(context)
+            ? Duration.zero
+            : const Duration(milliseconds: 360),
+        switchInCurve: Curves.easeOutCubic,
+        switchOutCurve: Curves.easeInCubic,
+        transitionBuilder: (c, a) {
+          final incoming = c.key == ValueKey(meal);
+          final dx = (incoming ? 1 : -1) * _dir * .18;
+          return FadeTransition(
+            opacity: a,
+            child: SlideTransition(
+              position:
+                  Tween(begin: Offset(dx, 0), end: Offset.zero).animate(a),
+              child: c,
+            ),
+          );
+        },
+        layoutBuilder: (cur, prev) => Stack(
+            alignment: Alignment.topCenter,
+            children: [...prev, if (cur != null) cur]),
+        child: KeyedSubtree(key: ValueKey(meal), child: _mealBody(meal, state)),
       ),
-      if (state.refreshFailure case final f?
-          when f.kind != MealFailureKind.refreshLimit)
-        Text(f.message,
-            textAlign: TextAlign.center,
-            style: AppTextStyles.caption.copyWith(color: AppColors.danger)),
-      const SizedBox(height: AppSpacing.lg),
-      MealDisclaimer(result.disclaimer),
+      const SizedBox(height: 8),
+      Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        child:
+            Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          if (result != null && state.status == MealTabStatus.data) ...[
+            _AvoidPanel(result.foodCheck),
+            const SizedBox(height: 14),
+            MealRefreshButton(
+              busy: _opening,
+              left: remaining,
+              onTap: _refresh,
+              onLocked: () => showRefreshLimitSheet(context),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              remaining > 0
+                  ? 'Còn $remaining lần gợi ý khác hôm nay'
+                  : 'Hôm nay bạn đã dùng hết lượt gợi ý khác',
+              key: const ValueKey('refresh-remaining'),
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 14, color: MealColors.ink2),
+            ),
+            if (_offerWidget) ...[
+              const SizedBox(height: 16),
+              _WidgetHint(
+                onAdd: () => _closeWidgetHint(add: true),
+                onClose: () => _closeWidgetHint(add: false),
+              ),
+            ],
+            const SizedBox(height: 16),
+            MealDisclaimer(result.disclaimer),
+          ],
+        ]),
+      ),
     ];
   }
 
-  void _openDetail(MealDish dish, MealSuggestionResult result) {
-    Navigator.of(context).push(MaterialPageRoute<void>(
-      builder: (_) =>
-          MealDetailScreen(controller: controller, dish: dish, result: result),
-    ));
-  }
-}
-
-class _Greeting extends StatelessWidget {
-  const _Greeting({required this.type});
-
-  final MealType type;
-
-  @override
-  Widget build(BuildContext context) {
-    final profile =
-        context.dependOnInheritedWidgetOfExactType<ProfileScope>()?.notifier;
-    final name = profile?.profile?.fullName?.trim();
-    final who = (name == null || name.isEmpty) ? 'bạn' : name;
-    return Row(children: [
-      Image.asset(AppAssets.mascotCooking,
-          height: 48,
-          errorBuilder: (_, __, ___) =>
-              const Icon(LucideIcons.cookingPot, color: AppColors.brand)),
-      const SizedBox(width: AppSpacing.md),
-      Expanded(
-        child: Text('${type.todayLabel} ăn gì, $who?',
-            style: AppTextStyles.heading),
-      ),
-    ]);
-  }
-}
-
-class _MealTabs extends StatelessWidget {
-  const _MealTabs({required this.selected, required this.onSelected});
-
-  final MealType selected;
-  final ValueChanged<MealType> onSelected;
-
-  @override
-  Widget build(BuildContext context) {
-    return SegmentedButton<MealType>(
-      showSelectedIcon: false,
-      segments: [
-        for (final t in MealType.values)
-          ButtonSegment(value: t, label: Text(t.tabLabel)),
-      ],
-      selected: {selected},
-      onSelectionChanged: (s) => onSelected(s.single),
+  Widget _mealBody(MealType m, MealTabState s) {
+    if (s.status == MealTabStatus.error) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        child: _ErrorCard(
+          meal: m,
+          failure: s.failure!,
+          onRetry: () => plan.retryMeal(m),
+        ),
+      );
+    }
+    final result = s.result;
+    if (s.status != MealTabStatus.data || result == null) {
+      return const SizedBox(
+        height: 460,
+        child:
+            Center(child: CircularProgressIndicator(color: MealColors.brand)),
+      );
+    }
+    final chosen = choices.choiceOf(m);
+    return DishDeck(
+      key: ValueKey('deck-${m.apiValue}-${result.suggestionId}'),
+      meal: m,
+      result: result,
+      plan: plan,
+      chosenIndex: chosen != null && chosen.suggestionId == result.suggestionId
+          ? chosen.dishIndex
+          : null,
+      celebratingIndex: _celebrating,
+      onChoose: (i) => _choose(m, result, i),
+      onDetail: (i) => _openDetail(m, result, i),
     );
   }
 }
 
-class _MainCard extends StatelessWidget {
-  const _MainCard({
-    required this.dish,
-    required this.controller,
-    required this.canRotate,
-    required this.onDetail,
-  });
+/// "Nên tránh" thu gọn: kết quả 3 trạng thái của engine, bấm để mở (AC10).
+class _AvoidPanel extends StatefulWidget {
+  const _AvoidPanel(this.check);
+  final MealFoodCheck check;
+  @override
+  State<_AvoidPanel> createState() => _AvoidPanelState();
+}
 
-  final MealDish dish;
-  final MealSuggestionController controller;
-  final bool canRotate;
-  final VoidCallback onDetail;
+class _AvoidPanelState extends State<_AvoidPanel> {
+  bool _open = false;
+
+  String get _summary => switch (widget.check.status) {
+        FoodCheckStatus.coTuongTac =>
+          '${widget.check.warnings.length} thực phẩm cần tránh với thuốc của bạn',
+        FoodCheckStatus.daKiemTraKhongThay =>
+          'Chưa thấy tương tác trong dữ liệu hiện có',
+        FoodCheckStatus.khongDuDuLieu => 'Chưa xác minh được, hãy hỏi dược sĩ',
+      };
 
   @override
   Widget build(BuildContext context) {
+    final warn = widget.check.status != FoodCheckStatus.daKiemTraKhongThay;
     return Container(
-      key: const ValueKey('main-card'),
+      key: const ValueKey('avoid-panel'),
       decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(AppRadius.card),
-        boxShadow: AppShadows.cardElevation,
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Stack(children: [
-          MealImageView(
-              image: controller.imageOf(dish),
-              loadBytes: controller.imageBytes,
-              height: 190),
-          Positioned(
-            left: 12,
-            top: 12,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              decoration: BoxDecoration(
-                  color: AppColors.surface,
-                  borderRadius: BorderRadius.circular(16)),
-              child: const Row(mainAxisSize: MainAxisSize.min, children: [
-                Icon(LucideIcons.sparkles, size: 14, color: AppColors.caution),
-                SizedBox(width: 4),
-                Text('Dumi chọn', style: AppTextStyles.captionStrong),
-              ]),
-            ),
-          ),
-        ]),
-        Padding(
-          padding: const EdgeInsets.all(AppSpacing.lg),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          color: Colors.white, borderRadius: BorderRadius.circular(20)),
+      child: Column(children: [
+        InkWell(
+          borderRadius: BorderRadius.circular(20),
+          onTap: () => setState(() => _open = !_open),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 14, 12, 14),
+            child: Row(children: [
+              Icon(
+                  warn
+                      ? Icons.error_outline_rounded
+                      : Icons.verified_user_rounded,
+                  color: warn ? MealColors.caution : MealColors.teal,
+                  size: 22),
+              const SizedBox(width: 10),
               Expanded(
-                  child: Text(dish.name,
-                      key: const ValueKey('main-dish-name'),
-                      style: AppTextStyles.title)),
-              if (canRotate)
-                TextButton.icon(
-                  key: const ValueKey('rotate'),
-                  icon: const Icon(LucideIcons.rotateCcw, size: 18),
-                  label: const Text('Đổi món'),
-                  onPressed: controller.rotate,
-                ),
-            ]),
-            const SizedBox(height: AppSpacing.sm),
-            Wrap(spacing: AppSpacing.sm, runSpacing: AppSpacing.xs, children: [
-              for (final tag in dish.tags) MealChip(tag),
-              MealChip('${kcalLabel(dish.kcalEstimate)}/phần'),
-            ]),
-            const SizedBox(height: AppSpacing.sm),
-            const Text('Gợi ý dựa trên danh sách thuốc của bạn',
-                style: AppTextStyles.caption),
-            const SizedBox(height: AppSpacing.md),
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton(
-                key: const ValueKey('detail'),
-                onPressed: onDetail,
-                child: const Text('Chi tiết'),
+                child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('Nên tránh',
+                          style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                              color: MealColors.ink)),
+                      Text(_summary,
+                          style: const TextStyle(
+                              fontSize: 14, color: MealColors.ink2)),
+                    ]),
               ),
-            ),
-          ]),
+              AnimatedRotation(
+                turns: _open ? .5 : 0,
+                duration: const Duration(milliseconds: 250),
+                child: const Icon(Icons.expand_more_rounded,
+                    color: MealColors.ink2),
+              ),
+            ]),
+          ),
+        ),
+        AnimatedSize(
+          duration: const Duration(milliseconds: 280),
+          curve: Curves.easeOutCubic,
+          child: _open
+              ? Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                  child: MealFoodCheckView(widget.check),
+                )
+              : const SizedBox(width: double.infinity),
         ),
       ]),
     );
   }
 }
 
-class _OtherDishCard extends StatelessWidget {
-  const _OtherDishCard({
-    required this.dish,
-    required this.controller,
-    required this.isPreviousMain,
-    required this.onTap,
-  });
-
-  final MealDish dish;
-  final MealSuggestionController controller;
-  final bool isPreviousMain;
-  final VoidCallback onTap;
+class _ErrorCard extends StatelessWidget {
+  const _ErrorCard(
+      {required this.meal, required this.failure, required this.onRetry});
+  final MealType meal;
+  final MealSuggestionFailure failure;
+  final VoidCallback onRetry;
 
   @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 150,
-      margin: const EdgeInsets.only(right: AppSpacing.md),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(AppRadius.card),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onTap,
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Stack(children: [
-            MealImageView(
-                image: controller.imageOf(dish),
-                loadBytes: controller.imageBytes,
-                height: 100,
-                showAttribution: false),
-            Positioned(
-                left: 6, bottom: 6, child: MealChip(kcalLabel(dish.kcalEstimate))),
-            if (isPreviousMain)
-              const Positioned(
-                right: 6,
-                bottom: 6,
-                child: CircleAvatar(
-                  key: ValueKey('undo-previous-main'),
-                  radius: 14,
-                  backgroundColor: AppColors.brand,
-                  child: Icon(LucideIcons.undo2, size: 16, color: AppColors.onBrand),
-                ),
-              ),
-          ]),
-          Padding(
-            padding: const EdgeInsets.all(AppSpacing.sm),
-            child: Text(dish.name,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: AppTextStyles.bodyStrong),
-          ),
-        ]),
-      ),
-    );
-  }
-}
-
-class _Notice extends StatelessWidget {
-  const _Notice({
-    required this.icon,
-    required this.title,
-    required this.text,
-    this.action,
-    this.footer,
-  });
-
-  final IconData icon;
-  final String title;
-  final String text;
-  final Widget? action;
-  final String? footer;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(AppSpacing.lg),
-      decoration: BoxDecoration(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.circular(AppRadius.card)),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Icon(icon, color: AppColors.brand),
-        const SizedBox(height: AppSpacing.sm),
-        Text(title, style: AppTextStyles.heading),
-        const SizedBox(height: AppSpacing.xs),
-        Text(text, style: AppTextStyles.body),
-        if (action case final a?) ...[
-          const SizedBox(height: AppSpacing.md),
-          SizedBox(width: double.infinity, child: a),
-        ],
-        if (footer case final f?)
-          Padding(
-            padding: const EdgeInsets.only(top: AppSpacing.sm),
-            child: Text(f,
-                style: AppTextStyles.caption.copyWith(color: AppColors.danger)),
-          ),
-      ]),
-    );
-  }
-}
-
-class _Loading extends StatelessWidget {
-  const _Loading({this.text});
-
-  final String? text;
-
-  @override
-  Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.symmetric(vertical: AppSpacing.xxl),
-        child: Column(children: [
-          const CircularProgressIndicator(),
-          if (text case final t?) ...[
-            const SizedBox(height: AppSpacing.md),
-            Text(t, style: AppTextStyles.caption),
+  Widget build(BuildContext context) => Container(
+        constraints: const BoxConstraints(minHeight: 300),
+        padding: const EdgeInsets.all(22),
+        decoration: BoxDecoration(
+            color: Colors.white, borderRadius: BorderRadius.circular(28)),
+        child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+          const Icon(Icons.cloud_off_rounded,
+              size: 44, color: MealColors.caution),
+          const SizedBox(height: 10),
+          Text('Chưa có gợi ý cho ${meal.mealLabel}',
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                  color: MealColors.ink)),
+          const SizedBox(height: 4),
+          Text(failure.message,
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 15, color: MealColors.ink2)),
+          if (failure.canRetry) ...[
+            const SizedBox(height: 16),
+            FilledButton.icon(
+              key: const ValueKey('retry'),
+              style: FilledButton.styleFrom(
+                  backgroundColor: MealColors.brand,
+                  shape: const StadiumBorder()),
+              onPressed: onRetry,
+              icon: const Icon(Icons.refresh_rounded),
+              label: const Text('Thử lại'),
+            ),
           ],
         ]),
+      );
+}
+
+/// Thu ảnh món về PNG tròn 128 px cho widget (chạy trong isolate qua `compute`).
+Uint8List? mealThumbnailPng(Uint8List bytes) {
+  final decoded = img.decodeImage(bytes);
+  if (decoded == null) return null;
+  // Cắt tròn sẵn: RemoteViews của widget không tự bo ảnh trên Android cũ.
+  return img.encodePng(
+      img.copyCropCircle(img.copyResizeCropSquare(decoded, size: 128)));
+}
+
+class _WidgetHint extends StatelessWidget {
+  const _WidgetHint({required this.onAdd, required this.onClose});
+  final VoidCallback onAdd, onClose;
+
+  @override
+  Widget build(BuildContext context) => StaggerIn(
+        index: 0,
+        child: Container(
+          key: const ValueKey('widget-hint'),
+          padding: const EdgeInsets.fromLTRB(14, 12, 6, 12),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+                colors: [MealColors.galaxyTop, MealColors.galaxyBottom]),
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Row(children: [
+            const Icon(Icons.widgets_rounded, color: MealColors.violet),
+            const SizedBox(width: 10),
+            const Expanded(
+              child: Text(
+                'Thêm "Thực đơn hôm nay" ra màn hình chính để xem nhanh',
+                style: TextStyle(
+                    fontSize: 14,
+                    color: MealColors.ink,
+                    fontWeight: FontWeight.w600),
+              ),
+            ),
+            TextButton(
+                key: const ValueKey('widget-hint-add'),
+                onPressed: onAdd,
+                child: const Text('Thêm')),
+            IconButton(
+              tooltip: 'Đóng',
+              onPressed: onClose,
+              icon: const Icon(Icons.close_rounded,
+                  size: 18, color: MealColors.ink2),
+            ),
+          ]),
+        ),
       );
 }

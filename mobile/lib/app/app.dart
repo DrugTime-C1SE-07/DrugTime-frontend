@@ -1,7 +1,15 @@
 import 'dart:async';
 import '../features/meal_suggestion/domain/repositories/allergy_profile_repository.dart';
 import '../features/meal_suggestion/domain/repositories/meal_suggestion_repository.dart';
+import '../features/meal_suggestion/data/meal_choice_store.dart';
+import '../features/meal_suggestion/data/meal_widget_bridge.dart';
+import '../features/meal_suggestion/data/repositories/in_memory_meal_suggestion_repository.dart';
+import '../features/meal_suggestion/data/repositories/mock_allergy_profile_repository.dart';
 import '../features/meal_suggestion/presentation/state/dietary_session.dart';
+import '../features/meal_suggestion/presentation/state/meal_choice_controller.dart';
+import '../features/meal_suggestion/presentation/state/meal_plan_controller.dart';
+import '../features/meal_suggestion/presentation/state/meal_plan_scope.dart';
+import '../features/meal_suggestion/presentation/screens/meal_suggestion_screen.dart';
 
 import '../core/sync/schedule_sync_service.dart';
 
@@ -30,6 +38,7 @@ import '../core/notification/family_push_service.dart';
 import '../features/family/presentation/state/family_alert_controller.dart';
 import '../features/family/presentation/state/family_alert_scope.dart';
 import '../features/consent/data/repositories/in_memory_consent_repository.dart';
+import '../features/consent/domain/entities/consent.dart';
 import '../features/consent/domain/repositories/consent_repository.dart';
 import '../features/consent/presentation/state/consent_controller.dart';
 import '../features/family/domain/entities/family_link_code.dart';
@@ -81,6 +90,9 @@ class DrugTimeApp extends StatefulWidget {
     this.healthSetupRepository,
     this.mealSuggestionRepository,
     this.allergyProfileRepository,
+    this.mealChoiceStore,
+    this.mealWidgetBridge,
+    this.mealWidgetLinkSource,
     this.doseOutboxSyncEngine,
     this.localMedicationStore,
     this.doseOutbox,
@@ -144,6 +156,15 @@ class DrugTimeApp extends StatefulWidget {
 
   /// Hồ sơ dị ứng cho gợi ý bữa ăn; mặc định mock (nối API hồ sơ sức khỏe ở task sau).
   final AllergyProfileRepository? allergyProfileRepository;
+
+  /// Kho món đã chọn hôm nay; mặc định trong bộ nhớ (main.dart truyền bản lưu mã hóa).
+  final MealChoiceStore? mealChoiceStore;
+
+  /// Cầu nối widget "Thực đơn hôm nay" trên màn hình chính; mặc định không làm gì.
+  final MealWidgetBridge? mealWidgetBridge;
+
+  /// Link mở app từ widget "Thực đơn hôm nay"; không truyền thì app không nhận link widget.
+  final MealWidgetLinkSource? mealWidgetLinkSource;
   final DoseOutboxSyncEngine? doseOutboxSyncEngine;
 
   /// Kho lưu trữ lịch và liều thuốc cục bộ (dùng tra cứu khi bấm thông báo).
@@ -361,6 +382,16 @@ class _DrugTimeAppState extends State<DrugTimeApp> with WidgetsBindingObserver {
   late final IncomingRequestsController _incomingRequests =
       IncomingRequestsController(_caregivers);
   final InviteLinkController _invites = InviteLinkController();
+  late final MealPlanController _mealPlan = MealPlanController(
+    repository:
+        widget.mealSuggestionRepository ?? InMemoryMealSuggestionRepository(),
+    allergyRepository:
+        widget.allergyProfileRepository ?? MockAllergyProfileRepository(),
+  );
+  late final MealChoiceController _mealChoices = MealChoiceController(
+    store: widget.mealChoiceStore ?? MemoryMealChoiceStore(),
+    bridge: widget.mealWidgetBridge ?? const NoopMealWidgetBridge(),
+  );
   StreamSubscription<Uri>? _inviteLinks;
 
   AuthController get _auth => widget.authController;
@@ -435,8 +466,16 @@ class _DrugTimeAppState extends State<DrugTimeApp> with WidgetsBindingObserver {
 
   String? _profileUser;
   bool _hadHealthConsent = false;
+  bool _hadAiMeal = false;
 
   void _onConsentChanged() {
+    // Thu hồi gợi ý bữa ăn: xóa thực đơn trong bộ nhớ và món đã chọn (AC12, AC14c).
+    final aiMeal = _consents.isGranted(ConsentPurpose.aiMeal);
+    if (_hadAiMeal && !aiMeal && _consents.isLoaded) {
+      _mealPlan.reset();
+      unawaited(_mealChoices.clear());
+    }
+    if (_consents.isLoaded) _hadAiMeal = aiMeal;
     final granted = _consents.hasHealthData;
     if (_hadHealthConsent && !granted) {
       _profiles.revoke();
@@ -485,7 +524,37 @@ class _DrugTimeAppState extends State<DrugTimeApp> with WidgetsBindingObserver {
         widget.inviteLinkSource?.links.listen((uri) => _invites.offer(
               code: linkCodeFromInviteUri(uri, host: AppConfig.inviteLinkHost),
             ));
+    _mealLinks = widget.mealWidgetLinkSource?.links.listen(_offerMealLink);
+    unawaited(widget.mealWidgetLinkSource?.initial().then((link) {
+      if (link != null) _offerMealLink(link);
+    }));
     unawaited(_loadSession());
+  }
+
+  StreamSubscription<MealWidgetLink>? _mealLinks;
+  MealWidgetLink? _pendingMealLink;
+
+  /// Chạm widget: mở màn gợi ý ở đúng bữa. Chưa đăng nhập thì giữ chờ tới khi đăng nhập (AC14d).
+  void _offerMealLink(MealWidgetLink link) {
+    _pendingMealLink = link;
+    _consumeMealLink();
+  }
+
+  void _consumeMealLink() {
+    final link = _pendingMealLink;
+    if (link == null || !_sessionLoaded || !_auth.isAuthenticated) return;
+    void push() => _navigatorKey.currentState?.pushNamed(
+        AppRoutes.mealSuggestion,
+        arguments: MealRouteArgs(initialMeal: link.meal));
+    _pendingMealLink = null;
+    if (_navigatorKey.currentState != null) {
+      push();
+      return;
+    }
+    // Lần mở app đầu: Navigator chưa dựng xong, đợi khung hình kế.
+    WidgetsBinding.instance
+      ..addPostFrameCallback((_) => push())
+      ..scheduleFrame();
   }
 
   void _setupNotificationHandling() {
@@ -599,6 +668,8 @@ class _DrugTimeAppState extends State<DrugTimeApp> with WidgetsBindingObserver {
       _profileUser =
           _auth.isAuthenticated ? _auth.currentSession?.userId : null;
     });
+    _bindMeals(_profileUser);
+    _consumeMealLink();
     unawaited(_captures.bindSession(
         _auth.isAuthenticated ? _auth.currentSession?.accessToken : null));
     if (_auth.isAuthenticated) {
@@ -626,6 +697,7 @@ class _DrugTimeAppState extends State<DrugTimeApp> with WidgetsBindingObserver {
       _profileUser = user;
       // Hạn chế ăn uống khai trong phiên không được sang tài khoản khác (task 5.11).
       DietarySession.instance.clear();
+      _bindMeals(user);
     }
     if (_wasAuthenticated && !authenticated) {
       _medications.clear();
@@ -635,6 +707,7 @@ class _DrugTimeAppState extends State<DrugTimeApp> with WidgetsBindingObserver {
       _navigatorKey.currentState
           ?.pushNamedAndRemoveUntil(AppRoutes.login, (_) => false);
     } else if (!_wasAuthenticated && authenticated) {
+      _consumeMealLink();
       unawaited(_medications.load());
       unawaited(_incomingRequests.load());
       unawaited(widget.doseOutboxSyncEngine?.syncNow());
@@ -647,6 +720,17 @@ class _DrugTimeAppState extends State<DrugTimeApp> with WidgetsBindingObserver {
       unawaited(_incomingRequests.load());
     }
     _wasAuthenticated = authenticated;
+  }
+
+  /// Thực đơn hôm nay và món đã chọn theo tài khoản; đăng xuất thì xóa cả hai (AC12, AC13).
+  void _bindMeals(String? user) {
+    if (user == null) {
+      _mealPlan.signOut();
+      unawaited(_mealChoices.signOut());
+    } else {
+      _mealPlan.bind(user);
+      unawaited(_mealChoices.bind(user));
+    }
   }
 
   String get _startRoute {
@@ -679,7 +763,10 @@ class _DrugTimeAppState extends State<DrugTimeApp> with WidgetsBindingObserver {
     _familyLinkCode.dispose();
     _incomingRequests.dispose();
     unawaited(_inviteLinks?.cancel());
+    unawaited(_mealLinks?.cancel());
     _invites.dispose();
+    _mealPlan.dispose();
+    _mealChoices.dispose();
     super.dispose();
   }
 
@@ -704,9 +791,13 @@ class _DrugTimeAppState extends State<DrugTimeApp> with WidgetsBindingObserver {
                   controller: _history,
                   child: HomeScheduleScope(
                     controller: _homeSchedule,
-                    child: _sessionLoaded
-                        ? _buildApp()
-                        : const _SessionLoadingApp(),
+                    child: MealPlanScope(
+                      plan: _mealPlan,
+                      choices: _mealChoices,
+                      child: _sessionLoaded
+                          ? _buildApp()
+                          : const _SessionLoadingApp(),
+                    ),
                   ),
                 ),
               ),
@@ -724,8 +815,6 @@ class _DrugTimeAppState extends State<DrugTimeApp> with WidgetsBindingObserver {
         adherenceRepository: widget.adherenceRepository,
         healthSetupRepository: widget.healthSetupRepository,
         familyAdherenceAvailability: _familyAdherenceAvailability,
-        mealSuggestionRepository: widget.mealSuggestionRepository,
-        allergyProfileRepository: widget.allergyProfileRepository,
       );
 
   Widget _buildApp() {

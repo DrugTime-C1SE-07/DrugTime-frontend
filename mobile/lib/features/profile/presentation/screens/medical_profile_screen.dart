@@ -1,5 +1,7 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import '../../../../shared/widgets/profile_flow_widgets.dart';
+
 import '../../../../app/theme/app_theme.dart';
 import '../state/profile_controller.dart';
 import '../widgets/condition_catalog_sheet.dart';
@@ -26,12 +28,10 @@ class _MedicalProfileScreenState extends State<MedicalProfileScreen> {
   Widget build(BuildContext context) {
     final c = ProfileScope.of(context);
     return Scaffold(
-      appBar: AppBar(
-          title: const Text('Thông tin y tế'),
-          leading: IconButton(
-              tooltip: 'Quay lại',
-              onPressed: () => Navigator.maybePop(context),
-              icon: const ProfileIcon('p-arrow-left'))),
+      backgroundColor: const Color(0xFFF5F7F6),
+      appBar: ProfileFlowHeader('Hồ sơ sức khỏe',
+          titleScale: MediaQuery.textScalerOf(context).scale(18) / 18,
+          backgroundColor: const Color(0xFFF5F7F6)),
       body: SafeArea(
           child: RefreshIndicator(
               onRefresh: c.load,
@@ -42,33 +42,80 @@ class _MedicalProfileScreenState extends State<MedicalProfileScreen> {
                     const ProfileNotices(),
                     if (c.loading && c.profile == null) const ProfileLoading(),
                     if (c.profile != null && !c.denied) ...[
-                      const Text('BỆNH MÃN TÍNH / BỆNH NỀN',
-                          style: AppTextStyles.captionStrong),
-                      const SizedBox(height: 10),
-                      if (c.profile!.conditions.isEmpty)
-                        const Padding(
-                            padding: EdgeInsets.symmetric(vertical: 16),
-                            child: Text(
-                                'Bạn chưa thêm bệnh nền. Chọn từ danh mục để cập nhật hồ sơ.'))
-                      else
-                        Wrap(spacing: 10, runSpacing: 10, children: [
-                          for (final item in c.profile!.conditions)
-                            _ConditionChip(
-                                key: Key('condition-chip-${item.id}'),
-                                label: item.name,
-                                onTap: c.saving
-                                    ? null
-                                    : () => showConditionEditor(context, item)),
-                        ]),
-                      const SizedBox(height: 12),
-                      _AddConditionButton(
-                          onPressed: c.saving || c.loading
-                              ? null
-                              : () => showConditionCatalog(context)),
+                      const ProfileFlowCard(
+                          child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                            Text('Dị ứng thuốc & thực phẩm',
+                                style: AppTextStyles.bodyStrong),
+                            SizedBox(height: 12),
+                            ProfileUnavailable(
+                                message:
+                                    'Khai báo dị ứng chưa khả dụng trong hồ sơ này.'),
+                            OutlinedButton(
+                                onPressed: null,
+                                child: Text('Thêm dị ứng khác')),
+                            OutlinedButton(
+                                onPressed: null,
+                                child: Text('Không có dị ứng đã biết'))
+                          ])),
                       const SizedBox(height: 16),
+                      ProfileFlowCard(
+                          padding: const EdgeInsets.all(12),
+                          child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                const Text('Bệnh nền',
+                                    style: AppTextStyles.captionStrong),
+                                const SizedBox(height: 10),
+                                if (c.profile!.conditions.isEmpty)
+                                  const Padding(
+                                      padding:
+                                          EdgeInsets.symmetric(vertical: 16),
+                                      child: Text(
+                                          'Bạn chưa thêm bệnh nền. Chọn từ danh mục để cập nhật hồ sơ.'))
+                                else
+                                  Wrap(spacing: 10, runSpacing: 10, children: [
+                                    for (final item in c.profile!.conditions)
+                                      _ConditionChip(
+                                          key: Key('condition-chip-${item.id}'),
+                                          label: item.name,
+                                          onTap: c.saving
+                                              ? null
+                                              : () => showConditionEditor(
+                                                  context, item)),
+                                  ]),
+                                const SizedBox(height: 12),
+                                _AddConditionButton(
+                                    onPressed: c.saving || c.loading
+                                        ? null
+                                        : () => showConditionCatalog(context)),
+                                const SizedBox(height: 16),
+                                const Text(
+                                    'Nhấn vào bệnh đã thêm để sửa phân loại, giai đoạn hoặc xóa khỏi hồ sơ.',
+                                    style: AppTextStyles.caption),
+                                const OutlinedButton(
+                                    onPressed: null,
+                                    child: Text('Không có bệnh nền đã biết')),
+                                const Text(
+                                    'Xác nhận không có bệnh nền: chưa khả dụng.',
+                                    style: AppTextStyles.caption),
+                              ])),
+                      const SizedBox(height: 20),
+                      const ProfileFlowSection('Nhóm máu', children: [
+                        ProfileFlowRow('Chọn nhóm máu',
+                            icon: Icons.water_drop_outlined, unavailable: true)
+                      ]),
+                      const ProfileFlowSection('Bác sĩ điều trị', children: [
+                        ProfileFlowRow('Thông tin bác sĩ',
+                            icon: Icons.medical_services_outlined,
+                            unavailable: true)
+                      ]),
                       const Text(
-                          'Nhấn vào bệnh đã thêm để sửa phân loại, giai đoạn hoặc xóa khỏi hồ sơ.',
+                          'Bệnh nền được lưu khi bạn hoàn tất từng thao tác. Lưu toàn bộ hồ sơ chưa khả dụng.',
                           style: AppTextStyles.caption),
+                      const SizedBox(height: 12),
+                      const ProfileFlowButton(label: 'Lưu thay đổi'),
                     ],
                   ]))),
     );
@@ -89,23 +136,25 @@ class _ConditionChip extends StatelessWidget {
         opacity: onTap == null ? 0.6 : 1,
         child: Material(
             color: Colors.transparent,
-            borderRadius: BorderRadius.circular(999),
+            borderRadius: BorderRadius.circular(12),
             clipBehavior: Clip.antiAlias,
             child: Ink(
                 decoration: BoxDecoration(
-                    color: AppColors.brand,
-                    borderRadius: BorderRadius.circular(999)),
+                    color: AppColors.brandTint,
+                    borderRadius: BorderRadius.circular(12)),
                 child: InkWell(
                     onTap: onTap,
                     child: Container(
                         constraints: BoxConstraints(
-                            minHeight: compact ? 42 : 0, minWidth: 44),
+                            minHeight: compact ? 48 : 48, minWidth: 44),
                         padding: const EdgeInsets.symmetric(horizontal: 14),
                         child: Row(mainAxisSize: MainAxisSize.min, children: [
                           const SizedBox(
                               width: 13,
                               height: 13,
-                              child: FittedBox(child: ProfileIcon('m-check'))),
+                              child: FittedBox(
+                                  child: ProfileIcon('m-check',
+                                      color: AppColors.brand))),
                           const SizedBox(width: 6),
                           Flexible(
                               child: Padding(
@@ -123,7 +172,7 @@ const _chipTextStyle = TextStyle(
     fontSize: 14,
     height: 1.4,
     fontWeight: FontWeight.w400,
-    color: Colors.white);
+    color: AppColors.brand);
 
 /// Nút "Thêm bệnh khác" của Figma S08-2: viền đứt nét 4/4, cao 40, bo 12.
 class _AddConditionButton extends StatelessWidget {
@@ -149,7 +198,7 @@ class _AddConditionButton extends StatelessWidget {
                             : AppColors.surfaceMuted),
                     child: Container(
                         constraints: BoxConstraints(
-                            minHeight: compact ? 40 : 0,
+                            minHeight: compact ? 48 : 48,
                             minWidth: double.infinity),
                         padding: const EdgeInsets.symmetric(
                             horizontal: 14, vertical: 8),

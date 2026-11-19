@@ -1,6 +1,8 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
+import '../../../../core/storage/secure_storage.dart';
+
 /// Ghi nhớ trên máy các mốc chuỗi ngày (7, 30, 100) đã ăn mừng, để mỗi mốc chỉ phát một lần.
 abstract class StreakMilestoneStore {
   static const milestones = [100, 30, 7];
@@ -19,8 +21,8 @@ abstract class StreakMilestoneStore {
 
 class SecureStreakMilestoneStore implements StreakMilestoneStore {
   SecureStreakMilestoneStore([FlutterSecureStorage? storage])
-      : _storage = storage ?? const FlutterSecureStorage();
-  final FlutterSecureStorage _storage;
+      : _storage = SecureStorage(storage: storage);
+  final SecureStorage _storage;
 
   @override
   Future<bool> claim(int days) async {

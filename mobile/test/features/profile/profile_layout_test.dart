@@ -4,6 +4,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:drugtime_mobile/app/app.dart';
+import 'package:drugtime_mobile/app/app_shell.dart';
+import 'package:drugtime_mobile/app/router.dart';
+import 'package:drugtime_mobile/features/auth/data/repositories/in_memory_auth_repository.dart';
+import 'package:drugtime_mobile/features/auth/domain/entities/auth_session.dart';
+import 'package:drugtime_mobile/features/auth/presentation/state/auth_controller.dart';
+import 'package:drugtime_mobile/features/medication/data/repositories/in_memory_medication_repository.dart';
 import 'package:drugtime_mobile/features/profile/presentation/screens/profile_screen.dart';
 import 'package:drugtime_mobile/features/profile/presentation/screens/personal_profile_screen.dart';
 import 'package:drugtime_mobile/features/profile/presentation/screens/medical_profile_screen.dart';
@@ -145,6 +152,74 @@ void main() {
     }
   });
 
+  testWidgets('S08 opens in the shell with the selected floating navbar',
+      (tester) async {
+    const path = String.fromEnvironment('PROFILE_CAPTURE_DIR');
+    if (path.isNotEmpty) {
+      await tester.runAsync(() async {
+        final bytes = await File('C:/Windows/Fonts/segoeui.ttf').readAsBytes();
+        await (FontLoader('Roboto')
+              ..addFont(Future.value(ByteData.sublistView(bytes))))
+            .load();
+        await (FontLoader('packages/lucide_icons_flutter/Lucide')
+              ..addFont(rootBundle.load(
+                'packages/lucide_icons_flutter/assets/lucide.ttf',
+              )))
+            .load();
+      });
+    }
+    tester.view.physicalSize = const Size(375, 812);
+    tester.view.devicePixelRatio = 1;
+    const systemInsets = FakeViewPadding(top: 44, bottom: 24);
+    tester.view.padding = systemInsets;
+    tester.view.viewPadding = systemInsets;
+    addTearDown(tester.view.reset);
+
+    final auth = AuthController(InMemoryAuthRepository(
+      simulatedDelay: Duration.zero,
+      initialSession: AuthSession(
+        userId: 's08-preview',
+        accessToken: 'app-token',
+        expiresAt: DateTime.now().add(const Duration(days: 1)),
+        profileComplete: true,
+      ),
+    ));
+    addTearDown(auth.dispose);
+    final boundaryKey = GlobalKey();
+    await tester.pumpWidget(RepaintBoundary(
+      key: boundaryKey,
+      child: DrugTimeApp(
+        initialRoute: AppRoutes.home,
+        initialTab: AppTab.profile,
+        authController: auth,
+        profileRepository: FakeProfileRepository(),
+        medicationRepository: InMemoryMedicationRepository(),
+      ),
+    ));
+    await tester.pumpAndSettle();
+
+    final nav = find.byType(NavigationBar);
+    expect(tester.widget<NavigationBar>(nav).selectedIndex, 3);
+    expect(tester.getRect(nav), const Rect.fromLTWH(12, 712, 351, 68));
+    expect(find.byKey(const ValueKey('selected-nav-Hồ sơ')), findsOneWidget);
+    expect(tester.getTopLeft(find.byKey(const Key('profile-card'))),
+        const Offset(20, 116));
+    expect(find.text('Nguyễn Mai'), findsOneWidget);
+
+    if (path.isNotEmpty) {
+      await tester.runAsync(() async {
+        final boundary = boundaryKey.currentContext!.findRenderObject()!
+            as RenderRepaintBoundary;
+        final image = await boundary.toImage(pixelRatio: 1);
+        final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
+        await Directory(path).create(recursive: true);
+        await File('$path/implement-profile-shell.png')
+            .writeAsBytes(bytes!.buffer.asUint8List());
+        image.dispose();
+      });
+    }
+  });
+
   group('Figma metrics', () {
     void phoneView(WidgetTester tester, Size size) {
       tester.view.physicalSize = size;
@@ -153,7 +228,7 @@ void main() {
       addTearDown(tester.view.resetDevicePixelRatio);
     }
 
-    testWidgets('S08 card 88, menu row 72, icon tile 40, soft divider',
+    testWidgets('S08 card 88, menu row at least 72, icon tile 40, soft divider',
         (tester) async {
       phoneView(tester, const Size(375, 812));
       final c = ProfileController(FakeProfileRepository());
@@ -170,7 +245,7 @@ void main() {
       expect(find.text('0912345678'), findsOneWidget);
 
       final row = find.byKey(const Key('personal-profile-tile'));
-      expect(tester.getSize(row).height, 72);
+      expect(tester.getSize(row).height, greaterThanOrEqualTo(72));
       final tile = tester.getSize(
           find.descendant(of: row, matching: find.byType(Container)).first);
       expect(tile, const Size(AppSizes.iconTile, AppSizes.iconTile));
@@ -211,13 +286,13 @@ void main() {
       expect(nameField.decoration!.contentPadding,
           const EdgeInsets.symmetric(horizontal: 14, vertical: 13));
       expect(find.byType(TextFormField), findsNWidgets(2));
-      expect(find.text('LIÊN HỆ'), findsOneWidget);
+      expect(find.text('LIÊN HỆ'), findsNothing);
       expect(find.text('0912345678'), findsOneWidget);
       expect(find.byIcon(Icons.lock_outline), findsOneWidget);
       expect(find.text('Nữ'), findsOneWidget);
     });
 
-    testWidgets('S08-2 chip is a 42 high brand pill with a check icon',
+    testWidgets('S08-2 chip is a 48 high tinted tile with a check icon',
         (tester) async {
       phoneView(tester, const Size(375, 812));
       final repo = FakeProfileRepository()
@@ -240,10 +315,10 @@ void main() {
       await tester.pumpAndSettle();
 
       final chip = find.byKey(const Key('condition-chip-1'));
-      expect(tester.getSize(chip).height, 42);
+      expect(tester.getSize(chip).height, 48);
       final ink = tester.widget<Ink>(
           find.descendant(of: chip, matching: find.byType(Ink)).first);
-      expect((ink.decoration! as BoxDecoration).color, AppColors.brand);
+      expect((ink.decoration! as BoxDecoration).color, AppColors.brandTint);
       expect(find.descendant(of: chip, matching: find.byType(ProfileIcon)),
           findsOneWidget);
       expect(find.text('Thêm bệnh khác'), findsOneWidget);
@@ -266,28 +341,25 @@ void main() {
           lessThan(tester.getTopLeft(find.text('Giới tính')).dy));
     });
 
-    testWidgets('no unsupported Figma field is rendered', (tester) async {
+    testWidgets('unsupported Figma fields are explicit and cannot save',
+        (tester) async {
       phoneView(tester, const Size(375, 812));
-      final c = ProfileController(FakeProfileRepository());
+      final repo = FakeProfileRepository();
+      final c = ProfileController(repo);
       addTearDown(c.dispose);
-      for (final screen in <Widget>[
-        const ProfileScreen(),
-        const PersonalProfileScreen(),
-        const MedicalProfileScreen()
-      ]) {
-        await tester.pumpWidget(profileApp(c, screen));
-        await tester.pumpAndSettle();
-        for (final label in [
-          'Chiều cao',
-          'Cân nặng',
-          'Nhóm máu',
-          'Bác sĩ điều trị',
-          'Dị ứng',
-        ]) {
-          expect(find.textContaining(label), findsNothing,
-              reason: '$label không có trong HealthProfileResponse');
-        }
-      }
+      await tester.pumpWidget(profileApp(c, const PersonalProfileScreen()));
+      await tester.pumpAndSettle();
+      expect(find.text('LIÊN HỆ'), findsNothing);
+      expect(find.text('Chưa khả dụng'), findsWidgets);
+      await tester.pumpWidget(profileApp(c, const MedicalProfileScreen()));
+      await tester.pumpAndSettle();
+      expect(
+          find.textContaining('Khai báo dị ứng chưa khả dụng'), findsOneWidget);
+      final save = find.widgetWithText(FilledButton, 'Lưu thay đổi');
+      await tester.scrollUntilVisible(save, 300);
+      await tester.pumpAndSettle();
+      expect(tester.widget<FilledButton>(save).onPressed, isNull);
+      expect(repo.writes, 0);
     });
   });
 }

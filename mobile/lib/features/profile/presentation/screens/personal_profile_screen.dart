@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../../../../shared/widgets/profile_flow_widgets.dart';
+
 import '../../../../app/theme/app_theme.dart';
 import '../../domain/entities/health_profile.dart';
 import '../state/profile_controller.dart';
@@ -57,12 +59,10 @@ class _PersonalProfileScreenState extends State<PersonalProfileScreen> {
     return ScaffoldMessenger(
       key: _messengerKey,
       child: Scaffold(
-        appBar: AppBar(
-            title: const Text('Thông tin cá nhân'),
-            leading: IconButton(
-                tooltip: 'Quay lại',
-                onPressed: () => Navigator.maybePop(context),
-                icon: const ProfileIcon('p-arrow-left'))),
+        backgroundColor: AppColors.canvas,
+        appBar: ProfileFlowHeader('Thông tin cá nhân',
+            titleScale: MediaQuery.textScalerOf(context).scale(18) / 18,
+            backgroundColor: AppColors.canvas),
         body: SafeArea(
             child: SingleChildScrollView(
                 padding: const EdgeInsets.fromLTRB(20, 8, 20, 34),
@@ -214,8 +214,11 @@ class _PersonalFormState extends State<_PersonalForm> {
         key: _formKey,
         child:
             Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          _AvatarBlock(onTap: () => showAvatarPicker(context)),
-          const SizedBox(height: AppSpacing.xl),
+          ProfileFlowCard(
+              color: AppColors.brandTint,
+              padding: EdgeInsets.zero,
+              child: _AvatarBlock(onTap: () => showAvatarPicker(context))),
+          const SizedBox(height: 16),
           ProfileField(
               label: 'Họ và tên',
               child: TextFormField(
@@ -253,7 +256,9 @@ class _PersonalFormState extends State<_PersonalForm> {
                 child: DropdownButtonFormField<String>(
                   initialValue: _gender,
                   isExpanded: true,
-                  style: profileFieldTextStyle,
+                  style: profileFieldTextStyle.copyWith(
+                      fontFamily:
+                          Theme.of(context).textTheme.bodyMedium?.fontFamily),
                   icon: const ProfileIcon('p-chevron-down'),
                   hint: const Text('Chọn giới tính',
                       style: profileFieldTextStyle),
@@ -279,8 +284,14 @@ class _PersonalFormState extends State<_PersonalForm> {
                   decoration: profileFieldDecoration(),
                 )),
           ]),
-          const Text('LIÊN HỆ', style: AppTextStyles.captionStrong),
-          const SizedBox(height: AppSpacing.sm),
+          const ProfileFieldPair(children: [
+            ProfileField(
+                label: 'Chiều cao (cm)',
+                child: ProfileUnavailable(message: 'Chưa khả dụng')),
+            ProfileField(
+                label: 'Cân nặng (kg)',
+                child: ProfileUnavailable(message: 'Chưa khả dụng'))
+          ]),
           ProfileField(
               label: 'Số điện thoại',
               child: _ReadOnlyField(
@@ -327,7 +338,7 @@ class _AvatarBlock extends StatelessWidget {
                 onTap: onTap,
                 customBorder: const CircleBorder(),
                 child: Stack(clipBehavior: Clip.none, children: [
-                  const ProfileAvatar(),
+                  const ProfileAvatar(size: 72),
                   Positioned(
                       right: 0,
                       bottom: 0,

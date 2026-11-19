@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../../../app/theme/app_theme.dart';
+import '../../../../shared/widgets/profile_flow_widgets.dart';
+
 import '../../domain/entities/caregiver_failure.dart';
 import '../../domain/entities/incoming_link_request.dart';
 import '../state/family_link_scope.dart';
@@ -80,13 +82,16 @@ class _LinkConsentConfirmationScreenState
         if (!_submitting) Navigator.of(context).pop(false);
       },
       child: Scaffold(
-        appBar: AppBar(
-          title: const Text('Xác nhận chia sẻ dữ liệu'),
+        backgroundColor: profileFlowCanvas,
+        appBar: ProfileFlowHeader(
+          'Yêu cầu giám sát mới',
+          titleScale: MediaQuery.textScalerOf(context).scale(18) / 18,
           leading: IconButton(
             key: const Key('consent-confirm-close'),
             icon: const Icon(Icons.close),
             tooltip: 'Đóng',
-            onPressed: _submitting ? null : () => Navigator.of(context).pop(false),
+            onPressed:
+                _submitting ? null : () => Navigator.of(context).pop(false),
           ),
         ),
         body: SafeArea(
@@ -94,7 +99,7 @@ class _LinkConsentConfirmationScreenState
             children: [
               Expanded(
                 child: ListView(
-                  padding: const EdgeInsets.all(AppSpacing.page),
+                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
                   children: [
                     _buildRequesterCard(context, name, phone, email),
                     const SizedBox(height: AppSpacing.md),
@@ -123,7 +128,8 @@ class _LinkConsentConfirmationScreenState
   ) {
     return Card(
       key: const Key('consent-requester-card'),
-      elevation: 0,
+      elevation: 2,
+      shadowColor: const Color(0x221C2024),
       margin: EdgeInsets.zero,
       color: AppColors.surface,
       shape: RoundedRectangleBorder(
@@ -228,7 +234,8 @@ class _LinkConsentConfirmationScreenState
   Widget _buildPurposeCard() {
     return Card(
       key: const Key('consent-purpose-card'),
-      elevation: 0,
+      elevation: 2,
+      shadowColor: const Color(0x221C2024),
       margin: EdgeInsets.zero,
       color: AppColors.surface,
       shape: RoundedRectangleBorder(
@@ -256,7 +263,8 @@ class _LinkConsentConfirmationScreenState
   Widget _buildSharedDataCard() {
     return Card(
       key: const Key('consent-shared-data-card'),
-      elevation: 0,
+      elevation: 2,
+      shadowColor: const Color(0x221C2024),
       margin: EdgeInsets.zero,
       color: AppColors.surface,
       shape: RoundedRectangleBorder(
@@ -273,19 +281,22 @@ class _LinkConsentConfirmationScreenState
             _DataItemRow(
               icon: Icons.history,
               title: 'Lịch sử tuân thủ',
-              description: 'Xem kết quả uống thuốc đúng giờ, uống trễ hoặc bỏ lỡ của bạn.',
+              description:
+                  'Xem kết quả uống thuốc đúng giờ, uống trễ hoặc bỏ lỡ của bạn.',
             ),
             SizedBox(height: AppSpacing.sm),
             _DataItemRow(
               icon: Icons.medication_outlined,
               title: 'Danh sách thuốc',
-              description: 'Xem tên thuốc, liều dùng, hướng dẫn và lịch uống hàng ngày.',
+              description:
+                  'Xem tên thuốc, liều dùng, hướng dẫn và lịch uống hàng ngày.',
             ),
             SizedBox(height: AppSpacing.sm),
             _DataItemRow(
               icon: Icons.notifications_active_outlined,
               title: 'Cảnh báo bỏ lỡ liều',
-              description: 'Nhận thông báo khi bạn bỏ lỡ liều thuốc để kịp thời nhắc nhở.',
+              description:
+                  'Nhận thông báo khi bạn bỏ lỡ liều thuốc để kịp thời nhắc nhở.',
             ),
           ],
         ),
@@ -296,7 +307,8 @@ class _LinkConsentConfirmationScreenState
   Widget _buildPrivacyAndRevocationCard() {
     return Card(
       key: const Key('consent-revocation-card'),
-      elevation: 0,
+      elevation: 2,
+      shadowColor: const Color(0x221C2024),
       margin: EdgeInsets.zero,
       color: AppColors.surface,
       shape: RoundedRectangleBorder(
@@ -312,7 +324,9 @@ class _LinkConsentConfirmationScreenState
               children: [
                 Icon(Icons.security, size: 20, color: AppColors.brand),
                 SizedBox(width: AppSpacing.xs),
-                Text('Quyền kiểm soát của bạn', style: AppTextStyles.bodyStrong),
+                Expanded(
+                    child: Text('Quyền kiểm soát của bạn',
+                        style: AppTextStyles.bodyStrong)),
               ],
             ),
             SizedBox(height: AppSpacing.sm),
@@ -332,48 +346,48 @@ class _LinkConsentConfirmationScreenState
   }
 
   Widget _buildBottomActionButtons(String name) {
+    final buttons = <Widget>[
+      OutlinedButton.icon(
+          key: const Key('consent-confirm-reject'),
+          style: OutlinedButton.styleFrom(
+              minimumSize: const Size(0, 48),
+              padding: const EdgeInsets.all(12)),
+          onPressed: _submitting ? null : () => unawaited(_handleReject(name)),
+          icon: const Icon(Icons.close, size: 20),
+          label: const Text('Từ chối')),
+      FilledButton.icon(
+          key: const Key('consent-confirm-approve'),
+          style: FilledButton.styleFrom(
+              minimumSize: const Size(0, 48),
+              padding: const EdgeInsets.all(12)),
+          onPressed: _submitting ? null : () => unawaited(_handleApprove(name)),
+          icon: _submitting
+              ? const SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(
+                      strokeWidth: 2, color: AppColors.surface))
+              : const Icon(Icons.check, size: 20),
+          label: const Text('Đồng ý')),
+    ];
     return Container(
-      padding: const EdgeInsets.all(AppSpacing.page),
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
       decoration: const BoxDecoration(
-        color: AppColors.surface,
-        border: Border(top: BorderSide(color: AppColors.border)),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: SizedBox(
-              height: 48,
-              child: OutlinedButton.icon(
-                key: const Key('consent-confirm-reject'),
-                onPressed: _submitting ? null : () => unawaited(_handleReject(name)),
-                icon: const Icon(Icons.close, size: 20),
-                label: const Text('Từ chối', style: AppTextStyles.bodyStrong),
-              ),
-            ),
-          ),
-          const SizedBox(width: AppSpacing.md),
-          Expanded(
-            child: SizedBox(
-              height: 48,
-              child: FilledButton.icon(
-                key: const Key('consent-confirm-approve'),
-                onPressed: _submitting ? null : () => unawaited(_handleApprove(name)),
-                icon: _submitting
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: AppColors.surface,
-                        ),
-                      )
-                    : const Icon(Icons.check, size: 20),
-                label: const Text('Đồng ý', style: AppTextStyles.bodyStrong),
-              ),
-            ),
-          ),
-        ],
-      ),
+          color: AppColors.surface,
+          border: Border(top: BorderSide(color: AppColors.border))),
+      child: LayoutBuilder(builder: (context, box) {
+        if (box.maxWidth < 300 ||
+            MediaQuery.textScalerOf(context).scale(16) > 22) {
+          return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [buttons[0], const SizedBox(height: 8), buttons[1]]);
+        }
+        return Row(children: [
+          Expanded(child: buttons[0]),
+          const SizedBox(width: 12),
+          Expanded(child: buttons[1])
+        ]);
+      }),
     );
   }
 

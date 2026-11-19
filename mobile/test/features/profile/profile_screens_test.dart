@@ -123,13 +123,14 @@ void main() {
     await tester.pumpWidget(profileApp(c, const ProfileScreen(active: true)));
     await tester.pumpAndSettle();
     expect(repo.reads, 1);
-    await tester.tap(find.text('Thông tin cá nhân'));
+    await tester.tap(find.byKey(const Key('profile-card')));
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('profile-name')), findsOneWidget);
     expect(repo.reads, 2);
   });
 
-  testWidgets('AC20: Người giám sát mở màn người giám sát, không còn Sắp ra mắt',
+  testWidgets(
+      'AC20: Người giám sát mở màn người giám sát, không còn Sắp ra mắt',
       (tester) async {
     final c = ProfileController(FakeProfileRepository());
     final consents = ConsentController(InMemoryConsentRepository());
@@ -168,7 +169,7 @@ void main() {
 
     final labels = [
       'Thông tin cá nhân',
-      'Thông tin y tế',
+      'Hồ sơ sức khỏe',
       'Người giám sát',
       'Thông báo & Nhắc nhở',
       'Quyền riêng tư & Bảo mật',
@@ -213,14 +214,14 @@ void main() {
     await tester.tap(find.text('Tăng huyết áp'));
     await tester.pumpAndSettle();
     expect(c.profile!.conditions.length, 1);
-    await tester.tap(find.text('Bệnh nền'));
+    await tester.tap(find.byKey(const Key('condition-chip-99')));
     await tester.pumpAndSettle();
     await tester.enterText(find.byKey(const Key('condition-stage')), 'II');
     await tester.tap(find.text('Lưu thông tin bệnh'));
     await tester.pumpAndSettle();
     expect(repo.lastLink, 99);
     expect(repo.lastPatch, {'stage': 'II'});
-    await tester.tap(find.text('Bệnh nền'));
+    await tester.tap(find.byKey(const Key('condition-chip-99')));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Xóa bệnh khỏi hồ sơ'));
     await tester.pumpAndSettle();

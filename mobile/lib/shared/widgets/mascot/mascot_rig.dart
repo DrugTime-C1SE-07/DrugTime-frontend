@@ -49,6 +49,12 @@ const _specs = <String, (double, double, double)>{
   'star': (0, 200, 18),
   'hw': (0, 400, 40),
   'shadowA': (1, 200, 26),
+  // Phụ kiện đầu bếp: lò xo phụ bị "đá" theo gia tốc của thân/tay → trễ và nảy (follow-through).
+  'hatY': (0, 260, 11),
+  'hatT': (0, 150, 7),
+  'bowlT': (0, 170, 9),
+  'toss': (0, 320, 16),
+  'spark': (0, 150, 20),
 };
 
 /// Thời lượng (giây) của các trạng thái tự kết thúc.
@@ -83,6 +89,10 @@ class MascotRig extends ChangeNotifier {
   bool _dbl = false;
   double _sacX = 0, _sacY = 0, _nextSac = .8, _nextFidget = 7;
   bool _peek = false;
+  double _prevYV = 0, _prevTiltV = 0, _prevHandV = 0;
+
+  /// Trang phục hiện tại; [MascotView] gán mỗi lần build.
+  MascotOutfit outfit = MascotOutfit.plain;
 
   MascotMood get mood => _mood;
 
@@ -107,7 +117,10 @@ class MascotRig extends ChangeNotifier {
           ? _return
           : MascotMood.idle;
     }
-    if (!_durations.containsKey(mood)) _return = mood;
+    // `hidden` không phải trạng thái để quay về: nếu không, wave/poke từ lúc mới hiện sẽ làm linh vật biến mất.
+    if (!_durations.containsKey(mood) && mood != MascotMood.hidden) {
+      _return = mood;
+    }
     if (mood == MascotMood.climb) _return = MascotMood.idle;
     _mood = mood;
     _t = 0;
@@ -149,6 +162,7 @@ class MascotRig extends ChangeNotifier {
     }
 
     final pose = _pose(_mood, _t, _time, ctl);
+    if (outfit == MascotOutfit.chef) _chefPose(pose);
     if (!still) _wander(pose, ctl);
 
     for (final e in _s.entries) {
@@ -168,6 +182,7 @@ class MascotRig extends ChangeNotifier {
         for (final sp in _s.values) {
           sp.step(h);
         }
+        if (outfit == MascotOutfit.chef) _followThrough();
         rem -= h;
       }
       _blink = _blinkStep(dt);
@@ -176,6 +191,30 @@ class MascotRig extends ChangeNotifier {
   }
 
   void _kick(String key, double dv) => _s[key]!.v += dv;
+
+  /// Mũ và bát "đi sau" thân: đổi vận tốc của thân/tay thành cú đá ngược chiều cho lò xo phụ.
+  void _followThrough() {
+    final yv = _s['y']!.v, tv = _s['tilt']!.v, hv = _s['hry']!.v;
+    _s['hatY']!.v += (_prevYV - yv) * .32;
+    _s['hatT']!.v += (_prevTiltV - tv) * .9 + (_prevYV - yv) * .0008;
+    _s['bowlT']!.v += (_prevHandV - hv) * .0035;
+    _prevYV = yv;
+    _prevTiltV = tv;
+    _prevHandV = hv;
+  }
+
+  /// Đầu bếp: tay phải luôn bưng bát (trừ khi đang nấu / ăn mừng), vẫy bằng tay trái.
+  void _chefPose(Map<String, double> pose) {
+    pose['spark'] = _mood == MascotMood.hidden ? 0 : 1;
+    if (_mood == MascotMood.cooking || _mood == MascotMood.celebrate) return;
+    if (_mood == MascotMood.wave || _mood == MascotMood.protect) {
+      pose['hlx'] = 300 - (pose['hrx'] ?? 227);
+      pose['hly'] = pose['hry'] ?? 213;
+    }
+    final breathe = math.sin(_time * 2.2);
+    pose['hrx'] = 238;
+    pose['hry'] = 198 + breathe * 1.5;
+  }
 
   void _snap(Map<String, double> values) {
     values.forEach((k, v) => _s[k]!
@@ -363,6 +402,28 @@ class MascotRig extends ChangeNotifier {
           'hrx': 178 + pk * 20,
           'hry': 118 + pk * 20,
           'lx': -.8 * pk,
+        };
+      case MascotMood.cooking:
+        // nhún theo nhịp 2,5 nhịp/giây, lắc bát, tay trái cổ vũ; rau trong bát bật lên mỗi nhịp
+        final beat = time * 5.2;
+        final hop = math.max(0.0, math.sin(beat));
+        return {
+          'pop': 1,
+          'y': -hop * 7,
+          'sq': (math.sin(beat) < 0 ? -math.sin(beat) : 0) * .06 - hop * .03,
+          'tilt': math.sin(beat * .5) * .05,
+          'hrx': 222 + math.sin(beat * 2) * 5,
+          'hry': 182 + math.cos(beat * 2) * 3,
+          'hlx': 66 + math.sin(beat) * 4,
+          'hly': 166 - hop * 16,
+          'lx': .55,
+          'ly': .35,
+          'eyeS': 1.05,
+          'smile': .95,
+          'mopen': .6,
+          'cheek': 1,
+          'toss': hop,
+          'star': hop * .6,
         };
       case MascotMood.poke:
         return {

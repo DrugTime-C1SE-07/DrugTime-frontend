@@ -31,9 +31,6 @@ class HomeScreen extends StatelessWidget {
     color: AppColors.ink,
   );
 
-  static void _message(BuildContext context, String text) =>
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
-
   static void _add(BuildContext context, {bool scan = false}) =>
       Navigator.of(context)
           .pushNamed(scan ? AppRoutes.scanMedication : AppRoutes.addMedication);
@@ -145,7 +142,8 @@ class HomeScreen extends StatelessWidget {
                       const SizedBox(width: 12),
                       _Shortcut(
                           'Dumi AI',
-                          () => _message(context, 'Dumi AI chưa khả dụng.'),
+                          () => Navigator.of(context)
+                              .pushNamed(AppRoutes.mealSuggestion),
                           Image.asset(AppAssets.mascotCooking,
                               width: 48, height: 48)),
                       const SizedBox(width: 12),
