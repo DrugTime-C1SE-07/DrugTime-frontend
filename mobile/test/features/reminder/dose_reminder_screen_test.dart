@@ -236,6 +236,53 @@ void main() {
     expect(find.bySemanticsLabel('Xem tất cả 3 thuốc'), findsNothing);
     expect(find.bySemanticsLabel('Thu gọn danh sách thuốc'), findsOneWidget);
   });
+
+  testWidgets('multiple screen shows stacked card with badge and expand prompt',
+      (tester) async {
+    final items = [
+      _item(1, 'Losartan 50mg'),
+      _item(2, 'Metformin 500mg'),
+      _item(3, 'Vitamin D3 1000IU'),
+    ];
+    await _pumpReminder(tester, items: items);
+
+    expect(find.text('+2 thuốc'), findsOneWidget);
+    expect(find.textContaining('3 thuốc cần uống · Nhấn để xem tất cả'),
+        findsOneWidget);
+    expect(find.text('Đã uống cả 3 thuốc'), findsOneWidget);
+  });
+
+  testWidgets('expanded mode toggles selection and confirms only selected',
+      (tester) async {
+    final outbox = _FakeDoseOutbox();
+    final items = [
+      _item(1, 'Losartan 50mg'),
+      _item(2, 'Metformin 500mg'),
+      _item(3, 'Vitamin D3 1000IU'),
+    ];
+    await _pumpReminder(tester, items: items, outbox: outbox);
+
+    await _tapVisible(tester, find.textContaining('Nhấn để xem tất cả'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Đã uống cả 3 thuốc'), findsOneWidget);
+
+    // Unselect Metformin
+    await tester.tap(find.text('Metformin 500mg'));
+    await tester.pumpAndSettle();
+    expect(find.text('Đã uống 2 thuốc'), findsOneWidget);
+
+    // Unselect Vitamin D3
+    await tester.tap(find.text('Vitamin D3 1000IU'));
+    await tester.pumpAndSettle();
+    expect(find.text('Đã uống 1 thuốc'), findsOneWidget);
+
+    // Confirm the remaining 1 selected medicine (Losartan)
+    await tester.tap(find.text('Đã uống 1 thuốc'));
+    await tester.pumpAndSettle();
+
+    expect(outbox.scheduleIds, [1]);
+  });
 }
 
 Future<void> _tapVisible(WidgetTester tester, Finder finder) async {
@@ -382,6 +429,8 @@ class _SnoozeCall {
 
 class _FakeReminderScheduler implements ReminderScheduler {
   final List<_SnoozeCall> calls = [];
+  final List<Map<String, dynamic>> cancelledOccurrences = [];
+  final List<int> cancelledSchedules = [];
 
   @override
   Future<void> snooze({
@@ -390,5 +439,22 @@ class _FakeReminderScheduler implements ReminderScheduler {
     required DateTime remindAt,
   }) async {
     calls.add(_SnoozeCall(remindAt));
+  }
+
+  @override
+  Future<void> cancelOccurrence({
+    int? scheduleId,
+    int? medicationScheduleId,
+    required DateTime scheduledAt,
+  }) async {
+    cancelledOccurrences.add({
+      'scheduleId': scheduleId ?? medicationScheduleId,
+      'scheduledAt': scheduledAt,
+    });
+  }
+
+  @override
+  Future<void> cancelAllForSchedule(int scheduleId) async {
+    cancelledSchedules.add(scheduleId);
   }
 }

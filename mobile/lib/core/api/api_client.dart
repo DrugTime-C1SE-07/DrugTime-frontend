@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
 
@@ -31,17 +32,39 @@ class ApiClient {
   Future<Object?> getJson(String path, {Map<String, String>? query}) =>
       _send('GET', path, query: query);
 
-  Future<Object?> postJson(String path, {required Object? body}) =>
-      _send('POST', path, body: body, hasBody: true);
+  Future<Object?> postJson(String path,
+          {required Object? body, String? sessionToken, int? expectedStatus}) =>
+      _send('POST', path,
+          body: body,
+          hasBody: true,
+          sessionToken: sessionToken,
+          expectedStatus: expectedStatus);
+
+  /// POST không có body và không có `Content-Type`, cho thao tác mà server từ chối mọi body
+  /// (kể cả `null` hay `{}`), ví dụ từ chối hoặc hủy liên kết người thân.
+  Future<Object?> post(String path) => _send('POST', path);
 
   Future<Object?> patchJson(String path, {required Object? body}) =>
       _send('PATCH', path, body: body, hasBody: true);
 
-  Future<Object?> putJson(String path, {required Object? body}) =>
-      _send('PUT', path, body: body, hasBody: true);
+  Future<Object?> putJson(String path,
+          {required Object? body, int? expectedStatus}) =>
+      _send('PUT', path,
+          body: body, hasBody: true, expectedStatus: expectedStatus);
+
+  // DELETE token gửi JSON body theo contract, khác các route DELETE chỉ có đường dẫn.
+  Future<Object?> deleteJson(String path,
+          {required Object? body, int? expectedStatus}) =>
+      _send('DELETE', path,
+          body: body, hasBody: true, expectedStatus: expectedStatus);
 
   /// Trả `null` với 204 (không có body).
   Future<Object?> delete(String path) => _send('DELETE', path);
+
+  /// Body nhị phân (ví dụ ảnh món qua `GET /meal-images/{id}`, task 5.11). Cùng xác thực,
+  /// timeout và cách báo lỗi với các hàm JSON.
+  Future<Uint8List> getBytes(String path) async =>
+      (await _exchange('GET', path)).bodyBytes;
 
   /// Trả body JSON đã giải mã, hoặc `null` khi body rỗng (ví dụ 204).
   Future<Object?> _send(
@@ -50,6 +73,30 @@ class ApiClient {
     Map<String, String>? query,
     Object? body,
     bool hasBody = false,
+    int? expectedStatus,
+    String? sessionToken,
+  }) async {
+    final response = await _exchange(
+      method,
+      path,
+      query: query,
+      body: body,
+      hasBody: hasBody,
+      expectedStatus: expectedStatus,
+      sessionToken: sessionToken,
+    );
+    if (response.bodyBytes.isEmpty) return null;
+    return jsonDecode(utf8.decode(response.bodyBytes));
+  }
+
+  Future<http.Response> _exchange(
+    String method,
+    String path, {
+    Map<String, String>? query,
+    Object? body,
+    bool hasBody = false,
+    int? expectedStatus,
+    String? sessionToken,
   }) async {
     var uri = _baseUrl.resolve(path);
     if (query != null && query.isNotEmpty) {
@@ -58,7 +105,7 @@ class ApiClient {
 
     final request = http.Request(method, uri);
     try {
-      final token = await _authTokenProvider?.call();
+      final token = sessionToken ?? await _authTokenProvider?.call();
       if (token != null && token.isNotEmpty) {
         request.headers['Authorization'] = 'Bearer $token';
       }
@@ -71,7 +118,11 @@ class ApiClient {
       ).timeout(timeout);
 
       if (response.statusCode == 401) {
-        await _onUnauthorized?.call();
+        // A response for an old session must not sign out the new account.
+        if (_authTokenProvider == null ||
+            await _authTokenProvider.call() == token) {
+          await _onUnauthorized?.call();
+        }
       }
       if (response.statusCode < 200 || response.statusCode >= 300) {
         throw ApiException(
@@ -80,10 +131,15 @@ class ApiClient {
           isTransient: response.statusCode == 408 ||
               response.statusCode == 429 ||
               response.statusCode >= 500,
+          retryAfter: _retryAfter(response.headers['retry-after']),
         );
       }
-      if (response.bodyBytes.isEmpty) return null;
-      return jsonDecode(utf8.decode(response.bodyBytes));
+      // Token PUT/DELETE chỉ được ACK bằng 204; mã 2xx khác vẫn là lệch contract.
+      if (expectedStatus != null && response.statusCode != expectedStatus) {
+        throw ApiException('Unexpected response status',
+            statusCode: response.statusCode);
+      }
+      return response;
     } on ApiException {
       rethrow;
     } on TimeoutException catch (error) {
@@ -92,5 +148,11 @@ class ApiClient {
     } on http.ClientException catch (error) {
       throw ApiException(error.message, isTransient: true);
     }
+  }
+
+  /// Chỉ nhận dạng số giây nguyên dương; dạng ngày giờ HTTP bị bỏ qua.
+  static Duration? _retryAfter(String? header) {
+    final seconds = int.tryParse(header?.trim() ?? '');
+    return seconds == null || seconds <= 0 ? null : Duration(seconds: seconds);
   }
 }

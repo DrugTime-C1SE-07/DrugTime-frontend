@@ -8,6 +8,9 @@ Future<void> showAvatarPicker(BuildContext context) =>
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
+      backgroundColor: AppColors.surface,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
       useSafeArea: true,
       builder: (_) => const AvatarPickerSheet(),
     );

@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
+import '../../../../core/storage/secure_storage.dart';
 import '../../domain/entities/auth_session.dart';
 
 /// Nơi lưu phiên đăng nhập giữa các lần mở app.
@@ -14,11 +15,11 @@ abstract interface class AuthSessionStore {
 /// Lưu phiên trong Keychain/Keystore qua flutter_secure_storage (token không nằm ở bộ nhớ thường).
 class SecureAuthSessionStore implements AuthSessionStore {
   SecureAuthSessionStore({FlutterSecureStorage? storage})
-      : _storage = storage ?? const FlutterSecureStorage();
+      : _storage = SecureStorage(storage: storage);
 
   static const _key = 'auth_session_v1';
 
-  final FlutterSecureStorage _storage;
+  final SecureStorage _storage;
 
   @override
   Future<AuthSession?> read() async {

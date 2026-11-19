@@ -115,6 +115,7 @@ class Medication {
     this.endedOn,
     this.dosageForm,
     this.maxDosesPerDay,
+    this.reminderEnabled = true,
   });
 
   /// Còn từ ngần này đơn vị trở xuống thì coi là sắp hết.
@@ -143,6 +144,7 @@ class Medication {
 
   /// Chỉ có với thuốc "Khi cần": số lần dùng tối đa mỗi ngày.
   final int? maxDosesPerDay;
+  final bool reminderEnabled;
 
   bool get isActive => status == MedicationStatus.active;
 
@@ -167,6 +169,7 @@ class Medication {
     DateTime? endedOn,
     String? dosageForm,
     int? maxDosesPerDay,
+    bool? reminderEnabled,
   }) {
     return Medication(
       id: id ?? this.id,
@@ -184,6 +187,7 @@ class Medication {
       endedOn: endedOn ?? this.endedOn,
       dosageForm: dosageForm ?? this.dosageForm,
       maxDosesPerDay: maxDosesPerDay ?? this.maxDosesPerDay,
+      reminderEnabled: reminderEnabled ?? this.reminderEnabled,
     );
   }
 }

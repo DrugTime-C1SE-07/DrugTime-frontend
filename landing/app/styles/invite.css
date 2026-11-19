@@ -1,0 +1,27 @@
+/* Trang /link — lời mời theo dõi người thân (task 3.14). */
+.invite__card { display: grid; gap: var(--space-md); max-width: 40rem; }
+
+.invite__code-box {
+  display: grid; gap: var(--space-2xs); justify-items: center;
+  padding: var(--space-md);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card-lg);
+}
+.invite__label { font-size: var(--text-label); font-weight: 700; color: var(--color-ink-muted); }
+.invite__code {
+  font-size: var(--text-display-md); font-weight: 700; letter-spacing: 0.12em;
+  font-variant-numeric: tabular-nums; color: var(--color-ink);
+  user-select: all;
+}
+.invite__copy,
+.invite__secondary {
+  background: var(--color-brand-tint); color: var(--color-brand);
+}
+.invite__copy:hover,
+.invite__secondary:hover { background: var(--color-surface-2); }
+
+.invite__actions { display: flex; flex-wrap: wrap; gap: var(--space-xs); }
+
+.invite__help { display: grid; gap: var(--space-2xs); color: var(--color-ink-muted); }
+.invite__help h2 { font-size: var(--text-body); font-weight: 600; color: var(--color-ink); margin-top: var(--space-xs); }

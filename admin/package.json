@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint . --ext .ts,.tsx"
+    "lint": "eslint . --ext .ts,.tsx",
+    "audit:ui": "node scripts/audit-ui.mjs",
+    "test:chart": "node --test scripts/chart-geometry.test.mjs"
   },
   "dependencies": {
     "lucide-react": "^0.360.0",

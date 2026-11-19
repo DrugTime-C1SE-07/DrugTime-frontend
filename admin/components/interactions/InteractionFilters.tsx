@@ -2,7 +2,31 @@
 
 import React from "react";
 import { RotateCcw, Search, X } from "lucide-react";
+import { SEVERITY_LABELS, SEVERITY_ORDER } from "../../lib/constants/severity";
 import { InteractionFilterState } from "../../lib/types/interaction";
+
+type FilterOption = { value: string; label: string };
+
+const TARGET_OPTIONS: FilterOption[] = [
+  { value: "drug_drug", label: "Thuốc - Thuốc" },
+  { value: "drug_food", label: "Thuốc - Thực phẩm" },
+];
+
+const MECHANISM_OPTIONS: FilterOption[] = [
+  { value: "pk", label: "Dược động học (PK)" },
+  { value: "pd", label: "Dược lực học (PD)" },
+  { value: "both", label: "Phối hợp PK/PD" },
+  { value: "unknown", label: "Chưa rõ" },
+];
+
+const STATUS_OPTIONS: FilterOption[] = [
+  { value: "verified", label: "Đã xác thực" },
+  { value: "pending", label: "Chờ thẩm định" },
+];
+
+/** Nhãn của giá trị đang chọn, dùng cho title khi select bị cắt ở max-width. */
+const labelOf = (options: FilterOption[], value: string) =>
+  options.find((option) => option.value === value)?.label ?? "Tất cả";
 
 interface InteractionFiltersProps {
   filters: InteractionFilterState;
@@ -59,56 +83,69 @@ export default function InteractionFilters({
         </button>
       </div>
 
-      <div className="filter-select filter-select--severity">
+      <label className="filter-select filter-select--severity">
+        <span className="filter-select__label">Mức độ</span>
         <select
           value={filters.severity}
           onChange={(e) => onFilterChange({ ...filters, severity: e.target.value })}
-          aria-label="Lọc theo mức độ cảnh báo"
+          title={(SEVERITY_LABELS as Record<string, string>)[filters.severity] ?? "Tất cả"}
         >
-          <option value="all">Mức độ: Tất cả</option>
-          <option value="contraindicated">🔴 Chống chỉ định</option>
-          <option value="major">🔵 Nghiêm trọng</option>
-          <option value="moderate">🔵 Thận trọng</option>
+          <option value="all">Tất cả</option>
+          {SEVERITY_ORDER.map((severity) => (
+            <option key={severity} value={severity}>
+              {SEVERITY_LABELS[severity]}
+            </option>
+          ))}
         </select>
-      </div>
+      </label>
 
-      <div className="filter-select filter-select--target-type">
+      <label className="filter-select filter-select--target-type">
+        <span className="filter-select__label">Phân loại</span>
         <select
           value={filters.targetType}
           onChange={(e) => onFilterChange({ ...filters, targetType: e.target.value })}
-          aria-label="Lọc theo phân loại tương tác"
+          title={labelOf(TARGET_OPTIONS, filters.targetType)}
         >
-          <option value="all">Phân loại: Tất cả</option>
-          <option value="drug_drug">Thuốc - Thuốc</option>
-          <option value="drug_food">Thuốc - Thực phẩm</option>
+          <option value="all">Tất cả</option>
+          {TARGET_OPTIONS.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
         </select>
-      </div>
+      </label>
 
-      <div className="filter-select filter-select--mechanism">
+      <label className="filter-select filter-select--mechanism">
+        <span className="filter-select__label">Cơ chế</span>
         <select
           value={filters.mechanismType}
           onChange={(e) => onFilterChange({ ...filters, mechanismType: e.target.value })}
-          aria-label="Lọc theo cơ chế tương tác"
+          title={labelOf(MECHANISM_OPTIONS, filters.mechanismType)}
         >
-          <option value="all">Cơ chế: Tất cả</option>
-          <option value="pk">Dược động học (PK)</option>
-          <option value="pd">Dược lực học (PD)</option>
-          <option value="both">Phối hợp PK/PD</option>
-          <option value="unknown">Chưa rõ</option>
+          <option value="all">Tất cả</option>
+          {MECHANISM_OPTIONS.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
         </select>
-      </div>
+      </label>
 
-      <div className="filter-select filter-select--status">
+      <label className="filter-select filter-select--status">
+        <span className="filter-select__label">Trạng thái</span>
         <select
           value={filters.status}
           onChange={(e) => onFilterChange({ ...filters, status: e.target.value })}
-          aria-label="Lọc theo trạng thái kiểm duyệt"
+          title={labelOf(STATUS_OPTIONS, filters.status)}
         >
-          <option value="all">Trạng thái: Tất cả</option>
-          <option value="verified">Đã xác thực</option>
-          <option value="pending">Chờ thẩm định</option>
+          <option value="all">Tất cả</option>
+          {STATUS_OPTIONS.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
         </select>
-      </div>
+      </label>
 
       <button
         type="button"

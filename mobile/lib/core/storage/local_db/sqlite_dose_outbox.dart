@@ -9,11 +9,15 @@ import 'local_models.dart';
 
 class SqliteDoseOutbox implements DoseOutbox {
   SqliteDoseOutbox({
-    required Future<Database> Function() getDatabase,
-  }) : _getDatabase = getDatabase;
+    LocalDb? localDb,
+    Future<Database> Function()? getDatabase,
+  }) : _getDatabase = getDatabase ??
+            (localDb != null
+                ? (() => localDb.database)
+                : throw ArgumentError('Either localDb or getDatabase must be provided'));
 
   factory SqliteDoseOutbox.fromLocalDb(LocalDb localDb) {
-    return SqliteDoseOutbox(getDatabase: () => localDb.database);
+    return SqliteDoseOutbox(localDb: localDb);
   }
 
   final Future<Database> Function() _getDatabase;

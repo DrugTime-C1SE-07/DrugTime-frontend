@@ -11,6 +11,7 @@ import {
   ShieldAlert,
   Trash2,
 } from "lucide-react";
+import { SEVERITY_LABELS } from "../../lib/constants/severity";
 import {
   Interaction,
   InteractionEvidenceLevel,
@@ -122,8 +123,7 @@ export default function InteractionDrawer({
     setShowDeleteConfirm(false);
   }, [interaction, isOpen]);
 
-  if (!isOpen) return null;
-
+  // Không trả null khi đóng: Modal tự gỡ sau hiệu ứng trượt ra (trả null ở đây sẽ gỡ ngay, mất hiệu ứng).
   const ruleCode = interaction?.ruleCode || "RULE-INT-NEW";
 
   const update = <Key extends keyof typeof form>(key: Key, value: (typeof form)[Key]) => {
@@ -189,7 +189,7 @@ export default function InteractionDrawer({
   const radioOptions = [
     {
       value: "contraindicated" as InteractionSeverity,
-      title: "Chống chỉ định (Contraindicated)",
+      title: SEVERITY_LABELS.contraindicated,
       badge: "KHÓA ĐƠN",
       description:
         "Khóa đơn lập tức trong hệ thống kê đơn điện tử & cảnh báo đỏ an toàn cho bệnh nhân.",
@@ -198,7 +198,7 @@ export default function InteractionDrawer({
     },
     {
       value: "major" as InteractionSeverity,
-      title: "Nghiêm trọng (Serious)",
+      title: SEVERITY_LABELS.major,
       badge: "THEO DÕI",
       description:
         "Yêu cầu theo dõi lâm sàng chặt chẽ hoặc chỉ định xét nghiệm bổ sung trước khi cấp phát.",
@@ -207,7 +207,8 @@ export default function InteractionDrawer({
     },
     {
       value: "moderate" as InteractionSeverity,
-      title: "Thận trọng (Caution)",
+      // Nhóm này nhận cả minor (xem logic chọn bên dưới) nên ghi đủ hai nhãn.
+      title: `${SEVERITY_LABELS.moderate} / ${SEVERITY_LABELS.minor}`,
       badge: "CẢNH BÁO",
       description:
         "Cảnh báo về khoảng thời gian uống thuốc hoặc tác động nhẹ đến hấp thu dược chất.",
@@ -232,6 +233,7 @@ export default function InteractionDrawer({
             : "Thiết lập thông số phân loại, cơ chế dược lý và khuyến cáo xử trí lâm sàng CDSS"
         }
         size="xl"
+        variant="drawer"
         footer={
           <div className="interaction-modal-footer">
             <div className="interaction-modal-footer__left">

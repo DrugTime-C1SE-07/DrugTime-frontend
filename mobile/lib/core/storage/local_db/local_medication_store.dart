@@ -9,9 +9,13 @@ abstract class LocalMedicationStore {
     required List<LocalMedicationSchedule> schedules,
   });
   Future<List<LocalMedicationSchedule>> getActiveSchedules({
-    required String patientId,
+    String? patientId,
   });
   Future<LocalMedicationSchedule?> getScheduleById(int scheduleId);
+  Future<bool> hasDoseLog({
+    required int medicationScheduleId,
+    required DateTime scheduledAt,
+  });
 
   Future<void> upsertDoseLog(LocalDoseLog doseLog);
   Future<List<LocalDoseLog>> getPendingDoseLogs();
@@ -29,7 +33,25 @@ abstract class LocalMedicationStore {
   Future<void> setMeta(String key, String value);
 }
 
-class SqliteLocalMedicationStore implements LocalMedicationStore {
+/// Giao diện cho phép dọn dẹp dữ liệu cục bộ theo bệnh nhân khi liên kết bị gỡ (QD-29).
+abstract interface class PatientDataClearable {
+  Future<void> clearPatient(String patientId);
+}
+
+/// Extension dọn dẹp dữ liệu lịch uống trên [LocalMedicationStore] (QD-29).
+///
+/// Cung cấp mặc định an toàn cho mọi [LocalMedicationStore], bảo đảm tương thích
+/// ngược với các test fake store hiện có.
+extension LocalMedicationStoreClearPatientData on LocalMedicationStore {
+  Future<void> clearPatientData(String patientId) async {
+    final self = this;
+    if (self is PatientDataClearable) {
+      await (self as PatientDataClearable).clearPatient(patientId);
+    }
+  }
+}
+
+class SqliteLocalMedicationStore implements LocalMedicationStore, PatientDataClearable {
   SqliteLocalMedicationStore(this._localDb);
 
   final LocalDb _localDb;
@@ -61,17 +83,40 @@ class SqliteLocalMedicationStore implements LocalMedicationStore {
   }
 
   @override
+  Future<void> clearPatient(String patientId) => clearPatientData(patientId);
+
+  Future<void> clearPatientData(String patientId) async {
+    final db = await _localDb.database;
+    await db.transaction((txn) async {
+      await txn.delete(
+        LocalDb.schedulesTable,
+        where: 'patient_user_id = ?',
+        whereArgs: [patientId],
+      );
+    });
+  }
+
+  @override
   Future<List<LocalMedicationSchedule>> getActiveSchedules({
-    required String patientId,
+    String? patientId,
   }) async {
     final db = await _localDb.database;
-    final rows = await db.query(
-      LocalDb.schedulesTable,
-      where:
-          'patient_user_id = ? AND reminder_enabled = 1 AND ended_at IS NULL',
-      whereArgs: [patientId],
-      orderBy: 'intake_time ASC',
-    );
+    final List<Map<String, Object?>> rows;
+    if (patientId != null) {
+      rows = await db.query(
+        LocalDb.schedulesTable,
+        where:
+            'patient_user_id = ? AND reminder_enabled = 1 AND ended_at IS NULL',
+        whereArgs: [patientId],
+        orderBy: 'intake_time ASC',
+      );
+    } else {
+      rows = await db.query(
+        LocalDb.schedulesTable,
+        where: 'reminder_enabled = 1 AND ended_at IS NULL',
+        orderBy: 'intake_time ASC',
+      );
+    }
 
     return rows.map(LocalMedicationSchedule.fromDbMap).toList(growable: false);
   }
@@ -91,6 +136,25 @@ class SqliteLocalMedicationStore implements LocalMedicationStore {
     }
 
     return LocalMedicationSchedule.fromDbMap(rows.first);
+  }
+
+  @override
+  Future<bool> hasDoseLog({
+    required int medicationScheduleId,
+    required DateTime scheduledAt,
+  }) async {
+    final db = await _localDb.database;
+    final rows = await db.query(
+      LocalDb.doseLogsTable,
+      columns: ['client_uuid'],
+      where: 'medication_schedule_id = ? AND scheduled_at = ?',
+      whereArgs: [
+        medicationScheduleId,
+        scheduledAt.toUtc().toIso8601String(),
+      ],
+      limit: 1,
+    );
+    return rows.isNotEmpty;
   }
 
   @override

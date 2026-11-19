@@ -13,6 +13,9 @@ abstract final class AppAssets {
 
   static const logo = '$_icons/logo.png';
 
+  /// Chữ logo "DrugTime" (nền trong suốt), cắt từ splash_logo.png.
+  static const logoWordmark = '$_icons/logo-wordmark.png';
+
   static const mascotAngry = '$_icons/mascot-angry.png';
   static const mascotCooking = '$_icons/mascot-cooking.png';
   static const mascotHappy = '$_icons/mascot-happy.png';
@@ -22,8 +25,35 @@ abstract final class AppAssets {
   static const mascotRunning = '$_icons/mascot-running.png';
   static const mascotThinking = '$_icons/mascot-thinking.png';
 
+  /// Icon nguyên liệu màu (SVG) cho các màn gợi ý bữa ăn; không dùng emoji (vẽ khác nhau theo máy).
+  static String foodIcon(String name) => '$_icons/food/$name.svg';
+
+  static const foodIconNames = [
+    'beans',
+    'carrot',
+    'chicken',
+    'egg',
+    'fish',
+    'flame',
+    'garlic',
+    'generic',
+    'leafy',
+    'list',
+    'meat',
+    'mushroom',
+    'oil',
+    'pumpkin',
+    'rice',
+    'salad',
+    'salt',
+    'sauce',
+    'sugar',
+    'tomato',
+  ];
+
   static const all = [
     logo,
+    logoWordmark,
     mascotAngry,
     mascotCooking,
     mascotHappy,

@@ -11,6 +11,11 @@ class AuthController extends ChangeNotifier {
   AuthController(this._repository);
 
   final AuthRepository _repository;
+  // Cleanup chủ động cần bearer còn hiệu lực; hết hạn chỉ vô hiệu token cục bộ.
+  Future<void> Function(AuthSession)? beforeSignOut;
+  Future<void> Function()? onSessionExpired;
+  bool _signingOut = false;
+  bool get isSigningOut => _signingOut;
 
   LoginMethod _method = LoginMethod.phone;
   bool _isLoading = false;
@@ -29,7 +34,8 @@ class AuthController extends ChangeNotifier {
   bool get isAuthenticated => _currentSession?.isExpired == false;
 
   /// Đã đăng nhập nhưng chưa có hồ sơ (người mới): phải qua màn hoàn thiện hồ sơ.
-  bool get needsProfile => isAuthenticated && _currentSession?.profileComplete == false;
+  bool get needsProfile =>
+      isAuthenticated && _currentSession?.profileComplete == false;
 
   /// Người dùng đã tick đồng ý Điều khoản và Chính sách ở màn đăng nhập (chỉ trong bộ nhớ).
   /// Sau khi đăng nhập, cổng consent ở Trang chủ dùng giá trị này để ghi `terms` lên server
@@ -152,6 +158,7 @@ class AuthController extends ChangeNotifier {
 
   /// Xác thực mã OTP nhận được từ người dùng.
   Future<bool> verifyOtp({required String token}) async {
+    if (_signingOut || _currentSession != null && isAuthenticated) return false;
     if (token.trim().isEmpty) {
       _errorMessage = 'Vui lòng nhập mã OTP';
       notifyListeners();
@@ -235,20 +242,40 @@ class AuthController extends ChangeNotifier {
   /// API báo phiên không còn hiệu lực (401): xóa phiên để app quay về màn Đăng nhập.
   Future<void> handleUnauthorized() async {
     if (_currentSession == null) return;
-    await _repository.signOut();
+    _signingOut = true;
     _currentSession = null;
     _lastSentIdentifier = null;
     _termsAccepted = false;
     notifyListeners();
+    try {
+      await onSessionExpired?.call();
+    } catch (_) {
+      _errorMessage =
+          'Chưa hoàn tất tắt cảnh báo đẩy. Vui lòng thử lại khi đăng nhập';
+    } finally {
+      await _repository.signOut();
+      _signingOut = false;
+      notifyListeners();
+    }
   }
 
   /// Đăng xuất khỏi tài khoản.
   Future<void> signOut() async {
-    await _repository.signOut();
-    _currentSession = null;
-    _lastSentIdentifier = null;
-    _termsAccepted = false;
+    if (_signingOut) return;
+    _signingOut = true;
     notifyListeners();
+    try {
+      final session = _currentSession;
+      // Chỉ xóa phiên sau cleanup thành công để còn bearer nếu người dùng thử lại.
+      if (session != null) await beforeSignOut?.call(session);
+      await _repository.signOut();
+      _currentSession = null;
+      _lastSentIdentifier = null;
+      _termsAccepted = false;
+    } finally {
+      _signingOut = false;
+      notifyListeners();
+    }
   }
 }
 
@@ -272,9 +299,11 @@ String _messageFor(Object error, _AuthStep step) {
         'invalid_full_name' => 'Vui lòng nhập họ tên',
         _ => 'Thông tin chưa hợp lệ, vui lòng kiểm tra lại',
       },
-    AuthErrorKind.rateLimited => 'Bạn thao tác quá nhanh, vui lòng thử lại sau ít phút',
+    AuthErrorKind.rateLimited =>
+      'Bạn thao tác quá nhanh, vui lòng thử lại sau ít phút',
     AuthErrorKind.unavailable => 'Hệ thống đang bận, vui lòng thử lại sau',
-    AuthErrorKind.network => 'Không kết nối được máy chủ, vui lòng kiểm tra mạng',
+    AuthErrorKind.network =>
+      'Không kết nối được máy chủ, vui lòng kiểm tra mạng',
     AuthErrorKind.unexpected => 'Đã có lỗi xảy ra, vui lòng thử lại',
   };
 }

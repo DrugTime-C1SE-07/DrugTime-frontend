@@ -18,6 +18,7 @@ import {
   Stethoscope,
 } from "lucide-react";
 import { Modal } from "../ui/Modal";
+import { SEVERITY_LABELS } from "../../lib/constants/severity";
 import { Interaction } from "../../lib/types/interaction";
 
 interface InteractionDetailModalProps {
@@ -30,22 +31,22 @@ interface InteractionDetailModalProps {
 
 const severityConfig = {
   contraindicated: {
-    label: "Chống chỉ định tuyệt đối",
+    label: SEVERITY_LABELS.contraindicated,
     badgeClass: "interaction-severity-badge--contraindicated",
     icon: AlertOctagon,
   },
   major: {
-    label: "Nghiêm trọng (Major)",
+    label: SEVERITY_LABELS.major,
     badgeClass: "interaction-severity-badge--major",
     icon: ShieldAlert,
   },
   moderate: {
-    label: "Trung bình (Moderate)",
+    label: SEVERITY_LABELS.moderate,
     badgeClass: "interaction-severity-badge--moderate",
     icon: AlertTriangle,
   },
   minor: {
-    label: "Nhẹ (Minor)",
+    label: SEVERITY_LABELS.minor,
     badgeClass: "interaction-severity-badge--minor",
     icon: Info,
   },
@@ -163,7 +164,7 @@ export default function InteractionDetailModal({
                 Tra cứu chế phẩm DAV ➔
               </Link>
             ) : (
-              <span style={{ fontSize: 11, color: "var(--color-muted)", marginTop: 4, display: "inline-block" }}>
+              <span className="interaction-detail-food-note">
                 (Tác nhân thực phẩm / đồ uống)
               </span>
             )}
@@ -171,20 +172,8 @@ export default function InteractionDetailModal({
         </div>
 
         {/* Trạng thái & Mức độ nghiêm trọng banner */}
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            flexWrap: "wrap",
-            gap: 12,
-            padding: "12px 18px",
-            background: "#ffffff",
-            border: "1px solid #e2e8f0",
-            borderRadius: 10,
-          }}
-        >
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <div className="interaction-detail-status-bar">
+          <div className="interaction-detail-status-bar__group">
             <span className={`interaction-severity-badge ${sevInfo.badgeClass}`}>
               <SevIcon size={16} strokeWidth={2.4} />
               {sevInfo.label}
@@ -194,31 +183,15 @@ export default function InteractionDetailModal({
             </span>
           </div>
 
-          <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13 }}>
-            <span style={{ color: "var(--color-muted)" }}>Trạng thái:</span>
+          <div className="interaction-detail-status">
+            <span className="interaction-detail-status__label">Trạng thái:</span>
             {interaction.status === "verified" ? (
-              <span
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: 4,
-                  color: "var(--color-success)",
-                  fontWeight: 700,
-                }}
-              >
+              <span className="interaction-detail-status__value interaction-detail-status__value--verified">
                 <CheckCircle2 size={16} strokeWidth={2.4} />
                 Đã thẩm định
               </span>
             ) : (
-              <span
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: 4,
-                  color: "var(--color-primary)",
-                  fontWeight: 700,
-                }}
-              >
+              <span className="interaction-detail-status__value interaction-detail-status__value--pending">
                 <Clock3 size={16} strokeWidth={2.4} />
                 Chờ hội đồng duyệt
               </span>
@@ -285,16 +258,7 @@ export default function InteractionDetailModal({
         </div>
 
         {interaction.notes ? (
-          <div
-            style={{
-              padding: "10px 14px",
-              background: "var(--color-shell)",
-              borderRadius: 8,
-              border: "1px dashed #cbd5e1",
-              fontSize: 12.5,
-              color: "var(--color-secondary-text)",
-            }}
-          >
+          <div className="interaction-detail-notes">
             <strong>Ghi chú chuyên môn:</strong> {interaction.notes}
           </div>
         ) : null}

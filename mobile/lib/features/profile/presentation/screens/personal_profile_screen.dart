@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../../../../shared/widgets/profile_flow_widgets.dart';
+
 import '../../../../app/theme/app_theme.dart';
 import '../../domain/entities/health_profile.dart';
 import '../state/profile_controller.dart';
@@ -57,12 +59,10 @@ class _PersonalProfileScreenState extends State<PersonalProfileScreen> {
     return ScaffoldMessenger(
       key: _messengerKey,
       child: Scaffold(
-        appBar: AppBar(
-            title: const Text('Thông tin cá nhân'),
-            leading: IconButton(
-                tooltip: 'Quay lại',
-                onPressed: () => Navigator.maybePop(context),
-                icon: const ProfileIcon('p-arrow-left'))),
+        backgroundColor: AppColors.canvas,
+        appBar: ProfileFlowHeader('Thông tin cá nhân',
+            titleScale: MediaQuery.textScalerOf(context).scale(18) / 18,
+            backgroundColor: AppColors.canvas),
         body: SafeArea(
             child: SingleChildScrollView(
                 padding: const EdgeInsets.fromLTRB(20, 8, 20, 34),
@@ -204,13 +204,14 @@ class _PersonalFormState extends State<_PersonalForm> {
     if (!_formKey.currentState!.validate()) return false;
     final c = ProfileScope.read(context);
     final saved = await c.update(ProfileDraft(
-        fullName: _name.text,
-        dateOfBirth: _dob!,
-        gender: _gender!,
-        email: _email.text.trim().isEmpty
-            ? null
-            : _email.text.trim().toLowerCase(),
-        phone: _phone.text));
+      fullName: _name.text,
+      dateOfBirth: _dob!,
+      gender: _gender!,
+      email: _email.text.trim().isEmpty
+          ? null
+          : _email.text.trim().toLowerCase(),
+      phone: _phone.text,
+    ));
     if (mounted && saved) setState(() => _dirty = false);
     return saved;
   }
@@ -223,14 +224,11 @@ class _PersonalFormState extends State<_PersonalForm> {
         key: _formKey,
         child:
             Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          _AvatarBlock(onTap: () => showAvatarPicker(context)),
-          if (c.avatarError != null)
-            Padding(
-              padding: const EdgeInsets.only(top: AppSpacing.sm),
-              child: Text(c.avatarError!,
-                  style: AppTextStyles.caption.copyWith(color: AppColors.danger)),
-            ),
-          const SizedBox(height: AppSpacing.xl),
+          ProfileFlowCard(
+              color: AppColors.brandTint,
+              padding: EdgeInsets.zero,
+              child: _AvatarBlock(onTap: () => showAvatarPicker(context))),
+          const SizedBox(height: 16),
           ProfileField(
               label: 'Họ và tên',
               child: TextFormField(
@@ -268,7 +266,9 @@ class _PersonalFormState extends State<_PersonalForm> {
                 child: DropdownButtonFormField<String>(
                   initialValue: _gender,
                   isExpanded: true,
-                  style: profileFieldTextStyle,
+                  style: profileFieldTextStyle.copyWith(
+                      fontFamily:
+                          Theme.of(context).textTheme.bodyMedium?.fontFamily),
                   icon: const ProfileIcon('p-chevron-down'),
                   hint: const Text('Chọn giới tính',
                       style: profileFieldTextStyle),
@@ -294,8 +294,6 @@ class _PersonalFormState extends State<_PersonalForm> {
                   decoration: profileFieldDecoration(),
                 )),
           ]),
-          const Text('LIÊN HỆ', style: AppTextStyles.captionStrong),
-          const SizedBox(height: AppSpacing.sm),
           ProfileField(
               label: 'Số điện thoại',
               child: TextFormField(
@@ -350,7 +348,7 @@ class _AvatarBlock extends StatelessWidget {
                 onTap: onTap,
                 customBorder: const CircleBorder(),
                 child: Stack(clipBehavior: Clip.none, children: [
-                  const ProfileAvatar(),
+                  const ProfileAvatar(size: 72),
                   Positioned(
                       right: 0,
                       bottom: 0,

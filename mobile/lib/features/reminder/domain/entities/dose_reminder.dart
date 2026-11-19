@@ -1,5 +1,6 @@
 import '../../../../core/contracts/dose_outbox.dart';
 import '../../../../core/notification/reminder_scheduler.dart';
+import '../../../../core/platform/keyguard_service.dart';
 
 /// One scheduled medicine occurrence displayed by the dose reminder screen.
 ///
@@ -68,12 +69,14 @@ class DoseReminderRouteArguments {
     required this.outbox,
     required this.scheduler,
     this.clock,
+    this.keyguardPlatform,
   });
 
   final DoseReminderGroup group;
   final DoseOutbox outbox;
   final ReminderScheduler scheduler;
   final ReminderClock? clock;
+  final KeyguardPlatform? keyguardPlatform;
 }
 
 enum DoseReminderResult { confirmed, snoozed, skipped }

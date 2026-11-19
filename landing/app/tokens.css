@@ -106,4 +106,63 @@
   --rule-hair: 1px;
   --page-gutter: clamp(1.25rem, 0.5rem + 3.5vw, 4rem);
   --page-max: 72rem; /* 1152px */
+
+  /* ── Aurora (dark brand surfaces: hero, CTA) ── */
+  --color-night: #012622;            /* deepest brand shade, hero base */
+  --color-mint: #5FD4C4;             /* luminous brand highlight on dark */
+  --color-on-dark: #FFFFFF;
+  --color-on-dark-muted: rgb(231 243 241 / 0.8);
+  --color-on-dark-line: rgb(231 243 241 / 0.16);
+  --color-glass: rgb(255 255 255 / 0.08);
+  --color-glass-strong: rgb(255 255 255 / 0.14);
+  --color-glass-light: rgb(255 255 255 / 0.72);
+  --aurora-a: var(--color-brand-glow);
+  --aurora-b: var(--color-mint);
+  --aurora-c: var(--color-accent);
+  --glow-brand: 0 0 0 1px var(--color-on-dark-line), 0 30px 80px -20px rgb(11 122 112 / 0.55);
+  --glow-mint: rgb(95 212 196 / 0.35);
+  --glow-mint-strong: rgb(95 212 196 / 0.6);
+  --glow-accent: rgb(237 135 31 / 0.55);
+  --glow-brand-soft: rgb(11 122 112 / 0.55);
+  --shadow-deep: rgb(0 0 0 / 0.45);
+  --shadow-deeper: rgb(0 0 0 / 0.7);
+
+  /* ── Feature card palette (decorative only, never clinical meaning).
+     Top colour ≥ 3:1 with white (large titles), bottom ≥ 4.5:1 (body text). ── */
+  --card-ocean-a: #0E7C9A;  --card-ocean-b: #073A52;
+  --card-sun-a: #C25E0C;    --card-sun-b: #6E2F04;
+  --card-rose-a: #C13D6C;   --card-rose-b: #651634;
+  --card-teal-a: #0B7A70;   --card-teal-b: #012622;
+  --card-indigo-a: #4E54D4; --card-indigo-b: #232870;
+
+  /* ── Device mockups (phone hardware, not brand colours) ── */
+  --device-frame-a: #2A2E33;
+  --device-frame-b: #0B0D0F;
+  --device-island: #000000;
+  --device-edge: rgb(255 255 255 / 0.18);
+  --device-glare: rgb(255 255 255 / 0.22);
+  --device-glare-soft: rgb(255 255 255 / 0.06);
+  --shadow-device: 0 0 0 1px rgb(0 0 0 / 0.6), 0 50px 100px -30px var(--shadow-deeper), 0 30px 80px -20px var(--glow-brand-soft);
+
+  --spot-color: rgb(11 122 112 / 0.16);      /* cursor spotlight on light cards */
+  --spot-color-dark: rgb(95 212 196 / 0.22); /* cursor spotlight on dark panels */
+
+  /* ── Larger radii for the new surfaces ── */
+  --radius-card-xl: 24px;
+  --radius-panel: 36px;
+
+  /* ── Motion (shared rhythm) ── */
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --dur-reveal: 900ms;
+  --dur-ambient: 24s;
+  --dur-marquee: 36s;
+
+  /* ── Layers ── */
+  --z-content: 1;
+  --z-header: 50;
+  --z-grain: 60;
+  --z-skip: 1000;
+  --nav-h: 64px;
+  --nav-offset: calc(var(--nav-h) + 2rem);
 }

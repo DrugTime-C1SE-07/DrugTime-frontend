@@ -7,6 +7,14 @@ import 'package:drugtime_mobile/features/profile/presentation/screens/profile_sc
 import 'package:drugtime_mobile/features/profile/presentation/state/profile_controller.dart';
 import 'package:drugtime_mobile/features/profile/domain/entities/profile_failure.dart';
 import 'package:drugtime_mobile/features/profile/presentation/widgets/profile_notices.dart';
+import 'package:drugtime_mobile/features/consent/data/repositories/in_memory_consent_repository.dart';
+import 'package:drugtime_mobile/features/consent/presentation/state/consent_controller.dart';
+import 'package:drugtime_mobile/features/family_link/data/repositories/in_memory_caregiver_repository.dart';
+import 'package:drugtime_mobile/features/family_link/data/repositories/in_memory_family_link_repository.dart';
+import 'package:drugtime_mobile/features/family_link/presentation/screens/caregivers_screen.dart';
+import 'package:drugtime_mobile/features/family_link/presentation/state/family_link_scope.dart';
+import 'package:drugtime_mobile/features/family_link/presentation/state/invite_link_controller.dart';
+import 'package:drugtime_mobile/shared/widgets/coming_soon_view.dart';
 import 'profile_test_helpers.dart';
 import 'profile_widget_helpers.dart';
 
@@ -115,10 +123,40 @@ void main() {
     await tester.pumpWidget(profileApp(c, const ProfileScreen(active: true)));
     await tester.pumpAndSettle();
     expect(repo.reads, 1);
-    await tester.tap(find.text('Thông tin cá nhân'));
+    await tester.tap(find.byKey(const Key('profile-card')));
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('profile-name')), findsOneWidget);
     expect(repo.reads, 2);
+  });
+
+  testWidgets(
+      'AC20: Người giám sát mở màn người giám sát, không còn Sắp ra mắt',
+      (tester) async {
+    final c = ProfileController(FakeProfileRepository());
+    final consents = ConsentController(InMemoryConsentRepository());
+    final invites = InviteLinkController();
+    final caregivers = InMemoryCaregiverRepository();
+    addTearDown(c.dispose);
+    addTearDown(consents.dispose);
+    addTearDown(invites.dispose);
+    await tester.pumpWidget(ConsentScope(
+      controller: consents,
+      child: FamilyLinkScope(
+        repository: InMemoryFamilyLinkRepository(),
+        caregivers: caregivers,
+        invites: invites,
+        child: profileApp(c, const ProfileScreen()),
+      ),
+    ));
+    await tester.pumpAndSettle();
+
+    await tester.ensureVisible(find.byKey(const Key('supervisors-tile')));
+    await tester.tap(find.byKey(const Key('supervisors-tile')));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(CaregiversScreen), findsOneWidget);
+    expect(find.byType(ComingSoonView), findsNothing);
+    expect(caregivers.calls, ['listCaregivers']);
   });
 
   testWidgets('profile shows the six Figma menu rows in design order',
@@ -131,7 +169,7 @@ void main() {
 
     final labels = [
       'Thông tin cá nhân',
-      'Thông tin y tế',
+      'Hồ sơ sức khỏe',
       'Người giám sát',
       'Thông báo & Nhắc nhở',
       'Quyền riêng tư & Bảo mật',
@@ -176,14 +214,14 @@ void main() {
     await tester.tap(find.text('Tăng huyết áp'));
     await tester.pumpAndSettle();
     expect(c.profile!.conditions.length, 1);
-    await tester.tap(find.text('Bệnh nền'));
+    await tester.tap(find.byKey(const Key('condition-chip-99')));
     await tester.pumpAndSettle();
     await tester.enterText(find.byKey(const Key('condition-stage')), 'II');
     await tester.tap(find.text('Lưu thông tin bệnh'));
     await tester.pumpAndSettle();
     expect(repo.lastLink, 99);
     expect(repo.lastPatch, {'stage': 'II'});
-    await tester.tap(find.text('Bệnh nền'));
+    await tester.tap(find.byKey(const Key('condition-chip-99')));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Xóa bệnh khỏi hồ sơ'));
     await tester.pumpAndSettle();

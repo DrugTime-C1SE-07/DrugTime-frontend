@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 
 import '../../../../app/theme/app_theme.dart';
 import '../../domain/entities/login_method.dart';
-import 'mascot_protect_widget.dart';
 
 /// Header của màn hình Xác thực OTP:
 /// - Kích thước: 327px x 181px, gap 14px, căn giữa
@@ -32,17 +31,13 @@ class OtpHeader extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          // mascot-slot (96x88)
-          const MascotProtectWidget(),
-          const SizedBox(height: 14.0),
-
           // heading (20px bold)
           const Text(
-            'Xác thực OTP',
+            'Nhập mã xác thực',
             style: TextStyle(
-              fontSize: 20.0,
+              fontSize: 28.0,
               fontWeight: FontWeight.w700,
-              height: 27.0 / 20.0,
+              height: 34.0 / 28.0,
               color: AppColors.ink,
               fontFamily: 'Inter',
             ),
@@ -53,13 +48,11 @@ class OtpHeader extends StatelessWidget {
           // subheading (13px regular with masked target)
           Text.rich(
             TextSpan(
-              text: isPhone
-                  ? 'Đã gửi mã OTP đến số '
-                  : 'Đã gửi mã OTP đến email ',
+              text: isPhone ? 'Mã 6 số đã gửi tới số ' : 'Mã 6 số đã gửi tới ',
               style: const TextStyle(
-                fontSize: 13.0,
+                fontSize: 17.0,
                 fontWeight: FontWeight.w400,
-                height: 19.0 / 13.0,
+                height: 24.0 / 17.0,
                 color: AppColors.inkMuted,
                 fontFamily: 'Inter',
               ),

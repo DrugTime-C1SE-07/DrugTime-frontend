@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -11,21 +12,32 @@ void main() {
   late List<String> methods;
   late List<Uri> uris;
   late List<String> bodies;
+  late List<String?> contentTypes;
   late int status;
+  late String? retryAfterHeader;
+  Completer<void>? responseGate;
 
   setUp(() async {
     authHeaders = [];
     methods = [];
     uris = [];
     bodies = [];
+    contentTypes = [];
     status = 200;
+    retryAfterHeader = null;
+    responseGate = null;
     server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     server.listen((request) async {
       authHeaders.add(request.headers.value(HttpHeaders.authorizationHeader));
       methods.add(request.method);
       uris.add(request.uri);
+      contentTypes.add(request.headers.value(HttpHeaders.contentTypeHeader));
       bodies.add(await utf8.decodeStream(request));
+      await responseGate?.future;
       request.response.statusCode = status;
+      if (retryAfterHeader case final value?) {
+        request.response.headers.set(HttpHeaders.retryAfterHeader, value);
+      }
       if (status != 204) {
         request.response
           ..headers.contentType = ContentType.json
@@ -40,6 +52,98 @@ void main() {
   tearDown(() => server.close(force: true));
 
   Uri base() => Uri.parse('http://127.0.0.1:${server.port}');
+
+  test('POST pinned token cannot borrow new account or sign it out on401',
+      () async {
+    status = 401;
+    var unauthorized = 0;
+    final client = ApiClient(
+        baseUrl: base(),
+        authTokenProvider: () async => 'B',
+        onUnauthorized: () async {
+          unauthorized++;
+        });
+    await expectLater(
+        client.postJson('/catalog/medications/match',
+            body: {'text': 'A'}, sessionToken: 'A', expectedStatus: 200),
+        throwsA(isA<ApiException>()));
+    expect(authHeaders.single, 'Bearer A');
+    expect(unauthorized, 0);
+  });
+
+  test('POST expected200 rejects201 without changing defaults', () async {
+    status = 201;
+    final client = ApiClient(baseUrl: base());
+    await expectLater(
+        client.postJson('/catalog/medications/match',
+            body: {'text': 'A'}, expectedStatus: 200),
+        throwsA(isA<ApiException>()));
+    expect(await client.postJson('/legacy', body: {}), isA<Map>());
+  });
+
+  test('late 401 from A cannot clear active account B', () async {
+    status = 401;
+    responseGate = Completer<void>();
+    var token = 'A';
+    var unauthorized = 0;
+    final client = ApiClient(
+        baseUrl: base(),
+        authTokenProvider: () async => token,
+        onUnauthorized: () async {
+          unauthorized++;
+        });
+    final pending = client.getJson('/notifications');
+    final assertion = expectLater(pending, throwsA(isA<ApiException>()));
+    while (authHeaders.isEmpty) {
+      await Future<void>.delayed(Duration.zero);
+    }
+    token = 'B';
+    responseGate!.complete();
+    await assertion;
+    expect(authHeaders.single, 'Bearer A');
+    expect(unauthorized, 0);
+  });
+
+  test('DELETE JSON keeps body and bearer, accepts only confirmed 204',
+      () async {
+    status = 204;
+    final client = ApiClient(
+        baseUrl: base(), authTokenProvider: () async => 'captured-session');
+    expect(
+        await client.deleteJson('/me/device-tokens',
+            body: {'fcm_token': 'test'}, expectedStatus: 204),
+        isNull);
+    expect(methods, ['DELETE']);
+    expect(jsonDecode(bodies.single), {'fcm_token': 'test'});
+    expect(authHeaders.single, 'Bearer captured-session');
+    status = 200;
+    await expectLater(
+        client.deleteJson('/me/device-tokens',
+            body: {'fcm_token': 'test'}, expectedStatus: 204),
+        throwsA(isA<ApiException>()));
+  });
+
+  test('getBytes trả body nhị phân và gắn bearer (task 5.11)', () async {
+    final client =
+        ApiClient(baseUrl: base(), authTokenProvider: () async => 'app-token');
+
+    final bytes = await client.getBytes('/meal-images/42');
+
+    expect(bytes, utf8.encode('{"ok": true}'));
+    expect(methods.single, 'GET');
+    expect(uris.single.path, '/meal-images/42');
+    expect(authHeaders.single, 'Bearer app-token');
+  });
+
+  test('getBytes lỗi 404 ném ApiException giữ mã (task 5.11)', () async {
+    status = 404;
+    final client = ApiClient(baseUrl: base());
+
+    await expectLater(
+      client.getBytes('/meal-images/9'),
+      throwsA(isA<ApiException>().having((e) => e.statusCode, 'status', 404)),
+    );
+  });
 
   test('gắn Authorization: Bearer khi có token', () async {
     final client =
@@ -132,8 +236,44 @@ void main() {
     expect(authHeaders.single, 'Bearer t');
   });
 
+  test('post gửi POST không body, không Content-Type, kèm Bearer', () async {
+    final client =
+        ApiClient(baseUrl: base(), authTokenProvider: () async => 't');
+
+    final result = await client.post('/family/links/7/reject');
+
+    expect(result, {'ok': true});
+    expect(methods.single, 'POST');
+    expect(uris.single.path, '/family/links/7/reject');
+    expect(bodies.single, isEmpty);
+    expect(contentTypes.single, isNull);
+    expect(authHeaders.single, 'Bearer t');
+  });
+
+  test('postJson với body null vẫn gửi "null" (lý do cần post)', () async {
+    final client = ApiClient(baseUrl: base());
+
+    await client.postJson('/x', body: null);
+
+    expect(bodies.single, 'null');
+    expect(contentTypes.single, startsWith('application/json'));
+  });
+
+  test('post: lỗi 409 ném ApiException kèm mã và body', () async {
+    status = 409;
+    final client = ApiClient(baseUrl: base());
+
+    await expectLater(
+      client.post('/family/links/7/revoke'),
+      throwsA(isA<ApiException>()
+          .having((e) => e.statusCode, 'statusCode', 409)
+          .having((e) => e.isTransient, 'isTransient', isFalse)),
+    );
+  });
+
   for (final call in <String, Future<Object?> Function(ApiClient)>{
     'GET': (c) => c.getJson('/medications'),
+    'POST': (c) => c.post('/family/links/1/reject'),
     'PUT': (c) => c.putJson('/profile', body: {}),
     'PATCH': (c) => c.patchJson('/medications/1', body: {}),
     'DELETE': (c) => c.delete('/medications/1'),
@@ -152,6 +292,46 @@ void main() {
       expect(called, 1);
     });
   }
+
+  test('429 kèm Retry-After số giây → retryAfter', () async {
+    status = 429;
+    retryAfterHeader = '900';
+    final client = ApiClient(baseUrl: base());
+
+    await expectLater(
+      client.postJson('/family/link-requests', body: {}),
+      throwsA(isA<ApiException>()
+          .having((e) => e.statusCode, 'statusCode', 429)
+          .having(
+              (e) => e.retryAfter, 'retryAfter', const Duration(seconds: 900))),
+    );
+  });
+
+  test('429 không có Retry-After → retryAfter null', () async {
+    status = 429;
+    final client = ApiClient(baseUrl: base());
+
+    await expectLater(
+      client.postJson('/family/link-requests', body: {}),
+      throwsA(isA<ApiException>()
+          .having((e) => e.retryAfter, 'retryAfter', isNull)),
+    );
+  });
+
+  test('Retry-After dạng ngày giờ hoặc không dương → retryAfter null',
+      () async {
+    status = 429;
+    final client = ApiClient(baseUrl: base());
+
+    for (final value in ['Wed, 21 Oct 2026 07:28:00 GMT', '0', '-5']) {
+      retryAfterHeader = value;
+      await expectLater(
+        client.postJson('/family/link-requests', body: {}),
+        throwsA(isA<ApiException>()
+            .having((e) => e.retryAfter, 'retryAfter', isNull)),
+      );
+    }
+  });
 
   test('không kết nối được máy chủ ném ApiException tạm thời', () async {
     final port = server.port;

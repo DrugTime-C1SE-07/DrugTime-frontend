@@ -1,31 +1,73 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import '../features/family_link/presentation/screens/share_and_link_screen.dart';
+import '../features/patient_monitor/presentation/patient_monitor_screen.dart';
+import '../features/patient_dose_reminders/presentation/received_reminders_screen.dart';
+import '../features/medication_capture/presentation/screens/scan_medication_screen.dart';
 
+import '../features/adherence/domain/repositories/adherence_repository.dart';
+import '../features/adherence/presentation/screens/family_adherence_screen.dart';
 import '../features/consent/presentation/screens/consent_screen.dart';
 import '../features/consent/presentation/screens/legal_document_screen.dart';
 import '../features/consent/presentation/screens/privacy_settings_screen.dart';
 import '../features/consent/presentation/widgets/consent_gate.dart';
 import '../features/consent/presentation/widgets/legal_texts.dart';
+import '../features/family/presentation/screens/family_link_code_screen.dart';
+import '../features/family/presentation/screens/family_alert_inbox_screen.dart';
+import '../features/family/presentation/screens/family_alert_detail_screen.dart';
+import '../features/auth/presentation/state/auth_controller.dart';
+import '../features/family/domain/entities/family_alert.dart';
+import '../features/family_link/presentation/screens/caregivers_screen.dart';
+import '../features/family_link/presentation/screens/enter_link_code_screen.dart';
+import '../features/family_link/presentation/screens/link_consent_confirmation_screen.dart';
+import '../features/family_link/presentation/screens/link_request_result_screen.dart';
+import '../features/family_link/presentation/screens/scan_link_qr_screen.dart';
+import '../features/family_link/presentation/screens/share_invite_link_screen.dart';
+import '../features/family_link/presentation/state/link_request_controller.dart';
 import '../features/medication/data/repositories/in_memory_medication_repository.dart';
 import '../features/medication/domain/entities/medication.dart';
 import '../features/medication/presentation/screens/edit_medication_screen.dart';
 import '../features/medication/presentation/screens/medication_detail_screen.dart';
-import '../features/medication/presentation/screens/add_medication_screen.dart';
-import '../features/medication/presentation/screens/my_medications_screen.dart';
 import '../features/reminder/domain/entities/dose_reminder.dart';
 import '../features/reminder/presentation/screens/dose_reminder_screen.dart';
+import '../features/reminder/presentation/widgets/lockscreen_privacy_gate.dart';
 import '../features/auth/presentation/screens/complete_profile_screen.dart';
 import '../features/auth/presentation/screens/email_otp_screen.dart';
 import '../features/auth/presentation/screens/login_mobile_screen.dart';
-import '../features/auth/presentation/screens/phone_otp_screen.dart';
 import 'app_shell.dart';
 import '../features/profile/presentation/screens/profile_screen.dart';
 import '../features/profile/presentation/screens/personal_profile_screen.dart';
 import '../features/profile/presentation/screens/medical_profile_screen.dart';
+import '../features/profile/presentation/screens/health_profile_intro_screen.dart';
+import '../features/profile/domain/repositories/health_setup_repository.dart';
+import '../features/profile/presentation/screens/health_setup_screen.dart';
+import '../features/profile/presentation/widgets/health_setup_motion.dart';
 import 'theme/app_theme.dart';
+import '../features/meal_suggestion/presentation/screens/meal_suggestion_screen.dart';
+import '../shared/widgets/coming_soon_view.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
+import '../features/profile/presentation/screens/notification_preferences_screen.dart';
+import '../features/profile/presentation/screens/reminder_sound_screen.dart';
+import '../features/profile/presentation/screens/profile_settings_screen.dart';
+import '../features/family_link/presentation/screens/invite_caregiver_screen.dart';
+
+enum HomeEntry { profileCompleted }
+
+enum PersonalScheduleEntry { open }
 
 abstract final class AppRoutes {
+  static const shareAndLink = '/profile/share-and-link';
+  static const patientMonitor = '/family/patient';
+  static const receivedReminders = '/dose-reminders/received';
+  static const profileInvite = '/profile/invite';
+  static const profileNotifications = '/profile/notifications';
+  static const profileReminderSound = '/profile/notifications/sound';
+  static const profileSettings = '/profile/settings';
+  static const familyAlerts = '/family/alerts';
+  static const familyAlertDetail = '/family/alerts/detail';
   static const home = '/';
   static const addMedication = '/medications/add';
+  static const scanMedication = '/medications/scan';
   static const medicationDetail = '/medications/detail';
   static const editMedication = '/medications/edit';
   static const login = '/login';
@@ -37,14 +79,99 @@ abstract final class AppRoutes {
   static const termsOfService = '/legal/terms';
   static const privacyPolicy = '/legal/privacy';
   static const doseReminder = '/reminders/dose';
-  static const devCatalog = '/dev-catalog';
   static const profile = '/profile';
   static const personalProfile = '/profile/personal';
   static const medicalProfile = '/profile/medical';
+  static const healthProfileIntro = '/onboarding/health-profile';
+  static const healthSetup = '/onboarding/health-profile/setup';
+  static const caregivers = '/profile/caregivers';
+  static const familyMyCode = '/family/my-code';
+  static const familyScanCode = '/family/follow/scan';
+  static const familyEnterCode = '/family/follow/enter';
+  static const familyLinkResult = '/family/follow/result';
+  static const familyShareLink = '/family/share-link';
+  static const linkConsentConfirmation = '/family/requests/confirm';
+  static const familyAdherence = '/family/adherence';
+  // Task 5.11: gợi ý bữa ăn (nút "Dumi AI") và route khai dị ứng (tạm là màn giữ chỗ).
+  static const mealSuggestion = '/meal-suggestions';
+  static const allergyDeclaration = '/profile/allergies';
 }
 
-Route<dynamic>? onGenerateRoute(RouteSettings settings) {
+final RouteObserver<PageRoute<dynamic>> familyAdherenceRouteObserver =
+    RouteObserver<PageRoute<dynamic>>();
+
+class FamilyAdherenceRouteArgs {
+  const FamilyAdherenceRouteArgs({
+    required this.patientId,
+    this.patientName,
+  });
+
+  final String patientId;
+  final String? patientName;
+}
+
+final _patientUuid = RegExp(
+    r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$');
+
+Route<dynamic>? onGenerateRoute(
+  RouteSettings settings, {
+  AppTab initialTab = AppTab.home,
+  bool preview = false,
+  AdherenceRepository? adherenceRepository,
+  HealthSetupRepository? healthSetupRepository,
+  ValueListenable<bool>? familyAdherenceAvailability,
+}) {
   return switch (settings.name) {
+    AppRoutes.shareAndLink => MaterialPageRoute<void>(
+        settings: settings, builder: (_) => const ShareAndLinkScreen()),
+    AppRoutes.patientMonitor => MaterialPageRoute<void>(
+        settings: settings,
+        builder: (_) => PatientMonitorScreen(
+            patientId: settings.arguments is String
+                ? settings.arguments! as String
+                : '')),
+    AppRoutes.receivedReminders => MaterialPageRoute<void>(
+        settings: settings,
+        builder: (_) => ReceivedRemindersScreen(
+            reminderId:
+                settings.arguments is int ? settings.arguments! as int : null)),
+    AppRoutes.profileInvite => MaterialPageRoute<void>(
+        settings: settings, builder: (_) => const InviteCaregiverScreen()),
+    AppRoutes.profileNotifications => MaterialPageRoute<void>(
+        settings: settings,
+        builder: (_) => const NotificationPreferencesScreen()),
+    AppRoutes.profileReminderSound => MaterialPageRoute<void>(
+        settings: settings, builder: (_) => const ReminderSoundScreen()),
+    AppRoutes.profileSettings => MaterialPageRoute<void>(
+        settings: settings,
+        builder: (_) => ProfileSettingsScreen(
+            args: settings.arguments is ProfileSettingsArgs
+                ? settings.arguments as ProfileSettingsArgs
+                : null)),
+    AppRoutes.scanMedication => MaterialPageRoute<Medication>(
+        settings: settings,
+        fullscreenDialog: true,
+        builder: (_) => const ScanMedicationScreen(),
+      ),
+    // Kiểm auth/consent cả khi đi vào từ push hoặc điều hướng trực tiếp tới route.
+    AppRoutes.familyAlerts => MaterialPageRoute<void>(
+        settings: settings,
+        builder: (context) => AuthScope.of(context).isAuthenticated
+            ? const ConsentGate(child: FamilyAlertInboxScreen())
+            : const LoginMobileScreen()),
+    AppRoutes.familyAlertDetail => MaterialPageRoute<void>(
+        settings: settings,
+        builder: (context) {
+          final id = settings.arguments;
+          if (!AuthScope.of(context).isAuthenticated) {
+            return const LoginMobileScreen();
+          }
+          if (id is! int || familyNotificationId('$id') == null) {
+            return const Scaffold(
+                body: Center(child: Text('Cảnh báo không còn khả dụng')));
+          }
+          return ConsentGate(child: FamilyAlertDetailScreen(id: id));
+        }),
     AppRoutes.profile => MaterialPageRoute<void>(
         settings: settings,
         builder: (_) => const Scaffold(body: ProfileScreen())),
@@ -52,10 +179,41 @@ Route<dynamic>? onGenerateRoute(RouteSettings settings) {
         settings: settings, builder: (_) => const PersonalProfileScreen()),
     AppRoutes.medicalProfile => MaterialPageRoute<void>(
         settings: settings, builder: (_) => const MedicalProfileScreen()),
+    AppRoutes.healthProfileIntro => healthSetupPageRoute<void>(
+        settings: settings, builder: (_) => const HealthProfileIntroScreen()),
+    AppRoutes.healthSetup => healthSetupPageRoute<bool>(
+        settings: settings,
+        builder: (context) => AuthScope.of(context).isAuthenticated
+            ? ConsentGate(
+                child: HealthSetupScreen(
+                  repository: healthSetupRepository,
+                  onLeave: () {
+                    final intro = settings.arguments;
+                    final navigator = Navigator.of(context);
+                    if (intro is ModalRoute<void> &&
+                        intro.settings.name == AppRoutes.healthProfileIntro &&
+                        intro.isActive &&
+                        intro.navigator == navigator) {
+                      navigator.removeRoute(intro);
+                    }
+                  },
+                ),
+              )
+            : const LoginMobileScreen(),
+      ),
+    AppRoutes.caregivers => MaterialPageRoute<CaregiversScreenResult>(
+        settings: settings, builder: (_) => const CaregiversScreen()),
     // Mọi đường vào Trang chủ đi qua cổng consent (chưa có health_data thì hiện màn đồng ý).
     AppRoutes.home => MaterialPageRoute<void>(
         settings: settings,
-        builder: (_) => const ConsentGate(child: AppShell()),
+        builder: (_) => ConsentGate(
+          child: AppShell(
+            initialTab: settings.arguments == PersonalScheduleEntry.open
+                ? AppTab.reminders
+                : initialTab,
+            showWelcome: settings.arguments == HomeEntry.profileCompleted,
+          ),
+        ),
       ),
     AppRoutes.consent => MaterialPageRoute<bool>(
         settings: settings,
@@ -75,7 +233,7 @@ Route<dynamic>? onGenerateRoute(RouteSettings settings) {
       ),
     AppRoutes.addMedication => MaterialPageRoute<Medication>(
         settings: settings,
-        builder: (_) => const AddMedicationScreen(),
+        builder: (_) => const ScanMedicationScreen(),
       ),
     AppRoutes.medicationDetail => MaterialPageRoute<void>(
         settings: settings,
@@ -101,10 +259,7 @@ Route<dynamic>? onGenerateRoute(RouteSettings settings) {
       ),
     AppRoutes.otpPhone => MaterialPageRoute<void>(
         settings: settings,
-        builder: (_) {
-          final target = settings.arguments as String?;
-          return PhoneOtpScreen(phoneNumber: target);
-        },
+        builder: (_) => const LoginMobileScreen(),
       ),
     AppRoutes.otpEmail => MaterialPageRoute<void>(
         settings: settings,
@@ -125,15 +280,115 @@ Route<dynamic>? onGenerateRoute(RouteSettings settings) {
           if (arguments is! DoseReminderRouteArguments) {
             return const _InvalidDoseReminderRouteScreen();
           }
-          return DoseReminderScreen(arguments: arguments);
+          return LockscreenPrivacyGate(
+            platform: arguments.keyguardPlatform,
+            child: DoseReminderScreen(arguments: arguments),
+          );
         },
       ),
-    AppRoutes.devCatalog => MaterialPageRoute<void>(
+    AppRoutes.familyMyCode => MaterialPageRoute<void>(
         settings: settings,
-        builder: (_) => const DevUiCatalogScreen(),
+        builder: (_) => const FamilyLinkCodeScreen(),
+      ),
+    AppRoutes.familyShareLink => MaterialPageRoute<void>(
+        settings: settings,
+        builder: (_) => preview
+            ? const FamilyLinkCodeScreen()
+            : const ShareInviteLinkScreen(),
+      ),
+    AppRoutes.familyScanCode => MaterialPageRoute<void>(
+        settings: settings,
+        fullscreenDialog: true,
+        builder: (_) =>
+            preview ? const EnterLinkCodeScreen() : const ScanLinkQrScreen(),
+      ),
+    AppRoutes.familyEnterCode => MaterialPageRoute<void>(
+        settings: settings,
+        builder: (_) => EnterLinkCodeScreen(
+          args: settings.arguments as EnterLinkCodeArgs? ??
+              const EnterLinkCodeArgs(),
+        ),
+      ),
+    AppRoutes.familyLinkResult => MaterialPageRoute<void>(
+        settings: settings,
+        builder: (_) => LinkRequestResultScreen(
+          outcome: settings.arguments as LinkSubmitOutcome? ??
+              LinkSubmitOutcome.waiting,
+        ),
+      ),
+    AppRoutes.linkConsentConfirmation => MaterialPageRoute<bool>(
+        settings: settings,
+        builder: (context) {
+          final args = settings.arguments;
+          if (args is! LinkConsentConfirmationArgs) {
+            return const Scaffold(
+              body: Center(child: Text('Yêu cầu không hợp lệ')),
+            );
+          }
+          return LinkConsentConfirmationScreen(args: args);
+        },
+      ),
+    AppRoutes.familyAdherence => MaterialPageRoute<void>(
+        settings: settings,
+        builder: (_) {
+          final args = settings.arguments;
+          if (args is! FamilyAdherenceRouteArgs ||
+              !_patientUuid.hasMatch(args.patientId) ||
+              adherenceRepository == null) {
+            return const _InvalidFamilyAdherenceRouteScreen();
+          }
+          return FamilyAdherenceScreen(
+            patientId: args.patientId,
+            patientName: args.patientName,
+            repository: adherenceRepository,
+            availability: familyAdherenceAvailability,
+          );
+        },
+      ),
+    AppRoutes.mealSuggestion => MaterialPageRoute<void>(
+        settings: settings,
+        builder: (_) => ConsentGate(
+          // Thực đơn và món đã chọn nằm ở mức phiên (MealPlanScope trong app.dart).
+          child: MealSuggestionScreen(
+            initialMeal: switch (settings.arguments) {
+              MealRouteArgs(:final initialMeal) => initialMeal,
+              _ => null,
+            },
+            onDeclareAllergy: (context) =>
+                Navigator.of(context).pushNamed(AppRoutes.allergyDeclaration),
+          ),
+        ),
+      ),
+    // Màn khai dị ứng làm sau (01 mục A); nối tới màn hồ sơ sức khỏe ở task nối dị ứng.
+    AppRoutes.allergyDeclaration => MaterialPageRoute<void>(
+        settings: settings,
+        builder: (_) => Scaffold(
+          appBar: AppBar(title: const Text('Khai dị ứng')),
+          body: const ComingSoonView(
+              title: 'Khai dị ứng', icon: LucideIcons.shieldAlert),
+        ),
       ),
     _ => null,
   };
+}
+
+class _InvalidFamilyAdherenceRouteScreen extends StatelessWidget {
+  const _InvalidFamilyAdherenceRouteScreen();
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+        appBar: AppBar(title: const Text('Lịch sử tuân thủ')),
+        body: const Center(
+          child: Padding(
+            padding: EdgeInsets.all(AppSpacing.xl),
+            child: Text(
+              'Chưa thể mở lịch sử của người bệnh này.',
+              style: AppTextStyles.body,
+              textAlign: TextAlign.center,
+            ),
+          ),
+        ),
+      );
 }
 
 /// Safe fallback when a notification opens the route without typed arguments.
@@ -172,185 +427,4 @@ class _InvalidDoseReminderRouteScreen extends StatelessWidget {
       ),
     );
   }
-}
-
-/// Màn hình Catalog dành cho Developer / Tester để duyệt nhanh qua tất cả các UI
-class DevUiCatalogScreen extends StatelessWidget {
-  const DevUiCatalogScreen({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    final screens = <_UiItem>[
-      const _UiItem(
-          title: 'S08 · Hồ sơ',
-          description: 'Xem thông tin hồ sơ và cài đặt',
-          badge: 'Profile',
-          route: AppRoutes.profile),
-      const _UiItem(
-          title: 'S08-1 · Thông tin cá nhân',
-          description: 'Cập nhật thông tin và chọn ảnh đại diện',
-          badge: 'Profile',
-          route: AppRoutes.personalProfile),
-      const _UiItem(
-          title: 'S08-2 · Thông tin y tế',
-          description: 'Quản lý bệnh nền từ danh mục',
-          badge: 'Profile',
-          route: AppRoutes.medicalProfile),
-      const _UiItem(
-        title: 'S00c · Đăng nhập (OTP / Email)',
-        description:
-            'Màn hình đăng nhập di động, chọn số điện thoại hoặc email',
-        badge: 'Auth',
-        route: AppRoutes.login,
-      ),
-      const _UiItem(
-        title: 'S00c-otp · Xác thực OTP (Số điện thoại)',
-        description: 'Màn hình nhập mã OTP 6 số gửi qua tin nhắn SMS',
-        badge: 'Auth',
-        route: AppRoutes.otpPhone,
-      ),
-      const _UiItem(
-        title: 'S00c-otp-2 · Xác thực OTP (Email)',
-        description: 'Màn hình nhập mã OTP 6 số gửi qua hòm thư điện tử',
-        badge: 'Auth',
-        route: AppRoutes.otpEmail,
-      ),
-      const _UiItem(
-        title: 'Điều khoản dịch vụ',
-        description: 'Văn bản điều khoản, mở từ ô tick ở màn đăng nhập',
-        badge: 'Legal',
-        route: AppRoutes.termsOfService,
-      ),
-      const _UiItem(
-        title: 'Chính sách quyền riêng tư',
-        description: 'Văn bản chính sách, mở từ ô tick ở màn đăng nhập',
-        badge: 'Legal',
-        route: AppRoutes.privacyPolicy,
-      ),
-      const _UiItem(
-        title: 'App Shell (Chính 5 tabs)',
-        description: 'Khung điều hướng đáy (Thuốc, Trang chủ, Lịch nhắc...)',
-        badge: 'Core',
-        route: AppRoutes.home,
-      ),
-      _UiItem(
-        title: 'S06 · Thuốc của tôi',
-        description: 'Danh sách thuốc đang dùng, cảnh báo sắp hết, bộ lọc',
-        badge: 'Medication',
-        builder: (_) =>
-            const Scaffold(body: SafeArea(child: MyMedicationsScreen())),
-      ),
-      const _UiItem(
-        title: 'S07 · Thêm thuốc mới',
-        description: 'Form tìm dược thư, liều lượng, lịch nhắc, lưu trữ',
-        badge: 'Medication',
-        route: AppRoutes.addMedication,
-      ),
-    ];
-
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('UI Dev Catalog · DrugTime'),
-        backgroundColor: AppColors.canvas,
-        centerTitle: false,
-      ),
-      body: ListView.separated(
-        padding: const EdgeInsets.all(AppSpacing.lg),
-        itemCount: screens.length,
-        separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.md),
-        itemBuilder: (context, index) {
-          final item = screens[index];
-          return Card(
-            elevation: 0,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(AppRadius.card),
-              side: const BorderSide(color: AppColors.border),
-            ),
-            color: AppColors.surface,
-            child: InkWell(
-              borderRadius: BorderRadius.circular(AppRadius.card),
-              onTap: () {
-                if (item.route != null) {
-                  Navigator.of(context).pushNamed(item.route!);
-                } else if (item.builder != null) {
-                  Navigator.of(context).push(
-                    MaterialPageRoute<void>(builder: item.builder!),
-                  );
-                }
-              },
-              child: Padding(
-                padding: const EdgeInsets.all(AppSpacing.lg),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 8.0,
-                                  vertical: 2.0,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: AppColors.brandTint,
-                                  borderRadius: BorderRadius.circular(6.0),
-                                ),
-                                child: Text(
-                                  item.badge,
-                                  style: const TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w600,
-                                    color: AppColors.brand,
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: AppSpacing.sm),
-                              Expanded(
-                                child: Text(
-                                  item.title,
-                                  style: AppTextStyles.bodyStrong,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: AppSpacing.xs),
-                          Text(
-                            item.description,
-                            style: AppTextStyles.caption,
-                          ),
-                        ],
-                      ),
-                    ),
-                    const Icon(
-                      Icons.chevron_right,
-                      color: AppColors.inkMuted,
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          );
-        },
-      ),
-    );
-  }
-}
-
-class _UiItem {
-  const _UiItem({
-    required this.title,
-    required this.description,
-    required this.badge,
-    this.route,
-    this.builder,
-  });
-
-  final String title;
-  final String description;
-  final String badge;
-  final String? route;
-  final WidgetBuilder? builder;
 }

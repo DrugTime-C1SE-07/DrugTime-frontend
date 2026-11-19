@@ -16,7 +16,8 @@ class _FailingRepository extends InMemoryAuthRepository {
   Future<void> requestOtp({String? phone, String? email}) async => throw error;
 
   @override
-  Future<AuthSession> verifyOtp({String? phone, String? email, required String token}) async =>
+  Future<AuthSession> verifyOtp(
+          {String? phone, String? email, required String token}) async =>
       throw error;
 
   @override
@@ -36,15 +37,50 @@ AuthSession _session({bool profileComplete = false}) => AuthSession(
     );
 
 void main() {
+  test('cleanup failure preserves old session and successful retry clears it',
+      () async {
+    final c = AuthController(InMemoryAuthRepository(
+        initialSession: _session(), simulatedDelay: Duration.zero));
+    await c.initSession();
+    c.beforeSignOut = (_) async => throw StateError('cleanup unavailable');
+    await expectLater(c.signOut(), throwsStateError);
+    expect(c.isAuthenticated, true);
+    expect(c.isSigningOut, false);
+    c.beforeSignOut = (_) async {};
+    await c.signOut();
+    expect(c.currentSession, isNull);
+    c.dispose();
+  });
+  test(
+      '401 clears session before expired token cleanup and never calls pre-logout DELETE hook',
+      () async {
+    final c = AuthController(InMemoryAuthRepository(
+        initialSession: _session(), simulatedDelay: Duration.zero));
+    await c.initSession();
+    var cleaned = false;
+    c.beforeSignOut = (_) async => fail('must not DELETE from 401 handler');
+    c.onSessionExpired = () async {
+      expect(c.currentSession, isNull);
+      cleaned = true;
+    };
+    await c.handleUnauthorized();
+    expect(cleaned, true);
+    c.dispose();
+  });
   group('thông điệp lỗi theo mã', () {
     final cases = <(AuthApiException, String)>[
-      (const AuthApiException(AuthErrorKind.invalidCredentials), 'Mã OTP không đúng hoặc đã hết hạn'),
       (
-        const AuthApiException(AuthErrorKind.adminMustUseWeb, code: 'admin_must_use_web'),
+        const AuthApiException(AuthErrorKind.invalidCredentials),
+        'Mã OTP không đúng hoặc đã hết hạn'
+      ),
+      (
+        const AuthApiException(AuthErrorKind.adminMustUseWeb,
+            code: 'admin_must_use_web'),
         'Tài khoản quản trị vui lòng đăng nhập trên trang quản trị'
       ),
       (
-        const AuthApiException(AuthErrorKind.invalidInput, code: 'invalid_phone'),
+        const AuthApiException(AuthErrorKind.invalidInput,
+            code: 'invalid_phone'),
         'Số điện thoại không hợp lệ'
       ),
       (
@@ -56,7 +92,8 @@ void main() {
         'Bạn thao tác quá nhanh, vui lòng thử lại sau ít phút'
       ),
       (
-        const AuthApiException(AuthErrorKind.unavailable, code: 'auth_provider_unavailable'),
+        const AuthApiException(AuthErrorKind.unavailable,
+            code: 'auth_provider_unavailable'),
         'Hệ thống đang bận, vui lòng thử lại sau'
       ),
       (
@@ -66,7 +103,8 @@ void main() {
     ];
     for (final (error, message) in cases) {
       test('verify ${error.kind} ${error.code ?? ''} → "$message"', () async {
-        final controller = AuthController(_FailingRepository(error))..setMethod(LoginMethod.email);
+        final controller = AuthController(_FailingRepository(error))
+          ..setMethod(LoginMethod.email);
 
         expect(await controller.verifyOtp(token: '123456'), isFalse);
         expect(controller.errorMessage, message);
@@ -80,12 +118,14 @@ void main() {
         ..setMethod(LoginMethod.email);
 
       expect(await controller.requestOtp('lan@example.com'), isFalse);
-      expect(controller.errorMessage, 'Bạn thao tác quá nhanh, vui lòng thử lại sau ít phút');
+      expect(controller.errorMessage,
+          'Bạn thao tác quá nhanh, vui lòng thử lại sau ít phút');
     });
 
     test('lỗi không phải AuthApiException không lộ nội dung', () async {
-      final controller = AuthController(_FailingRepository(Exception('stack trace secret')))
-        ..setMethod(LoginMethod.email);
+      final controller =
+          AuthController(_FailingRepository(Exception('stack trace secret')))
+            ..setMethod(LoginMethod.email);
 
       await controller.verifyOtp(token: '123456');
 
@@ -98,7 +138,8 @@ void main() {
     late AuthController controller;
 
     setUp(() async {
-      repo = InMemoryAuthRepository(initialSession: _session(), simulatedDelay: Duration.zero);
+      repo = InMemoryAuthRepository(
+          initialSession: _session(), simulatedDelay: Duration.zero);
       controller = AuthController(repo);
       await controller.initSession();
     });
@@ -109,7 +150,13 @@ void main() {
     });
 
     final invalid = <(String, String, DateTime?, String?, String)>[
-      ('họ tên rỗng', '   ', DateTime(1958, 4, 12), 'nu', 'Vui lòng nhập họ tên'),
+      (
+        'họ tên rỗng',
+        '   ',
+        DateTime(1958, 4, 12),
+        'nu',
+        'Vui lòng nhập họ tên'
+      ),
       ('thiếu ngày sinh', 'Lan', null, 'nu', 'Vui lòng chọn ngày sinh'),
       (
         'ngày sinh tương lai',
@@ -118,8 +165,20 @@ void main() {
         'nu',
         'Ngày sinh không được sau hôm nay'
       ),
-      ('thiếu giới tính', 'Lan', DateTime(1958, 4, 12), null, 'Vui lòng chọn giới tính'),
-      ('giới tính lạ', 'Lan', DateTime(1958, 4, 12), 'female', 'Vui lòng chọn giới tính'),
+      (
+        'thiếu giới tính',
+        'Lan',
+        DateTime(1958, 4, 12),
+        null,
+        'Vui lòng chọn giới tính'
+      ),
+      (
+        'giới tính lạ',
+        'Lan',
+        DateTime(1958, 4, 12),
+        'female',
+        'Vui lòng chọn giới tính'
+      ),
     ];
     for (final (name, fullName, dob, gender, message) in invalid) {
       test('$name → báo lỗi tại chỗ, không gọi repo', () async {
@@ -132,9 +191,12 @@ void main() {
       });
     }
 
-    test('hợp lệ → gọi repo với họ tên đã trim, needsProfile = false', () async {
+    test('hợp lệ → gọi repo với họ tên đã trim, needsProfile = false',
+        () async {
       final ok = await controller.completeProfile(
-          fullName: '  Nguyễn Thị Lan ', dateOfBirth: DateTime(1958, 4, 12), gender: 'nu');
+          fullName: '  Nguyễn Thị Lan ',
+          dateOfBirth: DateTime(1958, 4, 12),
+          gender: 'nu');
 
       expect(ok, isTrue);
       expect(repo.completedProfiles.single.$1, 'Nguyễn Thị Lan');
@@ -148,18 +210,20 @@ void main() {
       final c = AuthController(failing);
       await c.initSession();
 
-      final ok =
-          await c.completeProfile(fullName: 'Lan', dateOfBirth: DateTime(1958), gender: 'nu');
+      final ok = await c.completeProfile(
+          fullName: 'Lan', dateOfBirth: DateTime(1958), gender: 'nu');
 
       expect(ok, isFalse);
       expect(c.isAuthenticated, isFalse);
-      expect(c.errorMessage, 'Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại');
+      expect(
+          c.errorMessage, 'Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại');
     });
   });
 
   test('handleUnauthorized xóa phiên và báo listener', () async {
     final repo = InMemoryAuthRepository(
-        initialSession: _session(profileComplete: true), simulatedDelay: Duration.zero);
+        initialSession: _session(profileComplete: true),
+        simulatedDelay: Duration.zero);
     final controller = AuthController(repo);
     await controller.initSession();
     var notified = 0;
@@ -175,13 +239,15 @@ void main() {
   group('termsAccepted', () {
     Future<AuthController> signedIn() async {
       final controller = AuthController(InMemoryAuthRepository(
-          initialSession: _session(profileComplete: true), simulatedDelay: Duration.zero));
+          initialSession: _session(profileComplete: true),
+          simulatedDelay: Duration.zero));
       await controller.initSession();
       return controller;
     }
 
     test('mặc định false; setTermsAccepted đổi giá trị và báo listener', () {
-      final controller = AuthController(InMemoryAuthRepository(simulatedDelay: Duration.zero));
+      final controller =
+          AuthController(InMemoryAuthRepository(simulatedDelay: Duration.zero));
       var notified = 0;
       controller.addListener(() => notified++);
 

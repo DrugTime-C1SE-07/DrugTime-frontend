@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "vn.drugtime.drugtime_mobile",
+      "sha256_cert_fingerprints": [
+        "A7:16:59:A9:2A:55:B5:F6:04:A7:32:30:29:2E:B7:B4:82:51:EB:BA:2F:D7:AA:17:51:C5:19:5A:F5:AD:0D:2A"
+      ]
+    }
+  }
+]

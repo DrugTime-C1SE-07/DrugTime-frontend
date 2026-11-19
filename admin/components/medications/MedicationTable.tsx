@@ -142,10 +142,10 @@ export default function MedicationTable({
                 }}
               >
                 <SearchX size={36} strokeWidth={1.8} />
-                <strong style={{ fontSize: 15, color: "var(--color-text)" }}>
+                <strong className="medication-empty-title">
                   Không tìm thấy thuốc phù hợp
                 </strong>
-                <p style={{ margin: 0, fontSize: 13 }}>
+                <p className="medication-empty-text">
                   Thử tìm kiếm với từ khóa khác hoặc thiết lập lại bộ lọc để xem toàn bộ danh mục.
                 </p>
                 {onResetFilters ? (
@@ -188,7 +188,8 @@ export default function MedicationTable({
 
                   <div className="medication-ingredient">
                     <span className="medication-ingredient-title">{medication.ingredient}</span>
-                    <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", marginTop: 2 }}>
+                    {/* Hàm lượng và huy hiệu tương tác xếp dọc, căn trái: huy hiệu thẳng cột ở mọi dòng */}
+                    <div className="medication-ingredient-meta">
                       <span className="medication-ingredient-strength">{medication.strength}</span>
                       {(() => {
                         const count = getInteractionCount(medication);
@@ -227,9 +228,9 @@ export default function MedicationTable({
                   </div>
 
                   <div>
-                    <span className="medication-group-badge">
+                    <span className="medication-group-badge" title={medication.group}>
                       <Tag size={12} strokeWidth={2} aria-hidden="true" />
-                      {medication.group}
+                      <span className="medication-group-badge__text">{medication.group}</span>
                     </span>
                   </div>
 
@@ -436,7 +437,7 @@ export default function MedicationTable({
             </strong>{" "}
             (SĐK: {deleteConfirmTarget?.regNo}) khỏi danh mục hiển thị không?
           </p>
-          <span style={{ fontSize: 12, color: "var(--color-muted)", marginTop: 6, display: "block" }}>
+          <span className="modal-confirm-note">
             Hệ thống thực hiện xóa mềm (Soft Delete). Bạn có thể hoàn tác ngay trong thông báo.
           </span>
         </div>

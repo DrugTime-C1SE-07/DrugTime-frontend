@@ -123,7 +123,7 @@ class _FakeLocalMedicationStore implements LocalMedicationStore {
 
   @override
   Future<List<LocalMedicationSchedule>> getActiveSchedules({
-    required String patientId,
+    String? patientId,
   }) {
     throw UnimplementedError();
   }
@@ -142,6 +142,12 @@ class _FakeLocalMedicationStore implements LocalMedicationStore {
   Future<LocalMedicationSchedule?> getScheduleById(int scheduleId) {
     throw UnimplementedError();
   }
+
+  @override
+  Future<bool> hasDoseLog({
+    required int medicationScheduleId,
+    required DateTime scheduledAt,
+  }) async => false;
 
   @override
   Future<void> markDoseLogFailed({

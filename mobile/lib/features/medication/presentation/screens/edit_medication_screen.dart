@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../app/theme/app_theme.dart';
+import '../../../../core/notification/reminder_scheduler.dart';
 import '../../../../shared/widgets/pill_icon.dart';
 import '../../domain/entities/medication.dart';
 import '../../domain/entities/medication_failure.dart';
@@ -8,6 +9,11 @@ import '../state/medication_controller.dart';
 import '../widgets/medication_error_messages.dart';
 import '../widgets/medication_form_fields.dart';
 import '../widgets/medication_labels.dart';
+import '../../../auth/presentation/state/auth_controller.dart';
+import '../../../interaction_check/presentation/widgets/interaction_warning_dialog.dart';
+import '../../../drug_food_warning/data/repositories/in_memory_food_interaction_repository.dart';
+import '../../../drug_food_warning/domain/repositories/food_interaction_repository.dart';
+import '../../../drug_food_warning/presentation/widgets/food_warning_dialog.dart';
 
 /// S06b · Sửa thông tin thuốc (Figma prototype).
 ///
@@ -18,12 +24,18 @@ class EditMedicationScreen extends StatefulWidget {
     super.key,
     required this.medication,
     this.dosageForm,
+    this.reminderScheduler,
+    this.foodInteractionRepository,
   });
 
   final Medication medication;
 
   /// Dạng bào chế hiển thị; mặc định lấy từ [medication].
   final String? dosageForm;
+
+  final ReminderScheduler? reminderScheduler;
+
+  final FoodInteractionRepository? foodInteractionRepository;
 
   @override
   State<EditMedicationScreen> createState() => _EditMedicationScreenState();
@@ -35,6 +47,7 @@ class _EditMedicationScreenState extends State<EditMedicationScreen> {
   late DoseFrequency _frequency;
   late List<DoseTime> _times;
   late IntakeTiming _timing;
+  late bool _reminderEnabled;
 
   bool _dirty = false;
   bool _saving = false;
@@ -47,6 +60,7 @@ class _EditMedicationScreenState extends State<EditMedicationScreen> {
     _frequency = widget.medication.frequency;
     _times = List<DoseTime>.from(widget.medication.times);
     _timing = widget.medication.timing;
+    _reminderEnabled = widget.medication.reminderEnabled;
   }
 
   void _markDirty() {
@@ -232,18 +246,101 @@ class _EditMedicationScreenState extends State<EditMedicationScreen> {
     setState(() => _saving = true);
     final controller = MedicationScope.read(context);
 
+    final candidateId = int.tryParse(widget.medication.catalogId);
+    if (candidateId != null) {
+      final patientId = AuthScope.maybeOf(context)?.currentSession?.userId ?? '';
+      try {
+        final otherActiveIds = controller.medications
+            .where((m) => m.id != widget.medication.id && m.isActive)
+            .map((m) => int.tryParse(m.catalogId))
+            .whereType<int>()
+            .toList();
+
+        final checkResult = await controller.checkInteractions(
+          patientId: patientId,
+          candidateMedicationId: candidateId,
+          candidateDoseAmount: _dose,
+          candidateDoseUnit: widget.medication.unit.isEmpty ? null : widget.medication.unit,
+          medicationIds: otherActiveIds,
+        );
+
+        if (checkResult.hasInteractions) {
+          if (!mounted) return;
+          setState(() => _saving = false);
+          final proceed = await showInteractionWarningDialog(context, checkResult);
+          if (proceed != true) {
+            return;
+          }
+          if (mounted) setState(() => _saving = true);
+        } else if (checkResult.isInsufficientData || checkResult.insufficientDataMedications.isNotEmpty) {
+          if (!mounted) return;
+          setState(() => _saving = false);
+          final proceed = await showInsufficientDataDialog(context, checkResult);
+          if (proceed != true) {
+            return;
+          }
+          if (mounted) setState(() => _saving = true);
+        }
+      } catch (_) {
+        if (!mounted) return;
+        setState(() => _saving = false);
+        final proceed = await showInteractionNetworkErrorDialog(context);
+        if (proceed != true) {
+          return;
+        }
+        if (mounted) setState(() => _saving = true);
+      }
+
+      // Kiem tra tuong tac thuoc - thuc an / do uong (Task 4.06)
+      final foodRepo = widget.foodInteractionRepository ??
+          InMemoryFoodInteractionRepository();
+      try {
+        final foodResult = await foodRepo.checkFoodInteractions(
+          patientId: patientId,
+          medicationName: widget.medication.name,
+          activeIngredient: widget.medication.activeIngredient,
+          catalogId: candidateId,
+        );
+
+        if (foodResult.hasWarnings) {
+          if (!mounted) return;
+          setState(() => _saving = false);
+          final proceed = await showFoodWarningDialog(context, foodResult);
+          if (proceed != true) {
+            return;
+          }
+          if (mounted) setState(() => _saving = true);
+        }
+      } catch (_) {
+        if (!mounted) return;
+        setState(() => _saving = false);
+        final proceed = await showFoodNetworkErrorDialog(context);
+        if (proceed != true) {
+          return;
+        }
+        if (mounted) setState(() => _saving = true);
+      }
+    }
+
     final edited = widget.medication.copyWith(
       dosePerIntake: _dose,
       frequency: _frequency,
       timing: _timing,
       times: _frequency.isAsNeeded ? const [] : _times,
       maxDosesPerDay: _frequency.isAsNeeded ? _maxDoses : null,
+      reminderEnabled: _reminderEnabled,
     );
 
     final Medication updated;
     try {
       // Chỉ phần khác bản gốc được gửi lên (PATCH).
       updated = await controller.update(widget.medication, edited);
+      if (!_reminderEnabled) {
+        final scheduleId = int.tryParse(widget.medication.id);
+        if (scheduleId != null) {
+          await widget.reminderScheduler?.cancelAllForSchedule(scheduleId);
+        }
+      }
     } on MedicationFailure catch (failure) {
       if (!mounted) return;
       setState(() => _saving = false);
@@ -491,6 +588,29 @@ class _EditMedicationScreenState extends State<EditMedicationScreen> {
                   });
                 }
               },
+            ),
+            const SizedBox(height: AppSpacing.xl),
+
+            // 5. Bật / Tắt nhắc nhở (Task 2.08)
+            Card(
+              elevation: 0,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(AppRadius.card),
+                side: const BorderSide(color: AppColors.border),
+              ),
+              child: SwitchListTile(
+                key: const Key('edit_medication_reminder_switch'),
+                title: const Text('Bật nhắc nhở', style: AppTextStyles.bodyStrong),
+                subtitle: const Text('Nhận thông báo khi đến cữ uống thuốc'),
+                value: _reminderEnabled,
+                activeColor: AppColors.brand,
+                onChanged: (val) {
+                  setState(() {
+                    _reminderEnabled = val;
+                    _markDirty();
+                  });
+                },
+              ),
             ),
             const SizedBox(height: AppSpacing.xxl),
           ],

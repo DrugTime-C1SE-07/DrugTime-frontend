@@ -1,4 +1,5 @@
-import FeatureGrid from '@/components/sections/FeatureGrid';
+import FeatureStory from '@/components/sections/FeatureStory';
+import MoreFeatures from '@/components/sections/MoreFeatures';
 import HowItWorks from '@/components/sections/HowItWorks';
 import CTADownload from '@/components/sections/CTADownload';
 import { buildMetadata } from '@/lib/seo/metadata';
@@ -12,7 +13,8 @@ export const metadata = buildMetadata({
 export default function FeaturesPage() {
   return (
     <>
-      <FeatureGrid />
+      <FeatureStory />
+      <MoreFeatures />
       <HowItWorks />
       <CTADownload />
     </>
