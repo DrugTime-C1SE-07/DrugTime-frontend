@@ -9,7 +9,8 @@ enum ProfileFailureKind {
   unavailable,
   unsupported,
   invalidResponse,
-  emailChangeVerification
+  emailChangeVerification,
+  phoneUnavailable
 }
 
 class ProfileFailure implements Exception {
@@ -41,6 +42,8 @@ class ProfileFailure implements Exception {
           'Dữ liệu hồ sơ trả về chưa hợp lệ. Vui lòng thử lại.',
         ProfileFailureKind.emailChangeVerification =>
           'Email này dùng để đăng nhập nên chưa đổi được tại đây. Bạn cần xác minh email cũ và email mới để đổi.',
+        ProfileFailureKind.phoneUnavailable =>
+          'Số điện thoại này hiện không thể sử dụng. Vui lòng kiểm tra lại.',
       };
   // Do not include API response bodies or health data in exception diagnostics.
   @override

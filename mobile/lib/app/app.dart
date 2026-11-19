@@ -64,6 +64,7 @@ import '../features/interaction_check/domain/repositories/interaction_check_repo
 import '../features/medication/presentation/state/medication_controller.dart';
 import '../features/reminder/domain/entities/dose_reminder.dart';
 import '../features/profile/domain/repositories/profile_repository.dart';
+import '../features/profile/data/repositories/secure_profile_avatar_preferences.dart';
 import '../features/profile/domain/repositories/health_setup_repository.dart';
 import '../features/profile/presentation/state/profile_controller.dart';
 import '../features/profile/presentation/state/health_setup_status_controller.dart';
@@ -429,7 +430,7 @@ class _DrugTimeAppState extends State<DrugTimeApp> with WidgetsBindingObserver {
     clock: widget.clock,
   );
   late final ProfileController _profiles =
-      ProfileController(widget.profileRepository);
+      ProfileController(widget.profileRepository, SecureProfileAvatarPreferences());
   late final HealthSetupStatusController _healthSetup =
       HealthSetupStatusController(widget.healthSetupRepository);
   late final HomeScheduleController _homeSchedule = HomeScheduleController(
@@ -706,6 +707,7 @@ class _DrugTimeAppState extends State<DrugTimeApp> with WidgetsBindingObserver {
       _profileUser =
           _auth.isAuthenticated ? _auth.currentSession?.userId : null;
     });
+    await _profiles.setAccount(_profileUser);
     _bindMeals(_profileUser);
     _consumeMealLink();
     unawaited(_captures.bindSession(
@@ -731,7 +733,7 @@ class _DrugTimeAppState extends State<DrugTimeApp> with WidgetsBindingObserver {
     final switchedUser = user != _profileUser;
     if (switchedUser) {
       _history.setPatient(user);
-      _profiles.clear();
+      unawaited(_profiles.setAccount(user));
       _healthSetup.clear();
       _profileUser = user;
       // Hạn chế ăn uống khai trong phiên không được sang tài khoản khác (task 5.11).
