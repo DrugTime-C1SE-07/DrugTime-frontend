@@ -9,6 +9,7 @@ abstract interface class HealthSetupRepository {
     String revision, {
     HealthSetupStep<String>? allergies,
     HealthSetupStep<int>? conditions,
+    HealthSetupStep<int>? physiological,
   });
 }
 

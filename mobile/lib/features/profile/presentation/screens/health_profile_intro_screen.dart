@@ -116,7 +116,7 @@ class _HealthProfileIntroScreenState extends State<HealthProfileIntroScreen> {
                         ),
                         const SizedBox(height: 10),
                         Text(
-                          'Khai báo dị ứng và bệnh nền để nhận cảnh báo phù hợp.',
+                          'Khai báo dị ứng, bệnh nền và tình trạng sinh lý để nhận cảnh báo phù hợp.',
                           textAlign: TextAlign.center,
                           style: _textStyle.copyWith(
                             fontSize: 17,
@@ -150,6 +150,18 @@ class _HealthProfileIntroScreenState extends State<HealthProfileIntroScreen> {
                                 iconColor: Color(0xFF704EA3),
                                 title: 'Bệnh nền',
                                 subtitle: 'Bệnh đang điều trị',
+                              ),
+                              Divider(
+                                color: _border,
+                                height: 1,
+                                indent: 52,
+                                endIndent: 1,
+                              ),
+                              _ProfileTopic(
+                                icon: Icons.pregnant_woman,
+                                iconColor: Color(0xFFB4235A),
+                                title: 'Tình trạng sinh lý',
+                                subtitle: 'Mang thai, cho con bú (nếu có)',
                               ),
                             ],
                           ),

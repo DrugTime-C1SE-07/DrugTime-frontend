@@ -38,18 +38,18 @@ import 'app_shell.dart';
 import '../features/profile/presentation/screens/profile_screen.dart';
 import '../features/profile/presentation/screens/personal_profile_screen.dart';
 import '../features/profile/presentation/screens/medical_profile_screen.dart';
+import '../features/profile/presentation/screens/physiological_state_screen.dart';
 import '../features/profile/presentation/screens/health_profile_intro_screen.dart';
 import '../features/profile/domain/repositories/health_setup_repository.dart';
 import '../features/profile/presentation/screens/health_setup_screen.dart';
 import '../features/profile/presentation/widgets/health_setup_motion.dart';
 import 'theme/app_theme.dart';
 import '../features/meal_suggestion/presentation/screens/meal_suggestion_screen.dart';
-import '../shared/widgets/coming_soon_view.dart';
-import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../features/profile/presentation/screens/notification_preferences_screen.dart';
 import '../features/profile/presentation/screens/reminder_sound_screen.dart';
 import '../features/profile/presentation/screens/profile_settings_screen.dart';
 import '../features/family_link/presentation/screens/invite_caregiver_screen.dart';
+import '../features/profile/presentation/state/health_setup_controller.dart';
 
 enum HomeEntry { profileCompleted }
 
@@ -82,6 +82,7 @@ abstract final class AppRoutes {
   static const profile = '/profile';
   static const personalProfile = '/profile/personal';
   static const medicalProfile = '/profile/medical';
+  static const physiologicalState = '/profile/physiological-state';
   static const healthProfileIntro = '/onboarding/health-profile';
   static const healthSetup = '/onboarding/health-profile/setup';
   static const caregivers = '/profile/caregivers';
@@ -178,7 +179,13 @@ Route<dynamic>? onGenerateRoute(
     AppRoutes.personalProfile => MaterialPageRoute<void>(
         settings: settings, builder: (_) => const PersonalProfileScreen()),
     AppRoutes.medicalProfile => MaterialPageRoute<void>(
-        settings: settings, builder: (_) => const MedicalProfileScreen()),
+        settings: settings,
+        builder: (_) =>
+            MedicalProfileScreen(repository: healthSetupRepository)),
+    AppRoutes.physiologicalState => MaterialPageRoute<void>(
+        settings: settings,
+        builder: (_) =>
+            PhysiologicalStateScreen(repository: healthSetupRepository)),
     AppRoutes.healthProfileIntro => healthSetupPageRoute<void>(
         settings: settings, builder: (_) => const HealthProfileIntroScreen()),
     AppRoutes.healthSetup => healthSetupPageRoute<bool>(
@@ -354,18 +361,20 @@ Route<dynamic>? onGenerateRoute(
               MealRouteArgs(:final initialMeal) => initialMeal,
               _ => null,
             },
-            onDeclareAllergy: (context) =>
-                Navigator.of(context).pushNamed(AppRoutes.allergyDeclaration),
+            onDeclareAllergy: (context) => Navigator.of(context)
+                .pushNamed<bool>(AppRoutes.allergyDeclaration),
           ),
         ),
       ),
-    // Màn khai dị ứng làm sau (01 mục A); nối tới màn hồ sơ sức khỏe ở task nối dị ứng.
-    AppRoutes.allergyDeclaration => MaterialPageRoute<void>(
+    // Khai dị ứng từ Dumi AI: chỉ bước dị ứng của màn hồ sơ sức khỏe thật; lưu xong trả
+    // `true` để Dumi đi tiếp (N7, AC12).
+    AppRoutes.allergyDeclaration => healthSetupPageRoute<bool>(
         settings: settings,
-        builder: (_) => Scaffold(
-          appBar: AppBar(title: const Text('Khai dị ứng')),
-          body: const ComingSoonView(
-              title: 'Khai dị ứng', icon: LucideIcons.shieldAlert),
+        builder: (context) => ConsentGate(
+          child: HealthSetupScreen(
+            repository: healthSetupRepository,
+            steps: const [HealthSetupStepKind.allergy],
+          ),
         ),
       ),
     _ => null,

@@ -118,7 +118,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     final now = _now();
     final signals = HomePetSignals.from(schedule, now);
     final summary = schedule?.day?.summary;
-    final top = MediaQuery.paddingOf(context).top;
     final chips = <Widget>[
       if (loading) ...const [
         _Placeholder(width: 90, height: 30),
@@ -151,113 +150,102 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               tint: const Color(0xFFF57C00)),
       ],
     ];
-    Widget banner(double shrink) => LivingBanner(
-          now: now,
-          signals: signals,
-          active: widget.active,
-          shrink: shrink,
-          showPet: !loading && profile.error == null,
-          sheetColor: _sheet,
-          title: (context, ink, at) => Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Row(children: [
-                  Icon(
-                      homeGreeting(at).night
-                          ? LucideIcons.moon
-                          : LucideIcons.sun,
-                      color: ink),
-                  const SizedBox(width: 8),
-                  Flexible(
-                      child: Text(homeGreeting(at).text,
-                          style: TextStyle(
-                              color: ink,
-                              fontSize: 17,
-                              fontWeight: FontWeight.w600))),
-                ]),
-                if (loading)
-                  const _Placeholder(width: 130, height: 24)
-                else
-                  GreetingName(name == null || name.isEmpty ? 'Xin chào' : name,
-                      ink: ink),
-              ]),
-          trailing: Material(
-              color: Colors.white,
-              shape: const CircleBorder(),
-              child: IconButton(
-                  tooltip: 'Thông báo',
-                  onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                          content: Text('Thông báo đang được phát triển'))),
-                  icon: const Icon(LucideIcons.bell, color: AppColors.brand))),
-          chips: chips,
-        );
+    final banner = LivingBanner(
+      now: now,
+      signals: signals,
+      active: widget.active,
+      height: HomeLayout.bannerHeight,
+      showPet: !loading && profile.error == null,
+      sheetColor: _sheet,
+      title: (context, ink, at) => loading
+          ? const _Placeholder(width: 220, height: 30)
+          : GreetingTitle(
+              greetingLine(homeGreeting(at).text, name),
+              ink: ink,
+              night: homeGreeting(at).night,
+            ),
+      trailing: Material(
+          color: Colors.white,
+          shape: const CircleBorder(),
+          child: IconButton(
+              tooltip: 'Thông báo',
+              onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                      content: Text('Thông báo đang được phát triển'))),
+              icon: const Icon(LucideIcons.bell, color: AppColors.brand))),
+      chips: chips,
+    );
+    // Banner, shortcuts and the "Lịch hôm nay" header stay put; only the day's doses scroll
+    // (N6, AC6). The banner no longer collapses, so its chips are never clipped (N9).
     return ColoredBox(
       color: _sheet,
-      child: CustomScrollView(slivers: [
-        SliverPersistentHeader(
-            delegate: _BannerHeader(top: top, builder: banner)),
-        SliverToBoxAdapter(
-          child: Container(
-            constraints: BoxConstraints(
-                minHeight: (MediaQuery.sizeOf(context).height - top - 310)
-                    .clamp(0, double.infinity)),
-            padding: const EdgeInsets.fromLTRB(20, 4, 20, 32),
-            child:
-                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Row(children: [
-                Expanded(
-                    child: _Shortcut(
-                        label: 'Thêm thuốc',
-                        icon: LucideIcons.pill,
-                        onTap: () => _openMedication(AppRoutes.addMedication))),
-                const SizedBox(width: 10),
-                Expanded(
-                    child: _Shortcut(
-                        label: 'Dumi AI',
-                        image: AppAssets.mascotCooking,
-                        onTap: () => Navigator.pushNamed(
-                            context, AppRoutes.mealSuggestion))),
-                const SizedBox(width: 10),
-                Expanded(
-                    child: _Shortcut(
-                        label: 'Người thân',
-                        icon: LucideIcons.usersRound,
-                        onTap: widget.onFamily)),
-              ]),
-              const SizedBox(height: 18),
-              Row(children: [
-                const Expanded(
-                    child: Text('Lịch hôm nay',
-                        style: TextStyle(
-                            fontSize: 20, fontWeight: FontWeight.bold))),
-                TextButton(
-                    onPressed: widget.onSchedule,
-                    child: const Text('Xem lịch ›'))
-              ]),
-              if (profile.error != null) const ProfileNotices(),
-              if (loading || schedule?.loading == true)
-                Semantics(
-                    label: 'Đang tải trang chủ',
-                    child: const Column(children: [
-                      SizedBox(height: 12),
-                      _SkeletonCard(),
-                      SizedBox(height: 12),
-                      _SkeletonCard(),
-                      SizedBox(height: 12),
-                      _SkeletonCard(tall: true)
-                    ]))
-              else if (schedule != null)
-                HomeDoseTimeline(
-                  controller: schedule,
-                  now: now,
-                  onAdd: () => _openMedication(AppRoutes.addMedication),
-                  onScan: () => _openMedication(AppRoutes.scanMedication),
-                ),
-              // Món đã chọn hôm nay (Dumi AI); ẩn khi chưa chọn món nào.
-              const TodayMenuRow(),
-            ]),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        banner,
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 4, 20, 0),
+          child: Row(children: [
+            Expanded(
+                child: _Shortcut(
+                    label: 'Thêm thuốc',
+                    icon: LucideIcons.pill,
+                    onTap: () => _openMedication(AppRoutes.addMedication))),
+            const SizedBox(width: 10),
+            Expanded(
+                child: _Shortcut(
+                    label: 'Dumi AI',
+                    image: AppAssets.mascotCooking,
+                    onTap: () => Navigator.pushNamed(
+                        context, AppRoutes.mealSuggestion))),
+            const SizedBox(width: 10),
+            Expanded(
+                child: _Shortcut(
+                    label: 'Người thân',
+                    icon: LucideIcons.usersRound,
+                    onTap: widget.onFamily)),
+          ]),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 10, 8, 0),
+          child: Row(children: [
+            const Expanded(
+                child: Text('Lịch hôm nay',
+                    key: Key('home-today-header'),
+                    style:
+                        TextStyle(fontSize: 20, fontWeight: FontWeight.bold))),
+            TextButton(
+                onPressed: widget.onSchedule, child: const Text('Xem lịch ›'))
+          ]),
+        ),
+        Expanded(
+          child: HomeScrollArea(
+            color: _sheet,
+            child: ListView(
+              key: const Key('home-dose-list'),
+              padding: const EdgeInsets.fromLTRB(20, 4, 20, 32),
+              children: [
+                if (profile.error != null) const ProfileNotices(),
+                if (loading || schedule?.loading == true)
+                  Semantics(
+                      label: 'Đang tải trang chủ',
+                      child: const Column(children: [
+                        SizedBox(height: 12),
+                        _SkeletonCard(),
+                        SizedBox(height: 12),
+                        _SkeletonCard(),
+                        SizedBox(height: 12),
+                        _SkeletonCard(tall: true)
+                      ]))
+                else if (schedule != null)
+                  HomeDoseTimeline(
+                    controller: schedule,
+                    now: now,
+                    onAdd: () => _openMedication(AppRoutes.addMedication),
+                    onScan: () => _openMedication(AppRoutes.scanMedication),
+                  ),
+                // Món đã chọn hôm nay (Dumi AI); ẩn khi chưa chọn món nào.
+                const TodayMenuRow(),
+              ],
+            ),
           ),
         ),
       ]),
@@ -272,25 +260,65 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 }
 
-/// Header banner thu từ 260 xuống 140 dp (cộng safe area) khi cuộn.
-class _BannerHeader extends SliverPersistentHeaderDelegate {
-  _BannerHeader({required this.top, required this.builder});
-  final double top;
-  final Widget Function(double shrink) builder;
+/// Fixed home layout constants shared by both home screens.
+abstract final class HomeLayout {
+  /// Banner height without the status bar (was 260 and collapsing; Q3: a little lower).
+  static const bannerHeight = 236.0;
+}
+
+/// Scrolling area under the fixed header: a soft shadow appears on its top edge once the
+/// list has scrolled, so the fixed header reads as lifted above the content.
+class HomeScrollArea extends StatefulWidget {
+  const HomeScrollArea({super.key, required this.child, required this.color});
+  final Widget child;
+  final Color color;
 
   @override
-  double get maxExtent => 260 + top;
+  State<HomeScrollArea> createState() => _HomeScrollAreaState();
+}
+
+class _HomeScrollAreaState extends State<HomeScrollArea> {
+  bool _scrolled = false;
 
   @override
-  double get minExtent => 140 + top;
-
-  @override
-  Widget build(
-          BuildContext context, double shrinkOffset, bool overlapsContent) =>
-      builder(math.min(shrinkOffset, maxExtent - minExtent));
-
-  @override
-  bool shouldRebuild(_BannerHeader old) => true;
+  Widget build(BuildContext context) =>
+      NotificationListener<ScrollNotification>(
+        onNotification: (n) {
+          final scrolled = n.metrics.pixels > 0.5;
+          if (n.depth == 0 && scrolled != _scrolled) {
+            setState(() => _scrolled = scrolled);
+          }
+          return false;
+        },
+        child: Stack(children: [
+          Positioned.fill(child: widget.child),
+          Positioned(
+            left: 0,
+            right: 0,
+            top: 0,
+            height: 14,
+            child: IgnorePointer(
+              child: AnimatedOpacity(
+                key: const Key('home-scroll-shadow'),
+                opacity: _scrolled ? 1 : 0,
+                duration: const Duration(milliseconds: 150),
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        const Color(0xFF0B2A26).withValues(alpha: .10),
+                        widget.color.withValues(alpha: 0),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ]),
+      );
 }
 
 class _Shortcut extends StatelessWidget {

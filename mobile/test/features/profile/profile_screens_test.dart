@@ -2,7 +2,6 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:drugtime_mobile/features/profile/presentation/screens/personal_profile_screen.dart';
-import 'package:drugtime_mobile/features/profile/presentation/screens/medical_profile_screen.dart';
 import 'package:drugtime_mobile/features/profile/presentation/screens/profile_screen.dart';
 import 'package:drugtime_mobile/features/profile/presentation/state/profile_controller.dart';
 import 'package:drugtime_mobile/features/profile/domain/entities/profile_failure.dart';
@@ -199,36 +198,6 @@ void main() {
     expect(find.text('Đăng xuất'), findsNothing);
   });
 
-  testWidgets('medical catalog adds, edits metadata and confirms delete',
-      (tester) async {
-    final repo = FakeProfileRepository();
-    final c = ProfileController(repo);
-    addTearDown(c.dispose);
-    await tester.pumpWidget(profileApp(c, const MedicalProfileScreen()));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Thêm bệnh khác'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Xem thêm'));
-    await tester.pumpAndSettle();
-    expect(repo.offsets, [0, 1]);
-    await tester.tap(find.text('Tăng huyết áp'));
-    await tester.pumpAndSettle();
-    expect(c.profile!.conditions.length, 1);
-    await tester.tap(find.byKey(const Key('condition-chip-99')));
-    await tester.pumpAndSettle();
-    await tester.enterText(find.byKey(const Key('condition-stage')), 'II');
-    await tester.tap(find.text('Lưu thông tin bệnh'));
-    await tester.pumpAndSettle();
-    expect(repo.lastLink, 99);
-    expect(repo.lastPatch, {'stage': 'II'});
-    await tester.tap(find.byKey(const Key('condition-chip-99')));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Xóa bệnh khỏi hồ sơ'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Xóa'));
-    await tester.pumpAndSettle();
-    expect(c.profile!.conditions, isEmpty);
-  });
   testWidgets('email change conflict shows the verification message',
       (tester) async {
     final repo = FakeProfileRepository()

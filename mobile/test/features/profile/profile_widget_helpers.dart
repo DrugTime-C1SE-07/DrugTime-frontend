@@ -37,7 +37,10 @@ Widget profileApp(ProfileController c, Widget child,
           onGenerateRoute: onGenerateRoute,
           builder: (context, child) => MediaQuery(
               data: MediaQuery.of(context).copyWith(
-                  textScaler: TextScaler.linear(textScale), viewInsets: insets),
+                  textScaler: TextScaler.linear(textScale),
+                  viewInsets: insets,
+                  // The medic mascot idles forever; still it so pumpAndSettle can settle.
+                  disableAnimations: true),
               child: child!),
           home: Scaffold(body: child),
         ));

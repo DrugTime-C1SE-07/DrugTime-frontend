@@ -8,6 +8,7 @@ import '../widgets/meal_greeting.dart';
 import '../widgets/meal_tabs.dart';
 import '../widgets/meal_ui.dart';
 import '../widgets/meal_widgets.dart';
+import '../../../../core/motion/shared_axis.dart';
 
 /// Chi tiết món (S05-D1, D1c, D2): ảnh bo góc có lề (Hero, giãn khi kéo quá, parallax),
 /// tab Lợi ích / Nên tránh, thanh đáy Nguyên liệu + Chọn món (AC11).
@@ -36,20 +37,13 @@ class MealDetailScreen extends StatefulWidget {
     required int index,
     required bool chosen,
   }) =>
-      PageRouteBuilder<bool>(
-        transitionDuration: const Duration(milliseconds: 520),
-        reverseTransitionDuration: const Duration(milliseconds: 420),
-        pageBuilder: (_, __, ___) => MealDetailScreen(
-            plan: plan,
-            meal: meal,
-            result: result,
-            index: index,
-            chosen: chosen),
-        transitionsBuilder: (_, a, __, child) => FadeTransition(
-          opacity: CurvedAnimation(parent: a, curve: const Interval(0, .6)),
-          child: child,
-        ),
-      );
+      sharedAxisRoute<bool>(
+          builder: (_) => MealDetailScreen(
+              plan: plan,
+              meal: meal,
+              result: result,
+              index: index,
+              chosen: chosen));
 
   @override
   State<MealDetailScreen> createState() => _MealDetailScreenState();
