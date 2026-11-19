@@ -19,7 +19,6 @@ class HealthSetupPresentation {
 const _allergyIcons = {
   'penicillin': 0,
   'aspirin': 1,
-  'sulfa': 2,
   'cephalosporin': 3,
   'seafood': 4,
   'peanuts': 5,
@@ -32,6 +31,8 @@ const _conditionPresentation = {
   'hypertension': HealthSetupPresentation('Tăng huyết áp', 8),
   'tiểu đường': HealthSetupPresentation('Tiểu đường', 9),
   'đái tháo đường': HealthSetupPresentation('Tiểu đường', 9),
+  // Tên trong danh mục backend (seed 20_health_profile_catalog.sql).
+  'đái tháo đường type 2': HealthSetupPresentation('Tiểu đường', 9),
   'diabetes mellitus': HealthSetupPresentation('Tiểu đường', 9),
   'tim mạch': HealthSetupPresentation('Tim mạch', 10),
   'thận': HealthSetupPresentation('Thận', 11),
