@@ -1,5 +1,9 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
+import 'package:drugtime_mobile/features/patient_monitor/domain/monitor_digest.dart';
 import 'package:drugtime_mobile/core/api/api_client.dart';
 import 'package:drugtime_mobile/core/api/api_exception.dart';
 import 'package:drugtime_mobile/features/adherence/domain/entities/adherence_history.dart';
@@ -53,7 +57,141 @@ class MonitorRepo extends PatientMonitorRepository {
   }
 }
 
+/// 09:00 VN ngày 19/11 — Losartan 06:30 bỏ lỡ, Vitamin 07:00 đã uống, Metformin 12:00 sắp tới.
+final attentionNow = DateTime.utc(2026, 11, 19, 2);
+final losartanAt = DateTime.utc(2026, 11, 18, 23, 30);
+
+/// Repository có HTTP giả: chỉ endpoint trạng thái nhắc đi qua mạng giả.
+class ReceiptRepo extends PatientMonitorRepository {
+  ReceiptRepo(this.respond)
+      : super(ApiClient(
+            baseUrl: Uri.parse('https://test.invalid'),
+            httpClient: MockClient((request) async {
+              statusCalls.add(request.url.queryParameters['schedule_id']!);
+              return respond(request);
+            })));
+
+  final Future<http.Response> Function(http.Request) respond;
+  static final statusCalls = <String>[];
+
+  @override
+  Future<List<LinkedPatient>> patients() async =>
+      const [LinkedPatient(id: 'mother', name: 'Hoa')];
+
+  @override
+  Future<MonitorSnapshot> today(String patientId,
+      {required DateTime now, bool includeMedications = true}) async {
+    AdherenceDose d(int id, String name, DateTime at, AdherenceDoseStatus s,
+            [DateTime? taken]) =>
+        AdherenceDose(
+            medicationId: id,
+            medicationName: name,
+            scheduleId: id,
+            scheduledAt: at,
+            takenAt: taken,
+            status: s);
+    final day = monitorDay(attentionNow);
+    return MonitorSnapshot(
+        patientId,
+        const [],
+        MonitorHistory(
+            AdherenceHistory(
+                patientId: patientId,
+                from: day,
+                to: day,
+                asOf: attentionNow,
+                summary: summary,
+                groups: [
+                  AdherenceDateGroup(date: day, summary: summary, doses: [
+                    d(1, 'Losartan', losartanAt, AdherenceDoseStatus.missed),
+                    d(2, 'Vitamin', DateTime.utc(2026, 11, 19),
+                        AdherenceDoseStatus.taken, DateTime.utc(2026, 11, 19)),
+                    d(3, 'Metformin', DateTime.utc(2026, 11, 19, 5),
+                        AdherenceDoseStatus.pending),
+                  ])
+                ]),
+            null),
+        const []);
+  }
+}
+
+String statusBody({bool reminded = false}) => jsonEncode({
+      'patient_id': 'mother',
+      'schedule_id': 1,
+      'scheduled_at': losartanAt.toIso8601String(),
+      'last_reminder': reminded
+          ? {
+              'id': 7,
+              'patient_id': 'mother',
+              'schedule_id': 1,
+              'scheduled_at': losartanAt.toIso8601String(),
+              'requested_at':
+                  DateTime.utc(2026, 11, 19, 1, 15).toIso8601String(),
+              'next_allowed_at':
+                  DateTime.utc(2026, 11, 19, 1, 25).toIso8601String(),
+              'status': 'dispatched',
+            }
+          : null,
+    });
+
+Future<void> settle() async {
+  for (var i = 0; i < 5; i++) {
+    await Future<void>.delayed(Duration.zero);
+  }
+}
+
 void main() {
+  group('trạng thái nhắc của liều cần chú ý (AC6, AC9)', () {
+    setUp(ReceiptRepo.statusCalls.clear);
+
+    test('chỉ hỏi trạng thái cho liều bỏ lỡ; đã có nhắc → nudged', () async {
+      final c = PatientMonitorController(
+          ReceiptRepo((_) async => http.Response(
+              statusBody(reminded: true), 200,
+              headers: {'content-type': 'application/json'})),
+          clock: () => attentionNow);
+      c.setSession('Nam', available: true);
+      await c.loadHub();
+      await c.select('mother');
+      await settle();
+      expect(ReceiptRepo.statusCalls, ['1']);
+      expect(c.attentionDoses.map((d) => d.scheduleId), [1]);
+      expect(c.careMoodToday, CareMood.nudged);
+      c.dispose();
+    });
+
+    test('chưa có nhắc → missed', () async {
+      final c = PatientMonitorController(
+          ReceiptRepo((_) async => http.Response(statusBody(), 200,
+              headers: {'content-type': 'application/json'})),
+          clock: () => attentionNow);
+      c.setSession('Nam', available: true);
+      await c.loadHub();
+      await c.select('mother');
+      await settle();
+      expect(c.careMoodToday, CareMood.missed);
+      c.dispose();
+    });
+
+    test('403 khi hỏi trạng thái nhắc → thu hồi, xóa dữ liệu phiên', () async {
+      final c = PatientMonitorController(
+          ReceiptRepo((_) async => http.Response(
+              jsonEncode({'detail': 'khong_co_quyen'}), 403,
+              headers: {'content-type': 'application/json'})),
+          clock: () => attentionNow);
+      c.setSession('Nam', available: true);
+      await c.loadHub();
+      await c.select('mother');
+      await settle();
+      expect(c.denied, isTrue);
+      expect(c.snapshot, isNull);
+      expect(c.careMoodToday, isNull);
+      expect(c.reminders.receipt((1, losartanAt)), isNull);
+      expect(c.linked.hasPatient('mother'), isFalse);
+      c.dispose();
+    });
+  });
+
   test(
       'one revoked summary does not cancel other patients or restore revoked data',
       () async {

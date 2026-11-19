@@ -2,6 +2,8 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 
 import '../../../core/api/api_exception.dart';
+import '../../adherence/domain/entities/adherence_history.dart';
+import '../domain/monitor_digest.dart';
 import '../../family_link/presentation/state/linked_patients_controller.dart';
 import '../../interaction_check/domain/entities/interaction_check_result.dart';
 import '../../patient_dose_reminders/data/patient_dose_reminder_repository.dart';
@@ -176,7 +178,10 @@ class PatientMonitorController extends ChangeNotifier {
     notifyListeners();
     try {
       final data = await repository.today(id, now: clock());
-      if (_current(session, selection, id)) snapshot = data;
+      if (_current(session, selection, id)) {
+        snapshot = data;
+        unawaited(loadAttentionReceipts());
+      }
     } on ApiException catch (e) {
       if (_current(session, selection, id)) {
         if (e.statusCode == 403) {
@@ -195,6 +200,39 @@ class PatientMonitorController extends ChangeNotifier {
         notifyListeners();
       }
     }
+  }
+
+  /// Liều hôm nay cần chú ý (bỏ lỡ hoặc quá giờ chưa xác nhận) của người đang xem.
+  List<AdherenceDose> get attentionDoses {
+    final data = snapshot;
+    if (data == null) return const [];
+    final asOf = data.report.history.asOf;
+    return data
+        .dosesForDay(clock())
+        .where((d) => needsAttention(d, asOf))
+        .toList();
+  }
+
+  /// Tải trạng thái nhắc gần nhất cho các liều cần chú ý, để màn hôm nay phân biệt
+  /// "bỏ lỡ" với "đã nhắc". Lỗi 403 đi qua [revoke] như mọi request khác.
+  Future<void> loadAttentionReceipts() async {
+    final id = patientId;
+    if (id == null || !ready || denied || _disposed) return;
+    final session = _sessionRevision, selection = _selectionRevision;
+    await Future.wait([
+      for (final dose in attentionDoses)
+        if (_current(session, selection, id))
+          reminders.loadStatus((dose.scheduleId, dose.scheduledAt.toUtc())),
+    ]);
+  }
+
+  /// Trạng thái chăm sóc hôm nay của người đang xem; null khi chưa có dữ liệu.
+  CareMood? get careMoodToday {
+    final data = snapshot;
+    if (data == null) return null;
+    return careMood(data.dosesForDay(clock()), data.report.history.asOf,
+        nudged: (d) =>
+            reminders.receipt((d.scheduleId, d.scheduledAt.toUtc())) != null);
   }
 
   Future<void> loadHistory(DateTime from, DateTime to) async {

@@ -10,6 +10,15 @@ import '../state/link_request_controller.dart';
 class LinkRequestResultScreen extends StatelessWidget {
   const LinkRequestResultScreen({super.key, required this.outcome});
 
+  /// Những mục người thân xem được khi chia sẻ đang bật (theo phạm vi backend; không có
+  /// hồ sơ sức khỏe — HBR-18 chưa chốt).
+  static const sharedScopes = [
+    (Icons.event_note_outlined, 'Lịch uống thuốc'),
+    (Icons.notifications_none, 'Cảnh báo bỏ lỡ liều'),
+    (Icons.medication_outlined, 'Tủ thuốc & tương tác'),
+    (Icons.insights_outlined, 'Lịch sử tuân thủ'),
+  ];
+
   final LinkSubmitOutcome outcome;
 
   @override
@@ -21,10 +30,12 @@ class LinkRequestResultScreen extends StatelessWidget {
           'Đã gửi yêu cầu theo dõi. Người thân cần chấp thuận thì bạn mới xem được thông tin '
               'của họ. Bạn chưa xem được gì cho tới lúc đó.',
         ),
+      // Contract không trả hồ sơ người được theo dõi (QD-34) nên gọi chung là "Người thân".
+      // Duyệt liên kết không tự bật chia sẻ: dữ liệu chỉ xem được sau khi người thân bật.
       LinkSubmitOutcome.accepted => (
           'assets/icons/mascot-happy.png',
           'Đã được chấp thuận',
-          'Người thân đã chấp thuận yêu cầu theo dõi của bạn.',
+          'Người thân đã đồng ý liên kết. Khi người thân bật chia sẻ, bạn sẽ xem được:',
         ),
     };
     return Scaffold(
@@ -53,6 +64,26 @@ class LinkRequestResultScreen extends StatelessWidget {
                   Text(body,
                       style: AppTextStyles.caption,
                       textAlign: TextAlign.center),
+                  if (outcome == LinkSubmitOutcome.accepted) ...[
+                    const SizedBox(height: 16),
+                    ProfileFlowCard(
+                        key: const Key('link-result-scopes'),
+                        child: Column(children: [
+                          for (final (icon, label) in sharedScopes)
+                            Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 6),
+                              child: Row(children: [
+                                Icon(icon, color: AppColors.brand),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                    child:
+                                        Text(label, style: AppTextStyles.body)),
+                                const Icon(Icons.visibility_outlined,
+                                    size: 18, color: AppColors.inkMuted),
+                              ]),
+                            ),
+                        ])),
+                  ],
                   const SizedBox(height: 24),
                   ProfileFlowCard(
                       child: Row(children: [
