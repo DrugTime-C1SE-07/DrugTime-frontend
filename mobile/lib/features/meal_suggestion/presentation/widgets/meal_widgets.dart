@@ -32,7 +32,7 @@ class MealDisclaimer extends StatelessWidget {
 }
 
 /// Ảnh minh họa món: giữ chỗ khi `pending`, ảnh mặc định khi `failed`/không có ảnh/lỗi tải.
-/// Ảnh thật luôn kèm nhãn "Ảnh minh họa" và ghi nguồn tác giả / Pexels (AC7).
+/// Ảnh thật luôn kèm nhãn "Ảnh minh họa" và ghi nguồn tác giả / Pixabay (AC7).
 class MealImageView extends StatelessWidget {
   const MealImageView({
     super.key,
@@ -121,7 +121,7 @@ class _ImageLabel extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
             decoration: BoxDecoration(
                 color: Colors.black54, borderRadius: BorderRadius.circular(6)),
-            child: Text('Ảnh: ${a.photographerName} / Pexels',
+            child: Text('Ảnh: ${a.photographerName} / Pixabay',
                 style: style, overflow: TextOverflow.ellipsis),
           ),
         ),

@@ -24,8 +24,8 @@ const disclaimer =
 
 const attribution = MealImageAttribution(
   photographerName: 'Nguyễn Văn A',
-  photographerUrl: 'https://www.pexels.com/@a',
-  sourceUrl: 'https://www.pexels.com/photo/42/',
+  photographerUrl: 'https://pixabay.com/users/example-a-111111/',
+  sourceUrl: 'https://pixabay.com/photos/example-42/',
 );
 
 MealDish dish(

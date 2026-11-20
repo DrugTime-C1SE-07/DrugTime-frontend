@@ -84,7 +84,8 @@ void main() {
       await tester.pumpAndSettle();
       expect(repo.bytesCalls, contains(42));
       expect(find.text('Ảnh minh họa'), findsOneWidget);
-      expect(find.text('Ảnh: Nguyễn Văn A / Pexels'), findsOneWidget);
+      expect(find.text('Ảnh: Nguyễn Văn A / Pixabay'), findsOneWidget);
+      expect(find.textContaining('Pexels'), findsNothing);
     });
   });
 
