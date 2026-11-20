@@ -289,6 +289,7 @@ Route<dynamic>? onGenerateRoute(
           }
           return LockscreenPrivacyGate(
             platform: arguments.keyguardPlatform,
+            clock: arguments.clock,
             child: DoseReminderScreen(arguments: arguments),
           );
         },
