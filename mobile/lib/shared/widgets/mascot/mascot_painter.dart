@@ -395,6 +395,46 @@ class MascotPainter extends CustomPainter {
             navy);
       }
       if (hands) {
+        if (side > 0 &&
+            (rig.mood == MascotMood.farewell ||
+                rig.mood == MascotMood.thumbsUp)) {
+          c.save();
+          c.translate(hx, hy);
+          c.rotate(rig.mood == MascotMood.farewell
+              ? math.sin(rig.time * 4.5) * .22
+              : -.1);
+          final hand = _fill(_C.navy);
+          c.drawRRect(
+              RRect.fromRectAndRadius(const Rect.fromLTWH(-14, -9, 28, 26),
+                  const Radius.circular(9)),
+              hand);
+          if (rig.mood == MascotMood.farewell) {
+            for (var finger = 0; finger < 4; finger++) {
+              c.drawRRect(
+                  RRect.fromRectAndRadius(
+                      Rect.fromLTWH(-14 + finger * 7.0,
+                          -24 - (finger == 1 || finger == 2 ? 4 : 0), 6, 27),
+                      const Radius.circular(3)),
+                  hand);
+            }
+            c.drawOval(const Rect.fromLTWH(-21, -3, 13, 10), hand);
+          } else {
+            c.drawRRect(
+                RRect.fromRectAndRadius(const Rect.fromLTWH(-10, -30, 10, 29),
+                    const Radius.circular(5)),
+                hand);
+            for (var i = 0; i < 3; i++) {
+              c.drawLine(
+                  Offset(1, -3 + i * 6),
+                  Offset(11, -3 + i * 6),
+                  Paint()
+                    ..color = _C.blueLight.withValues(alpha: .3)
+                    ..strokeWidth = 1.5);
+            }
+          }
+          c.restore();
+          continue;
+        }
         c.drawCircle(Offset(hx, hy), 15.5, _fill(_C.navy));
         c.drawCircle(Offset(hx - 4, hy - 4), 3.5, _fill(_C.white, .2));
       }

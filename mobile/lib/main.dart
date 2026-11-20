@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'features/consent/data/account_deletion_repository.dart';
 import 'features/patient_monitor/data/patient_monitor_repository.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
@@ -187,6 +188,7 @@ Future<void> main() async {
 
   runApp(DrugTimeApp(
     authController: authController,
+    accountDeletionRepository: RemoteAccountDeletionRepository(apiClient),
     familyAlertController: alerts,
     familyPushService: push,
     deviceTokenCoordinator: tokens,

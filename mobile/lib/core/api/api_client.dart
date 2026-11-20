@@ -42,7 +42,8 @@ class ApiClient {
 
   /// POST không có body và không có `Content-Type`, cho thao tác mà server từ chối mọi body
   /// (kể cả `null` hay `{}`), ví dụ từ chối hoặc hủy liên kết người thân.
-  Future<Object?> post(String path) => _send('POST', path);
+  Future<Object?> post(String path, {int? expectedStatus}) =>
+      _send('POST', path, expectedStatus: expectedStatus);
 
   Future<Object?> patchJson(String path, {required Object? body}) =>
       _send('PATCH', path, body: body, hasBody: true);
@@ -125,13 +126,19 @@ class ApiClient {
         }
       }
       if (response.statusCode < 200 || response.statusCode >= 300) {
+        final headers = {
+          for (final entry in response.headers.entries)
+            entry.key.toLowerCase(): entry.value
+        };
         throw ApiException(
           response.body.isEmpty ? 'Request failed' : response.body,
           statusCode: response.statusCode,
           isTransient: response.statusCode == 408 ||
               response.statusCode == 429 ||
               response.statusCode >= 500,
-          retryAfter: _retryAfter(response.headers['retry-after']),
+          retryAfter: _retryAfter(headers['retry-after']),
+          remainingOtpAttempts:
+              int.tryParse(headers['x-otp-attempts-remaining'] ?? ''),
         );
       }
       // Token PUT/DELETE chỉ được ACK bằng 204; mã 2xx khác vẫn là lệch contract.

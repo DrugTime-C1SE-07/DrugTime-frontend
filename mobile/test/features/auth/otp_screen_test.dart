@@ -107,6 +107,26 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('OTP boxes remain fully visible while typing with keyboard open',
+      (tester) async {
+    setScreen(tester, const Size(360, 640));
+    reduceMotion(tester);
+    await pumpOtp(tester);
+    tester.view.viewInsets = const FakeViewPadding(bottom: 300);
+    await tester.pumpAndSettle();
+    await tester.enterText(pinField(), '123');
+    await tester.pumpAndSettle();
+
+    final viewport = tester.getRect(find.byType(SingleChildScrollView));
+    for (var i = 0; i < 6; i++) {
+      final box = tester.getRect(find.byKey(ValueKey<String>('otp_box_$i')));
+      expect(box.height, greaterThanOrEqualTo(56));
+      expect(box.top, greaterThanOrEqualTo(viewport.top));
+      expect(box.bottom, lessThanOrEqualTo(viewport.bottom));
+    }
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets(
       'AC14: focus → che mắt; gõ → hé mắt rồi che lại; bỏ focus → đứng chờ',
       (tester) async {
