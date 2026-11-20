@@ -96,7 +96,7 @@ class _ScanLinkQrScreenState extends State<ScanLinkQrScreen>
     unawaited(_camera?.stop());
     unawaited(Navigator.of(context).pushReplacementNamed(
       AppRoutes.familyEnterCode,
-      arguments: EnterLinkCodeArgs(initialCode: code, autoSubmit: true),
+      arguments: EnterLinkCodeArgs(initialCode: code),
     ));
   }
 

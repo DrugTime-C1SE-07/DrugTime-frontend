@@ -42,7 +42,7 @@ void main() {
       expect(find.text('Mẫu'), findsOneWidget);
       expect(find.byType(NavigationBar), findsOneWidget);
       expect(find.byKey(const Key('demo-enter')), findsNothing);
-      expect(find.text('80%'), findsOneWidget);
+      expect(find.byKey(const Key('history-summary')), findsOneWidget);
     } else {
       expect(AppConfig.apiBaseUrl, isEmpty);
       expect(find.byType(MissingConfigApp), findsOneWidget);

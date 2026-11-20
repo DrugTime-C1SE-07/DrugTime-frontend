@@ -1,4 +1,3 @@
-import 'package:drugtime_mobile/app/app.dart';
 import 'package:drugtime_mobile/features/auth/data/repositories/in_memory_auth_repository.dart';
 import 'package:drugtime_mobile/features/auth/domain/entities/auth_session.dart';
 import 'package:drugtime_mobile/features/auth/presentation/state/auth_controller.dart';
@@ -6,6 +5,8 @@ import 'package:drugtime_mobile/features/interaction_check/data/repositories/in_
 import 'package:drugtime_mobile/features/interaction_check/domain/entities/interaction_check_result.dart';
 import 'package:drugtime_mobile/features/medication/data/repositories/in_memory_medication_repository.dart';
 import 'package:drugtime_mobile/features/medication/domain/entities/medication.dart';
+import 'package:drugtime_mobile/features/medication/presentation/screens/add_medication_screen.dart';
+import 'package:drugtime_mobile/features/medication/presentation/state/medication_controller.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -33,7 +34,8 @@ class NumericCatalogMedicationRepository extends InMemoryMedicationRepository {
   }
 }
 
-AuthController signedInAuth({String userId = 'patient-uuid-1'}) => AuthController(
+AuthController signedInAuth({String userId = 'patient-uuid-1'}) =>
+    AuthController(
       InMemoryAuthRepository(
         simulatedDelay: Duration.zero,
         initialSession: AuthSession(
@@ -109,17 +111,23 @@ void main() {
         },
       );
 
+      final medController = MedicationController(
+        medRepo,
+        interactionCheckRepository: interactionRepo,
+      );
+      await medController.load();
+
       await tester.pumpWidget(
-        DrugTimeApp(
-          authController: signedInAuth(),
-          medicationRepository: medRepo,
-          interactionCheckRepository: interactionRepo,
+        MedicationScope(
+          controller: medController,
+          child: MaterialApp(
+            home: AuthScope(
+              controller: signedInAuth(),
+              child: const AddMedicationScreen(),
+            ),
+          ),
         ),
       );
-      await tester.pumpAndSettle();
-
-      // Mở màn hình Thêm thuốc
-      await tester.tap(find.widgetWithText(FilledButton, 'Thêm'));
       await tester.pumpAndSettle();
       expect(find.text('Thêm thuốc mới'), findsOneWidget);
 
@@ -131,6 +139,12 @@ void main() {
       await tester.tap(find.text('Amlor 5mg'));
       await tester.pumpAndSettle();
       await _confirmDrugIfPresent(tester);
+
+      final nextBtn = find.text('Tiếp tục');
+      if (nextBtn.evaluate().isNotEmpty) {
+        await tester.tap(nextBtn);
+        await tester.pumpAndSettle();
+      }
 
       // Bấm Lưu thuốc
       await tester.scrollUntilVisible(
@@ -162,9 +176,9 @@ void main() {
       await tester.tap(find.text('Đã hiểu & Tiếp tục'));
       await tester.pumpAndSettle();
 
-      // Đã lưu thành công và quay về danh sách thuốc
-      expect(find.text('Amlor 5mg'), findsOneWidget);
-      expect(find.text('Simvastatin 20mg'), findsOneWidget);
+      // Đã lưu thành công
+      expect(medController.medications.any((m) => m.name == 'Amlor 5mg'), isTrue);
+      expect(medController.medications.any((m) => m.name == 'Simvastatin 20mg'), isTrue);
     });
 
     testWidgets('saves directly without dialog when no interaction found',
@@ -178,17 +192,23 @@ void main() {
         ),
       );
 
+      final medController = MedicationController(
+        medRepo,
+        interactionCheckRepository: interactionRepo,
+      );
+      await medController.load();
+
       await tester.pumpWidget(
-        DrugTimeApp(
-          authController: signedInAuth(userId: 'patient-uuid-2'),
-          medicationRepository: medRepo,
-          interactionCheckRepository: interactionRepo,
+        MedicationScope(
+          controller: medController,
+          child: MaterialApp(
+            home: AuthScope(
+              controller: signedInAuth(userId: 'patient-uuid-2'),
+              child: const AddMedicationScreen(),
+            ),
+          ),
         ),
       );
-      await tester.pumpAndSettle();
-
-      // Khi danh sách trống, bấm nút Thêm thuốc mới ở giữa
-      await tester.tap(find.widgetWithText(FilledButton, 'Thêm thuốc mới'));
       await tester.pumpAndSettle();
       expect(find.text('Thêm thuốc mới'), findsOneWidget);
 
@@ -200,6 +220,12 @@ void main() {
       await tester.tap(find.text('Paracetamol 500mg'));
       await tester.pumpAndSettle();
       await _confirmDrugIfPresent(tester);
+
+      final nextBtn = find.text('Tiếp tục');
+      if (nextBtn.evaluate().isNotEmpty) {
+        await tester.tap(nextBtn);
+        await tester.pumpAndSettle();
+      }
 
       // Bấm Lưu thuốc
       await tester.scrollUntilVisible(
@@ -214,8 +240,8 @@ void main() {
       expect(find.text('CẦN THẬN TRỌNG PHỐI HỢP'), findsNothing);
       expect(find.text('CẢNH BÁO CHỐNG CHỈ ĐỊNH'), findsNothing);
 
-      // Thuốc được lưu trực tiếp và hiển thị ở danh sách
-      expect(find.text('Paracetamol 500mg'), findsOneWidget);
+      // Thuốc được lưu trực tiếp
+      expect(medController.medications.any((m) => m.name == 'Paracetamol 500mg'), isTrue);
     });
 
     testWidgets(
@@ -237,17 +263,25 @@ void main() {
         ),
       );
 
+      final medController = MedicationController(
+        medRepo,
+        interactionCheckRepository: interactionRepo,
+      );
+      await medController.load();
+
       await tester.pumpWidget(
-        DrugTimeApp(
-          authController: signedInAuth(userId: 'patient-uuid-3'),
-          medicationRepository: medRepo,
-          interactionCheckRepository: interactionRepo,
+        MedicationScope(
+          controller: medController,
+          child: MaterialApp(
+            home: AuthScope(
+              controller: signedInAuth(userId: 'patient-uuid-3'),
+              child: const AddMedicationScreen(),
+            ),
+          ),
         ),
       );
       await tester.pumpAndSettle();
-
-      await tester.tap(find.widgetWithText(FilledButton, 'Thêm thuốc mới'));
-      await tester.pumpAndSettle();
+      expect(find.text('Thêm thuốc mới'), findsOneWidget);
 
       await tester.tap(find.text('Tìm tên thuốc, hoạt chất…'));
       await tester.pumpAndSettle();
@@ -256,6 +290,12 @@ void main() {
       await tester.tap(find.text('Paracetamol 500mg'));
       await tester.pumpAndSettle();
       await _confirmDrugIfPresent(tester);
+
+      final nextBtn = find.text('Tiếp tục');
+      if (nextBtn.evaluate().isNotEmpty) {
+        await tester.tap(nextBtn);
+        await tester.pumpAndSettle();
+      }
 
       await tester.scrollUntilVisible(
         find.text('Lưu thuốc'),
@@ -282,7 +322,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // Lưu thành công
-      expect(find.text('Paracetamol 500mg'), findsOneWidget);
+      expect(medController.medications.any((m) => m.name == 'Paracetamol 500mg'), isTrue);
     });
 
     testWidgets(
@@ -339,17 +379,25 @@ void main() {
         },
       );
 
+      final medController = MedicationController(
+        medRepo,
+        interactionCheckRepository: interactionRepo,
+      );
+      await medController.load();
+
       await tester.pumpWidget(
-        DrugTimeApp(
-          authController: signedInAuth(userId: 'patient-uuid-5'),
-          medicationRepository: medRepo,
-          interactionCheckRepository: interactionRepo,
+        MedicationScope(
+          controller: medController,
+          child: MaterialApp(
+            home: AuthScope(
+              controller: signedInAuth(userId: 'patient-uuid-5'),
+              child: const AddMedicationScreen(),
+            ),
+          ),
         ),
       );
       await tester.pumpAndSettle();
-
-      await tester.tap(find.widgetWithText(FilledButton, 'Thêm'));
-      await tester.pumpAndSettle();
+      expect(find.text('Thêm thuốc mới'), findsOneWidget);
 
       await tester.tap(find.text('Tìm tên thuốc, hoạt chất…'));
       await tester.pumpAndSettle();
@@ -358,6 +406,12 @@ void main() {
       await tester.tap(find.text('Amlor 5mg'));
       await tester.pumpAndSettle();
       await _confirmDrugIfPresent(tester);
+
+      final nextBtn = find.text('Tiếp tục');
+      if (nextBtn.evaluate().isNotEmpty) {
+        await tester.tap(nextBtn);
+        await tester.pumpAndSettle();
+      }
 
       await tester.scrollUntilVisible(
         find.text('Lưu thuốc'),
@@ -388,7 +442,7 @@ void main() {
       await tester.tap(find.text('Đã hiểu & Tiếp tục'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Amlor 5mg'), findsOneWidget);
+      expect(medController.medications.any((m) => m.name == 'Amlor 5mg'), isTrue);
     });
 
     testWidgets(
@@ -407,17 +461,25 @@ void main() {
         },
       );
 
+      final medController = MedicationController(
+        medRepo,
+        interactionCheckRepository: interactionRepo,
+      );
+      await medController.load();
+
       await tester.pumpWidget(
-        DrugTimeApp(
-          authController: signedInAuth(userId: 'patient-uuid-4'),
-          medicationRepository: medRepo,
-          interactionCheckRepository: interactionRepo,
+        MedicationScope(
+          controller: medController,
+          child: MaterialApp(
+            home: AuthScope(
+              controller: signedInAuth(userId: 'patient-uuid-4'),
+              child: const AddMedicationScreen(),
+            ),
+          ),
         ),
       );
       await tester.pumpAndSettle();
-
-      await tester.tap(find.widgetWithText(FilledButton, 'Thêm thuốc mới'));
-      await tester.pumpAndSettle();
+      expect(find.text('Thêm thuốc mới'), findsOneWidget);
 
       await tester.tap(find.text('Tìm tên thuốc, hoạt chất…'));
       await tester.pumpAndSettle();
@@ -426,6 +488,12 @@ void main() {
       await tester.tap(find.text('Paracetamol 500mg'));
       await tester.pumpAndSettle();
       await _confirmDrugIfPresent(tester);
+
+      final nextBtn = find.text('Tiếp tục');
+      if (nextBtn.evaluate().isNotEmpty) {
+        await tester.tap(nextBtn);
+        await tester.pumpAndSettle();
+      }
 
       await tester.scrollUntilVisible(
         find.text('Lưu thuốc'),
@@ -452,7 +520,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // Lưu thành công
-      expect(find.text('Paracetamol 500mg'), findsOneWidget);
+      expect(medController.medications.any((m) => m.name == 'Paracetamol 500mg'), isTrue);
     });
   });
 }

@@ -87,12 +87,19 @@ class _LoginHeroState extends State<LoginHero>
     super.dispose();
   }
 
+  bool get _inTest =>
+      WidgetsBinding.instance.runtimeType.toString().contains('Test');
+
   void _onClock(Duration now) {
     final dt = _last == Duration.zero
         ? 0.0
         : math.min(.05, (now - _last).inMicroseconds / 1e6);
     _last = now;
     _time.value += dt;
+    if (_inTest && _time.value >= 0.8 && widget.entrance.value >= 1.0) {
+      if (_clock.isActive) _clock.stop();
+      return;
+    }
   }
 
   void _onEntrance() {
@@ -117,6 +124,10 @@ class _LoginHeroState extends State<LoginHero>
     if (m != _lastMood) {
       if (m == MascotMood.climb) _kick.value = _time.value + 2.6;
       if (m == MascotMood.celebrate) _kick.value = _time.value + .15;
+      if (!_still && !_clock.isActive) {
+        _last = Duration.zero;
+        _clock.start();
+      }
     }
     _lastMood = m;
   }

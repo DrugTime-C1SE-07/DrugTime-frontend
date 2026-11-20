@@ -10,6 +10,7 @@ import '../../../consent/domain/entities/consent.dart';
 import '../../../consent/presentation/state/consent_controller.dart';
 import '../state/family_link_scope.dart';
 import '../state/incoming_requests_controller.dart';
+import '../../data/repositories/in_memory_caregiver_repository.dart';
 import '../widgets/incoming_requests_section.dart';
 import '../state/caregivers_controller.dart';
 import '../../../patient_monitor/presentation/patient_monitor_controller.dart';
@@ -41,7 +42,8 @@ class _FamilyTabScreenState extends State<FamilyTabScreen> {
   int _tab = 0;
   CaregiversController? _caregiverState;
   CaregiversController get _caregivers => _caregiverState ??=
-      CaregiversController(FamilyLinkScope.read(context).caregivers);
+      CaregiversController(FamilyLinkScope.maybeOf(context)?.caregivers ??
+          InMemoryCaregiverRepository());
   PatientMonitorController? get _monitor =>
       FamilyLinkScope.maybeOf(context)?.monitor;
 
@@ -54,8 +56,9 @@ class _FamilyTabScreenState extends State<FamilyTabScreen> {
       return shared;
     }
     _ownsController = true;
-    return _requests =
-        IncomingRequestsController(FamilyLinkScope.read(context).caregivers);
+    final caregivers = FamilyLinkScope.maybeOf(context)?.caregivers ??
+        InMemoryCaregiverRepository();
+    return _requests = IncomingRequestsController(caregivers);
   }
 
   @override
@@ -92,7 +95,8 @@ class _FamilyTabScreenState extends State<FamilyTabScreen> {
   Widget build(BuildContext context) {
     final unread = FamilyAlertScope.maybeOf(context)?.unreadCount;
     final sharingGranted =
-        ConsentScope.of(context).isGranted(ConsentPurpose.familySharing);
+        ConsentScope.maybeOf(context)?.isGranted(ConsentPurpose.familySharing) ??
+            true;
     return ListenableBuilder(
         listenable: Listenable.merge([
           if (_monitor != null) ...[_caregivers, _monitor!]

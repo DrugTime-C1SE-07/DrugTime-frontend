@@ -128,7 +128,7 @@ Future<void> pumpConsentApp(
   AuthController? auth,
 }) async {
   // Cao hơn màn thật để ListView dựng đủ ba thẻ và nút, không phải cuộn trong test.
-  tester.view.physicalSize = const Size(375, 1400);
+  tester.view.physicalSize = const Size(375, 2200);
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.reset);
 

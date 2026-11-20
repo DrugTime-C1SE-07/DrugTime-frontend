@@ -12,14 +12,11 @@ import '../features/family_link/presentation/state/invite_link_controller.dart';
 import '../features/medication/presentation/screens/my_medications_screen.dart';
 import '../features/medication/presentation/state/medication_controller.dart';
 import '../features/profile/presentation/state/profile_controller.dart';
-import '../features/home/presentation/widgets/home_navigation_bar.dart';
 import '../features/profile/presentation/screens/profile_screen.dart';
 import '../features/profile/presentation/state/health_setup_status_controller.dart';
 import '../features/home/presentation/home_screen.dart';
 import '../features/home/presentation/screens/home_screen.dart' as empty;
 import '../features/auth/presentation/widgets/welcome_onboarding_sheet.dart';
-import '../features/medication/presentation/state/medication_controller.dart';
-import '../features/profile/presentation/state/profile_controller.dart';
 import 'router.dart';
 import '../core/preview/app_preview_scope.dart';
 import 'theme/app_theme.dart';
@@ -262,8 +259,8 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
                       AppTab.reminders,
                       AppTab.profile
                     ][i]),
-                    destinations: [
-                      const NavigationDestination(
+                    destinations: const [
+                      NavigationDestination(
                         icon: Icon(LucideIcons.house),
                         selectedIcon: _SelectedNavigationIcon(
                             icon: LucideIcons.house,
@@ -271,20 +268,20 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
                             align: Alignment.centerLeft),
                         label: 'Trang chủ',
                       ),
-                      const NavigationDestination(
+                      NavigationDestination(
                         icon: Icon(LucideIcons.pill),
                         selectedIcon: _SelectedNavigationIcon(
                             icon: LucideIcons.pill, label: 'Thuốc'),
                         label: 'Thuốc',
                       ),
-                      const NavigationDestination(
+                      NavigationDestination(
                         icon: Icon(LucideIcons.calendarClock),
                         selectedIcon: _SelectedNavigationIcon(
                             icon: LucideIcons.calendarClock,
                             label: 'Lịch nhắc'),
                         label: 'Lịch nhắc',
                       ),
-                      const NavigationDestination(
+                      NavigationDestination(
                         icon: Icon(LucideIcons.userRound),
                         selectedIcon: _SelectedNavigationIcon(
                             icon: LucideIcons.userRound,

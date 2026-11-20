@@ -95,6 +95,12 @@ void main() {
       await tester.pumpAndSettle();
       await _confirmDrugIfPresent(tester);
 
+      final nextBtn = find.text('Tiếp tục');
+      if (nextBtn.evaluate().isNotEmpty) {
+        await tester.tap(nextBtn);
+        await tester.pumpAndSettle();
+      }
+
       // Scroll to Save button
       await tester.scrollUntilVisible(
         find.text('Lưu thuốc'),
@@ -228,6 +234,12 @@ void main() {
       await tester.tap(find.text('Atorvastatin 20mg'));
       await tester.pumpAndSettle();
       await _confirmDrugIfPresent(tester);
+
+      final nextBtn = find.text('Tiếp tục');
+      if (nextBtn.evaluate().isNotEmpty) {
+        await tester.tap(nextBtn);
+        await tester.pumpAndSettle();
+      }
 
       // Tap save
       await tester.scrollUntilVisible(

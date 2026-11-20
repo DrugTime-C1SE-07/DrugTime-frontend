@@ -82,9 +82,9 @@ class _OtpResendRowState extends State<OtpResendRow> {
             const Icon(LucideIcons.clock,
                 size: 16.0, color: AppColors.inkMuted),
             const SizedBox(width: 6.0),
-            Text(
+            const Text(
               'Gửi lại mã sau',
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 12.5,
                 fontWeight: FontWeight.w400,
                 height: 18.0 / 12.5,

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:drugtime_mobile/app/theme/app_theme.dart';
 import 'package:drugtime_mobile/features/medication/presentation/widgets/dosage_form_icon.dart';
 import 'package:drugtime_mobile/features/medication/presentation/widgets/medication_step_progress.dart';
 

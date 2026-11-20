@@ -1,4 +1,5 @@
 import 'package:drugtime_mobile/app/app.dart';
+import 'package:drugtime_mobile/app/app_shell.dart';
 import 'package:drugtime_mobile/features/auth/data/repositories/in_memory_auth_repository.dart';
 import 'package:drugtime_mobile/features/auth/domain/entities/auth_session.dart';
 import 'package:drugtime_mobile/features/auth/presentation/state/auth_controller.dart';
@@ -33,6 +34,7 @@ Future<void> pumpApp(WidgetTester tester, {InMemoryMedicationRepository? reposit
   addTearDown(tester.view.reset);
 
   await tester.pumpWidget(DrugTimeApp(
+    initialTab: AppTab.medications,
     authController: signedInAuth(),
     medicationRepository: repository ?? InMemoryMedicationRepository(),
   ));

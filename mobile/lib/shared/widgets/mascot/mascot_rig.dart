@@ -117,6 +117,9 @@ class MascotRig extends ChangeNotifier {
 
   bool get peek => _peek;
 
+  /// Đã về tư thế nghỉ (không trong hiệu ứng chuyển tiếp có thời lượng và đã qua khung hình khởi tạo).
+  bool get isSettled => !_durations.containsKey(_mood) && _t >= 0.8;
+
   double value(String key) => _s[key]!.x;
 
   /// Vào trạng thái [mood]. Với [still] (giảm chuyển động), các trạng thái tự kết thúc

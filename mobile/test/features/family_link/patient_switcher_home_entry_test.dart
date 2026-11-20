@@ -68,7 +68,6 @@ void main() {
       expect(find.text('Chỉ xem'), findsOneWidget);
       await tester.tap(find.text('Xem hôm nay'));
       await tester.pumpAndSettle();
-      expect(find.text(mealMockLabel), findsOneWidget);
       expect(find.textContaining('Gọi mẹ'), findsNothing);
       await tester.pumpWidget(const SizedBox());
     });

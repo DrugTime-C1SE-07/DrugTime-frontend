@@ -63,6 +63,10 @@ void main() {
     }
     await tester.pumpAndSettle();
 
+    expect(find.byType(EnterLinkCodeScreen), findsOneWidget);
+    await tester.tap(find.byKey(const Key('link-code-submit')));
+    await tester.pumpAndSettle();
+
     expect(repo.calls, hasLength(1));
     expect(repo.calls.single.code, 'K7M2Q9XAR4');
     expect(find.byType(LinkRequestResultScreen), findsOneWidget);

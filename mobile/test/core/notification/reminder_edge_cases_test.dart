@@ -1,9 +1,9 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:drugtime_mobile/core/contracts/dose_outbox.dart';
 import 'package:drugtime_mobile/core/notification/reminder_scheduler.dart';
 import 'package:drugtime_mobile/core/storage/local_db/local_models.dart';
+import 'package:drugtime_mobile/features/interaction_check/data/repositories/in_memory_interaction_check_repository.dart';
 import 'package:drugtime_mobile/features/medication/domain/entities/medication.dart';
 import 'package:drugtime_mobile/features/medication/domain/repositories/medication_repository.dart';
 import 'package:drugtime_mobile/features/medication/presentation/screens/edit_medication_screen.dart';
@@ -196,12 +196,12 @@ void main() {
     });
 
     group('Subtask 67: Tắt nhắc nhở (reminder_enabled = false)', () {
-      final sampleMed = Medication(
+      const sampleMed = Medication(
         id: '202',
         catalogId: '1',
-        name: 'Metformin',
-        activeIngredient: 'Metformin HCl',
-        strength: '500mg',
+        name: 'Amlodipine',
+        activeIngredient: 'Amlodipine Besylate',
+        strength: '5mg',
         unit: 'viên',
         dosePerIntake: 1,
         frequency: DoseFrequency.twice,
@@ -246,7 +246,10 @@ void main() {
         addTearDown(tester.view.reset);
 
         final repo = _FakeMedicationRepository();
-        final medController = MedicationController(repo);
+        final medController = MedicationController(
+          repo,
+          interactionCheckRepository: InMemoryInteractionCheckRepository(),
+        );
 
         await tester.pumpWidget(
           MaterialApp(

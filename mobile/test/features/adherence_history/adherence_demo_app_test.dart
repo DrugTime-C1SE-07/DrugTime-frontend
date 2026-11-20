@@ -62,7 +62,7 @@ void main() {
     expect(find.text('Theo thuốc'), findsOneWidget);
     await tester.binding.handlePopRoute();
     await tester.pumpAndSettle();
-    for (var i = 0; i < 5; i++) {
+    for (var i = 0; i < 4; i++) {
       await tester.tap(find.byType(NavigationDestination).at(i));
       await tester.pumpAndSettle();
       expect(

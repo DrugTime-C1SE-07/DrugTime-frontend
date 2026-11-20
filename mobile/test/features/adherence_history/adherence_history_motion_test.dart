@@ -22,14 +22,14 @@ void main() {
       final summary = find.byKey(const Key('history-summary'));
       final position = tester.getTopLeft(summary);
       final rate =
-          find.bySemanticsLabel('Tỷ lệ tuân thủ trên các liều đã có kết quả');
+          find.bySemanticsLabel('Tiến độ uống thuốc của ngày đã chọn');
       final node = tester.getSemantics(rate);
-      expect(node.value, '66,67%');
+      expect(node.value, '50');
       final id = node.id;
       await tester.pump(const Duration(milliseconds: 100));
       expect(tester.getTopLeft(summary), position);
       expect(tester.getSemantics(rate).id, id);
-      expect(tester.getSemantics(rate).value, '66,67%');
+      expect(tester.getSemantics(rate).value, '50');
       await tester.pump(const Duration(milliseconds: 400));
       expect(tester.getTopLeft(summary), position);
       expect(tester.binding.transientCallbackCount, 0);
@@ -53,15 +53,15 @@ void main() {
       await tester.pump();
       final summary = find.byKey(const Key('history-summary'));
       final initial = tester.getTopLeft(summary);
-      expect(find.text('66,67%'), findsOneWidget);
+      expect(find.text('2/4 liều đã uống'), findsOneWidget);
       final rate =
-          find.bySemanticsLabel('Tỷ lệ tuân thủ trên các liều đã có kết quả');
+          find.bySemanticsLabel('Tiến độ uống thuốc của ngày đã chọn');
       final rateId = tester.getSemantics(rate).id;
       for (final milliseconds in [80, 160, 260]) {
         await tester.pump(Duration(milliseconds: milliseconds));
         expect(FocusManager.instance.primaryFocus, same(focus));
         expect(tester.getSemantics(rate).id, rateId);
-        expect(tester.getSemantics(rate).value, '66,67%');
+        expect(tester.getSemantics(rate).value, '50');
       }
       final finalPosition = tester.getTopLeft(summary);
       expect(initial.dy, greaterThan(finalPosition.dy));

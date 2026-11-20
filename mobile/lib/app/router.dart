@@ -27,6 +27,7 @@ import '../features/family_link/presentation/screens/share_invite_link_screen.da
 import '../features/family_link/presentation/state/link_request_controller.dart';
 import '../features/medication/data/repositories/in_memory_medication_repository.dart';
 import '../features/medication/domain/entities/medication.dart';
+import '../features/medication/presentation/screens/add_medication_screen.dart';
 import '../features/medication/presentation/screens/edit_medication_screen.dart';
 import '../features/medication/presentation/screens/medication_detail_screen.dart';
 import '../features/reminder/domain/entities/dose_reminder.dart';
@@ -49,6 +50,8 @@ import '../features/meal_suggestion/presentation/screens/meal_suggestion_screen.
 import '../features/profile/presentation/screens/notification_preferences_screen.dart';
 import '../features/profile/presentation/screens/reminder_sound_screen.dart';
 import '../features/profile/presentation/screens/profile_settings_screen.dart';
+import '../features/profile/presentation/screens/help_screen.dart';
+import '../features/interaction_check/presentation/screens/interaction_history_screen.dart';
 import '../features/family_link/presentation/screens/invite_caregiver_screen.dart';
 import '../features/profile/presentation/state/health_setup_controller.dart';
 
@@ -63,6 +66,7 @@ abstract final class AppRoutes {
   static const profileInvite = '/profile/invite';
   static const profileNotifications = '/profile/notifications';
   static const profileReminderSound = '/profile/notifications/sound';
+  static const profileHelp = '/profile/help';
   static const profileSettings = '/profile/settings';
   static const accountDeletion = '/profile/settings/delete-account';
   static const familyAlerts = '/family/alerts';
@@ -72,6 +76,7 @@ abstract final class AppRoutes {
   static const scanMedication = '/medications/scan';
   static const medicationDetail = '/medications/detail';
   static const editMedication = '/medications/edit';
+  static const interactionHistory = '/medications/interactions/history';
   static const login = '/login';
   static const otpPhone = '/login/otp/phone';
   static const otpEmail = '/login/otp/email';
@@ -150,6 +155,11 @@ Route<dynamic>? onGenerateRoute(
         builder: (_) => const NotificationPreferencesScreen()),
     AppRoutes.profileReminderSound => MaterialPageRoute<void>(
         settings: settings, builder: (_) => const ReminderSoundScreen()),
+    AppRoutes.profileHelp => MaterialPageRoute<void>(
+        settings: settings, builder: (_) => const HelpScreen()),
+    AppRoutes.interactionHistory => MaterialPageRoute<void>(
+        settings: settings,
+        builder: (_) => const InteractionHistoryScreen()),
     AppRoutes.profileSettings => MaterialPageRoute<void>(
         settings: settings,
         builder: (_) => ProfileSettingsScreen(
@@ -247,7 +257,9 @@ Route<dynamic>? onGenerateRoute(
       ),
     AppRoutes.addMedication => MaterialPageRoute<Medication>(
         settings: settings,
-        builder: (_) => const ScanMedicationScreen(),
+        builder: (_) => initialTab == AppTab.medications
+            ? const AddMedicationScreen()
+            : const ScanMedicationScreen(),
       ),
     AppRoutes.medicationDetail => MaterialPageRoute<void>(
         settings: settings,

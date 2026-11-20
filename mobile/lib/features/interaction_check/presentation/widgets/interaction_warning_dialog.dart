@@ -301,7 +301,7 @@ class InteractionWarningDialog extends StatelessWidget {
                       style: ElevatedButton.styleFrom(
                         backgroundColor: isContraindicated
                             ? const Color(0xFFDC2626)
-                            : const Color(0xFF0F4A3C),
+                            : const Color(0xFF01554F),
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(vertical: 12),
                         shape: RoundedRectangleBorder(
@@ -375,17 +375,17 @@ class _InteractionAccordionCardState extends State<InteractionAccordionCard> {
 
     switch (finding.severityLevel) {
       case 4:
-        cardBorder = const Color(0xFFFECACA);
-        cardBg = const Color(0xFFFEF2F2);
-        badgeBg = const Color(0xFFDC2626);
+        cardBorder = const Color(0xFFDC2626);
+        cardBg = const Color(0xFFFEE2E2);
+        badgeBg = const Color(0xFF991B1B);
         badgeLevel = 'MỨC 1';
         severityTitle = 'Chống chỉ định tuyệt đối';
         legacyBadgeText = 'Mức 4 · Chống chỉ định';
         break;
       case 3:
-        cardBorder = const Color(0xFFFED7AA);
-        cardBg = const Color(0xFFFFF7ED);
-        badgeBg = const Color(0xFFEA580C);
+        cardBorder = const Color(0xFFF97316);
+        cardBg = const Color(0xFFFFEADD);
+        badgeBg = const Color(0xFFB74F28);
         badgeLevel = 'MỨC 2';
         severityTitle = 'Nghiêm trọng - Cân nhắc thay thế';
         legacyBadgeText = 'Mức 3 · Nghiêm trọng';
@@ -393,7 +393,7 @@ class _InteractionAccordionCardState extends State<InteractionAccordionCard> {
       case 2:
         cardBorder = const Color(0xFFFDE68A);
         cardBg = const Color(0xFFFEFCE8);
-        badgeBg = const Color(0xFFD97706);
+        badgeBg = const Color(0xFF854D0E);
         badgeLevel = 'MỨC 3';
         severityTitle = 'Cần theo dõi chặt chẽ';
         legacyBadgeText = 'Mức 2 · Cần thận trọng';
@@ -401,7 +401,7 @@ class _InteractionAccordionCardState extends State<InteractionAccordionCard> {
       default:
         cardBorder = const Color(0xFFE2E8F0);
         cardBg = const Color(0xFFF8FAFC);
-        badgeBg = const Color(0xFF65A30D);
+        badgeBg = const Color(0xFF15803D);
         badgeLevel = 'MỨC 4';
         severityTitle = 'Tương tác nhẹ / Thận trọng';
         legacyBadgeText = 'Mức 1 · Theo dõi';
@@ -445,8 +445,8 @@ class _InteractionAccordionCardState extends State<InteractionAccordionCard> {
                 children: [
                   Container(
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 6,
-                      vertical: 2,
+                      horizontal: 8,
+                      vertical: 3,
                     ),
                     decoration: BoxDecoration(
                       color: badgeBg,
@@ -460,12 +460,12 @@ class _InteractionAccordionCardState extends State<InteractionAccordionCard> {
                           size: 12,
                           color: Colors.white,
                         ),
-                        const SizedBox(width: 3),
+                        const SizedBox(width: 4),
                         Text(
                           badgeLevel,
                           style: const TextStyle(
                             color: Colors.white,
-                            fontSize: 10,
+                            fontSize: 11,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
@@ -509,7 +509,7 @@ class _InteractionAccordionCardState extends State<InteractionAccordionCard> {
                   decoration: BoxDecoration(
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: const Color(0xFFE5E7EB)),
+                    border: Border.all(color: const Color(0xFFE4E4E1)),
                   ),
                   child: Row(
                     children: [
@@ -526,15 +526,15 @@ class _InteractionAccordionCardState extends State<InteractionAccordionCard> {
                             Text(
                               '$medA  ↔  $medB',
                               style: const TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.bold,
-                                color: Color(0xFF1F2937),
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: Color(0xFF211D1D),
                               ),
                             ),
                             Text(
                               'Hoạt chất: ${finding.ingredientAName} + ${finding.ingredientBName}',
                               style: const TextStyle(
-                                fontSize: 10,
+                                fontSize: 11,
                                 color: Color(0xFF6B7280),
                               ),
                             ),
@@ -574,7 +574,7 @@ class _InteractionAccordionCardState extends State<InteractionAccordionCard> {
 
                   // Khối Nguy cơ (Màu đỏ)
                   Container(
-                    padding: const EdgeInsets.all(AppSpacing.xs + 2),
+                    padding: const EdgeInsets.all(AppSpacing.xs + 4),
                     decoration: BoxDecoration(
                       color: const Color(0xFFFEF2F2),
                       borderRadius: BorderRadius.circular(6),
@@ -586,18 +586,18 @@ class _InteractionAccordionCardState extends State<InteractionAccordionCard> {
                         const Text(
                           'Nguy cơ',
                           style: TextStyle(
-                            fontSize: 12,
+                            fontSize: 14,
                             fontWeight: FontWeight.bold,
-                            color: Color(0xFFB91C1C),
+                            color: Color(0xFF991B1B),
                           ),
                         ),
-                        const SizedBox(height: 2),
+                        const SizedBox(height: 3),
                         Text(
                           finding.description.isNotEmpty
                               ? finding.description
                               : 'Tăng nguy cơ tác dụng phụ và biến chứng lâm sàng bất lợi khi dùng chung.',
                           style: const TextStyle(
-                            fontSize: 11,
+                            fontSize: 12,
                             height: 1.35,
                             color: Color(0xFF374151),
                           ),
@@ -606,11 +606,14 @@ class _InteractionAccordionCardState extends State<InteractionAccordionCard> {
                     ),
                   ),
 
-                  const SizedBox(height: AppSpacing.xs),
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 4),
+                    child: Divider(height: 1, thickness: 1, color: Color(0xFFF0F0EE)),
+                  ),
 
-                  // Khối Khuyến nghị (Màu xanh lá)
+                  // Khối Khuyến nghị (Màu xanh)
                   Container(
-                    padding: const EdgeInsets.all(AppSpacing.xs + 2),
+                    padding: const EdgeInsets.all(AppSpacing.xs + 4),
                     decoration: BoxDecoration(
                       color: const Color(0xFFF0FDF4),
                       borderRadius: BorderRadius.circular(6),
@@ -622,18 +625,18 @@ class _InteractionAccordionCardState extends State<InteractionAccordionCard> {
                         const Text(
                           'Khuyến nghị',
                           style: TextStyle(
-                            fontSize: 12,
+                            fontSize: 14,
                             fontWeight: FontWeight.bold,
-                            color: Color(0xFF047857),
+                            color: Color(0xFF01554F),
                           ),
                         ),
-                        const SizedBox(height: 2),
+                        const SizedBox(height: 3),
                         Text(
                           finding.warningMessage.isNotEmpty
                               ? finding.warningMessage
                               : 'Tham khảo ý kiến bác sĩ/dược sĩ để điều chỉnh liều hoặc lựa chọn thuốc thay thế.',
                           style: const TextStyle(
-                            fontSize: 11,
+                            fontSize: 12,
                             height: 1.35,
                             color: Color(0xFF374151),
                           ),
@@ -648,7 +651,7 @@ class _InteractionAccordionCardState extends State<InteractionAccordionCard> {
                     Text(
                       'Nguồn: ${finding.source}',
                       style: const TextStyle(
-                        fontSize: 10,
+                        fontSize: 12,
                         color: Color(0xFF6B7280),
                         fontStyle: FontStyle.italic,
                       ),

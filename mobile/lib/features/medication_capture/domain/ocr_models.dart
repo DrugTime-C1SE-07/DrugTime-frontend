@@ -112,12 +112,16 @@ class OcrMatchResult {
     int id(Object? v) {
       if (v is! int || v < 1 ||
           (kIsWeb && v > 9007199254740991) ||
-          BigInt.from(v) > BigInt.parse('9223372036854775807')) bad();
+          BigInt.from(v) > BigInt.parse('9223372036854775807')) {
+        bad();
+      }
       return v;
     }
 
     String? nullable(Object? v) {
-      if (v != null && v is! String) bad();
+      if (v != null && v is! String) {
+        bad();
+      }
       return v as String?;
     }
 

@@ -346,16 +346,20 @@ class _LivingBannerState extends State<LivingBanner>
                   top: chipTop,
                   child: Opacity(
                     opacity: fade,
-                    child: Row(children: [
-                      for (var i = 0; i < widget.chips.length; i++)
-                        Padding(
-                          padding: const EdgeInsets.only(right: 8),
-                          child: KeyedSubtree(
-                            key: _chipKeys[i],
-                            child: widget.chips[i],
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerLeft,
+                      child: Row(children: [
+                        for (var i = 0; i < widget.chips.length; i++)
+                          Padding(
+                            padding: const EdgeInsets.only(right: 8),
+                            child: KeyedSubtree(
+                              key: _chipKeys[i],
+                              child: widget.chips[i],
+                            ),
                           ),
-                        ),
-                    ]),
+                      ]),
+                    ),
                   ),
                 ),
               if (widget.sheetColor != null)

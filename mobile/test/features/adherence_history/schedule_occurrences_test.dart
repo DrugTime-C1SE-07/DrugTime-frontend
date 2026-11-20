@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
-import '../../../lib/core/storage/local_db/local_models.dart';
-import '../../../lib/features/adherence_history/domain/schedule_occurrences.dart';
+import 'package:drugtime_mobile/core/storage/local_db/local_models.dart';
+import 'package:drugtime_mobile/features/adherence_history/domain/schedule_occurrences.dart';
 
 void main() {
   test('shows both future doses on the day medication is saved', () {

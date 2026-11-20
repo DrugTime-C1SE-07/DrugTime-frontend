@@ -214,9 +214,11 @@ void main() {
       ));
       await tester.pumpAndSettle();
 
-      // 1. Chuyển sang tab Người thân -> Màn hình hiển thị mã liên kết của bệnh nhân
+      // 1. Chuyển sang tab Người thân -> Mở mã liên kết của tôi
       expect(find.byType(NavigationBar), findsOneWidget);
       await tester.tap(find.text('Người thân'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('family-my-code')));
       await tester.pumpAndSettle();
       expect(find.text('PATIENT10X'), findsOneWidget);
 
@@ -229,7 +231,7 @@ void main() {
       expect(find.text('PATIENT10X'), findsNothing);
 
       // 3. Người dùng đăng nhập lại từ màn hình đăng nhập
-      await tester.tap(find.text('Dùng email'));
+      await tester.tap(find.text('Email').first);
       await tester.pumpAndSettle();
       await tester.enterText(
         find.descendant(
@@ -262,6 +264,8 @@ void main() {
 
       // 4. Mở lại tab Người thân -> Mã liên kết PATIENT10X được nạp lại ổn định
       await tester.tap(find.text('Người thân'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('family-my-code')));
       await tester.pumpAndSettle();
       expect(find.text('PATIENT10X'), findsOneWidget);
     });
