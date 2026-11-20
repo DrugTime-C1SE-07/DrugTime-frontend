@@ -6,6 +6,8 @@ import 'dart:async';
 import 'package:drugtime_mobile/features/meal_suggestion/domain/entities/allergy_profile.dart';
 import 'package:drugtime_mobile/features/meal_suggestion/domain/entities/meal_suggestion.dart';
 import 'package:drugtime_mobile/features/meal_suggestion/presentation/analyzing/analyzing_view.dart';
+import 'package:drugtime_mobile/features/meal_suggestion/presentation/analyzing/analysis_timeline.dart';
+import 'package:drugtime_mobile/features/meal_suggestion/presentation/state/meal_plan_controller.dart';
 import 'package:drugtime_mobile/features/meal_suggestion/presentation/screens/meal_detail_screens.dart';
 import 'package:drugtime_mobile/features/meal_suggestion/presentation/screens/meal_suggestion_screen.dart';
 import 'package:drugtime_mobile/features/meal_suggestion/presentation/widgets/meal_ui.dart';
@@ -520,6 +522,195 @@ void main() {
       final style = DefaultTextStyle.of(tester.element(fixed)).style;
       expect(style.fontFamily, kMealFont);
       await tester.pumpWidget(const SizedBox());
+    });
+  });
+
+  // adhoc-20261120-meal-image-loading: chỉ hiện kết quả khi ảnh của bữa sắp hiển thị đã sẵn sàng.
+  group('chờ ảnh món', () {
+    const pending501 =
+        MealDishImage(imageId: 501, status: MealImageStatus.pending);
+    const ready501 = MealDishImage(
+        imageId: 501,
+        status: MealImageStatus.ready,
+        url: '/meal-images/501',
+        attribution: attribution);
+
+    void lunchWithImage(FlowHarness h) => h.repository.responses.addAll([
+          result(id: 1, type: MealType.sang),
+          result(
+              id: 2,
+              type: MealType.trua,
+              dishes: [dish('Canh chua', image: pending501), dish('Món B')]),
+          result(id: 3, type: MealType.toi),
+        ]);
+
+    test('AnalysisTimeline: có kết quả nhưng ảnh chưa xong → preparingImages (AC3)',
+        () {
+      const statuses = {
+        MealType.sang: MealTabStatus.data,
+        MealType.trua: MealTabStatus.data,
+        MealType.toi: MealTabStatus.data,
+      };
+      expect(
+          AnalysisTimeline.next(
+              statuses: statuses,
+              minShowPassed: true,
+              reduceMotion: true,
+              imagesReady: false),
+          AnalysisStep.preparingImages);
+      expect(
+          AnalysisTimeline.next(
+              statuses: statuses,
+              minShowPassed: false,
+              reduceMotion: true,
+              imagesReady: false),
+          AnalysisStep.wait);
+      expect(
+          AnalysisTimeline.next(
+              statuses: statuses, minShowPassed: true, reduceMotion: true),
+          AnalysisStep.done);
+    });
+
+    testWidgets(
+        'giữ màn chờ "Đang chuẩn bị ảnh món…" tới khi ảnh tải xong, rồi mở kết quả có ảnh (AC3, AC4)',
+        (tester) async {
+      final h = FlowHarness(repository: FakeMealRepository());
+      lunchWithImage(h);
+      final gate = Completer<void>();
+      h.repository.bytesGates[501] = gate;
+      await h.pump(tester);
+      await tester.tap(find.text('Mở Dumi'));
+      await tester.pump();
+      await advance(tester, 3000);
+      expect(find.byType(AnalyzingView), findsOneWidget);
+      expect(find.text('Đang chuẩn bị ảnh món…'), findsOneWidget);
+
+      h.repository.imageAnswer = (_) => const [ready501];
+      await advance(tester, 2100); // một nhịp hỏi trạng thái
+      expect(h.repository.bytesCalls, contains(501));
+      expect(find.byType(AnalyzingView), findsOneWidget); // nội dung ảnh chưa về
+
+      gate.complete();
+      await FlowHarness.settle(tester);
+      expect(find.byType(AnalyzingView), findsNothing);
+      expect(h.plan.tab, MealType.trua);
+      expect(find.byKey(const ValueKey('meal-image-501')), findsWidgets);
+    });
+
+    testWidgets(
+        'quá 20 giây vẫn chưa có ảnh: vẫn mở kết quả; hết hạn hỏi thì ảnh mặc định (AC5)',
+        (tester) async {
+      final h = FlowHarness(repository: FakeMealRepository());
+      lunchWithImage(h);
+      await h.pump(tester);
+      await tester.tap(find.text('Mở Dumi'));
+      await tester.pump();
+      await advance(tester, 3000);
+      expect(find.text('Đang chuẩn bị ảnh món…'), findsOneWidget);
+      for (var i = 0; i < 18; i++) {
+        h.clock = h.clock.add(const Duration(seconds: 1));
+        await tester.pump(const Duration(seconds: 1));
+      }
+      expect(find.byType(AnalyzingView), findsOneWidget); // chưa đủ 20 giây
+      for (var i = 0; i < 4; i++) {
+        h.clock = h.clock.add(const Duration(seconds: 1));
+        await tester.pump(const Duration(seconds: 1));
+      }
+      // Không dùng pumpAndSettle: ảnh còn pending có vòng xoay chạy liên tục.
+      await advance(tester, 1500);
+      expect(find.byType(AnalyzingView), findsNothing);
+      // Hết cửa sổ hỏi (30 giây): ảnh coi như không có, không xoay mãi.
+      for (var i = 0; i < 12; i++) {
+        h.clock = h.clock.add(const Duration(seconds: 1));
+        await tester.pump(const Duration(seconds: 1));
+      }
+      final d = h.plan.stateOf(MealType.trua).dishes.first;
+      expect(h.plan.imageOf(d)!.status, MealImageStatus.failed);
+      expect(h.plan.isPolling, isFalse);
+    });
+
+    testWidgets(
+        'ảnh món đầu đã xong thì mở kết quả dù món khác còn pending; ảnh món đó tự hiện sau (AC3, AC4, AC10)',
+        (tester) async {
+      const pending502 =
+          MealDishImage(imageId: 502, status: MealImageStatus.pending);
+      final h = FlowHarness(repository: FakeMealRepository());
+      h.repository.responses.addAll([
+        result(id: 1, type: MealType.sang),
+        result(id: 2, type: MealType.trua, dishes: [
+          dish('Canh chua', image: ready501),
+          dish('Món B', image: pending502),
+        ]),
+        result(id: 3, type: MealType.toi),
+      ]);
+      await h.pump(tester);
+      await tester.tap(find.text('Mở Dumi'));
+      await tester.pump();
+      await advance(tester, 3000);
+      // Không dùng pumpAndSettle: ảnh món B còn pending có vòng xoay chạy liên tục.
+      await advance(tester, 1500);
+      expect(find.byType(AnalyzingView), findsNothing);
+      expect(h.plan.tab, MealType.trua);
+      expect(find.byKey(const ValueKey('meal-image-501')), findsWidgets);
+      final dishB = h.plan.stateOf(MealType.trua).dishes[1];
+      expect(h.plan.imageOf(dishB)!.status, MealImageStatus.pending);
+
+      // AC10: màn đã mở, ảnh món B thành ready thì tự tải và hiện, không mở lại màn.
+      h.repository.imageAnswer = (_) => const [
+            MealDishImage(
+                imageId: 502,
+                status: MealImageStatus.ready,
+                url: '/meal-images/502',
+                attribution: attribution)
+          ];
+      await advance(tester, 2100);
+      await tester.pump();
+      expect(h.repository.bytesCalls, contains(502));
+      expect(h.plan.cachedImageBytes(h.plan.imageOf(dishB)!), isNotNull);
+      expect(find.byKey(const ValueKey('meal-image-502')), findsWidgets);
+      await FlowHarness.settle(tester); // hết ảnh pending: dừng polling và hoạt ảnh
+    });
+
+    testWidgets('bữa không có ảnh: mở kết quả ngay sau thời gian tối thiểu (AC6)',
+        (tester) async {
+      final h = FlowHarness();
+      await h.pump(tester);
+      await tester.tap(find.text('Mở Dumi'));
+      await tester.pump();
+      await advance(tester, 2000);
+      expect(find.text('Đang chuẩn bị ảnh món…'), findsNothing);
+      await FlowHarness.settle(tester);
+      expect(find.byType(AnalyzingView), findsNothing);
+      expect(h.repository.imageCalls, isEmpty);
+    });
+
+    testWidgets('"Gợi ý khác" cũng chờ ảnh của món mới (AC3)', (tester) async {
+      final h = FlowHarness();
+      await h.pump(tester);
+      await h.openToResults(tester);
+      const pending777 =
+          MealDishImage(imageId: 777, status: MealImageStatus.pending);
+      h.repository.responses.add(result(
+          id: 99,
+          type: MealType.trua,
+          refreshesRemaining: 1,
+          dishes: [dish('Bún cá', image: pending777), dish('Phở gà')]));
+      await tester.tap(key('refresh'));
+      await tester.pump();
+      await advance(tester, 3000);
+      expect(find.text('Đang chuẩn bị ảnh món…'), findsOneWidget);
+      h.repository.imageAnswer = (_) => const [
+            MealDishImage(
+                imageId: 777,
+                status: MealImageStatus.ready,
+                url: '/meal-images/777',
+                attribution: attribution)
+          ];
+      await advance(tester, 2100);
+      await FlowHarness.settle(tester);
+      expect(find.byType(AnalyzingView), findsNothing);
+      expect(find.text('Bún cá'), findsOneWidget);
+      expect(h.repository.bytesCalls, contains(777));
     });
   });
 }

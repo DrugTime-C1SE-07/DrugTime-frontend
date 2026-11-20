@@ -21,6 +21,12 @@ class OtpPinInput extends StatefulWidget {
     this.onCompleted,
     this.hasError = false,
     this.enabled = true,
+    this.inputKey,
+    this.boxKeyPrefix = 'otp_box_',
+    this.boxHeight = 56,
+    this.boxRadius = 8,
+    this.digitStyle,
+    this.emptyColor = AppColors.surface,
   });
 
   final TextEditingController controller;
@@ -29,6 +35,12 @@ class OtpPinInput extends StatefulWidget {
   final ValueChanged<String>? onCompleted;
   final bool hasError;
   final bool enabled;
+  final Key? inputKey;
+  final String boxKeyPrefix;
+  final double boxHeight;
+  final double boxRadius;
+  final TextStyle? digitStyle;
+  final Color emptyColor;
 
   @override
   State<OtpPinInput> createState() => _OtpPinInputState();
@@ -87,87 +99,94 @@ class _OtpPinInputState extends State<OtpPinInput> {
 
     return Semantics(
       label: 'Mã xác thực OTP gồm 6 chữ số',
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          // 6 ô hiển thị giao diện theo đúng CSS Figma
-          ExcludeSemantics(
-              child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: List.generate(6, (index) {
-              final isFilled = index < text.length;
-              final digit = isFilled ? text[index] : '';
+      child: SizedBox(
+        height: widget.boxHeight,
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            // 6 ô hiển thị giao diện theo đúng CSS Figma
+            ExcludeSemantics(
+                child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: List.generate(6, (index) {
+                final isFilled = index < text.length;
+                final digit = isFilled ? text[index] : '';
 
-              // Ô đang được trỏ: là ô trống đầu tiên hoặc ô thứ 6 khi đã nhập đủ 6 số
-              final isActive = hasFocus &&
-                  (index == text.length || (index == 5 && text.length == 6));
+                // Ô đang được trỏ: là ô trống đầu tiên hoặc ô thứ 6 khi đã nhập đủ 6 số
+                final isActive = hasFocus &&
+                    (index == text.length || (index == 5 && text.length == 6));
 
-              return Expanded(
-                  child: Container(
-                key: ValueKey<String>('otp_box_$index'),
-                constraints: const BoxConstraints(minHeight: 56),
-                padding: const EdgeInsets.symmetric(vertical: 6),
-                margin: EdgeInsets.only(right: index < 5 ? 8.0 : 0.0),
-                decoration: BoxDecoration(
-                  color: AppColors.surface,
-                  borderRadius: BorderRadius.circular(8.0),
-                  border: Border.all(
-                    color: widget.hasError
-                        ? AppColors.danger
-                        : isActive
-                            ? AppColors.brand
-                            : AppColors.border,
-                    width: (isActive || widget.hasError) ? 2.0 : 1.0,
+                return Expanded(
+                    child: Container(
+                  key: ValueKey<String>('${widget.boxKeyPrefix}$index'),
+                  constraints: BoxConstraints(minHeight: widget.boxHeight),
+                  margin: EdgeInsets.only(right: index < 5 ? 8.0 : 0.0),
+                  decoration: BoxDecoration(
+                    color: isFilled || isActive
+                        ? AppColors.surface
+                        : widget.emptyColor,
+                    borderRadius: BorderRadius.circular(widget.boxRadius),
+                    border: Border.all(
+                      color: widget.hasError
+                          ? AppColors.danger
+                          : isActive
+                              ? AppColors.brand
+                              : AppColors.border,
+                      width: (isActive || widget.hasError) ? 2.0 : 1.0,
+                    ),
                   ),
-                ),
-                alignment: Alignment.center,
-                child: Text(
-                  digit,
-                  style: const TextStyle(
-                    fontSize: 20.0,
-                    fontWeight: FontWeight.w400,
-                    height: 27.0 / 20.0,
-                    color: AppColors.ink,
-                    fontFamily: 'Inter',
+                  alignment: Alignment.center,
+                  child: Text(
+                    digit,
+                    style: widget.digitStyle ??
+                        const TextStyle(
+                          fontSize: 20.0,
+                          fontWeight: FontWeight.w400,
+                          height: 27.0 / 20.0,
+                          color: AppColors.ink,
+                          fontFamily: 'Inter',
+                        ),
                   ),
-                ),
-              ));
-            }),
-          )),
+                ));
+              }),
+            )),
 
-          // TextField ẩn tiếp nhận phím nhập từ bàn phím hệ điều hành
-          Positioned.fill(
-            child: Opacity(
-              opacity: 0.0,
-              alwaysIncludeSemantics: true,
-              child: TextField(
-                controller: widget.controller,
-                focusNode: widget.focusNode,
-                enabled: widget.enabled,
-                keyboardType: TextInputType.number,
-                autofillHints: const [AutofillHints.oneTimeCode],
-                autofocus: true,
-                maxLength: 6,
-                inputFormatters: [
-                  FilteringTextInputFormatter.digitsOnly,
-                  LengthLimitingTextInputFormatter(6),
-                ],
-                buildCounter: (
-                  _, {
-                  required currentLength,
-                  required isFocused,
-                  maxLength,
-                }) =>
-                    null,
-                decoration: const InputDecoration(
-                  labelText: 'Mã xác thực 6 chữ số',
-                  border: InputBorder.none,
-                  contentPadding: EdgeInsets.zero,
+            // TextField ẩn tiếp nhận phím nhập từ bàn phím hệ điều hành
+            Positioned.fill(
+              child: Opacity(
+                opacity: 0.0,
+                alwaysIncludeSemantics: true,
+                child: TextField(
+                  key: widget.inputKey,
+                  controller: widget.controller,
+                  focusNode: widget.focusNode,
+                  enabled: widget.enabled,
+                  keyboardType: TextInputType.number,
+                  autofillHints: const [AutofillHints.oneTimeCode],
+                  autofocus: true,
+                  textAlignVertical: TextAlignVertical.center,
+                  style: const TextStyle(fontSize: 20, height: 27 / 20),
+                  // Keep the whole visible row above the keyboard, rather than
+                  // scrolling only the invisible caret into view.
+                  scrollPadding: const EdgeInsets.symmetric(vertical: 56),
+                  maxLength: 6,
+                  inputFormatters: [
+                    FilteringTextInputFormatter.digitsOnly,
+                    LengthLimitingTextInputFormatter(6),
+                  ],
+                  buildCounter: (
+                    _, {
+                    required currentLength,
+                    required isFocused,
+                    maxLength,
+                  }) =>
+                      null,
+                  decoration: null,
                 ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

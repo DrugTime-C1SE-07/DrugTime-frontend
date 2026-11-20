@@ -7,6 +7,7 @@ import 'package:drugtime_mobile/core/notification/notification_id.dart';
 import 'package:drugtime_mobile/core/notification/notification_service.dart';
 import 'package:drugtime_mobile/core/notification/reminder_notification_scheduler.dart';
 import 'package:drugtime_mobile/core/notification/reminder_sync_coordinator.dart';
+import 'package:drugtime_mobile/core/notification/reminder_sound.dart';
 import 'package:drugtime_mobile/core/storage/local_db/local_medication_store.dart';
 import 'package:drugtime_mobile/core/storage/local_db/local_models.dart';
 import 'package:drugtime_mobile/core/sync/schedule_sync_service.dart';
@@ -72,6 +73,54 @@ void main() {
           .isBefore(_now.add(const Duration(days: 7)))),
       isTrue,
     );
+  });
+
+  ReminderSyncCoordinator withHook(Future<void> Function() hook,
+          [ReminderSound Function()? sound]) =>
+      ReminderSyncCoordinator(
+        syncService:
+            ScheduleSyncService(remoteDataSource: remote, localStore: store),
+        localStore: store,
+        scheduler: ReminderNotificationScheduler(
+          platform: platform,
+          location: vn,
+          clockProvider: () => _now,
+          targetPlatform: TargetPlatform.android,
+          soundChannel: sound,
+        ),
+        clock: () => _now,
+        onLog: logs.add,
+        beforeSchedule: hook,
+      );
+
+  test('beforeSchedule runs before scheduling and its fallback applies__AC7',
+      () async {
+    remote.schedules = [_schedule(1)];
+    var sound = const ReminderSound.custom(
+        'custom_gone', 'DrugTime nhắc nhở 1', 'content://media/x/1');
+    var scheduledWhenHookRan = -1;
+    await withHook(() async {
+      scheduledWhenHookRan = platform.zonedScheduleCalls.length;
+      sound = ReminderSounds.chime;
+    }, () => sound).refresh('patient-1');
+
+    expect(scheduledWhenHookRan, 0);
+    expect(platform.zonedScheduleCalls, isNotEmpty);
+    expect(
+        platform.zonedScheduleCalls
+            .map((c) => c.notificationDetails.android!.channelId),
+        everyElement('drugtime_reminder_chime_v1'));
+  });
+
+  test(
+      'a failing beforeSchedule is logged and reminders are still scheduled__AC7',
+      () async {
+    remote.schedules = [_schedule(1)];
+    await withHook(() async => throw Exception('storage locked'))
+        .refresh('patient-1');
+
+    expect(platform.zonedScheduleCalls, isNotEmpty);
+    expect(logs.single, contains('storage locked'));
   });
 
   test('refresh cancels reminders of a schedule removed on the server',

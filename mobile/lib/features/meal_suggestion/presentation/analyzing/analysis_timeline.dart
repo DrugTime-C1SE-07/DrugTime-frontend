@@ -6,6 +6,10 @@ enum AnalysisStep {
   /// Còn bữa đang chạy, hoặc chưa đủ thời gian hiện tối thiểu.
   wait,
 
+  /// Đã có kết quả nhưng ảnh món của bữa sắp hiển thị chưa tải xong: giữ màn chờ
+  /// (adhoc-20261120-meal-image-loading, AC3).
+  preparingImages,
+
   /// Đủ kết quả (ít nhất 1 bữa thành công): chạy chuỗi kết thúc "siêu tân tinh".
   finale,
 
@@ -31,6 +35,7 @@ abstract final class AnalysisTimeline {
     required Map<MealType, MealTabStatus> statuses,
     required bool minShowPassed,
     required bool reduceMotion,
+    bool imagesReady = true,
   }) {
     final running = statuses.values
         .any((s) => s == MealTabStatus.loading || s == MealTabStatus.idle);
@@ -38,6 +43,7 @@ abstract final class AnalysisTimeline {
     if (statuses.values.every((s) => s == MealTabStatus.error)) {
       return AnalysisStep.failed;
     }
+    if (!imagesReady) return AnalysisStep.preparingImages;
     return reduceMotion ? AnalysisStep.done : AnalysisStep.finale;
   }
 

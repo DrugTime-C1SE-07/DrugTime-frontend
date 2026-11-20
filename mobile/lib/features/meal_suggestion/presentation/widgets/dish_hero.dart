@@ -33,6 +33,7 @@ class MealDishHero extends StatelessWidget {
   Widget _picture({required bool attribution}) => MealImageView(
         image: plan.imageOf(dish),
         loadBytes: plan.imageBytes,
+        cachedBytes: plan.cachedImageBytes,
         height: double.infinity,
         showAttribution: attribution,
         placeholderIcon: dishTypeAsset(dish.dishType),

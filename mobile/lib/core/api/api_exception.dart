@@ -4,6 +4,7 @@ class ApiException implements Exception {
     this.statusCode,
     this.isTransient = false,
     this.retryAfter,
+    this.remainingOtpAttempts,
   });
 
   final String message;
@@ -13,6 +14,7 @@ class ApiException implements Exception {
   /// Giá trị header `Retry-After` (số giây) của phản hồi lỗi; `null` khi không có hoặc không
   /// phải số giây dương.
   final Duration? retryAfter;
+  final int? remainingOtpAttempts;
 
   @override
   String toString() {

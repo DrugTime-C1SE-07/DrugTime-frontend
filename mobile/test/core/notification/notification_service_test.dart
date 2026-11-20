@@ -1,5 +1,7 @@
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:timezone/timezone.dart' as tz;
@@ -41,6 +43,7 @@ class MockNotificationPlatform implements NotificationPlatform {
   InitializationSettings? lastSettings;
   DidReceiveNotificationResponseCallback? onResponseCallback;
   final List<AndroidNotificationChannel> createdChannels = [];
+  final List<String> deletedChannels = [];
 
   @override
   Future<bool?> initialize({
@@ -57,6 +60,11 @@ class MockNotificationPlatform implements NotificationPlatform {
   Future<void> createNotificationChannel(
       AndroidNotificationChannel channel) async {
     createdChannels.add(channel);
+  }
+
+  @override
+  Future<void> deleteNotificationChannel(String channelId) async {
+    deletedChannels.add(channelId);
   }
 
   @override
@@ -281,6 +289,28 @@ void main() {
 
       expect(receivedPayload, isNull);
     });
+  });
+
+  test('deleteNotificationChannel reaches the Android plugin__AC6', () async {
+    TestWidgetsFlutterBinding.ensureInitialized();
+    debugDefaultTargetPlatformOverride = TargetPlatform.android;
+    addTearDown(() => debugDefaultTargetPlatformOverride = null);
+    // The plugin singleton picks its Android implementation on first use.
+    const channel = MethodChannel('dexterous.com/flutter/local_notifications');
+    final calls = <MethodCall>[];
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    messenger.setMockMethodCallHandler(channel, (call) async {
+      calls.add(call);
+      return null;
+    });
+    addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
+
+    await DefaultNotificationPlatform()
+        .deleteNotificationChannel('drugtime_reminder_custom_1');
+
+    expect(calls.single.method, 'deleteNotificationChannel');
+    expect(calls.single.arguments, 'drugtime_reminder_custom_1');
   });
 
   group('Static source code checks (AC10)', () {

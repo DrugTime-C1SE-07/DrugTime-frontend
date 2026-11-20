@@ -18,6 +18,7 @@ class ReminderSyncCoordinator {
     DateTime Function()? clock,
     this.onLog,
     this.horizon = const Duration(days: 7),
+    this.beforeSchedule,
   })  : _syncService = syncService,
         _localStore = localStore,
         _scheduler = scheduler,
@@ -29,6 +30,10 @@ class ReminderSyncCoordinator {
   final DateTime Function() _clock;
   final void Function(String message)? onLog;
   final Duration horizon;
+
+  /// Chạy ngay trước khi lập lịch, ví dụ kiểm âm nhắc còn dùng được (S08-4a AC7).
+  /// Lỗi chỉ được log, vẫn lập lịch.
+  final Future<void> Function()? beforeSchedule;
 
   Future<void> _tail = Future.value();
 
@@ -59,6 +64,7 @@ class ReminderSyncCoordinator {
             );
             if (!recorded) pending.add(occ);
           }
+          await _runBeforeSchedule();
           await _scheduler.scheduleOccurrences(pending);
         } on Exception catch (e) {
           onLog?.call('Không lập được nhắc uống thuốc: $e');
@@ -66,6 +72,14 @@ class ReminderSyncCoordinator {
       });
 
   /// Hủy mọi nhắc thuốc đang chờ (đăng xuất). Không đụng thông báo người thân.
+  Future<void> _runBeforeSchedule() async {
+    try {
+      await beforeSchedule?.call();
+    } on Exception catch (e) {
+      onLog?.call('Không kiểm tra được âm nhắc, vẫn lập nhắc: $e');
+    }
+  }
+
   Future<void> clear() => _queue(_cancelPendingReminders);
 
   /// Hủy nhắc thuốc đang chờ. Có [onlyFrom] thì chỉ hủy lượt có giờ dự kiến từ mốc
