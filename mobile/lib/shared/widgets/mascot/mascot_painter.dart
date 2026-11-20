@@ -428,7 +428,7 @@ class MascotPainter extends CustomPainter {
                   Offset(1, -3 + i * 6),
                   Offset(11, -3 + i * 6),
                   Paint()
-                    ..color = _C.blueLight.withValues(alpha: .3)
+                    ..color = palette.light.withValues(alpha: .3)
                     ..strokeWidth = 1.5);
             }
           }
