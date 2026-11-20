@@ -3,6 +3,7 @@ import '../../../../app/theme/app_theme.dart';
 import '../../../../shared/widgets/pill_icon.dart';
 import '../../domain/entities/adherence_history.dart';
 import '../utils/adherence_history_format.dart';
+import '../utils/reminder_palette.dart';
 
 class DoseHistoryTile extends StatelessWidget {
   const DoseHistoryTile(
@@ -10,20 +11,30 @@ class DoseHistoryTile extends StatelessWidget {
       required this.dose,
       this.showDate = false,
       this.upcoming = false,
+      this.locallyConfirmed = false,
+      this.prototypeStyle = false,
+      this.details,
       this.onTap});
   final HistoryDose dose;
   final bool showDate;
   final bool upcoming;
+  final bool locallyConfirmed;
+  final bool prototypeStyle;
+  final String? details;
   final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    final (color, background, icon) = upcoming
-        ? (AppColors.brand, AppColors.brandTint, Icons.schedule)
-        : switch (dose.status) {
+    final isUpcoming = upcoming && !locallyConfirmed;
+    final status = locallyConfirmed ? HistoryDoseStatus.taken : dose.status;
+    final interactive =
+        onTap != null && (status != HistoryDoseStatus.pending || isUpcoming);
+    final (color, background, icon) = isUpcoming
+        ? (ReminderPalette.teal, ReminderPalette.surfaceTint, Icons.schedule)
+        : switch (status) {
             HistoryDoseStatus.taken => (
-                AppColors.safe,
-                AppColors.safeBg,
+                ReminderPalette.success,
+                ReminderPalette.successBackground,
                 Icons.check_circle_outline
               ),
             HistoryDoseStatus.late => (
@@ -32,8 +43,8 @@ class DoseHistoryTile extends StatelessWidget {
                 Icons.schedule
               ),
             HistoryDoseStatus.missed => (
-                AppColors.danger,
-                AppColors.dangerBg,
+                ReminderPalette.missed,
+                ReminderPalette.missedBackground,
                 Icons.error_outline
               ),
             HistoryDoseStatus.pending => (
@@ -47,7 +58,7 @@ class DoseHistoryTile extends StatelessWidget {
                 Icons.cloud_off_outlined
               ),
           };
-    final badge = upcoming ? 'Sắp tới' : HistoryFormat.status(dose.status);
+    final badge = isUpcoming ? 'Sắp tới' : HistoryFormat.status(status);
     final clock = HistoryFormat.time(dose.scheduledAt);
     final state = Container(
       constraints: const BoxConstraints(minHeight: 40),
@@ -55,7 +66,7 @@ class DoseHistoryTile extends StatelessWidget {
       decoration: BoxDecoration(
           color: background, borderRadius: BorderRadius.circular(12)),
       child: Row(mainAxisSize: MainAxisSize.min, children: [
-        Icon(upcoming ? Icons.schedule : icon, size: 16, color: color),
+        Icon(isUpcoming ? Icons.schedule : icon, size: 16, color: color),
         const SizedBox(width: 6),
         Flexible(
             child: Text(badge,
@@ -86,14 +97,16 @@ class DoseHistoryTile extends StatelessWidget {
         ]),
       ),
     ]);
-    final rail =
-        dose.status == HistoryDoseStatus.missed ? AppColors.danger : null;
+    final missed = status == HistoryDoseStatus.missed;
+    final rail = missed && !prototypeStyle ? ReminderPalette.missed : null;
+    final cardColor =
+        missed && prototypeStyle ? const Color(0xFFFFF4F2) : AppColors.surface;
     return Semantics(
       container: true,
-      button: onTap != null,
-      onTap: onTap,
+      button: interactive,
+      onTap: interactive ? onTap : null,
       label:
-          '${dose.medicationName}, ${upcoming ? 'Sắp tới' : dose.status.label}, giờ dự kiến ${HistoryFormat.time(dose.scheduledAt)}, ${showDate ? HistoryFormat.day(HistoryFormat.today(dose.scheduledAt)) : ''}, ${HistoryFormat.actual(dose)}',
+          '${dose.medicationName}, ${isUpcoming ? 'Sắp tới' : status.label}, giờ dự kiến ${HistoryFormat.time(dose.scheduledAt)}, ${showDate ? HistoryFormat.day(HistoryFormat.today(dose.scheduledAt)) : ''}, ${locallyConfirmed ? 'Đã xác nhận tại Trang chủ' : HistoryFormat.actual(dose)}',
       child: ExcludeSemantics(
         child: LayoutBuilder(builder: (context, constraints) {
           final compact = constraints.maxWidth < 290 ||
@@ -101,38 +114,49 @@ class DoseHistoryTile extends StatelessWidget {
           return Padding(
             padding: const EdgeInsets.only(bottom: AppSpacing.sm),
             child: Material(
-              color: rail ?? AppColors.surface,
-              borderRadius: BorderRadius.circular(AppRadius.field),
+              color: rail ?? cardColor,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(AppRadius.field),
+                side: missed && prototypeStyle
+                    ? const BorderSide(color: ReminderPalette.missedBackground)
+                    : BorderSide.none,
+              ),
               clipBehavior: Clip.antiAlias,
               child: Padding(
                 padding: EdgeInsets.only(left: rail == null ? 0 : 4),
                 child: Material(
-                  color: AppColors.surface,
+                  color: cardColor,
                   child: InkWell(
-                    onTap: onTap,
+                    onTap: interactive ? onTap : null,
                     child: Padding(
-                      padding: const EdgeInsets.all(14),
-                      child: Row(
-                        children: [
-                          const PillTile(),
-                          const SizedBox(width: 12),
-                          Expanded(
-                              child: compact
-                                  ? Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                          name,
-                                          const SizedBox(height: 8),
-                                          state
-                                        ])
-                                  : name),
-                          if (!compact) ...[
-                            const SizedBox(width: 8),
-                            state,
-                          ],
-                        ],
-                      ),
+                      padding: EdgeInsets.all(prototypeStyle ? 9 : 14),
+                      child: prototypeStyle
+                          ? _prototypeRow(
+                              clock: clock,
+                              state: state,
+                              statusColor: color,
+                            )
+                          : Row(
+                              children: [
+                                const PillTile(colored: true),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                    child: compact
+                                        ? Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                                name,
+                                                const SizedBox(height: 8),
+                                                state
+                                              ])
+                                        : name),
+                                if (!compact) ...[
+                                  const SizedBox(width: 8),
+                                  state,
+                                ],
+                              ],
+                            ),
                     ),
                   ),
                 ),
@@ -141,6 +165,49 @@ class DoseHistoryTile extends StatelessWidget {
           );
         }),
       ),
+    );
+  }
+
+  Widget _prototypeRow({
+    required String clock,
+    required Widget state,
+    required Color statusColor,
+  }) {
+    final info = details?.trim() ?? '';
+    return Row(
+      children: [
+        const SizedBox(
+          width: 40,
+          height: 40,
+          child: Center(child: PillTile(colored: true)),
+        ),
+        const SizedBox(width: 9),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(clock,
+                  style: AppTextStyles.captionStrong
+                      .copyWith(fontSize: 12, color: statusColor)),
+              Text(dose.medicationName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTextStyles.bodyStrong.copyWith(fontSize: 14)),
+              if (info.isNotEmpty)
+                Text(info,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTextStyles.caption.copyWith(fontSize: 11)),
+            ],
+          ),
+        ),
+        const SizedBox(width: 7),
+        ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 112),
+          child: state,
+        ),
+      ],
     );
   }
 }

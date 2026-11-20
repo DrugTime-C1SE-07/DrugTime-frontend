@@ -41,9 +41,10 @@ void main() {
           final status = tester.getSemantics(
               find.bySemanticsLabel(RegExp('Đang chờ xác nhận, giờ dự kiến')));
           expect(status.flagsCollection.isButton, isFalse);
-          await tester.drag(find.byType(ListView).first, const Offset(0, 5000));
+          await tester.drag(
+              find.byType(CustomScrollView).first, const Offset(0, 5000));
           await tester.pumpAndSettle();
-          await openHistoryMonth(tester);
+          await _openHistoryMonth(tester);
           final day = find.byKey(const ValueKey('history-day-19'));
           expect(tester.getSize(day).width, greaterThanOrEqualTo(48));
           expect(tester.getSize(day).height, greaterThanOrEqualTo(48));
@@ -54,7 +55,7 @@ void main() {
           await tester.pumpAndSettle();
           await tester.tap(cta);
           await tester.pumpAndSettle();
-          await openMedicationHistory(tester);
+          await _openMedicationHistory(tester);
           final group = find.byKey(const ValueKey('history-medication-7'));
           final arrow = find.byKey(const ValueKey('history-expand-7'));
           await tester.scrollUntilVisible(arrow, 300,
@@ -82,7 +83,7 @@ void main() {
     await c.selectDay(DateTime.utc(2026, 10, 19));
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
-    await openHistoryMonth(tester);
+    await _openHistoryMonth(tester);
     final cta = find.byKey(const Key('history-view-day'));
     await tester.scrollUntilVisible(cta, 200,
         scrollable: find.byType(Scrollable).first);
@@ -92,4 +93,16 @@ void main() {
     await tester.pumpAndSettle();
     expect(c.selectedDay, DateTime.utc(2026, 10, 19));
   });
+}
+
+Future<void> _openHistoryMonth(WidgetTester tester) async {
+  await tester.tap(find.byTooltip('Mở lịch tháng'));
+  await tester.pumpAndSettle();
+}
+
+Future<void> _openMedicationHistory(WidgetTester tester) async {
+  await tester.tap(find.byTooltip('Tùy chọn lịch sử'));
+  await tester.pumpAndSettle();
+  await tester.tap(find.text('Theo thuốc'));
+  await tester.pumpAndSettle();
 }
