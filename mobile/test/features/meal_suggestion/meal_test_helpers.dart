@@ -109,6 +109,13 @@ class FakeMealRepository implements MealSuggestionRepository {
   List<MealDishImage> Function(List<int> ids) imageAnswer = (_) => const [];
   final bytesCalls = <int>[];
 
+  /// Tải nội dung ảnh: giữ đến khi Completer xong (theo id), hoặc lỗi theo id
+  /// (adhoc-20261120-meal-image-loading, AC7, AC8).
+  final bytesGates = <int, Completer<void>>{};
+  final failBytes = <int>{};
+  int bytesInFlight = 0;
+  int maxBytesInFlight = 0;
+
   /// `true`: mỗi lời gọi trả một suggestion_id khác nhau (hero tag không trùng giữa các bữa).
   bool uniqueIds = false;
 
@@ -140,6 +147,17 @@ class FakeMealRepository implements MealSuggestionRepository {
   @override
   Future<Uint8List> imageBytes(MealDishImage image) async {
     bytesCalls.add(image.imageId);
+    bytesInFlight++;
+    if (bytesInFlight > maxBytesInFlight) maxBytesInFlight = bytesInFlight;
+    try {
+      final gate = bytesGates[image.imageId];
+      if (gate != null) await gate.future;
+      if (failBytes.contains(image.imageId)) {
+        throw const MealSuggestionFailure(MealFailureKind.network);
+      }
+    } finally {
+      bytesInFlight--;
+    }
     // PNG 1x1 hợp lệ để Image.memory giải mã được.
     return Uint8List.fromList(const [
       0x89,

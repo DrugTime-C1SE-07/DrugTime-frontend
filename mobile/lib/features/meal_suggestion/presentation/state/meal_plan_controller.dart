@@ -52,8 +52,10 @@ class MealPlanController extends ChangeNotifier {
     required AllergyProfileRepository allergyRepository,
     DietarySession? session,
     DateTime Function()? now,
-    this.pollInterval = const Duration(seconds: 3),
+    this.pollInterval = const Duration(seconds: 2),
     this.pollWindow = const Duration(seconds: 30),
+    this.imageWaitLimit = const Duration(seconds: 20),
+    this.imagePrefetchConcurrency = 3,
   })  : _repository = repository,
         _allergyRepository = allergyRepository,
         _session = session ?? DietarySession.instance,
@@ -68,6 +70,13 @@ class MealPlanController extends ChangeNotifier {
   final Duration pollInterval;
   final Duration pollWindow;
 
+  /// Màn chờ giữ tối đa chừng này (tính từ lúc API trả gợi ý) để đợi ảnh của bữa sắp hiển thị
+  /// (adhoc-20261120-meal-image-loading, AC5). Hết giờ thì món chưa có ảnh dùng ảnh mặc định.
+  final Duration imageWaitLimit;
+
+  /// Số ảnh tải nội dung song song tối đa (AC7).
+  final int imagePrefetchConcurrency;
+
   String? _userId;
   String? _day;
 
@@ -81,6 +90,18 @@ class MealPlanController extends ChangeNotifier {
   };
   final Map<MealType, int> _tokens = {for (final t in MealType.values) t: 0};
   final Map<int, MealDishImage> _images = {};
+
+  /// Nội dung ảnh đã tải sẵn (đọc đồng bộ để ảnh hiện ngay ở khung hình đầu, AC4).
+  final Map<int, Uint8List> _bytes = {};
+  final List<MealDishImage> _fetchQueue = [];
+  final Set<int> _queued = {};
+  int _fetching = 0;
+
+  /// Đổi khi xóa thực đơn: kết quả tải về muộn của thực đơn cũ bị bỏ.
+  int _generation = 0;
+
+  /// Thời điểm API trả gợi ý của từng bữa, để tính thời gian chờ ảnh.
+  final Map<MealType, DateTime> _resultAt = {};
   int? refreshesRemaining;
   Timer? _poll;
   DateTime? _pollStarted;
@@ -140,6 +161,12 @@ class MealPlanController extends ChangeNotifier {
       _tabs[t] = const MealTabState();
     }
     _images.clear();
+    _bytes.clear();
+    _fetchQueue.clear();
+    _queued.clear();
+    _fetching = 0;
+    _generation++;
+    _resultAt.clear();
     refreshesRemaining = null;
     _stopPolling();
   }
@@ -152,6 +179,41 @@ class MealPlanController extends ChangeNotifier {
 
   Future<Uint8List> imageBytes(MealDishImage image) =>
       _repository.imageBytes(image);
+
+  /// Nội dung ảnh đã tải sẵn, hoặc `null` nếu chưa có.
+  Uint8List? cachedImageBytes(MealDishImage image) => _bytes[image.imageId];
+
+  /// Món hiện đầu tiên của [type] (thẻ ở `pageIndex`, mặc định thẻ "Dumi chọn"), hoặc `null`
+  /// khi bữa chưa có món.
+  MealDish? _leadDish(MealType type) {
+    final state = _tabs[type]!;
+    final dishes = state.dishes;
+    if (dishes.isEmpty) return null;
+    return dishes[state.pageIndex.clamp(0, dishes.length - 1)];
+  }
+
+  /// Món hiện đầu tiên của [type] đã sẵn sàng hiển thị ảnh: không có ảnh, ảnh lỗi, hoặc ảnh
+  /// `ready` và nội dung đã tải xong. Ảnh các món khác không tính (AC4, AC6).
+  bool leadImageSettled(MealType type) {
+    final dish = _leadDish(type);
+    final image = dish == null ? null : imageOf(dish);
+    if (image == null || image.status == MealImageStatus.failed) return true;
+    return image.isReady && _bytes.containsKey(image.imageId);
+  }
+
+  /// Đã chờ ảnh của [type] đủ [imageWaitLimit] (hoặc bữa chưa có kết quả nên không cần chờ) (AC5).
+  bool imageWaitExpired(MealType type) {
+    final at = _resultAt[type];
+    return at == null || _now().difference(at) >= imageWaitLimit;
+  }
+
+  /// Thời gian chờ ảnh còn lại của [type]; `null` khi bữa chưa có kết quả.
+  Duration? imageWaitRemaining(MealType type) {
+    final at = _resultAt[type];
+    if (at == null) return null;
+    final left = imageWaitLimit - _now().difference(at);
+    return left.isNegative ? Duration.zero : left;
+  }
 
   void _notify() {
     if (!_disposed) notifyListeners();
@@ -243,8 +305,10 @@ class MealPlanController extends ChangeNotifier {
       );
       if (_disposed || _tokens[type] != token) return; // response muộn
       _tabs[type] = MealTabState(status: MealTabStatus.data, result: result);
+      _resultAt[type] = _now();
       refreshesRemaining = result.refreshesRemaining;
       _startPolling();
+      _prefetchReady();
     } on MealSuggestionFailure catch (failure) {
       if (_disposed || _tokens[type] != token) return;
       _tabs[type] = MealTabState(status: MealTabStatus.error, failure: failure);
@@ -285,8 +349,10 @@ class MealPlanController extends ChangeNotifier {
       );
       if (_disposed || _tokens[type] != token) return false;
       _tabs[type] = MealTabState(status: MealTabStatus.data, result: result);
+      _resultAt[type] = _now();
       refreshesRemaining = result.refreshesRemaining;
       _startPolling();
+      _prefetchReady();
       _notify();
       return true;
     } on MealSuggestionFailure catch (failure) {
@@ -346,14 +412,69 @@ class MealPlanController extends ChangeNotifier {
       for (final s in states) {
         _images[s.imageId] = s;
       }
+      _prefetchReady();
       _notify();
     } on MealSuggestionFailure {
       // Lỗi tạm thời khi hỏi ảnh: thử lại ở nhịp sau, gợi ý vẫn hiển thị.
     }
   }
 
+  /// Đưa ảnh `ready` chưa có nội dung vào hàng đợi tải sẵn (AC4, AC7). Ảnh của món hiện đầu
+  /// tiên mỗi bữa vào đầu hàng, ảnh khác vào cuối hàng.
+  void _prefetchReady() {
+    final lead = <MealDishImage>[];
+    for (final type in MealType.values) {
+      final leadDish = _leadDish(type);
+      for (final dish in _tabs[type]!.dishes) {
+        final image = imageOf(dish);
+        if (image == null || !image.isReady) continue;
+        final id = image.imageId;
+        if (_bytes.containsKey(id) || !_queued.add(id)) continue;
+        if (identical(dish, leadDish)) {
+          lead.add(image);
+        } else {
+          _fetchQueue.add(image);
+        }
+      }
+    }
+    _fetchQueue.insertAll(0, lead);
+    _drainFetchQueue();
+  }
+
+  void _drainFetchQueue() {
+    while (!_disposed &&
+        _fetching < imagePrefetchConcurrency &&
+        _fetchQueue.isNotEmpty) {
+      final image = _fetchQueue.removeAt(0);
+      _fetching++;
+      unawaited(_fetchBytes(image, _generation));
+    }
+  }
+
+  Future<void> _fetchBytes(MealDishImage image, int generation) async {
+    Uint8List? bytes;
+    try {
+      bytes = await _repository.imageBytes(image);
+    } on Exception {
+      bytes = null; // tải lỗi: coi như không có ảnh, hiện ảnh mặc định (AC8)
+    }
+    if (_disposed || generation != _generation) return;
+    _fetching--;
+    if (bytes != null) {
+      _bytes[image.imageId] = bytes;
+    } else {
+      _images[image.imageId] =
+          MealDishImage(imageId: image.imageId, status: MealImageStatus.failed);
+    }
+    _notify();
+    _drainFetchQueue();
+  }
+
   @visibleForTesting
   bool get isPolling => _poll != null;
+
+  @visibleForTesting
+  int get imagesFetching => _fetching;
 
   @override
   void dispose() {

@@ -47,7 +47,8 @@ class _AnalyzingViewState extends State<AnalyzingView>
   _Stage _stage = _Stage.running;
   bool _minPassed = false;
   bool _flashed = false, _cheered = false, _left = false, _inFlight = false;
-  Timer? _minTimer, _settleTimer;
+  Timer? _minTimer, _settleTimer, _imageTimer;
+  bool _preparingImages = false;
   MealTabStatus? _refreshStatus;
   late MealType _reveal = widget.refreshMeal ?? widget.plan.tab;
 
@@ -78,9 +79,11 @@ class _AnalyzingViewState extends State<AnalyzingView>
   void _start() {
     if (!mounted || _inFlight) return;
     _inFlight = true;
+    _imageTimer?.cancel();
     setState(() {
       _stage = _Stage.running;
       _minPassed = false;
+      _preparingImages = false;
       _refreshStatus = MealTabStatus.loading;
     });
     mascot.play(MascotMood.cooking);
@@ -109,12 +112,33 @@ class _AnalyzingViewState extends State<AnalyzingView>
   void _check() {
     if (!mounted || _stage != _Stage.running) return;
     final statuses = _statuses;
+    final reveal = widget.refreshMeal ??
+        AnalysisTimeline.revealMeal(
+            statuses, MealType.forVietnamTime(plan.now()));
+    // Chỉ chờ ảnh của bữa sắp hiển thị; các bữa khác tải nền (Q2).
+    final imagesReady =
+        plan.leadImageSettled(reveal) || plan.imageWaitExpired(reveal);
     final step = AnalysisTimeline.next(
-        statuses: statuses, minShowPassed: _minPassed, reduceMotion: _still);
+        statuses: statuses,
+        minShowPassed: _minPassed,
+        reduceMotion: _still,
+        imagesReady: imagesReady);
     if (step == AnalysisStep.wait) {
       setState(() {}); // cập nhật viên bữa
       return;
     }
+    if (step == AnalysisStep.preparingImages) {
+      setState(() => _preparingImages = true);
+      // Ảnh xong thì controller báo listener; hẹn thêm lượt kiểm khi hết giờ chờ (AC5).
+      final left = plan.imageWaitRemaining(reveal);
+      if (left != null && !(_imageTimer?.isActive ?? false)) {
+        _imageTimer =
+            Timer(left + const Duration(milliseconds: 50), _check);
+      }
+      return;
+    }
+    _imageTimer?.cancel();
+    _preparingImages = false;
     _inFlight = false;
     if (step == AnalysisStep.failed) {
       setState(() => _stage = _Stage.failed);
@@ -170,6 +194,7 @@ class _AnalyzingViewState extends State<AnalyzingView>
     plan.removeListener(_check);
     _minTimer?.cancel();
     _settleTimer?.cancel();
+    _imageTimer?.cancel();
     _clock.dispose();
     _finale.dispose();
     mascot.dispose();
@@ -288,6 +313,7 @@ class _AnalyzingViewState extends State<AnalyzingView>
             failed: _stage == _Stage.failed,
             statuses: {for (final m in _meals) m: _statuses[m]!},
             refreshMeal: widget.refreshMeal,
+            preparingImages: _preparingImages,
             onRetry: _start,
             onKeep: _leave,
           ),
@@ -442,10 +468,12 @@ class _Status extends StatelessWidget {
     required this.failed,
     required this.statuses,
     required this.refreshMeal,
+    required this.preparingImages,
     required this.onRetry,
     required this.onKeep,
   });
   final bool failed;
+  final bool preparingImages;
   final Map<MealType, MealTabStatus> statuses;
   final MealType? refreshMeal;
   final VoidCallback onRetry, onKeep;
@@ -495,9 +523,11 @@ class _Status extends StatelessWidget {
     }
     return Column(mainAxisSize: MainAxisSize.min, children: [
       Text(
-          refreshMeal == null
-              ? 'Dumi đang lên thực đơn…'
-              : 'Dumi đang tìm món khác…',
+          preparingImages
+              ? 'Đang chuẩn bị ảnh món…'
+              : refreshMeal == null
+                  ? 'Dumi đang lên thực đơn…'
+                  : 'Dumi đang tìm món khác…',
           textAlign: TextAlign.center,
           style: const TextStyle(
               fontSize: 24,
