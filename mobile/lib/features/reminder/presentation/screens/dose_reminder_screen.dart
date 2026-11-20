@@ -1,12 +1,17 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../../../app/theme/app_theme.dart';
 import '../../../../core/widgets/vector_icons.dart';
 import '../../../family_link/presentation/garden/care_garden.dart';
 import '../../../family_link/presentation/garden/garden_mood.dart';
+import '../../../home/presentation/scene/living_banner.dart';
 import '../../domain/entities/dose_reminder.dart';
 import '../state/dose_reminder_controller.dart';
 import '../widgets/dose_reminder_card.dart';
+import '../widgets/reminder_mascot.dart';
+import '../widgets/reminder_scene.dart';
 
 /// Full-screen reminder for confirming, snoozing, or skipping a dose group.
 class DoseReminderScreen extends StatefulWidget {
@@ -32,6 +37,21 @@ class _DoseReminderScreenState extends State<DoseReminderScreen> {
   bool _expanded = false;
   late final Set<int> _selectedScheduleIds = <int>{};
 
+  /// Màu chữ theo trời, gán mỗi lần [ReminderScene] dựng lại.
+  ReminderInk _style = ReminderInk.brand;
+  Key? _groundKey;
+
+  /// Đóng màn sau khi pet ăn mừng xong.
+  Timer? _closeTimer;
+
+  DateTime _now() => (widget.arguments.clock ?? DateTime.now)().toUtc();
+
+  /// Nhắc theo lịch có cảnh trời theo giờ; lời nhắc từ người thân giữ cảnh vườn.
+  bool get _scenic => _sender == null;
+
+  Color get _ink => _style.strong;
+  Color get _inkSoft => _style.soft;
+
   DoseReminderGroup get _group => widget.arguments.group;
 
   /// Người thân gửi lời nhắc (P1); null = nhắc theo lịch.
@@ -54,6 +74,7 @@ class _DoseReminderScreenState extends State<DoseReminderScreen> {
 
   @override
   void dispose() {
+    _closeTimer?.cancel();
     _controller
       ..removeListener(_onChanged)
       ..dispose();
@@ -61,7 +82,24 @@ class _DoseReminderScreenState extends State<DoseReminderScreen> {
   }
 
   void _onChanged() {
-    if (mounted) setState(() {});
+    if (!mounted) return;
+    setState(() {});
+    if (_controller.allConfirmed && _closeTimer == null) {
+      final still = !LivingBanner.autoplay ||
+          (MediaQuery.maybeDisableAnimationsOf(context) ?? false);
+      _closeTimer = Timer(
+        still
+            ? ReminderMascot.celebrateStillHold
+            : ReminderMascot.celebrateDuration,
+        _autoClose,
+      );
+    }
+  }
+
+  /// Đã uống đủ: đợi pet ăn mừng xong rồi tự đóng màn.
+  void _autoClose() {
+    if (!mounted || ModalRoute.of(context)?.isCurrent == false) return;
+    Navigator.of(context).pop(DoseReminderResult.confirmed);
   }
 
   DateTime get _vietnamTime =>
@@ -102,6 +140,7 @@ class _DoseReminderScreenState extends State<DoseReminderScreen> {
   }
 
   void _closeConfirmed() {
+    _closeTimer?.cancel();
     Navigator.of(context).pop(DoseReminderResult.confirmed);
   }
 
@@ -111,101 +150,134 @@ class _DoseReminderScreenState extends State<DoseReminderScreen> {
 
     return Scaffold(
       backgroundColor: AppColors.brandStrong,
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(
-            AppSpacing.page,
-            AppSpacing.md,
-            AppSpacing.page,
-            AppSpacing.md,
-          ),
-          child: Column(
-            children: [
-              Expanded(
-                child: SingleChildScrollView(
-                  child: Column(
-                    children: [
-                      _buildHeader(itemCount),
-                      if (!_expanded || !_group.hasMultipleItems) ...[
+      body: _scenic
+          ? ReminderScene(
+              clock: widget.arguments.clock,
+              builder: (context, ink, groundKey) {
+                _style = ink;
+                _groundKey = groundKey;
+                return _buildBody(itemCount);
+              },
+            )
+          : _buildBody(itemCount),
+    );
+  }
+
+  Widget _buildBody(int itemCount) {
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(
+          AppSpacing.page,
+          AppSpacing.md,
+          AppSpacing.page,
+          AppSpacing.md,
+        ),
+        child: Column(
+          children: [
+            Expanded(
+              child: SingleChildScrollView(
+                child: Column(
+                  children: [
+                    _buildHeader(itemCount),
+                    if (!_expanded || !_group.hasMultipleItems) ...[
+                      if (_sender != null) ...[
                         const SizedBox(height: AppSpacing.xl),
-                        if (_sender != null)
-                          _buildCaregiverScene()
-                        else
-                          _buildMedicinePulse(),
+                        _buildCaregiverScene(),
                         const SizedBox(height: AppSpacing.xl),
                         const SizedBox(height: AppSpacing.sm),
                       ] else ...[
                         const SizedBox(height: AppSpacing.md),
+                        _buildMascotStage(),
+                        const SizedBox(height: AppSpacing.lg),
                       ],
-                      if (_group.hasMultipleItems && !_expanded)
-                        _buildStackedCards(_group.items.first, itemCount)
-                      else if (_group.hasMultipleItems && _expanded) ...[
-                        ..._group.items.map(
-                          (item) => Padding(
-                            padding:
-                                const EdgeInsets.only(bottom: AppSpacing.sm),
-                            child: DoseReminderCard(
-                              item: item,
-                              status: _controller.statusOf(item),
-                              isSelectable: true,
-                              isSelected: _selectedScheduleIds
-                                  .contains(item.medicationScheduleId),
-                              onConfirm: _controller.isBusy
-                                  ? null
-                                  : () => _confirmItem(item),
-                              onToggleSelect: (selected) {
-                                setState(() {
-                                  if (selected) {
-                                    _selectedScheduleIds
-                                        .add(item.medicationScheduleId);
-                                  } else {
-                                    _selectedScheduleIds
-                                        .remove(item.medicationScheduleId);
-                                  }
-                                });
-                              },
-                            ),
-                          ),
-                        ),
-                      ] else ...[
-                        ..._group.items.map(
-                          (item) => Padding(
-                            padding:
-                                const EdgeInsets.only(bottom: AppSpacing.sm),
-                            child: DoseReminderCard(
-                              item: item,
-                              status: _controller.statusOf(item),
-                              onConfirm: _controller.isBusy
-                                  ? null
-                                  : () => _confirmItem(item),
-                            ),
-                          ),
-                        ),
-                      ],
+                    ] else ...[
+                      const SizedBox(height: AppSpacing.md),
                     ],
-                  ),
+                    if (_group.hasMultipleItems && !_expanded)
+                      _buildStackedCards(_group.items.first, itemCount)
+                    else if (_group.hasMultipleItems && _expanded) ...[
+                      ..._group.items.map(
+                        (item) => Padding(
+                          padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                          child: DoseReminderCard(
+                            item: item,
+                            status: _controller.statusOf(item),
+                            isSelectable: true,
+                            isSelected: _selectedScheduleIds
+                                .contains(item.medicationScheduleId),
+                            onConfirm: _controller.isBusy
+                                ? null
+                                : () => _confirmItem(item),
+                            onToggleSelect: (selected) {
+                              setState(() {
+                                if (selected) {
+                                  _selectedScheduleIds
+                                      .add(item.medicationScheduleId);
+                                } else {
+                                  _selectedScheduleIds
+                                      .remove(item.medicationScheduleId);
+                                }
+                              });
+                            },
+                          ),
+                        ),
+                      ),
+                    ] else ...[
+                      ..._group.items.map(
+                        (item) => Padding(
+                          padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                          child: DoseReminderCard(
+                            item: item,
+                            status: _controller.statusOf(item),
+                            onConfirm: _controller.isBusy
+                                ? null
+                                : () => _confirmItem(item),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
               ),
-              if (_controller.message case final message?) ...[
-                Semantics(
-                  liveRegion: true,
-                  child: Padding(
-                    padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-                    child: Text(
-                      message,
-                      style: AppTextStyles.captionStrong.copyWith(
-                        color: const Color(0xFFFFD7D7),
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                  ),
-                ),
-              ],
-              _buildActions(itemCount),
-            ],
-          ),
+            ),
+            _buildActionPanel(itemCount),
+          ],
         ),
       ),
+    );
+  }
+
+  /// Thông báo lỗi và các nút; trên cảnh trời có nền đậm riêng để luôn đọc rõ.
+  Widget _buildActionPanel(int itemCount) {
+    final content = Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (_controller.message case final message?)
+          Semantics(
+            liveRegion: true,
+            child: Padding(
+              padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+              child: Text(
+                message,
+                style: AppTextStyles.captionStrong.copyWith(
+                  color: const Color(0xFFFFD7D7),
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ),
+          ),
+        _buildActions(itemCount),
+      ],
+    );
+    if (!_scenic) return content;
+    return Container(
+      padding: const EdgeInsets.fromLTRB(
+          AppSpacing.md, AppSpacing.md, AppSpacing.md, AppSpacing.xs),
+      decoration: BoxDecoration(
+        color: AppColors.brandStrong.withValues(alpha: .9),
+        borderRadius: BorderRadius.circular(AppRadius.card),
+      ),
+      child: content,
     );
   }
 
@@ -216,7 +288,7 @@ class _DoseReminderScreenState extends State<DoseReminderScreen> {
         children: [
           Text(
             '$_timeLabel · $_dateLabel',
-            style: AppTextStyles.caption.copyWith(color: AppColors.onBrand),
+            style: AppTextStyles.caption.copyWith(color: _inkSoft),
           ),
           const SizedBox(height: AppSpacing.xs),
           Row(
@@ -226,7 +298,7 @@ class _DoseReminderScreenState extends State<DoseReminderScreen> {
                 child: Text(
                   '$itemCount thuốc cần uống',
                   style: AppTextStyles.title.copyWith(
-                    color: Colors.white,
+                    color: _ink,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
@@ -276,7 +348,7 @@ class _DoseReminderScreenState extends State<DoseReminderScreen> {
           Text(
             'Bỏ chọn thuốc bạn chưa uống trước khi xác nhận.',
             style: AppTextStyles.caption.copyWith(
-              color: const Color(0xFFB2DFDB),
+              color: _inkSoft,
             ),
           ),
         ],
@@ -316,12 +388,12 @@ class _DoseReminderScreenState extends State<DoseReminderScreen> {
         FittedBox(
           child: Text(
             _sender == null ? _timeLabel : _nowLabel,
-            style: const TextStyle(
-              color: Colors.white,
+            style: TextStyle(
+              color: _ink,
               fontSize: 64,
               height: 1,
               fontWeight: FontWeight.w600,
-              fontFeatures: [FontFeature.tabularFigures()],
+              fontFeatures: const [FontFeature.tabularFigures()],
             ),
           ),
         ),
@@ -332,7 +404,7 @@ class _DoseReminderScreenState extends State<DoseReminderScreen> {
               : _controller.allConfirmed
                   ? 'Đã ghi nhận liều $_timeLabel'
                   : 'Bạn chưa uống liều $_timeLabel',
-          style: AppTextStyles.body.copyWith(color: AppColors.onBrand),
+          style: AppTextStyles.body.copyWith(color: _inkSoft),
         ),
         if (_sender != null) ...[
           const SizedBox(height: AppSpacing.xs),
@@ -444,41 +516,41 @@ class _DoseReminderScreenState extends State<DoseReminderScreen> {
     );
   }
 
-  Widget _buildMedicinePulse() {
-    if (_group.hasMultipleItems && _expanded) return const SizedBox.shrink();
-    return Semantics(
-      label: 'Biểu tượng nhắc uống thuốc',
-      child: Container(
-        width: 150,
-        height: 150,
-        decoration: const BoxDecoration(
-          shape: BoxShape.circle,
-          color: Color(0xFF146C66),
-        ),
-        alignment: Alignment.center,
-        child: Container(
-          width: 112,
-          height: 112,
-          decoration: const BoxDecoration(
-            shape: BoxShape.circle,
-            color: Color(0xFF4C8E89),
-          ),
-          alignment: Alignment.center,
-          child: Container(
-            width: 78,
-            height: 78,
-            decoration: const BoxDecoration(
-              shape: BoxShape.circle,
-              color: AppColors.brandTint,
-            ),
-            child: const Icon(
-              Icons.medication_outlined,
-              size: 38,
-              color: AppColors.brand,
-            ),
+  /// Pet chibi của Trang chủ nhắc uống thuốc, kèm một câu nói theo trạng thái liều.
+  Widget _buildMascotStage() {
+    final confirmed = _controller.allConfirmed;
+    final hasError = _controller.message != null && !confirmed;
+    final count = _group.items.length;
+    final line = confirmed
+        ? 'Giỏi quá! Hẹn bạn ở liều tiếp theo nhé.'
+        : hasError
+            ? 'Ôi, có trục trặc rồi. Thử lại giúp mình nhé.'
+            : count == 1
+                ? 'Đến giờ rồi, uống thuốc thôi nào!'
+                : 'Đến giờ rồi, có $count thuốc đang chờ bạn!';
+    return Column(
+      children: [
+        KeyedSubtree(
+          key: _groundKey,
+          child: ReminderMascot(
+            key: const Key('dose-reminder-mascot'),
+            scheduledAt: _group.scheduledAt,
+            now: _now(),
+            confirmed: confirmed,
+            hasError: hasError,
           ),
         ),
-      ),
+        const SizedBox(height: AppSpacing.sm),
+        Text(
+          line,
+          key: const Key('dose-reminder-mascot-line'),
+          style: AppTextStyles.bodyStrong.copyWith(
+            color: Colors.white,
+            shadows: const [Shadow(color: Color(0x99000000), blurRadius: 6)],
+          ),
+          textAlign: TextAlign.center,
+        ),
+      ],
     );
   }
 

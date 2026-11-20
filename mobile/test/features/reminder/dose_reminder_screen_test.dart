@@ -6,7 +6,10 @@ import 'package:drugtime_mobile/core/contracts/dose_outbox.dart';
 import 'package:drugtime_mobile/core/notification/reminder_scheduler.dart';
 import 'package:drugtime_mobile/core/storage/local_db/local_models.dart';
 import 'package:drugtime_mobile/features/reminder/domain/entities/dose_reminder.dart';
+import 'package:drugtime_mobile/features/home/presentation/scene/chibi_pet.dart';
+import 'package:drugtime_mobile/features/home/presentation/scene/living_banner.dart';
 import 'package:drugtime_mobile/features/reminder/presentation/screens/dose_reminder_screen.dart';
+import 'package:drugtime_mobile/features/reminder/presentation/widgets/reminder_mascot.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -24,6 +27,156 @@ void main() {
     expect(find.text('Đã uống'), findsOneWidget);
     expect(find.text('Nhắc lại sau 10 phút'), findsOneWidget);
     expect(find.text('Bỏ qua liều này'), findsOneWidget);
+  });
+
+  group('linh vật nhắc thuốc', () {
+    testWidgets('nhắc theo lịch: hiện pet chibi và câu nhắc', (tester) async {
+      await _pumpReminder(tester, items: [_item(1, 'Losartan 50mg')]);
+
+      expect(find.byKey(const Key('dose-reminder-mascot')), findsOneWidget);
+      expect(find.bySemanticsLabel('Linh vật nhắc bạn uống thuốc'),
+          findsOneWidget);
+      expect(find.text('Đến giờ rồi, uống thuốc thôi nào!'), findsOneWidget);
+      expect(find.byKey(const Key('dose-reminder-garden')), findsNothing);
+    });
+
+    testWidgets('nhóm nhiều thuốc: câu nhắc nêu số thuốc', (tester) async {
+      await _pumpReminder(tester,
+          items: [_item(1, 'Losartan'), _item(2, 'Metformin')]);
+
+      expect(find.text('Đến giờ rồi, có 2 thuốc đang chờ bạn!'), findsOneWidget);
+    });
+
+    testWidgets('uống xong: pet ăn mừng', (tester) async {
+      await _pumpReminder(tester, items: [_item(1, 'Losartan')]);
+
+      await tester.tap(find.text('Đã uống'));
+      await tester.pumpAndSettle();
+
+      expect(find.bySemanticsLabel('Linh vật vui mừng vì bạn đã uống thuốc'),
+          findsOneWidget);
+      expect(find.text('Giỏi quá! Hẹn bạn ở liều tiếp theo nhé.'),
+          findsOneWidget);
+    });
+
+    testWidgets('lỗi ghi nhận: pet lo lắng, liều chưa đánh dấu đã uống',
+        (tester) async {
+      final outbox = _FakeDoseOutbox(failOnceFor: {1});
+      await _pumpReminder(tester,
+          items: [_item(1, 'Losartan')], outbox: outbox);
+
+      await tester.tap(find.text('Đã uống'));
+      await tester.pumpAndSettle();
+
+      expect(
+          find.bySemanticsLabel('Linh vật đang lo vì liều chưa được ghi nhận'),
+          findsOneWidget);
+      expect(find.byTooltip('Losartan đã uống'), findsNothing);
+    });
+
+    testWidgets('chạm vào pet không kích hoạt hành động nào', (tester) async {
+      final outbox = _FakeDoseOutbox();
+      await _pumpReminder(tester,
+          items: [_item(1, 'Losartan')], outbox: outbox);
+
+      await tester.tap(find.byKey(const Key('dose-reminder-mascot')));
+      await tester.pumpAndSettle();
+
+      expect(outbox.scheduleIds, isEmpty);
+      expect(find.text('Đã uống'), findsOneWidget);
+    });
+
+    testWidgets('autoplay bật: pet chạy khung hình, giảm chuyển động thì dừng',
+        (tester) async {
+      LivingBanner.autoplay = true;
+      addTearDown(() => LivingBanner.autoplay = false);
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+          body: ReminderMascot(
+            scheduledAt: DateTime.utc(2026, 9, 25, 13),
+            now: DateTime.utc(2026, 9, 25, 13),
+            confirmed: false,
+            hasError: false,
+          ),
+        ),
+      ));
+      await tester.pump(const Duration(seconds: 1));
+      expect(tester.binding.hasScheduledFrame, isTrue);
+
+      tester.platformDispatcher.accessibilityFeaturesTestValue =
+          const FakeAccessibilityFeatures(disableAnimations: true);
+      addTearDown(
+          tester.platformDispatcher.clearAccessibilityFeaturesTestValue);
+      await tester.pumpAndSettle();
+      expect(tester.binding.hasScheduledFrame, isFalse);
+    });
+
+    testWidgets('màn 320×568, chữ 1.3: không tràn bố cục', (tester) async {
+      tester.view.physicalSize = const Size(320, 568);
+      tester.view.devicePixelRatio = 1;
+      tester.platformDispatcher.textScaleFactorTestValue = 1.3;
+      addTearDown(tester.view.reset);
+      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+
+      await _pumpReminder(tester, items: [_item(1, 'Losartan 50mg')]);
+
+      expect(tester.takeException(), isNull);
+      expect(find.text('Đã uống'), findsOneWidget);
+    });
+  });
+
+  group('reminderPetMood', () {
+    PetMood mood({
+      bool confirmed = false,
+      bool hasError = false,
+      bool still = false,
+      double time = 0,
+      double idle = 0,
+      int hour = 20,
+    }) =>
+        reminderPetMood(
+          confirmed: confirmed,
+          hasError: hasError,
+          still: still,
+          time: time,
+          idleSeconds: idle,
+          hourVn: hour,
+        );
+
+    test('đã uống luôn ăn mừng, kể cả khi có lỗi cũ', () {
+      expect(mood(confirmed: true, hasError: true), PetMood.celebrate);
+    });
+
+    test('có lỗi thì lo lắng', () {
+      expect(mood(hasError: true, idle: 999), PetMood.concerned);
+    });
+
+    test('giảm chuyển động: đứng yên ôm trước ngực', () {
+      expect(mood(still: true, idle: 999), PetMood.hold);
+    });
+
+    test('chu kỳ 6 giây: chỉ tay, ôm, rồi động tác theo buổi', () {
+      expect(mood(time: 0.5), PetMood.point);
+      expect(mood(time: 2.5), PetMood.hold);
+      expect(mood(time: 4.5, hour: 20), PetMood.yawn);
+      expect(mood(time: 6.5), PetMood.point);
+    });
+
+    test('động tác theo buổi: sáng vươn vai, trưa vẫy, chiều ngó trời, tối ngáp',
+        () {
+      expect(reminderDayPartMood(6), PetMood.stretch);
+      expect(reminderDayPartMood(12), PetMood.wave);
+      expect(reminderDayPartMood(16), PetMood.thinking);
+      expect(reminderDayPartMood(21), PetMood.yawn);
+      expect(reminderDayPartMood(3), PetMood.yawn);
+    });
+
+    test('sốt ruột sau 60 giây không thao tác', () {
+      expect(mood(time: 1, idle: reminderMascotIdleBeforeStomp - .1),
+          PetMood.point);
+      expect(mood(time: 1, idle: reminderMascotIdleBeforeStomp),
+          PetMood.stomp);
+    });
   });
 
   testWidgets('multiple screen expands and collapses all medicines',
@@ -118,6 +271,59 @@ void main() {
     await tester.pumpAndSettle();
     expect(result, DoseReminderResult.confirmed);
     expect(outbox.scheduleIds, [1]);
+  });
+
+  testWidgets('bấm "Đã uống": đợi pet ăn mừng xong rồi tự đóng',
+      (tester) async {
+    final outbox = _FakeDoseOutbox();
+    DoseReminderResult? result;
+    await _pumpHost(
+      tester,
+      items: [_item(1, 'Losartan')],
+      outbox: outbox,
+      onResult: (value) => result = value,
+    );
+
+    await tester.tap(find.text('Đã uống'));
+    await tester.pump();
+    await tester.pump();
+    expect(find.bySemanticsLabel('Linh vật vui mừng vì bạn đã uống thuốc'),
+        findsOneWidget);
+
+    // Chưa đóng giữa lúc ăn mừng.
+    await tester.pump(
+        ReminderMascot.celebrateStillHold - const Duration(milliseconds: 100));
+    expect(result, isNull);
+    expect(find.byType(DoseReminderScreen), findsOneWidget);
+
+    await tester.pump(const Duration(milliseconds: 200));
+    await tester.pumpAndSettle();
+    expect(result, DoseReminderResult.confirmed);
+    expect(find.byType(DoseReminderScreen), findsNothing);
+    expect(outbox.scheduleIds, [1]);
+  });
+
+  testWidgets('nhóm: chỉ tự đóng khi đã uống đủ mọi thuốc', (tester) async {
+    DoseReminderResult? result;
+    await _pumpHost(
+      tester,
+      items: [_item(1, 'Losartan'), _item(2, 'Metformin')],
+      outbox: _FakeDoseOutbox(),
+      onResult: (value) => result = value,
+    );
+    await _tapVisible(tester, find.textContaining('Nhấn để xem tất cả'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('Xác nhận Losartan'));
+    await tester.pumpAndSettle();
+    await tester.pump(const Duration(seconds: 5));
+    expect(result, isNull);
+
+    await tester.tap(find.byTooltip('Xác nhận Metformin'));
+    await tester.pumpAndSettle();
+    await tester.pump(ReminderMascot.celebrateStillHold);
+    await tester.pumpAndSettle();
+    expect(result, DoseReminderResult.confirmed);
   });
 
   testWidgets('group success remains visible and prevents repeat enqueue',
