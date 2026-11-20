@@ -23,6 +23,7 @@ class AdherenceHistoryController extends ChangeNotifier {
   final DateTime Function() _clock;
   final ScheduleRemoteDataSource? _scheduleSource;
   Map<DateTime, DateHistoryGroup> _upcomingGroups = {};
+  Map<int, LocalMedicationSchedule> _schedulesById = {};
   late DateTime selectedMonth;
   HistoryMode mode = HistoryMode.date;
   late DateTime selectedDay;
@@ -36,6 +37,8 @@ class AdherenceHistoryController extends ChangeNotifier {
   int _contentRevision = 0;
   bool _disposed = false;
   bool _revoked = false;
+  (int, DateTime)? _homeConfirmedOccurrence;
+  int? _homeConfirmationAccessRevision;
 
   DateTime get today => HistoryFormat.today(_clock());
   bool get canGoNext => selectedMonth.isBefore(HistoryFormat.month(today));
@@ -45,6 +48,62 @@ class AdherenceHistoryController extends ChangeNotifier {
   int get accessRevision => _accessRevision;
   int get contentRevision => _contentRevision;
   DateHistoryGroup? get selectedGroup => dayGroup(selectedDay);
+  LocalMedicationSchedule? scheduleById(int id) => _schedulesById[id];
+
+  bool isHomeConfirmed(HistoryDose dose) {
+    final occurrence = _homeConfirmedOccurrence;
+    return !_revoked &&
+        occurrence != null &&
+        occurrence.$1 == dose.scheduleId &&
+        occurrence.$2 == dose.scheduledAt.toUtc() &&
+        !_historyContainsOccurrence(occurrence);
+  }
+
+  /// Accepts only the event the Reminder screen observed in the current Home access session.
+  void projectHomeConfirmation(
+      (int, DateTime) occurrence, int sourceAccessRevision) {
+    if (_disposed || _revoked || _patientId == null) return;
+    final normalized = (occurrence.$1, occurrence.$2.toUtc());
+    if (_historyContainsOccurrence(normalized)) {
+      clearHomeConfirmation();
+      return;
+    }
+    if (_homeConfirmedOccurrence == normalized &&
+        _homeConfirmationAccessRevision == sourceAccessRevision) {
+      return;
+    }
+    _homeConfirmedOccurrence = normalized;
+    _homeConfirmationAccessRevision = sourceAccessRevision;
+    _notify();
+  }
+
+  void clearHomeConfirmation({bool notify = true}) {
+    if (_homeConfirmedOccurrence == null &&
+        _homeConfirmationAccessRevision == null) {
+      return;
+    }
+    _homeConfirmedOccurrence = null;
+    _homeConfirmationAccessRevision = null;
+    if (notify) _notify();
+  }
+
+  bool _historyContainsOccurrence((int, DateTime) occurrence) =>
+      (history?.dates ?? const <DateHistoryGroup>[]).any((group) => group.doses
+          .any((dose) =>
+              dose.scheduleId == occurrence.$1 &&
+              dose.scheduledAt.toUtc() == occurrence.$2));
+
+  void _reconcileHomeConfirmation(AdherenceHistory result) {
+    final occurrence = _homeConfirmedOccurrence;
+    if (occurrence == null) return;
+    final returned = result.dates.any((group) => group.doses.any((dose) =>
+        dose.scheduleId == occurrence.$1 &&
+        dose.scheduledAt.toUtc() == occurrence.$2));
+    if (returned) {
+      _homeConfirmedOccurrence = null;
+      _homeConfirmationAccessRevision = null;
+    }
+  }
 
   void _notify() {
     if (!_disposed) notifyListeners();
@@ -52,6 +111,9 @@ class AdherenceHistoryController extends ChangeNotifier {
 
   void setPatient(String? id) {
     if (_patientId == id) return;
+    _homeConfirmedOccurrence = null;
+    _homeConfirmationAccessRevision = null;
+    _schedulesById = {};
     clear();
     _patientId = id;
     mode = HistoryMode.date;
@@ -62,6 +124,9 @@ class AdherenceHistoryController extends ChangeNotifier {
   }
 
   void clear() {
+    _homeConfirmedOccurrence = null;
+    _homeConfirmationAccessRevision = null;
+    _schedulesById = {};
     _accessRevision++;
     mode = HistoryMode.date;
     _invalidateRead();
@@ -79,7 +144,9 @@ class AdherenceHistoryController extends ChangeNotifier {
   }
 
   void deactivate() {
-    clear();
+    _accessRevision++;
+    _invalidateRead();
+    _notify();
   }
 
   void revoke() {
@@ -144,6 +211,9 @@ class AdherenceHistoryController extends ChangeNotifier {
         final List<LocalMedicationSchedule> schedules =
             await source.fetchSchedules(patientId: patient);
         if (_disposed || request != _generation) return;
+        _schedulesById = {
+          for (final schedule in schedules) schedule.id: schedule
+        };
         _upcomingGroups = mergeUpcomingDoses(
           schedules: schedules,
           history: result.dates,
@@ -152,6 +222,7 @@ class AdherenceHistoryController extends ChangeNotifier {
           now: _clock(),
         );
       }
+      _reconcileHomeConfirmation(result);
       history = result;
     } on ApiException catch (failure) {
       if (_disposed || request != _generation) return;
@@ -160,13 +231,19 @@ class AdherenceHistoryController extends ChangeNotifier {
         403 => HistoryFailureKind.forbidden,
         _ => HistoryFailureKind.unavailable,
       });
-      if (error!.removesAccess) _accessRevision++;
+      if (error!.removesAccess) {
+        _accessRevision++;
+        _homeConfirmedOccurrence = null;
+        _homeConfirmationAccessRevision = null;
+      }
     } on HistoryFailure catch (failure) {
       if (_disposed || request != _generation) return;
       history = null;
       error = failure;
       if (failure.removesAccess) {
         _accessRevision++;
+        _homeConfirmedOccurrence = null;
+        _homeConfirmationAccessRevision = null;
         mode = HistoryMode.date;
       }
     } finally {

@@ -113,6 +113,82 @@ void main() {
     await c.selectDay(DateTime.utc(2026, 10, 19));
     expect(c.contentRevision, selected);
   });
+  test(
+      'Home confirmation projection matches one occurrence and clears by patient',
+      () async {
+    repo.statuses = [];
+    await c.load();
+    final at = DateTime.parse('2026-10-19T08:00:00+07:00');
+    final confirmed = HistoryDose(
+      medicationId: 9,
+      medicationName: 'Dose A',
+      scheduleId: 90,
+      scheduledAt: at,
+      takenAt: null,
+      status: HistoryDoseStatus.pending,
+      statusSource: 'inferred',
+    );
+    final adjacent = HistoryDose(
+      medicationId: 9,
+      medicationName: 'Dose B',
+      scheduleId: 91,
+      scheduledAt: at,
+      takenAt: null,
+      status: HistoryDoseStatus.pending,
+      statusSource: 'inferred',
+    );
+
+    c.projectHomeConfirmation((90, at), 3);
+    expect(c.isHomeConfirmed(confirmed), isTrue);
+    expect(c.isHomeConfirmed(adjacent), isFalse);
+
+    c.setPatient('two');
+    expect(c.isHomeConfirmed(confirmed), isFalse);
+  });
+  test('Home projection reconciles when API returns the same occurrence',
+      () async {
+    repo.statuses = [];
+    await c.load();
+    final at = DateTime.parse('2026-10-19T08:00:00+07:00');
+    final dose = HistoryDose(
+      medicationId: 9,
+      medicationName: 'Dose A',
+      scheduleId: 90,
+      scheduledAt: at,
+      takenAt: at,
+      status: HistoryDoseStatus.taken,
+      statusSource: 'recorded',
+    );
+    c.projectHomeConfirmation((90, at), 3);
+    expect(c.isHomeConfirmed(dose), isTrue);
+    repo.transform = (data) => AdherenceHistory(
+          patientId: data.patientId,
+          from: data.from,
+          to: data.to,
+          asOf: data.asOf,
+          mode: data.mode,
+          summary: data.summary,
+          dates: [
+            DateHistoryGroup(
+              DateTime.utc(2026, 10, 19),
+              const AdherenceSummary(
+                total: 1,
+                taken: 1,
+                late: 0,
+                missed: 0,
+                pending: 0,
+                counted: 1,
+                rate: 100,
+              ),
+              [dose],
+            ),
+          ],
+        );
+
+    await c.load();
+
+    expect(c.isHomeConfirmed(dose), isFalse);
+  });
   test('revocation and account switch invalidate old completions', () async {
     repo.delayed = true;
     final first = c.load();
