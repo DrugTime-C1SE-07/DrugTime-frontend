@@ -296,6 +296,39 @@ class MascotRig extends ChangeNotifier {
     switch (mood) {
       case MascotMood.hidden:
         return {'pop': 0, 'y': 40, 'open': 0};
+      case MascotMood.farewell:
+        return {
+          'pop': 1,
+          'y': breathe * 1.4,
+          'sq': breathe * .009,
+          'tilt': -.04,
+          'shield': 1,
+          'hlx': 94,
+          'hly': 204,
+          'hrx': 238 + math.sin(time * 4.5) * 7,
+          'hry': 143 + math.cos(time * 4.5) * 3,
+          'smile': -.65,
+          'mopen': .04,
+          'mw': 10,
+          'brow': 1,
+          'browT': 22,
+          'browY': -3,
+          'pd': 1.05,
+          'cheek': .65,
+        };
+      case MascotMood.thumbsUp:
+        return {
+          'pop': 1,
+          'y': breathe * 1.3,
+          'sq': breathe * .009,
+          'hlx': 78,
+          'hly': 207,
+          'hrx': 238,
+          'hry': 171 + math.sin(time * 2) * 2,
+          'smile': 1,
+          'mopen': .7,
+          'cheek': 1,
+        };
       case MascotMood.climb:
         return _climb(t, ctl.ledge);
       case MascotMood.idle:

@@ -52,6 +52,7 @@ flutter:
   # Khai báo theo thư mục: thêm ảnh mới vào đây là dùng được, không cần sửa lại.
   assets:
     - assets/icons/
+    - assets/icons/dumi-farewell.png
     - assets/icons/profile/
     - assets/icons/welcome/
     - assets/icons/home/

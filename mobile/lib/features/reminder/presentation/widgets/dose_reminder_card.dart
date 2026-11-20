@@ -73,8 +73,7 @@ class DoseReminderCard extends StatelessWidget {
         onPressed: onConfirm ?? () => onToggleSelect?.call(!isSelected),
         icon: Icon(
           isSelected ? Icons.check_circle : Icons.radio_button_unchecked,
-          color:
-              isSelected ? const Color(0xFF004D40) : const Color(0xFF7AB0AC),
+          color: isSelected ? const Color(0xFF004D40) : const Color(0xFF7AB0AC),
           size: 26,
         ),
       );
@@ -83,12 +82,18 @@ class DoseReminderCard extends StatelessWidget {
     return Semantics(
       container: true,
       label: '${item.medicationName}, ${item.dosageText}, ${item.instruction}',
-      value: confirmed ? 'Đã uống' : (isSelectable ? (isSelected ? 'Đã chọn' : 'Chưa chọn') : 'Chưa xác nhận'),
+      value: confirmed
+          ? 'Đã uống'
+          : (isSelectable
+              ? (isSelected ? 'Đã chọn' : 'Chưa chọn')
+              : 'Chưa xác nhận'),
       child: Material(
         color: Colors.transparent,
         child: InkWell(
           onTap: isSelectable
-              ? (!confirmed && !saving ? () => onToggleSelect?.call(!isSelected) : null)
+              ? (!confirmed && !saving
+                  ? () => onToggleSelect?.call(!isSelected)
+                  : null)
               : onTap,
           borderRadius: BorderRadius.circular(AppRadius.card),
           child: Container(

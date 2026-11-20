@@ -15,6 +15,20 @@ Widget _host(MascotController ctl) => MaterialApp(
     );
 
 void main() {
+  testWidgets('pause app suspends joint animation until resume',
+      (tester) async {
+    final ctl = MascotController()..play(MascotMood.farewell);
+    await tester.pumpWidget(_host(ctl));
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(tester.binding.hasScheduledFrame, isTrue);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+    await tester.pump();
+    expect(tester.binding.hasScheduledFrame, isFalse);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pump();
+    expect(tester.binding.hasScheduledFrame, isTrue);
+    await tester.pumpWidget(const SizedBox());
+  });
   test('vẽ mọi trạng thái không lỗi', () {
     final ctl = MascotController();
     for (final mood in MascotMood.values) {

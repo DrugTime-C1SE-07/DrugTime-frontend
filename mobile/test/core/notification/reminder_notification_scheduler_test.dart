@@ -10,6 +10,7 @@ import 'package:drugtime_mobile/core/notification/notification_id.dart';
 import 'package:drugtime_mobile/core/notification/notification_service.dart';
 import 'package:drugtime_mobile/core/notification/reminder_notification_scheduler.dart';
 import 'package:drugtime_mobile/core/notification/reminder_occurrence_generator.dart';
+import 'package:drugtime_mobile/core/notification/reminder_sound.dart';
 
 class ScheduledCallRecord {
   ScheduledCallRecord({
@@ -104,6 +105,9 @@ class MockReminderNotificationPlatform implements NotificationPlatform {
 
   @override
   Future<bool?> requestFullScreenIntentPermission() async => true;
+
+  @override
+  Future<void> deleteNotificationChannel(String channelId) async {}
 }
 
 void main() {
@@ -531,6 +535,104 @@ void main() {
       expect(mockPlatform.zonedScheduleCalls.first.androidScheduleMode,
           AndroidScheduleMode.inexactAllowWhileIdle);
       expect(logs.any((l) => l.contains('Fallback')), isTrue);
+    });
+  });
+
+  group('Selected reminder sound (S08-4a AC1, AC9, AC10)', () {
+    final nowUtc = DateTime.utc(2026, 10, 8, 7, 0, 0);
+    final occurrence = ReminderOccurrence(
+      medicationScheduleId: 10,
+      scheduledAt: DateTime.utc(2026, 10, 9, 1, 0, 0),
+    );
+
+    Future<List<AndroidNotificationDetails>> scheduleBoth(
+        ReminderSound Function() sound) async {
+      final scheduler = ReminderNotificationScheduler(
+        platform: mockPlatform,
+        location: vnLocation,
+        clockProvider: () => nowUtc,
+        soundChannel: sound,
+      );
+      await scheduler.scheduleOccurrences([occurrence]);
+      await scheduler.snooze(
+        medicationScheduleId: 42,
+        scheduledAt: nowUtc,
+        remindAt: nowUtc.add(const Duration(minutes: 10)),
+      );
+      return [
+        for (final call in mockPlatform.zonedScheduleCalls)
+          call.notificationDetails.android!,
+      ];
+    }
+
+    test('occurrences and snooze use the selected channel__AC1 AC9', () async {
+      final details = await scheduleBoth(() => ReminderSounds.gentle);
+      expect(details.map((d) => d.channelId),
+          everyElement('drugtime_reminder_gentle_v1'));
+      expect(details.first.sound, isA<RawResourceAndroidNotificationSound>());
+      expect(details.first.sound!.sound, 'reminder_gentle');
+    });
+
+    test('changing the selection applies to the next schedule__AC1', () async {
+      var current = ReminderSounds.chime;
+      final scheduler = ReminderNotificationScheduler(
+        platform: mockPlatform,
+        location: vnLocation,
+        clockProvider: () => nowUtc,
+        soundChannel: () => current,
+      );
+      await scheduler.scheduleOccurrences([occurrence]);
+      current = ReminderSounds.urgent;
+      await scheduler.scheduleOccurrences([occurrence]);
+      expect(
+          mockPlatform.zonedScheduleCalls
+              .map((c) => c.notificationDetails.android!.channelId),
+          ['drugtime_reminder_chime_v1', 'drugtime_reminder_urgent_v1']);
+    });
+
+    test('silent keeps vibration and plays no sound__AC8', () async {
+      final details = await scheduleBoth(() => ReminderSounds.silent);
+      for (final d in details) {
+        expect(d.playSound, isFalse);
+        expect(d.enableVibration, isTrue);
+      }
+    });
+
+    test('every sound keeps the alarm presentation unchanged__AC10', () async {
+      for (final sound in [
+        ...ReminderSounds.all,
+        const ReminderSound.custom('custom_ab', 'DrugTime nhắc nhở 1',
+            'content://media/external/audio/media/9'),
+      ]) {
+        mockPlatform = MockReminderNotificationPlatform();
+        for (final d in await scheduleBoth(() => sound)) {
+          expect(d.importance, Importance.max, reason: sound.id);
+          expect(d.priority, Priority.high, reason: sound.id);
+          expect(d.fullScreenIntent, isTrue, reason: sound.id);
+          expect(d.category, AndroidNotificationCategory.alarm,
+              reason: sound.id);
+          expect(d.color, const Color(0xFF004D40), reason: sound.id);
+          expect(d.channelDescription,
+              NotificationService.reminderChannelDescription);
+        }
+        final first = mockPlatform.zonedScheduleCalls.first;
+        expect(first.title, ReminderNotificationScheduler.defaultTitle);
+        expect(first.body, ReminderNotificationScheduler.defaultBody);
+      }
+    });
+
+    test('without a sound source the existing reminder channel is used__AC10',
+        () async {
+      final scheduler = ReminderNotificationScheduler(
+        platform: mockPlatform,
+        location: vnLocation,
+        clockProvider: () => nowUtc,
+      );
+      await scheduler.scheduleOccurrences([occurrence]);
+      expect(
+          mockPlatform
+              .zonedScheduleCalls.single.notificationDetails.android!.channelId,
+          NotificationService.reminderChannelId);
     });
   });
 

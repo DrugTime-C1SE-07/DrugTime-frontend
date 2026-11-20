@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import '../features/consent/presentation/screens/account_deletion_screen.dart';
 import '../features/family_link/presentation/screens/share_and_link_screen.dart';
 import '../features/patient_monitor/presentation/patient_monitor_screen.dart';
 import '../features/patient_dose_reminders/presentation/received_reminders_screen.dart';
@@ -67,6 +68,7 @@ abstract final class AppRoutes {
   static const profileReminderSound = '/profile/notifications/sound';
   static const profileHelp = '/profile/help';
   static const profileSettings = '/profile/settings';
+  static const accountDeletion = '/profile/settings/delete-account';
   static const familyAlerts = '/family/alerts';
   static const familyAlertDetail = '/family/alerts/detail';
   static const home = '/';
@@ -128,6 +130,11 @@ Route<dynamic>? onGenerateRoute(
   ValueListenable<bool>? familyAdherenceAvailability,
 }) {
   return switch (settings.name) {
+    AppRoutes.accountDeletion => MaterialPageRoute<void>(
+        settings: settings,
+        builder: (context) => AuthScope.of(context).isAuthenticated
+            ? const AccountDeletionScreen()
+            : const LoginMobileScreen()),
     AppRoutes.shareAndLink => MaterialPageRoute<void>(
         settings: settings, builder: (_) => const ShareAndLinkScreen()),
     AppRoutes.patientMonitor => MaterialPageRoute<void>(
@@ -301,6 +308,7 @@ Route<dynamic>? onGenerateRoute(
           }
           return LockscreenPrivacyGate(
             platform: arguments.keyguardPlatform,
+            clock: arguments.clock,
             child: DoseReminderScreen(arguments: arguments),
           );
         },

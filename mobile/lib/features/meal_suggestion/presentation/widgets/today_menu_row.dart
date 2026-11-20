@@ -71,6 +71,7 @@ class _MealTile extends StatelessWidget {
       return MealImageView(
         image: plan.imageOf(dish),
         loadBytes: plan.imageBytes,
+        cachedBytes: plan.cachedImageBytes,
         height: 52,
         showAttribution: false,
         placeholderIcon: dishTypeAsset(dish.dishType),

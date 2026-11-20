@@ -43,12 +43,13 @@ void main() {
         tester.widget<NavigationBar>(find.byType(NavigationBar)).selectedIndex,
         2);
     expect(find.text('Mẫu'), findsOneWidget);
-    expect(find.text('4/7 liều đã uống'), findsOneWidget);
+    expectReminderCount(tester);
+    expect(find.text('Hộp thuốc hôm nay'), findsOneWidget);
     for (final key in ['demo-enter', 'demo-exit', 'demo-preset-picker']) {
       expect(find.byKey(Key(key)), findsNothing);
     }
-    await openHistoryMonth(tester);
-    expect(find.text('Mẫu'), findsOneWidget);
+    await _openHistoryMonth(tester);
+    expect(find.byKey(const Key('history-month-summary')), findsOneWidget);
     await tester.tap(find.byKey(const ValueKey('history-day-20')));
     await tester.pumpAndSettle();
     await tester.ensureVisible(find.byKey(const Key('history-view-day')));
@@ -57,8 +58,8 @@ void main() {
     final c = AdherenceHistoryScope.read(
         tester.element(find.byKey(const Key('history-title'))));
     expect(c.selectedDay.day, 20);
-    await openMedicationHistory(tester);
-    expect(find.text('Mẫu'), findsOneWidget);
+    await _openMedicationHistory(tester);
+    expect(find.text('Theo thuốc'), findsOneWidget);
     await tester.binding.handlePopRoute();
     await tester.pumpAndSettle();
     for (var i = 0; i < 4; i++) {
@@ -69,7 +70,7 @@ void main() {
               .widget<NavigationBar>(find.byType(NavigationBar))
               .selectedIndex,
           i);
-      expect(tester.takeException(), isNull);
+      expect(tester.takeException(), isNull, reason: 'navigation tab $i');
     }
   });
   testWidgets(
@@ -101,16 +102,38 @@ void main() {
     await tester.pump();
     expect(find.text('Về lịch sử', skipOffstage: false), findsNothing);
     expect(find.text('Metformin 500 mg', skipOffstage: false), findsNothing);
-    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 500));
     expect(find.byKey(const Key('history-title'), skipOffstage: false),
         findsNothing);
     await tester.pumpWidget(const SizedBox());
     await tester.pump();
     await tester.pumpWidget(AdherenceDemoApp(now: DateTime.utc(2026, 10, 23)));
     await tester.pumpAndSettle();
-    expect(find.textContaining('liều đã uống'), findsOneWidget);
+    expectReminderCount(tester);
     expect(tester.takeException(), isNull);
   });
+}
+
+Future<void> _openHistoryMonth(WidgetTester tester) async {
+  await tester.tap(find.byTooltip('Mở lịch tháng'));
+  await tester.pumpAndSettle();
+}
+
+Future<void> _openMedicationHistory(WidgetTester tester) async {
+  await tester.tap(find.byTooltip('Tùy chọn lịch sử'));
+  await tester.pumpAndSettle();
+  await tester.tap(find.text('Theo thuốc'));
+  await tester.pumpAndSettle();
+}
+
+void expectReminderCount(WidgetTester tester) {
+  final context = tester.element(find.byKey(const Key('history-title')));
+  final controller = AdherenceHistoryScope.read(context);
+  final summary = controller.selectedGroup!.summary;
+  expect(
+    find.text('${summary.taken + summary.late}/${summary.total} liều'),
+    findsOneWidget,
+  );
 }
 
 class _NoPreviewNetwork extends HttpOverrides {

@@ -10,6 +10,7 @@ import 'package:drugtime_mobile/core/storage/local_db/local_models.dart';
 import 'package:drugtime_mobile/core/sync/schedule_sync_service.dart';
 import 'package:drugtime_mobile/features/adherence_history/presentation/screens/adherence_history_screen.dart';
 import 'package:drugtime_mobile/features/adherence_history/presentation/state/adherence_history_controller.dart';
+import 'package:drugtime_mobile/features/home/presentation/home_schedule_controller.dart';
 import 'adherence_history_test_helpers.dart';
 
 class _ScheduleSource implements ScheduleRemoteDataSource {
@@ -23,6 +24,67 @@ class _ScheduleSource implements ScheduleRemoteDataSource {
 }
 
 void main() {
+  testWidgets('synced Home confirmation updates matching Reminder occurrence',
+      (tester) async {
+    final repo = FakeHistoryRepository()..statuses = [];
+    final now = DateTime.parse('2026-10-19T07:50:00+07:00');
+    final schedules = _ScheduleSource()
+      ..schedules = [
+        for (final (id, time) in [(4, '08:00:00'), (5, '08:01:00')])
+          LocalMedicationSchedule(
+            id: id,
+            patientUserId: 'one',
+            userMedicationId: id,
+            medicationId: id,
+            medicationName: 'Liều $id',
+            quantityPerDose: '1',
+            dosesPerDay: 1,
+            intakeTime: time,
+            daysOfWeek: const [1],
+            reminderEnabled: true,
+            effectiveFrom: DateTime.parse('2026-10-01T00:00:00+07:00'),
+            serverSyncedAt: now,
+          ),
+      ];
+    final history = AdherenceHistoryController(repo,
+        clock: () => now, scheduleSource: schedules)
+      ..setPatient('one');
+    final home = HomeScheduleController(
+        null, null, (_, __) async => HomeConfirmation.synced)
+      ..setAccess('one', true);
+    addTearDown(history.dispose);
+    addTearDown(home.dispose);
+    await tester.pumpWidget(MaterialApp(
+      home: HomeScheduleScope(
+        controller: home,
+        child: AdherenceHistoryScope(
+          controller: history,
+          child: const Scaffold(body: AdherenceHistoryScreen()),
+        ),
+      ),
+    ));
+    await tester.pumpAndSettle();
+    await history.selectDay(DateTime.utc(2026, 10, 19));
+    await tester.pumpAndSettle();
+    expect(find.byType(DoseHistoryTile), findsNWidgets(2));
+
+    home.lastConfirmed = (4, DateTime.parse('2026-10-19T08:00:00+07:00'));
+    home.confirmedSeq++;
+    home.notifyListeners();
+    await tester.pumpAndSettle();
+    expect(history.selectedGroup?.doses, hasLength(2));
+    expect(history.selectedGroup!.doses.any(history.isHomeConfirmed), isTrue);
+
+    final confirmedTile =
+        find.byKey(ValueKey((4, DateTime.parse('2026-10-19T08:00:00+07:00'))));
+    expect(find.descendant(of: confirmedTile, matching: find.text('Đã uống')),
+        findsOneWidget);
+    final adjacentTile =
+        find.byKey(ValueKey((5, DateTime.parse('2026-10-19T08:01:00+07:00'))));
+    expect(find.descendant(of: adjacentTile, matching: find.text('Chờ')),
+        findsOneWidget);
+  });
+
   testWidgets('refresh on tab return shows both newly saved future doses',
       (tester) async {
     final now = DateTime.parse('2026-10-21T08:36:00+07:00');
@@ -66,16 +128,15 @@ void main() {
         ),
     ];
     await showTab(true);
-    expect(find.text('13:00'), findsOneWidget);
+    expect(find.text('13:00'), findsNWidgets(2));
     final midday = find.byKey(const ValueKey('BUỔI TRƯA'));
-    expect(find.text('BUỔI TRƯA'), findsOneWidget);
+    expect(find.text('Buổi trưa'), findsOneWidget);
     expect(find.descendant(of: midday, matching: find.byType(DoseHistoryTile)),
         findsNWidgets(2));
 
-    final evening = find.text('20:00');
-    await tester.scrollUntilVisible(evening, 150,
-        scrollable: find.byType(Scrollable).first);
-    expect(evening, findsOneWidget);
+    final evening = find.byType(DoseHistoryTile).last;
+    await tester.ensureVisible(evening);
+    await tester.pumpAndSettle();
     await tester.tap(evening);
     await tester.pumpAndSettle();
     expect(find.text('Chi tiết liều dùng'), findsOneWidget);
@@ -93,8 +154,8 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('history-week-19')));
     await tester.pumpAndSettle();
     expect(c.selectedDay, DateTime.utc(2026, 10, 19));
-    expect(find.text('Thứ 2: 19/10'), findsOneWidget);
-    expect(find.text('2/4 liều đã uống'), findsOneWidget);
+    expect(find.text('Thứ Hai, 19/10'), findsOneWidget);
+    expect(find.text('2/4 liều'), findsOneWidget);
     expect(c.selectedGroup?.doses, hasLength(4));
     expect(find.byType(DoseHistoryTile), findsWidgets);
     expect(find.byType(AdherenceMonthScreen), findsNothing);
@@ -104,7 +165,7 @@ void main() {
   testWidgets('calendar selection updates card, CTA and Back preserve day',
       (tester) async {
     final c = await pumpHistory(tester, FakeHistoryRepository());
-    await openHistoryMonth(tester);
+    await _openHistoryMonth(tester);
     expect(find.byType(AdherenceMonthScreen), findsOneWidget);
     await tester.tap(find.byKey(const ValueKey('history-day-19')));
     await tester.pumpAndSettle();
@@ -118,7 +179,7 @@ void main() {
     expect(find.byType(AdherenceMonthScreen), findsNothing);
     expect(c.selectedGroup?.doses, hasLength(4));
     expect(find.byType(DoseHistoryTile), findsWidgets);
-    await openHistoryMonth(tester);
+    await _openHistoryMonth(tester);
     await tester.tap(find.byKey(const ValueKey('history-day-20')));
     await tester.pumpAndSettle();
     await tester.binding.handlePopRoute();
@@ -161,7 +222,7 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('history-week-22')));
     await tester.pumpAndSettle();
     expect(c.selectedDay, c.today);
-    await openHistoryMonth(tester);
+    await _openHistoryMonth(tester);
     await tester.tap(find.byKey(const ValueKey('history-day-22')));
     await tester.pumpAndSettle();
     expect(c.selectedDay, c.today);
@@ -173,7 +234,7 @@ void main() {
     final c = await pumpHistory(tester, repo);
     await c.selectDay(DateTime.utc(2026, 10, 19));
     await tester.pumpAndSettle();
-    await openMedicationHistory(tester);
+    await _openMedicationHistory(tester);
     expect(find.byType(MedicationHistoryScreen), findsOneWidget);
     expect(find.byType(DoseHistoryTile), findsNothing);
     final tile = find.byKey(const ValueKey('history-medication-7'));
@@ -207,7 +268,7 @@ void main() {
     repo.statuses = [];
     await tester.tap(find.text('Thử lại'));
     await tester.pumpAndSettle();
-    expect(find.text('0/0 liều đã uống'), findsOneWidget);
+    expect(find.text('0/0 liều'), findsOneWidget);
     expect(find.text('Chưa có lịch sử'), findsOneWidget);
     repo.delayed = true;
     final pending = c.load();
@@ -268,15 +329,10 @@ void main() {
     final c = await pumpHistory(tester, repo);
     await c.selectDay(DateTime.utc(2026, 10, 19));
     await tester.pumpAndSettle();
-    expect(find.text('Thứ 2: 19/10'), findsOneWidget);
+    expect(find.text('Thứ Hai, 19/10'), findsOneWidget);
     expect(find.text('25%'), findsNothing);
-    expect(find.text('2/4 liều đã uống'), findsOneWidget);
-    expect(
-        tester
-            .widget<LinearProgressIndicator>(
-                find.byType(LinearProgressIndicator))
-            .value,
-        0.5);
+    expect(find.text('2/4 liều'), findsOneWidget);
+    expect(find.byType(LinearProgressIndicator), findsNothing);
     expect(find.textContaining('liều còn lại'), findsNothing);
   });
 
@@ -288,15 +344,22 @@ void main() {
     await c.selectDay(DateTime.utc(2026, 10, 19));
     await tester.pumpAndSettle();
     expect(find.text('100%'), findsNothing);
-    expect(find.text('1/2 liều đã uống'), findsOneWidget);
-    expect(
-        tester
-            .widget<LinearProgressIndicator>(
-                find.byType(LinearProgressIndicator))
-            .value,
-        0.5);
+    expect(find.text('1/2 liều'), findsOneWidget);
+    expect(find.byType(LinearProgressIndicator), findsNothing);
     expect(find.text('Đủ liều'), findsNothing);
     expect(find.textContaining('Tất cả đúng giờ'), findsNothing);
     expect(find.text('Trễ'), findsOneWidget);
   });
+}
+
+Future<void> _openHistoryMonth(WidgetTester tester) async {
+  await tester.tap(find.byTooltip('Mở lịch tháng'));
+  await tester.pumpAndSettle();
+}
+
+Future<void> _openMedicationHistory(WidgetTester tester) async {
+  await tester.tap(find.byTooltip('Tùy chọn lịch sử'));
+  await tester.pumpAndSettle();
+  await tester.tap(find.text('Theo thuốc'));
+  await tester.pumpAndSettle();
 }

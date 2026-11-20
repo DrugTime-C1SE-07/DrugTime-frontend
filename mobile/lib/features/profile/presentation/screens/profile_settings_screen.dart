@@ -80,8 +80,14 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
                               height: 20,
                               child: CircularProgressIndicator(strokeWidth: 2))
                           : null),
-                  const ProfileFlowRow('Xóa tài khoản',
-                      icon: Icons.delete_outline, unavailable: true),
+                  ProfileFlowRow('Xóa tài khoản',
+                      key: const Key('settings-delete-account'),
+                      icon: Icons.delete_outline,
+                      color: AppColors.danger,
+                      onTap: _busy
+                          ? null
+                          : () => Navigator.pushNamed(
+                              context, AppRoutes.accountDeletion)),
                 ]),
               ])),
         ),
