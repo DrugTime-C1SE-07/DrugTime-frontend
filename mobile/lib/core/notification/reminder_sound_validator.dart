@@ -1,7 +1,7 @@
 enum ReminderSoundError {
   unsupportedFormat('Định dạng không hỗ trợ'),
   tooLarge('File quá lớn (tối đa 10 MB)'),
-  badDuration('Âm thanh phải dài từ 1 đến 30 giây'),
+  badDuration('Âm thanh phải dài từ 1 giây đến 5 phút'),
   undecodable('Không phát được file này');
 
   const ReminderSoundError(this.message);
@@ -12,7 +12,7 @@ enum ReminderSoundError {
 abstract final class ReminderSoundValidator {
   static const maxBytes = 10 * 1024 * 1024;
   static const minDurationMs = 1000;
-  static const maxDurationMs = 30000;
+  static const maxDurationMs = 300000;
 
   /// Đuôi file suy từ byte đầu (không tin đuôi người dùng đặt); null nếu không hỗ trợ.
   static String? formatOf(List<int> head) {

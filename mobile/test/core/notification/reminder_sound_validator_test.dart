@@ -65,14 +65,14 @@ void main() {
   group('checkDuration__AC4', () {
     test('1 s and 30 s boundaries are accepted', () {
       expect(ReminderSoundValidator.checkDuration(1000), isNull);
-      expect(ReminderSoundValidator.checkDuration(30000), isNull);
+      expect(ReminderSoundValidator.checkDuration(300000), isNull);
       expect(ReminderSoundValidator.checkDuration(15000), isNull);
     });
 
     test('just outside the boundaries is rejected', () {
-      for (final ms in [999, 900, 30001, 30100]) {
+      for (final ms in [999, 900, 300001, 300100]) {
         final error = ReminderSoundValidator.checkDuration(ms);
-        expect(error!.message, 'Âm thanh phải dài từ 1 đến 30 giây',
+        expect(error!.message, 'Âm thanh phải dài từ 1 giây đến 5 phút',
             reason: '$ms');
       }
     });

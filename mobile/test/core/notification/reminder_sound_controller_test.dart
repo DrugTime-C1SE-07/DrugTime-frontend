@@ -115,7 +115,7 @@ void main() {
         const PickedAudio(path: '/t', size: 10485761, head: mp3Head),
         15000
       ),
-      'Âm thanh phải dài từ 1 đến 30 giây': (mp3, 30001),
+      'Âm thanh phải dài từ 1 giây đến 5 phút': (mp3, 300001),
       'Không phát được file này': (mp3, null),
     };
     cases.forEach((message, input) {
