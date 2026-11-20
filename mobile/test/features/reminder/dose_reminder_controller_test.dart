@@ -111,7 +111,7 @@ void main() {
     expect(outbox.calls.map((call) => call.scheduleId), [1, 2, 3, 2]);
   });
 
-  test('snooze schedules each original occurrence ten minutes later', () async {
+  test('snooze schedules one reminder for the group ten minutes later', () async {
     final scheduler = _FakeReminderScheduler();
     final items = [_item(1), _item(2)];
     final outbox = _FakeDoseOutbox();
@@ -124,7 +124,8 @@ void main() {
     expect(await controller.snooze(), isTrue);
 
     expect(outbox.calls, isEmpty);
-    expect(scheduler.calls, hasLength(2));
+    // Một thông báo nhắc lại cho cả nhóm; màn nhắc tự gom thuốc cùng giờ.
+    expect(scheduler.calls, hasLength(1));
     expect(scheduler.calls.first.scheduledAt, items.first.scheduledAt);
     expect(scheduler.calls.first.remindAt, DateTime.utc(2026, 10, 7, 13, 15));
   });
