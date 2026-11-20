@@ -135,7 +135,6 @@ class _AccountDeletionScreenState extends State<AccountDeletionScreen> {
   DeletionStep _step = DeletionStep.consequences;
   final _pin = TextEditingController();
   final _focus = FocusNode();
-  final _otpEntryKey = GlobalKey();
   final _mascot = MascotController();
   Timer? _timer;
   DeletionChallenge? _challenge;
@@ -152,24 +151,6 @@ class _AccountDeletionScreenState extends State<AccountDeletionScreen> {
   int _seconds(DateTime? at) => at == null
       ? 0
       : math.max(0, (at.difference(_now()).inMilliseconds / 1000).ceil());
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    if (MediaQuery.viewInsetsOf(context).bottom > 0 && _focus.hasFocus) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        final target = _otpEntryKey.currentContext;
-        if (mounted && target != null) {
-          Scrollable.ensureVisible(
-            target,
-            alignment: .35,
-            duration: const Duration(milliseconds: 180),
-            curve: Curves.easeOutCubic,
-          );
-        }
-      });
-    }
-  }
 
   String _clock(int seconds) =>
       '${(seconds ~/ 60).toString().padLeft(2, '0')}:${(seconds % 60).toString().padLeft(2, '0')}';
@@ -511,7 +492,6 @@ class _AccountDeletionScreenState extends State<AccountDeletionScreen> {
                   color: _muted)),
           const SizedBox(height: 18),
           OtpPinInput(
-            key: _otpEntryKey,
             inputKey: const Key('deletion-otp'),
             boxKeyPrefix: 'deletion-digit-',
             boxHeight: 60,
@@ -748,6 +728,7 @@ class _AccountDeletionScreenState extends State<AccountDeletionScreen> {
         },
         child: Scaffold(
           backgroundColor: Colors.white,
+          resizeToAvoidBottomInset: !otp,
           body: LayoutBuilder(
               builder: (context, box) => Stack(children: [
                     Positioned(
@@ -756,7 +737,7 @@ class _AccountDeletionScreenState extends State<AccountDeletionScreen> {
                         right: 0,
                         height: 260 + safeTopOffset,
                         child: CustomPaint(painter: _DeletionSky())),
-                    if (!keyboardOpen)
+                    if (otp || !keyboardOpen)
                       Positioned(
                           top: (_returning ? 58 : 48) + safeTopOffset,
                           left: 0,
@@ -781,7 +762,7 @@ class _AccountDeletionScreenState extends State<AccountDeletionScreen> {
                               icon: const Icon(LucideIcons.chevronLeft,
                                   color: _green))),
                     Positioned(
-                        top: keyboardOpen && otp ? 0 : 196 + safeTopOffset,
+                        top: 196 + safeTopOffset,
                         left: 0,
                         right: 0,
                         bottom: 0,
@@ -789,22 +770,12 @@ class _AccountDeletionScreenState extends State<AccountDeletionScreen> {
                             decoration: BoxDecoration(
                                 color: Colors.white,
                                 borderRadius: BorderRadius.vertical(
-                                    top: Radius.circular(
-                                        keyboardOpen && otp ? 0 : 28))),
+                                    top: Radius.circular(28))),
                             child: Column(children: [
                               Expanded(
                                   child: SingleChildScrollView(
-                                      padding: EdgeInsets.fromLTRB(
-                                          20,
-                                          keyboardOpen && otp
-                                              ? math.max(
-                                                  100,
-                                                  MediaQuery.paddingOf(context)
-                                                          .top +
-                                                      56)
-                                              : 22,
-                                          20,
-                                          16),
+                                      padding: const EdgeInsets.fromLTRB(
+                                          20, 22, 20, 16),
                                       child: Column(children: [
                                         if (!_returning) ...[
                                           Row(

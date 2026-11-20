@@ -332,7 +332,7 @@ void main() {
     expect(subtitle.style!.fontSize, 17);
     await tester.pumpWidget(const SizedBox());
   });
-  testWidgets('OTP digit boxes stay above the software keyboard',
+  testWidgets('OTP layout and mascot stay fixed with the software keyboard',
       (tester) async {
     tester.view.physicalSize = const Size(375, 812);
     tester.view.devicePixelRatio = 1;
@@ -340,15 +340,27 @@ void main() {
     addTearDown(tester.view.resetDevicePixelRatio);
     await host(tester, FakeDeletion());
     await openOtp(tester);
+    addTearDown(tester.view.resetViewInsets);
+    final mascot = tester.getRect(find.byType(MascotView));
+    final heading = tester.getRect(find.text('Nhập mã xác nhận'));
+    final digits = List.generate(
+        6, (i) => tester.getRect(find.byKey(ValueKey('deletion-digit-$i'))));
     tester.view.viewInsets = const FakeViewPadding(bottom: 300);
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 250));
     for (var i = 0; i < 6; i++) {
       final digit = tester.getRect(find.byKey(ValueKey('deletion-digit-$i')));
-      expect(digit.top, greaterThanOrEqualTo(0));
-      expect(digit.bottom, lessThanOrEqualTo(512));
-      expect(digit.height, 60);
+      expect(digit, digits[i]);
     }
+    expect(tester.getRect(find.byType(MascotView)), mascot);
+    expect(tester.getRect(find.text('Nhập mã xác nhận')), heading);
+    await tester.enterText(find.byKey(const Key('deletion-otp')), '123');
+    await tester.pump();
+    expect(find.text('3'), findsWidgets);
+    tester.view.viewInsets = const FakeViewPadding();
+    await tester.pump();
+    expect(tester.getRect(find.byType(MascotView)), mascot);
+    expect(tester.getRect(find.text('Nhập mã xác nhận')), heading);
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox());
   });
