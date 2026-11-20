@@ -45,7 +45,8 @@ class MealSuggestionScreen extends StatefulWidget {
   });
 
   /// Mở màn khai dị ứng (router truyền vào).
-  final void Function(BuildContext context) onDeclareAllergy;
+  /// Opens the real allergy declaration; resolves `true` once it is saved (N7, AC12).
+  final Future<bool?> Function(BuildContext context) onDeclareAllergy;
   final MealType? initialMeal;
 
   /// Mặc định là người dùng đang đăng nhập (gợi ý chỉ cho chính chủ).
@@ -126,9 +127,15 @@ class _MealSuggestionScreenState extends State<MealSuggestionScreen> {
           plan: plan, consent: consent, steps: steps);
       if (!mounted) return;
       if (result == MealSetupResult.declareAllergy) {
-        final nav = Navigator.of(context);
-        nav.pop();
-        widget.onDeclareAllergy(nav.context);
+        // Declare on the real health-profile step, then come back here and continue to the
+        // menu without asking again (N7, AC12). Leaving without saving closes Dumi.
+        final saved = await widget.onDeclareAllergy(context);
+        if (!mounted) return;
+        if (saved == true) {
+          await plan.loadAllergy();
+          return _boot();
+        }
+        Navigator.of(context).pop();
         return;
       }
       if (result != MealSetupResult.ready) {

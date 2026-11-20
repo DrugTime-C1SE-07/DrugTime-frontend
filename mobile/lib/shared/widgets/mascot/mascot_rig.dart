@@ -55,6 +55,8 @@ const _specs = <String, (double, double, double)>{
   'bowlT': (0, 170, 9),
   'toss': (0, 320, 16),
   'spark': (0, 150, 20),
+  // Trái tim nhỏ khi ôm bụng (cradle).
+  'heart': (0, 150, 18),
 };
 
 /// Thời lượng (giây) của các trạng thái tự kết thúc.
@@ -63,6 +65,17 @@ const _durations = <MascotMood, double>{
   MascotMood.wave: 2.6,
   MascotMood.celebrate: 2.55,
   MascotMood.poke: 1.0,
+  MascotMood.hug: 1.6,
+  MascotMood.blissful: 1.8,
+};
+
+/// Trạng thái tự kết thúc mà khi giảm chuyển động thì giữ nguyên trạng thái nền
+/// (thay vì về `idle`), để linh vật không đổi tư thế chỉ vì người dùng chạm.
+const _transient = {
+  MascotMood.poke,
+  MascotMood.celebrate,
+  MascotMood.hug,
+  MascotMood.blissful,
 };
 
 double _easeInOut(double u) =>
@@ -113,9 +126,7 @@ class MascotRig extends ChangeNotifier {
   /// được hiển thị bằng trạng thái sẽ quay về, để không kẹt ở một tư thế chuyển tiếp.
   void setMood(MascotMood mood, {required double ledge, bool still = false}) {
     if (still && _durations.containsKey(mood)) {
-      mood = mood == MascotMood.poke || mood == MascotMood.celebrate
-          ? _return
-          : MascotMood.idle;
+      mood = _transient.contains(mood) ? _return : MascotMood.idle;
     }
     // `hidden` không phải trạng thái để quay về: nếu không, wave/poke từ lúc mới hiện sẽ làm linh vật biến mất.
     if (!_durations.containsKey(mood) && mood != MascotMood.hidden) {
@@ -182,7 +193,7 @@ class MascotRig extends ChangeNotifier {
         for (final sp in _s.values) {
           sp.step(h);
         }
-        if (outfit == MascotOutfit.chef) _followThrough();
+        if (outfit != MascotOutfit.plain) _followThrough();
         rem -= h;
       }
       _blink = _blinkStep(dt);
@@ -403,6 +414,24 @@ class MascotRig extends ChangeNotifier {
           'hry': 118 + pk * 20,
           'lx': -.8 * pk,
         };
+      case MascotMood.cradle:
+        // hai tay ôm trước bụng, đung đưa chậm, mắt cười; tim bay lên theo nhịp thở
+        final sway = math.sin(time * 1.6);
+        return {
+          'pop': 1,
+          'y': math.sin(time * 2) * 1.5,
+          'tilt': sway * .045,
+          'hlx': 128 + sway * 2,
+          'hly': 210,
+          'hrx': 172 + sway * 2,
+          'hry': 210,
+          'smile': 1,
+          'mopen': .2,
+          'open': .55,
+          'cheek': 1.15,
+          'heart': 1,
+          'ly': .2,
+        };
       case MascotMood.cooking:
         // nhún theo nhịp 2,5 nhịp/giây, lắc bát, tay trái cổ vũ; rau trong bát bật lên mỗi nhịp
         final beat = time * 5.2;
@@ -424,6 +453,42 @@ class MascotRig extends ChangeNotifier {
           'cheek': 1,
           'toss': hop,
           'star': hop * .6,
+        };
+      case MascotMood.hug:
+        // dang tay sang hai bên rồi khép vào, đung đưa người, mắt cười híp
+        final close = _easeInOut(math.min(1.0, t / .45));
+        final rock = math.sin(t * 5) * (1 - math.min(1.0, t / 1.6));
+        return {
+          'pop': 1,
+          'y': -2 + breathe,
+          'sq': -.02,
+          'tilt': rock * .07,
+          'hlx': 44 + close * 46,
+          'hly': 176 + close * 10,
+          'hrx': 256 - close * 46,
+          'hry': 176 + close * 10,
+          'open': .45,
+          'smile': 1,
+          'mopen': .5,
+          'cheek': 1.25,
+          'heart': 1,
+        };
+      case MascotMood.blissful:
+        // nhắm mắt, má hồng, nghiêng đầu như được xoa
+        return {
+          'pop': 1,
+          'y': math.sin(time * 2) * 1.5,
+          'sq': .02,
+          'tilt': .08 + math.sin(t * 3) * .03,
+          'open': .05,
+          'smile': 1,
+          'mopen': .25,
+          'cheek': 1.35,
+          'heart': 1,
+          'hlx': 120,
+          'hly': 214,
+          'hrx': 180,
+          'hry': 214,
         };
       case MascotMood.poke:
         return {

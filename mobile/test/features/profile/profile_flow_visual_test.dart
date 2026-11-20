@@ -31,7 +31,7 @@ void main() {
   const capture = String.fromEnvironment('FLOW_CAPTURE_DIR');
   final screens = <String, Widget>{
     's08-1': const PersonalProfileScreen(),
-    's08-2': const MedicalProfileScreen(),
+    's08-2': MedicalProfileScreen(repository: FakeHealthSetupRepository()),
     's08-3-empty': const CaregiversScreen(),
     's08-3a': const InviteCaregiverScreen(),
     's08-3b': const FamilyLinkCodeScreen(),
@@ -116,7 +116,8 @@ void main() {
                       size: viewport,
                       padding: const EdgeInsets.only(top: 44, bottom: 34),
                       viewPadding: const EdgeInsets.only(top: 44, bottom: 34),
-                      textScaler: TextScaler.linear(scale)),
+                      textScaler: TextScaler.linear(scale),
+                      disableAnimations: true),
                   child: Theme(
                       data: capture.isEmpty
                           ? theme

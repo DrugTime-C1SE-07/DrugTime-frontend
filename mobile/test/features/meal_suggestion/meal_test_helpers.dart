@@ -305,6 +305,10 @@ class FlowHarness {
   final bridge = RecordingWidgetBridge();
   final allergyRoutes = <String>[];
 
+  /// What the allergy route returns; `true` simulates a saved declaration.
+  bool? declareResult;
+  AllergyProfile? allergyAfterDeclare;
+
   /// Màn "Trang chủ" giả có nút mở luồng.
   Future<void> pump(WidgetTester tester,
       {bool reduceMotion = true, MealType? initialMeal}) async {
@@ -333,7 +337,12 @@ class FlowHarness {
                     builder: (_) => MealSuggestionScreen(
                       patientId: 'patient-1',
                       initialMeal: initialMeal,
-                      onDeclareAllergy: (_) => allergyRoutes.add('allergy'),
+                      onDeclareAllergy: (_) async {
+                        allergyRoutes.add('allergy');
+                        final after = allergyAfterDeclare;
+                        if (after != null) allergyRepository.profile = after;
+                        return declareResult;
+                      },
                     ),
                   )),
                   child: const Text('Mở Dumi'),

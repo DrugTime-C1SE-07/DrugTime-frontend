@@ -25,10 +25,24 @@ class HealthSetupStep<T> {
 }
 
 class HealthSetupSnapshot {
-  const HealthSetupSnapshot(this.revision, this.allergies, this.conditions);
+  const HealthSetupSnapshot(this.revision, this.allergies, this.conditions,
+      [this.physiological =
+          const HealthSetupStep<int>(HealthSetupStatus.unreported)]);
   final String revision;
   final HealthSetupStep<String> allergies;
+
+  /// Chronic diseases ("bệnh nền") only.
   final HealthSetupStep<int> conditions;
+
+  /// Pregnancy, breastfeeding: catalog-only, no custom names.
+  final HealthSetupStep<int> physiological;
+
+  /// Every required step has an answer. The physiological step is not asked of men
+  /// (`gender == 'nam'`), so it does not count for them (Q7).
+  bool isComplete({String? gender}) =>
+      allergies.status != HealthSetupStatus.unreported &&
+      conditions.status != HealthSetupStatus.unreported &&
+      (gender == 'nam' || physiological.status != HealthSetupStatus.unreported);
 }
 
 class HealthSetupOption<T> {

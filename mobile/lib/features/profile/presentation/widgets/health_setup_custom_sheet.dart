@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../state/health_setup_controller.dart';
 import 'health_setup_form.dart';
 
 Future<String?> showHealthSetupCustomSheet(BuildContext context,
@@ -59,7 +60,9 @@ class _CustomSheetState extends State<_CustomSheet> {
             const SizedBox(height: 6),
             TextField(
               controller: _name,
-              maxLength: 120,
+              maxLength: widget.allergy
+                  ? maxAllergyNameLength
+                  : maxConditionNameLength,
               onChanged: (_) => setState(() {}),
               onSubmitted: (text) {
                 if (text.trim().isNotEmpty) Navigator.pop(context, text);

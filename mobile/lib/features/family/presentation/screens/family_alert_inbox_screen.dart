@@ -49,6 +49,12 @@ class _FamilyAlertInboxScreenState extends State<FamilyAlertInboxScreen>
                   const Padding(
                       padding: EdgeInsets.only(bottom: 16),
                       child: Text('Thông báo đẩy chưa được hỗ trợ')),
+                ListTile(
+                    leading: const Icon(Icons.notifications_outlined),
+                    title: const Text('Lời nhắc nhận được'),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () => Navigator.of(context)
+                        .pushNamed(AppRoutes.receivedReminders)),
                 if (controller.loading) const LinearProgressIndicator(),
                 if (controller.error != null) ...[
                   Text(controller.error!.message),

@@ -9,6 +9,9 @@ import 'package:drugtime_mobile/features/profile/domain/entities/health_setup.da
 import 'package:drugtime_mobile/features/profile/domain/repositories/health_setup_repository.dart';
 import 'package:drugtime_mobile/features/profile/presentation/screens/health_setup_screen.dart';
 import 'package:drugtime_mobile/features/profile/presentation/state/health_setup_controller.dart';
+import 'package:drugtime_mobile/features/profile/domain/entities/health_profile.dart';
+import 'package:drugtime_mobile/features/profile/presentation/state/profile_controller.dart';
+import 'profile_test_helpers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -26,6 +29,7 @@ class _Repository implements HealthSetupRepository {
   bool failLoad = false;
   bool emptyConditionCatalog = false;
   HealthSetupStep<String>? submittedAllergies;
+  HealthSetupStep<int>? submittedPhysiological;
   HealthSetupStep<String>? readbackAllergies;
 
   @override
@@ -47,6 +51,10 @@ class _Repository implements HealthSetupRepository {
           : const [
               HealthSetupOption(1, 'Hypertension'),
               HealthSetupOption(2, 'Diabetes mellitus'),
+              HealthSetupOption(3, 'Đang mang thai',
+                  category: 'physiological_state'),
+              HealthSetupOption(4, 'Đang cho con bú',
+                  category: 'physiological_state'),
             ];
 
   @override
@@ -54,14 +62,17 @@ class _Repository implements HealthSetupRepository {
     String revision, {
     HealthSetupStep<String>? allergies,
     HealthSetupStep<int>? conditions,
+    HealthSetupStep<int>? physiological,
   }) async {
     expect(revision, current.revision);
     saveCalls++;
     submittedAllergies = allergies;
+    submittedPhysiological = physiological;
     current = HealthSetupSnapshot(
         '2',
         readbackAllergies ?? allergies ?? current.allergies,
-        conditions ?? current.conditions);
+        conditions ?? current.conditions,
+        physiological ?? current.physiological);
     if (loseResponse) throw const HealthSetupSaveException(needsReadback: true);
     return current;
   }
@@ -120,6 +131,7 @@ void main() {
     await tap('Tiếp tục');
     await tap('Tôi không có bệnh nền đã biết');
     await tap('Tiếp tục');
+    await tap('Bỏ qua'); // step 3/3, physiological state
     expect(repository.saveCalls, 1);
 
     await tester.tap(find.text('Vào ứng dụng'));
@@ -152,9 +164,50 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Tiếp tục'));
     await tester.pumpAndSettle();
+    await tester.tap(find.text('Bỏ qua')); // step 3/3
+    await tester.pumpAndSettle();
     expect(repo.current.conditions.ids, isEmpty);
     expect(repo.current.conditions.names, ['Bệnh nền đã khai']);
     expect(find.text('Đã lưu hồ sơ sức khỏe'), findsOneWidget);
+  });
+
+  testWidgets(
+      'custom allergy input stops at 40 characters, condition at 120 (AC12)',
+      (tester) async {
+    final repo = _Repository();
+    await tester
+        .pumpWidget(MaterialApp(home: HealthSetupScreen(repository: repo)));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Thêm dị ứng khác'));
+    await tester.tap(find.text('Thêm dị ứng khác'));
+    await tester.pumpAndSettle();
+    expect(tester.widget<TextField>(find.byType(TextField)).maxLength, 40);
+    await tester.enterText(find.byType(TextField), 'x' * 45);
+    await tester.pump();
+    expect(tester.widget<TextField>(find.byType(TextField)).controller!.text,
+        'x' * 40);
+    await tester.tap(find.text('Thêm'));
+    await tester.pumpAndSettle();
+    expect(find.text('x' * 40), findsOneWidget);
+
+    await tester.tap(find.text('Bỏ qua'));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Thêm bệnh nền khác'));
+    await tester.tap(find.text('Thêm bệnh nền khác'));
+    await tester.pumpAndSettle();
+    expect(tester.widget<TextField>(find.byType(TextField)).maxLength, 120);
+  });
+
+  test(
+      'draft rejects custom allergy over 40 characters, condition keeps 120 (AC12)',
+      () async {
+    final controller = HealthSetupController(_Repository());
+    addTearDown(controller.dispose);
+    await controller.load();
+    expect(controller.allergyDraft.addCustom('a' * 41), isFalse);
+    expect(controller.allergyDraft.addCustom('a' * 40), isTrue);
+    expect(controller.conditionDraft.addCustom('b' * 41), isTrue);
+    expect(controller.conditionDraft.addCustom('c' * 121), isFalse);
   });
 
   testWidgets('selects two allergens, keeps draft on back and saves none known',
@@ -189,6 +242,11 @@ void main() {
     await tester.pump();
     await tester.tap(find.text('Tiếp tục'));
     await tester.pumpAndSettle();
+    await tester.tap(find.text('Không, tôi không mang thai hay cho con bú'));
+    await tester.pump();
+    await tester.tap(find.text('Tiếp tục'));
+    await tester.pumpAndSettle();
+    expect(repo.submittedPhysiological?.status, HealthSetupStatus.noneKnown);
     expect(find.text('Đã lưu hồ sơ sức khỏe'), findsOneWidget);
     expect(find.text('Không có bệnh nền đã biết'), findsOneWidget);
     expect(repo.submittedAllergies?.ids,
@@ -254,4 +312,96 @@ void main() {
       }
     });
   }
+
+  group('3 steps: allergy, chronic disease, physiological state (N10)', () {
+    Future<void> pumpFor(WidgetTester tester, _Repository repo,
+        {String? gender, List<HealthSetupStepKind>? steps}) async {
+      final profiles = FakeProfileRepository()
+        ..value = HealthProfile(fullName: 'Mai', gender: gender);
+      final profile = ProfileController(profiles);
+      addTearDown(profile.dispose);
+      await profile.load();
+      await tester.pumpWidget(ProfileScope(
+        controller: profile,
+        child: MaterialApp(
+          home: Builder(
+            builder: (context) => Scaffold(
+              body: TextButton(
+                onPressed: () async {
+                  final result = await Navigator.push<bool>(
+                      context,
+                      MaterialPageRoute<bool>(
+                          builder: (_) => HealthSetupScreen(
+                              repository: repo, steps: steps)));
+                  popped.add(result);
+                },
+                child: const Text('Trang chủ'),
+              ),
+            ),
+          ),
+        ),
+      ));
+      await tester.tap(find.text('Trang chủ'));
+      await tester.pumpAndSettle();
+    }
+
+    setUp(popped.clear);
+
+    testWidgets('women: 3 steps; the disease step lists no pregnancy (AC13c)',
+        (tester) async {
+      final repo = _Repository();
+      await pumpFor(tester, repo, gender: 'nu');
+      expect(find.text('Bước 1/3 · Dị ứng'), findsOneWidget);
+      await tester.tap(find.text('Bỏ qua'));
+      await tester.pumpAndSettle();
+      expect(find.text('Bước 2/3 · Bệnh nền'), findsOneWidget);
+      expect(find.text('Đang mang thai'), findsNothing);
+      expect(find.text('Đang cho con bú'), findsNothing);
+      await tester.tap(find.text('Bỏ qua'));
+      await tester.pumpAndSettle();
+      expect(find.text('Bước 3/3 · Tình trạng sinh lý'), findsOneWidget);
+      expect(find.text('Thêm bệnh nền khác'), findsNothing);
+      await tester.tap(find.text('Đang mang thai'));
+      await tester.pump();
+      await tester.tap(find.text('Tiếp tục'));
+      await tester.pumpAndSettle();
+      expect(repo.submittedPhysiological?.ids, [3]);
+      expect(find.text('Đã lưu hồ sơ sức khỏe'), findsOneWidget);
+    });
+
+    testWidgets('men: 2 steps, no physiological step (AC26)', (tester) async {
+      final repo = _Repository();
+      await pumpFor(tester, repo, gender: 'nam');
+      expect(find.text('Bước 1/2 · Dị ứng'), findsOneWidget);
+      await tester.tap(find.text('Bỏ qua'));
+      await tester.pumpAndSettle();
+      expect(find.text('Bước 2/2 · Bệnh nền'), findsOneWidget);
+      await tester.tap(find.text('Tôi không có bệnh nền đã biết'));
+      await tester.pump();
+      await tester.tap(find.text('Tiếp tục'));
+      await tester.pumpAndSettle();
+      expect(repo.saveCalls, 1);
+      expect(repo.submittedPhysiological, isNull);
+      expect(find.textContaining('Tình trạng sinh lý'), findsNothing);
+    });
+
+    testWidgets('Dumi AI: allergy step only, saves and returns true (AC12)',
+        (tester) async {
+      final repo = _Repository();
+      await pumpFor(tester, repo,
+          gender: 'nu', steps: const [HealthSetupStepKind.allergy]);
+      expect(find.text('Bước 1/1 · Dị ứng'), findsOneWidget);
+      await tester.ensureVisible(find.text('Tôi không có dị ứng đã biết'));
+      await tester.tap(find.text('Tôi không có dị ứng đã biết'));
+      await tester.pump();
+      await tester.tap(find.text('Tiếp tục'));
+      await tester.pumpAndSettle();
+      expect(repo.saveCalls, 1);
+      expect(find.text('Đã lưu hồ sơ sức khỏe'), findsNothing);
+      expect(popped, [true]);
+      expect(find.text('Trang chủ'), findsOneWidget);
+    });
+  });
 }
+
+final popped = <bool?>[];

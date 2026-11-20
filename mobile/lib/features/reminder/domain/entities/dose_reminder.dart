@@ -70,6 +70,7 @@ class DoseReminderRouteArguments {
     required this.scheduler,
     this.clock,
     this.keyguardPlatform,
+    this.sender,
   });
 
   final DoseReminderGroup group;
@@ -77,6 +78,9 @@ class DoseReminderRouteArguments {
   final ReminderScheduler scheduler;
   final ReminderClock? clock;
   final KeyguardPlatform? keyguardPlatform;
+
+  /// Tên người thân đã gửi lời nhắc (P1). null = nhắc theo lịch của chính người bệnh.
+  final String? sender;
 }
 
 enum DoseReminderResult { confirmed, snoozed, skipped }

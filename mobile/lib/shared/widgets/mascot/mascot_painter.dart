@@ -9,9 +9,7 @@ import 'mascot_rig.dart';
 class _C {
   static const white = Color(0xFFFFFFFF);
   static const white2 = Color(0xFFEEF2F7);
-  static const blue = Color(0xFF1B9AFC);
-  static const blue2 = Color(0xFF0A7FEF);
-  static const blueLight = Color(0xFFB4E4FC);
+  // Màu thân dưới nằm ở MascotPalette; `line` vẫn là viền của các phụ kiện.
   static const line = Color(0xFF1D5BB0);
   static const navy = Color(0xFF274280);
   static const eye = Color(0xFF0A1430);
@@ -26,11 +24,13 @@ class _C {
 
 /// Vẽ linh vật trong khung 300×300 từ giá trị hiện tại của [rig].
 class MascotPainter extends CustomPainter {
-  MascotPainter(this.rig, {this.outfit = MascotOutfit.plain})
+  MascotPainter(this.rig,
+      {this.outfit = MascotOutfit.plain, this.palette = MascotPalette.blue})
       : super(repaint: rig);
 
   final MascotRig rig;
   final MascotOutfit outfit;
+  final MascotPalette palette;
 
   static final _body = RRect.fromRectAndRadius(
       const Rect.fromLTWH(83, 56, 134, 196), const Radius.circular(67));
@@ -101,10 +101,21 @@ class MascotPainter extends CustomPainter {
       _arms(canvas, strokes: false, hands: true);
       _hat(canvas);
       _sparkles(canvas, r.value('spark'), T);
+    } else if (outfit == MascotOutfit.medic) {
+      _stethoscope(canvas);
+      _arms(canvas, strokes: !behind, hands: true);
+      _nurseCap(canvas);
+    } else if (outfit == MascotOutfit.gardenHat) {
+      _arms(canvas, strokes: !behind, hands: true);
+      _strawHat(canvas);
+    } else if (outfit == MascotOutfit.scarf) {
+      _scarf(canvas, T);
+      _arms(canvas, strokes: !behind, hands: true);
     } else {
       _arms(canvas, strokes: !behind, hands: true);
     }
     _shield(canvas, r.value('shield'));
+    _heart(canvas, r.value('heart'), T);
     canvas.restore();
     canvas.restore();
     canvas.restore();
@@ -148,10 +159,10 @@ class MascotPainter extends CustomPainter {
     c.drawPath(
         lower,
         Paint()
-          ..shader = const LinearGradient(
+          ..shader = LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [_C.blue, _C.blue2],
+            colors: [palette.base, palette.deep],
           ).createShader(const Rect.fromLTWH(73, 160, 154, 102)));
     c.drawRect(const Rect.fromLTWH(195, 50, 30, 212), _fill(_C.navy, .07));
     final hl = Paint()
@@ -172,14 +183,14 @@ class MascotPainter extends CustomPainter {
           ..style = PaintingStyle.stroke
           ..strokeCap = StrokeCap.round
           ..strokeWidth = 6
-          ..color = _C.blueLight.withValues(alpha: .7));
+          ..color = palette.light.withValues(alpha: .7));
     c.restore();
     c.drawRRect(
         _body,
         Paint()
           ..style = PaintingStyle.stroke
           ..strokeWidth = 3.5
-          ..color = _C.line);
+          ..color = palette.line);
   }
 
   void _cheeks(Canvas c, double a) {
@@ -517,6 +528,193 @@ class MascotPainter extends CustomPainter {
     }
   }
 
+  // ---------------------------------------------------------------- y tá
+
+  static const _medicTeal = Color(0xFF01857A);
+  static const _medicTealDark = Color(0xFF01554F);
+  static const _heartPink = Color(0xFFFF6F91);
+
+  /// Mũ y tá trắng bo tròn, chữ thập màu thương hiệu; trễ theo thân như mũ đầu bếp.
+  void _nurseCap(Canvas c) {
+    final r = rig;
+    c.save();
+    c.translate(150, 66 + r.value('hatY').clamp(-12.0, 12.0));
+    c.rotate(-.08 + r.value('hatT').clamp(-.4, .4));
+    final cap = Path()
+      ..moveTo(-44, 10)
+      ..quadraticBezierTo(-46, -22, -26, -30)
+      ..quadraticBezierTo(0, -40, 26, -30)
+      ..quadraticBezierTo(46, -22, 44, 10)
+      ..quadraticBezierTo(0, 2, -44, 10)
+      ..close();
+    c.drawPath(
+        cap.shift(const Offset(0, 3)), _fill(const Color(0xFF0B2A26), .12));
+    c.drawPath(
+        cap,
+        Paint()
+          ..shader = const LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [_C.white, _hatShade],
+          ).createShader(const Rect.fromLTRB(-46, -40, 46, 10)));
+    c.drawPath(
+        cap,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 3
+          ..strokeJoin = StrokeJoin.round
+          ..color = _hatLine);
+    // dải viền màu thương hiệu ở chân mũ
+    final band = Path()
+      ..moveTo(-44, 10)
+      ..quadraticBezierTo(0, 2, 44, 10)
+      ..lineTo(43, 4)
+      ..quadraticBezierTo(0, -4, -43, 4)
+      ..close();
+    c.drawPath(band, _fill(_medicTeal, .9));
+    // chữ thập
+    final cross = RRect.fromRectAndRadius(
+        Rect.fromCenter(center: const Offset(0, -15), width: 8, height: 22),
+        const Radius.circular(2.5));
+    c.drawRRect(cross, _fill(_medicTeal));
+    c.drawRRect(
+        RRect.fromRectAndRadius(
+            Rect.fromCenter(center: const Offset(0, -15), width: 22, height: 8),
+            const Radius.circular(2.5)),
+        _fill(_medicTeal));
+    c.restore();
+  }
+
+  /// Ống nghe vắt quanh cổ, đầu nghe tròn trước ngực.
+  void _stethoscope(Canvas c) {
+    final tube = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 4.2
+      ..strokeCap = StrokeCap.round
+      ..color = _medicTealDark;
+    final path = Path()
+      ..moveTo(112, 140)
+      ..quadraticBezierTo(116, 182, 150, 186)
+      ..quadraticBezierTo(184, 182, 188, 140);
+    c.drawPath(path, tube);
+    c.drawLine(const Offset(150, 186), const Offset(150, 198), tube);
+    c.drawCircle(const Offset(150, 204), 8.5, _fill(_C.white2));
+    c.drawCircle(
+        const Offset(150, 204),
+        8.5,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 3.2
+          ..color = _medicTealDark);
+    c.drawCircle(const Offset(147.5, 201.5), 2.4, _fill(_C.white, .9));
+    for (final x in [112.0, 188.0]) {
+      c.drawCircle(Offset(x, 138), 3.6, _fill(_medicTealDark));
+    }
+  }
+
+  /// Trái tim nhỏ bay lên từ hai bàn tay khi ôm bụng; [a] = độ hiện, nhịp theo [T].
+  void _heart(Canvas c, double a, double T) {
+    if (a < .02) return;
+    final phase = (T * .55) % 1;
+    final y = 196 - phase * 46;
+    final o = a * math.sin(phase * math.pi);
+    final s = 7 + phase * 3;
+    c.save();
+    c.translate(150 + math.sin(T * 3) * 4, y);
+    final heart = Path()
+      ..moveTo(0, s * .9)
+      ..cubicTo(-s * 1.6, -s * .2, -s * .6, -s * 1.4, 0, -s * .45)
+      ..cubicTo(s * .6, -s * 1.4, s * 1.6, -s * .2, 0, s * .9)
+      ..close();
+    c.drawPath(heart, _fill(_heartPink, o));
+    c.restore();
+  }
+
+  // ---------------------------------------------------------------- làm vườn
+
+  static const _straw = Color(0xFFF3CF7A);
+  static const _strawDark = Color(0xFFD9A441);
+  static const _ribbon = Color(0xFF3DAA6B);
+  static const _scarfRed = Color(0xFFE85D75);
+  static const _scarfDark = Color(0xFFC23E57);
+
+  /// Mũ cói vành rộng có dải ruy băng xanh lá; trễ theo thân như mũ y tá.
+  void _strawHat(Canvas c) {
+    final r = rig;
+    c.save();
+    c.translate(150, 62 + r.value('hatY').clamp(-12.0, 12.0));
+    c.rotate(.06 + r.value('hatT').clamp(-.4, .4));
+    final brim = Rect.fromCenter(center: Offset.zero, width: 150, height: 30);
+    c.drawOval(
+        brim.shift(const Offset(0, 3)), _fill(const Color(0xFF3B2A0A), .12));
+    c.drawOval(
+        brim,
+        Paint()
+          ..shader = const LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [_straw, _strawDark],
+          ).createShader(brim));
+    final crown = Path()
+      ..moveTo(-42, 2)
+      ..quadraticBezierTo(-46, -40, 0, -42)
+      ..quadraticBezierTo(46, -40, 42, 2)
+      ..quadraticBezierTo(0, 8, -42, 2)
+      ..close();
+    c.drawPath(crown, _fill(_straw));
+    c.drawPath(
+        Path()
+          ..moveTo(-43, -6)
+          ..quadraticBezierTo(0, 0, 43, -6)
+          ..lineTo(42, 2)
+          ..quadraticBezierTo(0, 8, -42, 2)
+          ..close(),
+        _fill(_ribbon));
+    final weave = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.6
+      ..color = _strawDark.withValues(alpha: .55);
+    for (final y in [-30.0, -20.0]) {
+      c.drawLine(Offset(-34, y), Offset(34, y), weave);
+    }
+    c.drawOval(brim, weave..strokeWidth = 2.4);
+    c.drawCircle(const Offset(30, -2), 6, _fill(const Color(0xFFFFE07A)));
+    c.restore();
+  }
+
+  /// Khăn quàng quấn cổ, hai tua đung đưa theo nhịp và theo đà của thân.
+  void _scarf(Canvas c, double T) {
+    final r = rig;
+    final swing = math.sin(T * 2.4) * 3 + r.value('hatT').clamp(-.4, .4) * 20;
+    final wrap = Path()
+      ..moveTo(92, 150)
+      ..quadraticBezierTo(150, 176, 208, 150)
+      ..lineTo(206, 166)
+      ..quadraticBezierTo(150, 192, 94, 166)
+      ..close();
+    c.drawPath(wrap, _fill(_scarfRed));
+    final tail = Path()
+      ..moveTo(176, 168)
+      ..quadraticBezierTo(184 + swing, 196, 178 + swing, 218)
+      ..lineTo(196 + swing, 214)
+      ..quadraticBezierTo(198 + swing * .6, 190, 194, 166)
+      ..close();
+    c.drawPath(tail, _fill(_scarfDark));
+    final stripe = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 3
+      ..color = _C.white.withValues(alpha: .7);
+    c.drawPath(
+        Path()
+          ..moveTo(100, 160)
+          ..quadraticBezierTo(150, 182, 200, 160),
+        stripe);
+    for (var i = 0; i < 3; i++) {
+      final x = 181.0 + swing + i * 5;
+      c.drawLine(Offset(x, 216), Offset(x, 224), stripe..strokeWidth = 2);
+    }
+  }
+
   // ---------------------------------------------------------------- đầu bếp
 
   static const _hatLine = Color(0xFF8CC4F0);
@@ -718,5 +916,5 @@ class MascotPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant MascotPainter old) =>
-      old.rig != rig || old.outfit != outfit;
+      old.rig != rig || old.outfit != outfit || old.palette != palette;
 }

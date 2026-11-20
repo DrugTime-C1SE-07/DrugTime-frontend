@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../domain/entities/health_setup.dart';
 import '../state/health_setup_controller.dart';
@@ -19,7 +20,6 @@ class HealthSetupPresentation {
 const _allergyIcons = {
   'penicillin': 0,
   'aspirin': 1,
-  'sulfa': 2,
   'cephalosporin': 3,
   'seafood': 4,
   'peanuts': 5,
@@ -32,6 +32,8 @@ const _conditionPresentation = {
   'hypertension': HealthSetupPresentation('Tăng huyết áp', 8),
   'tiểu đường': HealthSetupPresentation('Tiểu đường', 9),
   'đái tháo đường': HealthSetupPresentation('Tiểu đường', 9),
+  // Tên trong danh mục backend (seed 20_health_profile_catalog.sql).
+  'đái tháo đường type 2': HealthSetupPresentation('Tiểu đường', 9),
   'diabetes mellitus': HealthSetupPresentation('Tiểu đường', 9),
   'tim mạch': HealthSetupPresentation('Tim mạch', 10),
   'thận': HealthSetupPresentation('Thận', 11),
@@ -42,7 +44,8 @@ const _conditionPresentation = {
 };
 
 HealthSetupPresentation? _presentation<T>(HealthSetupOption<T> item) {
-  if (item.category == null) {
+  // Allergens carry drug/food; conditions carry chronic_disease (or nothing on old data).
+  if (item.category != 'drug' && item.category != 'food') {
     return _conditionPresentation[item.name.trim().toLowerCase()];
   }
   final icon = _allergyIcons[item.id];
@@ -163,43 +166,65 @@ class HealthSetupForm<T> extends StatelessWidget {
     required this.onChanged,
     required this.onAdd,
     this.warning,
+    this.physiological = false,
+    this.step = 1,
+    this.of = 2,
   });
 
   final bool allergy;
+
+  /// Pregnancy / breastfeeding step: catalog-only, no custom entries (N10).
+  final bool physiological;
+
+  /// Position in the flow, e.g. 3 of 3 ("Bước 3/3").
+  final int step;
+  final int of;
   final List<HealthSetupOption<T>> options;
   final HealthSetupDraft<T> draft;
   final VoidCallback onChanged;
   final VoidCallback onAdd;
   final String? warning;
 
+  List<HealthSetupOption<T>> _ordered() => [...options]..sort((left, right) {
+      final a = _presentation(left)?.iconIndex ?? 99;
+      final b = _presentation(right)?.iconIndex ?? 99;
+      return a == b
+          ? options.indexOf(left).compareTo(options.indexOf(right))
+          : a.compareTo(b);
+    });
+
   @override
   Widget build(BuildContext context) {
-    final ordered = [...options]..sort((left, right) {
-        final a = _presentation(left)?.iconIndex ?? 99;
-        final b = _presentation(right)?.iconIndex ?? 99;
-        return a == b
-            ? options.indexOf(left).compareTo(options.indexOf(right))
-            : a.compareTo(b);
-      });
+    final ordered = _ordered();
     final unknown =
         draft.ids.where((id) => !options.any((item) => item.id == id));
     return ListView(
       physics: const BouncingScrollPhysics(),
       padding: const EdgeInsets.fromLTRB(20, 2, 20, 16),
       children: [
-        Text(allergy ? 'Bước 1/2 · Dị ứng' : 'Bước 2/2 · Bệnh nền',
+        Text(
+            'Bước $step/$of · ${allergy ? 'Dị ứng' : physiological ? 'Tình trạng sinh lý' : 'Bệnh nền'}',
             style: const TextStyle(
                 color: healthSetupMuted, fontWeight: FontWeight.w500)),
         const SizedBox(height: 7),
-        Row(children: [
-          const Expanded(child: _ProgressBar(healthSetupBrand)),
-          const SizedBox(width: 8),
-          Expanded(
-              child: _ProgressBar(
-                  allergy ? const Color(0xffccd1d3) : healthSetupBrand)),
-        ]),
+        Semantics(
+          label: 'Bước $step trên $of',
+          child: Row(children: [
+            for (var i = 1; i <= of; i++) ...[
+              if (i > 1) const SizedBox(width: 8),
+              Expanded(
+                  child: _ProgressBar(
+                      i <= step ? healthSetupBrand : const Color(0xffccd1d3))),
+            ],
+          ]),
+        ),
         const SizedBox(height: 10),
-        Text(allergy ? 'Bạn dị ứng với gì?' : 'Bạn có bệnh nền nào?',
+        Text(
+            allergy
+                ? 'Bạn dị ứng với gì?'
+                : physiological
+                    ? 'Bạn đang mang thai hay cho con bú?'
+                    : 'Bạn có bệnh nền nào?',
             style: const TextStyle(
                 fontSize: 22,
                 height: 1.25,
@@ -209,7 +234,9 @@ class HealthSetupForm<T> extends StatelessWidget {
         Text(
             allergy
                 ? 'Chọn tất cả mục phù hợp.'
-                : 'Chọn các bệnh đã được chẩn đoán.',
+                : physiological
+                    ? 'Đây là tình trạng sinh lý, không phải bệnh. DrugTime dùng để cảnh báo thuốc không phù hợp.'
+                    : 'Chọn các bệnh đã được chẩn đoán.',
             style: const TextStyle(
                 fontSize: 16, color: healthSetupMuted, height: 1.45)),
         if (warning != null) ...[
@@ -226,9 +253,11 @@ class HealthSetupForm<T> extends StatelessWidget {
           const SizedBox(height: 14),
           _group('Thực phẩm', ordered.where((item) => item.category == 'food')),
         ] else if (ordered.isEmpty)
-          const Text(
-            'Danh mục bệnh nền chưa có mục nào. Bạn có thể tự nhập bên dưới.',
-            style: TextStyle(color: healthSetupMuted),
+          Text(
+            physiological
+                ? 'Danh mục chưa có mục nào.'
+                : 'Danh mục bệnh nền chưa có mục nào. Bạn có thể tự nhập bên dưới.',
+            style: const TextStyle(color: healthSetupMuted),
           )
         else
           _grid(ordered),
@@ -246,13 +275,17 @@ class HealthSetupForm<T> extends StatelessWidget {
             }),
           ),
         const SizedBox(height: 12),
-        _line(allergy ? 'Thêm dị ứng khác' : 'Thêm bệnh nền khác', Icons.add,
-            false, onAdd),
-        const SizedBox(height: 8),
+        if (!physiological) ...[
+          _line(allergy ? 'Thêm dị ứng khác' : 'Thêm bệnh nền khác', Icons.add,
+              false, onAdd),
+          const SizedBox(height: 8),
+        ],
         _line(
           allergy
               ? 'Tôi không có dị ứng đã biết'
-              : 'Tôi không có bệnh nền đã biết',
+              : physiological
+                  ? 'Không, tôi không mang thai hay cho con bú'
+                  : 'Tôi không có bệnh nền đã biết',
           draft.noneKnown ? Icons.check_circle : Icons.circle_outlined,
           draft.noneKnown,
           () {
@@ -283,23 +316,34 @@ class HealthSetupForm<T> extends StatelessWidget {
               : 2;
           const gap = 12.0;
           final width = (constraints.maxWidth - gap * (columns - 1)) / columns;
+          // Every tile has the same size (feedback 20/11): icon row + two text lines at
+          // the current text scale; longer names are cut with "…".
+          final line = MediaQuery.textScalerOf(context).scale(16) * 1.4;
+          final height = _padTop + _padBottom + 32 + _iconGap + line * 2 + 2;
           return Wrap(
             spacing: gap,
             runSpacing: allergy ? 9 : 12,
             children: [
               for (final item in items)
-                SizedBox(width: width, child: _card(item)),
+                SizedBox(width: width, height: height, child: _card(item)),
             ],
           );
         },
       );
 
+  double get _padTop => allergy ? 6 : 10;
+  double get _padBottom => allergy ? 6 : 8;
+  double get _iconGap => allergy ? 0 : 4;
+
   Widget _card(HealthSetupOption<T> option) {
     final selected = draft.ids.contains(option.id);
     final iconIndex = _presentation(option)?.iconIndex;
+    final label = healthSetupLabel(option);
     return Semantics(
       button: true,
       selected: selected,
+      label: label,
+      excludeSemantics: true,
       child: Material(
         color: selected ? _selectedFill : Colors.white,
         shape: RoundedRectangleBorder(
@@ -311,13 +355,12 @@ class HealthSetupForm<T> extends StatelessWidget {
         clipBehavior: Clip.antiAlias,
         child: InkWell(
           onTap: () {
+            HapticFeedback.selectionClick();
             draft.toggle(option.id);
             onChanged();
           },
           child: Container(
-            constraints: BoxConstraints(minHeight: allergy ? 68 : 78),
-            padding:
-                EdgeInsets.fromLTRB(11, allergy ? 6 : 10, 10, allergy ? 6 : 8),
+            padding: EdgeInsets.fromLTRB(11, _padTop, 10, _padBottom),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -336,8 +379,10 @@ class HealthSetupForm<T> extends StatelessWidget {
                     _indicator(selected),
                   ],
                 ),
-                SizedBox(height: allergy ? 0 : 4),
-                Text(healthSetupLabel(option),
+                SizedBox(height: _iconGap),
+                Text(label,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
                         color: healthSetupInk,
                         fontSize: 16,
@@ -365,9 +410,12 @@ class HealthSetupForm<T> extends StatelessWidget {
           ),
           clipBehavior: Clip.antiAlias,
           child: InkWell(
-            onTap: tap,
+            onTap: () {
+              HapticFeedback.selectionClick();
+              tap();
+            },
             child: Container(
-              constraints: const BoxConstraints(minHeight: 44),
+              constraints: const BoxConstraints(minHeight: 48),
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
               child: Row(children: [
                 if (selection)
@@ -403,4 +451,40 @@ class _ProgressBar extends StatelessWidget {
       height: 6,
       decoration:
           BoxDecoration(color: color, borderRadius: BorderRadius.circular(3)));
+}
+
+/// The coloured icon tiles of the setup flow, on their own: allergies grouped as
+/// "Thuốc" / "Thực phẩm", conditions as one grid. Used by the health profile screen so it
+/// looks like the setup it continues (feedback 20/11).
+class HealthSetupOptionGrid<T> extends StatelessWidget {
+  const HealthSetupOptionGrid({
+    super.key,
+    required this.allergy,
+    required this.options,
+    required this.draft,
+    required this.onChanged,
+  });
+
+  final bool allergy;
+  final List<HealthSetupOption<T>> options;
+  final HealthSetupDraft<T> draft;
+  final VoidCallback onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final form = HealthSetupForm<T>(
+        allergy: allergy,
+        options: options,
+        draft: draft,
+        onChanged: onChanged,
+        onAdd: () {});
+    final ordered = form._ordered();
+    if (!allergy) return form._grid(ordered);
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      form._group('Thuốc', ordered.where((item) => item.category == 'drug')),
+      const SizedBox(height: 14),
+      form._group(
+          'Thực phẩm', ordered.where((item) => item.category == 'food')),
+    ]);
+  }
 }

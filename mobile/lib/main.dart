@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'features/patient_monitor/data/patient_monitor_repository.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'core/notification/device_token_coordinator.dart';
@@ -6,7 +7,7 @@ import 'core/notification/device_token_store.dart';
 import 'core/notification/family_push_service.dart';
 import 'features/meal_suggestion/data/meal_choice_store.dart';
 import 'features/meal_suggestion/data/meal_widget_bridge.dart';
-import 'features/meal_suggestion/data/repositories/mock_allergy_profile_repository.dart';
+import 'features/meal_suggestion/data/repositories/remote_allergy_profile_repository.dart';
 import 'features/meal_suggestion/data/repositories/remote_meal_suggestion_repository.dart';
 import 'features/family/data/repositories/remote_family_alert_repository.dart';
 import 'features/family/presentation/state/family_alert_controller.dart';
@@ -118,6 +119,11 @@ Future<void> main() async {
       }
     },
     onSyncRequest: doseSync.syncNow,
+    showReminderForeground: (id, body) async {
+      if (authController.isAuthenticated && !authController.isSigningOut) {
+        await notificationService.showReceivedReminder(id, body);
+      }
+    },
   );
 
   DeviceTokenCoordinator? tokens;
@@ -165,6 +171,7 @@ Future<void> main() async {
     familyPushService: push,
     deviceTokenCoordinator: tokens,
     familyConnectivity: PollingConnectivityMonitor(),
+    patientMonitorRepository: PatientMonitorRepository(apiClient),
     scheduleSource: ApiScheduleRemoteDataSource(apiClient),
     adherenceHistoryRepository: RemoteAdherenceHistoryRepository(apiClient),
     adherenceRepository: RemoteAdherenceRepository(apiClient),
@@ -186,8 +193,8 @@ Future<void> main() async {
     profileRepository: profileRepository,
     healthSetupRepository: RemoteHealthSetupRepository(apiClient),
     mealSuggestionRepository: RemoteMealSuggestionRepository(apiClient),
-    // Task 5.11 Q3: mock hồ sơ dị ứng, nối `GET /profile/health-setup` ở task sau.
-    allergyProfileRepository: MockAllergyProfileRepository(),
+    // Hồ sơ dị ứng thật từ `GET /profile/health-setup` (task adhoc-20261118-health-profile-catalog).
+    allergyProfileRepository: RemoteAllergyProfileRepository(apiClient),
     mealChoiceStore: SecureMealChoiceStore(),
     // Widget "Thực đơn hôm nay" chỉ có trên Android (iOS ngoài phạm vi).
     mealWidgetBridge: !kIsWeb && defaultTargetPlatform == TargetPlatform.android

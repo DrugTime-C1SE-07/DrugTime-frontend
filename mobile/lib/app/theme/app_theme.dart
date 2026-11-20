@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../core/motion/shared_axis.dart';
 
 /// Màu dùng chung — đồng bộ với landing/app/tokens.css (Figma Foundation Sheet).
 ///
@@ -190,6 +191,8 @@ ThemeData buildAppTheme() {
 
   return ThemeData(
     useMaterial3: true,
+    // One horizontal shared-axis transition for every pushed page (AC9).
+    pageTransitionsTheme: sharedAxisPageTransitionsTheme,
     colorScheme: colorScheme,
     scaffoldBackgroundColor: AppColors.canvas,
     dividerColor: AppColors.border,

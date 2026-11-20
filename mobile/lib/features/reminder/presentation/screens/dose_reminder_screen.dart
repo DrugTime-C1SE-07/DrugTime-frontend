@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../../../../app/theme/app_theme.dart';
 import '../../../../core/widgets/vector_icons.dart';
+import '../../../family_link/presentation/garden/care_garden.dart';
+import '../../../family_link/presentation/garden/garden_mood.dart';
 import '../../domain/entities/dose_reminder.dart';
 import '../state/dose_reminder_controller.dart';
 import '../widgets/dose_reminder_card.dart';
@@ -32,10 +34,22 @@ class _DoseReminderScreenState extends State<DoseReminderScreen> {
 
   DoseReminderGroup get _group => widget.arguments.group;
 
+  /// Người thân gửi lời nhắc (P1); null = nhắc theo lịch.
+  String? get _sender => widget.arguments.sender;
+
+  String get _nowLabel {
+    final now = (widget.arguments.clock ?? DateTime.now)()
+        .toUtc()
+        .add(const Duration(hours: 7));
+    return '${now.hour.toString().padLeft(2, '0')}:'
+        '${now.minute.toString().padLeft(2, '0')}';
+  }
+
   @override
   void initState() {
     super.initState();
-    _selectedScheduleIds.addAll(_group.items.map((i) => i.medicationScheduleId));
+    _selectedScheduleIds
+        .addAll(_group.items.map((i) => i.medicationScheduleId));
   }
 
   @override
@@ -114,7 +128,10 @@ class _DoseReminderScreenState extends State<DoseReminderScreen> {
                       _buildHeader(itemCount),
                       if (!_expanded || !_group.hasMultipleItems) ...[
                         const SizedBox(height: AppSpacing.xl),
-                        _buildMedicinePulse(),
+                        if (_sender != null)
+                          _buildCaregiverScene()
+                        else
+                          _buildMedicinePulse(),
                         const SizedBox(height: AppSpacing.xl),
                         const SizedBox(height: AppSpacing.sm),
                       ] else ...[
@@ -125,7 +142,8 @@ class _DoseReminderScreenState extends State<DoseReminderScreen> {
                       else if (_group.hasMultipleItems && _expanded) ...[
                         ..._group.items.map(
                           (item) => Padding(
-                            padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                            padding:
+                                const EdgeInsets.only(bottom: AppSpacing.sm),
                             child: DoseReminderCard(
                               item: item,
                               status: _controller.statusOf(item),
@@ -152,7 +170,8 @@ class _DoseReminderScreenState extends State<DoseReminderScreen> {
                       ] else ...[
                         ..._group.items.map(
                           (item) => Padding(
-                            padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                            padding:
+                                const EdgeInsets.only(bottom: AppSpacing.sm),
                             child: DoseReminderCard(
                               item: item,
                               status: _controller.statusOf(item),
@@ -275,15 +294,18 @@ class _DoseReminderScreenState extends State<DoseReminderScreen> {
             color: Colors.white.withValues(alpha: 0.18),
             borderRadius: BorderRadius.circular(9999),
           ),
-          child: const Row(
+          child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.notifications_none, size: 16, color: Colors.white),
-              SizedBox(width: 8),
+              const Icon(Icons.notifications_none, size: 16, color: Colors.white),
+              const SizedBox(width: AppSpacing.sm),
               Flexible(
                 child: Text(
-                  'DrugTime · Đến giờ uống thuốc',
-                  style: TextStyle(
+                  _sender == null
+                      ? 'DrugTime · Đến giờ uống thuốc'
+                      : 'DrugTime · $_sender nhắc bạn',
+                  key: const Key('dose-reminder-source'),
+                  style: const TextStyle(
                     color: Colors.white,
                     fontSize: 14,
                     fontWeight: FontWeight.w500,
@@ -296,7 +318,7 @@ class _DoseReminderScreenState extends State<DoseReminderScreen> {
         const SizedBox(height: AppSpacing.lg),
         FittedBox(
           child: Text(
-            _timeLabel,
+            _sender == null ? _timeLabel : _nowLabel,
             style: const TextStyle(
               color: Colors.white,
               fontSize: 72,
@@ -308,16 +330,43 @@ class _DoseReminderScreenState extends State<DoseReminderScreen> {
         ),
         const SizedBox(height: AppSpacing.sm),
         Text(
-          _dateLabel,
+          _sender == null
+              ? _dateLabel
+              : _controller.allConfirmed
+                  ? 'Đã ghi nhận liều $_timeLabel'
+                  : 'Bạn chưa uống liều $_timeLabel',
           style: const TextStyle(
             color: Colors.white,
             fontSize: 17,
             fontWeight: FontWeight.w400,
           ),
         ),
+        if (_sender != null) ...[
+          const SizedBox(height: AppSpacing.xs),
+          Text(
+            'Lời nhắc không phải hướng dẫn uống bù. Hãy kiểm tra lịch của bạn.',
+            style:
+                AppTextStyles.caption.copyWith(color: const Color(0xFFB2DFDB)),
+            textAlign: TextAlign.center,
+          ),
+        ],
       ],
     );
   }
+
+  /// Cảnh hai linh vật cho lời nhắc từ người thân: rung chuông gọi bạn; uống xong thì
+  /// cùng ăn mừng. Chỉ trang trí.
+  Widget _buildCaregiverScene() => ClipRRect(
+        borderRadius: BorderRadius.circular(AppRadius.card),
+        child: CareGarden(
+          key: const Key('dose-reminder-garden'),
+          height: 170,
+          mood: _controller.allConfirmed
+              ? GardenMood.recovered
+              : GardenMood.nudged,
+          showWateringCan: false,
+        ),
+      );
 
   Widget _buildStackedCards(DoseReminderItem firstItem, int totalCount) {
     return Semantics(
@@ -445,7 +494,8 @@ class _DoseReminderScreenState extends State<DoseReminderScreen> {
     final allConfirmed = _controller.allConfirmed;
 
     final unconfirmedItems = _group.items
-        .where((i) => _controller.statusOf(i) != DoseReminderItemStatus.confirmed)
+        .where(
+            (i) => _controller.statusOf(i) != DoseReminderItemStatus.confirmed)
         .toList();
     final selectedUnconfirmed = unconfirmedItems
         .where((i) => _selectedScheduleIds.contains(i.medicationScheduleId))
@@ -506,26 +556,28 @@ class _DoseReminderScreenState extends State<DoseReminderScreen> {
           ),
         ),
         const SizedBox(height: AppSpacing.sm),
-        SizedBox(
-          width: double.infinity,
-          height: 48,
-          child: OutlinedButton.icon(
-            style: OutlinedButton.styleFrom(
-              foregroundColor: Colors.white,
-              side: const BorderSide(color: Colors.white, width: 1.5),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
+        // Lời nhắc từ người thân không có "nhắc lại sau": hoãn chỉ dành cho lịch nhắc của app.
+        if (_sender == null)
+          SizedBox(
+            width: double.infinity,
+            height: 48,
+            child: OutlinedButton.icon(
+              style: OutlinedButton.styleFrom(
+                foregroundColor: Colors.white,
+                side: const BorderSide(color: Colors.white, width: 1.5),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                textStyle: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w500,
+                ),
               ),
-              textStyle: const TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.w500,
-              ),
+              onPressed: busy || allConfirmed ? null : _snooze,
+              icon: const ClockIcon(color: Colors.white, size: 18),
+              label: const Text('Nhắc lại sau 10 phút'),
             ),
-            onPressed: busy || allConfirmed ? null : _snooze,
-            icon: const ClockIcon(color: Colors.white, size: 18),
-            label: const Text('Nhắc lại sau 10 phút'),
           ),
-        ),
         SizedBox(
           width: double.infinity,
           height: 48,

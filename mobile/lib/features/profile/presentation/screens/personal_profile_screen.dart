@@ -156,6 +156,10 @@ class _PersonalFormState extends State<_PersonalForm> {
   final _formKey = GlobalKey<FormState>();
   late final _name = TextEditingController(text: widget.profile.fullName ?? '');
   late final _email = TextEditingController(text: widget.profile.email ?? '');
+  late final _phone = TextEditingController(
+      text: widget.profile.phone == null
+          ? ''
+          : profilePhoneLabel(widget.profile.phone));
   late DateTime? _dob = widget.profile.dateOfBirth;
   late String? _gender = widget.profile.gender;
   bool _dirty = false;
@@ -165,6 +169,9 @@ class _PersonalFormState extends State<_PersonalForm> {
     if (!_dirty) {
       _name.text = widget.profile.fullName ?? '';
       _email.text = widget.profile.email ?? '';
+      _phone.text = widget.profile.phone == null
+          ? ''
+          : profilePhoneLabel(widget.profile.phone);
       _dob = widget.profile.dateOfBirth;
       _gender = widget.profile.gender;
     }
@@ -174,6 +181,7 @@ class _PersonalFormState extends State<_PersonalForm> {
   void dispose() {
     _name.dispose();
     _email.dispose();
+    _phone.dispose();
     super.dispose();
   }
 
@@ -196,12 +204,14 @@ class _PersonalFormState extends State<_PersonalForm> {
     if (!_formKey.currentState!.validate()) return false;
     final c = ProfileScope.read(context);
     final saved = await c.update(ProfileDraft(
-        fullName: _name.text,
-        dateOfBirth: _dob!,
-        gender: _gender!,
-        email: _email.text.trim().isEmpty
-            ? null
-            : _email.text.trim().toLowerCase()));
+      fullName: _name.text,
+      dateOfBirth: _dob!,
+      gender: _gender!,
+      email: _email.text.trim().isEmpty
+          ? null
+          : _email.text.trim().toLowerCase(),
+      phone: _phone.text,
+    ));
     if (mounted && saved) setState(() => _dirty = false);
     return saved;
   }
@@ -284,18 +294,18 @@ class _PersonalFormState extends State<_PersonalForm> {
                   decoration: profileFieldDecoration(),
                 )),
           ]),
-          const ProfileFieldPair(children: [
-            ProfileField(
-                label: 'Chiều cao (cm)',
-                child: ProfileUnavailable(message: 'Chưa khả dụng')),
-            ProfileField(
-                label: 'Cân nặng (kg)',
-                child: ProfileUnavailable(message: 'Chưa khả dụng'))
-          ]),
           ProfileField(
               label: 'Số điện thoại',
-              child: _ReadOnlyField(
-                  value: profilePhoneLabel(widget.profile.phone))),
+              child: TextFormField(
+                  key: const Key('profile-phone'),
+                  controller: _phone,
+                  enabled: !c.saving,
+                  style: profileFieldTextStyle,
+                  keyboardType: TextInputType.phone,
+                  textInputAction: TextInputAction.next,
+                  onChanged: (_) => _dirty = true,
+                  decoration: profileFieldDecoration(
+                      hintText: 'Nhập số điện thoại', suffixIcon: suffixPencil))),
           ProfileField(
               label: 'Email',
               child: TextFormField(
@@ -353,34 +363,4 @@ class _AvatarBlock extends StatelessWidget {
                 ]))),
         TextButton(onPressed: onTap, child: const Text('Đổi ảnh đại diện')),
       ]);
-}
-
-/// Ô chỉ đọc: số điện thoại là dữ liệu liên hệ, đổi số không thuộc màn hình này
-/// (Figma S08-1 vẽ ổ khoá và nền `#F2F1ED`).
-class _ReadOnlyField extends StatelessWidget {
-  const _ReadOnlyField({required this.value});
-  final String value;
-  @override
-  Widget build(BuildContext context) {
-    final compact = MediaQuery.textScalerOf(context).scale(14) <= 18;
-    return Semantics(
-        readOnly: true,
-        label: 'Số điện thoại, chỉ đọc',
-        child: Container(
-            constraints:
-                BoxConstraints(minHeight: compact ? AppSizes.fieldCompact : 0),
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
-            decoration: BoxDecoration(
-                color: AppColors.surfaceMuted,
-                border: Border.all(color: AppColors.border),
-                borderRadius: BorderRadius.circular(AppRadius.field)),
-            child: Row(children: [
-              Expanded(
-                  child: Text(value,
-                      style: profileFieldTextStyle.copyWith(
-                          color: AppColors.inkMuted))),
-              const Icon(Icons.lock_outline,
-                  size: 16, color: AppColors.inkMuted),
-            ])));
-  }
 }

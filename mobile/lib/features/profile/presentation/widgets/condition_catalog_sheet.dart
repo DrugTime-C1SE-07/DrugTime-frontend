@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../../app/theme/app_theme.dart';
+import '../../domain/entities/condition.dart';
 import '../state/profile_controller.dart';
 import 'profile_notices.dart';
 
@@ -52,7 +53,9 @@ class _ConditionCatalogSheetState extends State<ConditionCatalogSheet> {
                       !c.catalogLoading &&
                       c.catalogError == null)
                     const Text('Danh mục chưa có bệnh để chọn.'),
-                  for (final item in c.catalogItems)
+                  // Chronic diseases only: pregnancy / breastfeeding have their own screen.
+                  for (final item in c.catalogItems.where(
+                      (i) => i.category == ConditionCategory.chronicDisease))
                     ListTile(
                       title: Text(item.name),
                       trailing: c.profile?.conditions

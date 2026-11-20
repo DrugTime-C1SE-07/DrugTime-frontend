@@ -34,7 +34,7 @@ class LivingBanner extends StatefulWidget {
     this.chips = const [],
     this.showPet = true,
     this.active = true,
-    this.height = 260,
+    this.height = 236,
     this.shrink = 0,
     this.milestones,
     this.sheetColor,

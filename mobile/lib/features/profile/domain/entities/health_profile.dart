@@ -16,9 +16,17 @@ class HealthProfile {
   final String? email;
 
   /// Contact phone as returned by the API (E.164), null when not supplied.
-  /// Not a login identifier and never sent back by this screen.
+  /// Contact only; it is not a login identifier.
   final String? phone;
   final List<ProfileCondition> conditions;
+
+  /// Chronic diseases only ("bệnh nền"); physiological states are excluded.
+  List<ProfileCondition> get chronicConditions => conditions
+      .where((c) => c.category == ConditionCategory.chronicDisease)
+      .toList(growable: false);
+
+  /// Gender stored as `nam`; the physiological step is hidden for this value (Q7).
+  bool get isMale => gender == 'nam';
 }
 
 class ProfileDraft {
@@ -26,11 +34,13 @@ class ProfileDraft {
       {required this.fullName,
       required this.dateOfBirth,
       required this.gender,
-      this.email});
+      this.email,
+      this.phone});
   final String fullName;
   final DateTime dateOfBirth;
   final String gender;
   final String? email;
+  final String? phone;
 
   static DateTime todayInVietnam(DateTime now) {
     final vietnam = now.toUtc().add(const Duration(hours: 7));

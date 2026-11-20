@@ -1,5 +1,8 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import '../features/family_link/presentation/screens/share_and_link_screen.dart';
+import '../features/patient_monitor/presentation/patient_monitor_screen.dart';
+import '../features/patient_dose_reminders/presentation/received_reminders_screen.dart';
 import '../features/medication_capture/presentation/screens/scan_medication_screen.dart';
 
 import '../features/adherence/domain/repositories/adherence_repository.dart';
@@ -36,22 +39,27 @@ import 'app_shell.dart';
 import '../features/profile/presentation/screens/profile_screen.dart';
 import '../features/profile/presentation/screens/personal_profile_screen.dart';
 import '../features/profile/presentation/screens/medical_profile_screen.dart';
+import '../features/profile/presentation/screens/physiological_state_screen.dart';
 import '../features/profile/presentation/screens/health_profile_intro_screen.dart';
 import '../features/profile/domain/repositories/health_setup_repository.dart';
 import '../features/profile/presentation/screens/health_setup_screen.dart';
 import '../features/profile/presentation/widgets/health_setup_motion.dart';
 import 'theme/app_theme.dart';
 import '../features/meal_suggestion/presentation/screens/meal_suggestion_screen.dart';
-import '../shared/widgets/coming_soon_view.dart';
-import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../features/profile/presentation/screens/notification_preferences_screen.dart';
 import '../features/profile/presentation/screens/reminder_sound_screen.dart';
 import '../features/profile/presentation/screens/profile_settings_screen.dart';
 import '../features/family_link/presentation/screens/invite_caregiver_screen.dart';
+import '../features/profile/presentation/state/health_setup_controller.dart';
 
 enum HomeEntry { profileCompleted }
 
+enum PersonalScheduleEntry { open }
+
 abstract final class AppRoutes {
+  static const shareAndLink = '/profile/share-and-link';
+  static const patientMonitor = '/family/patient';
+  static const receivedReminders = '/dose-reminders/received';
   static const profileInvite = '/profile/invite';
   static const profileNotifications = '/profile/notifications';
   static const profileReminderSound = '/profile/notifications/sound';
@@ -75,6 +83,7 @@ abstract final class AppRoutes {
   static const profile = '/profile';
   static const personalProfile = '/profile/personal';
   static const medicalProfile = '/profile/medical';
+  static const physiologicalState = '/profile/physiological-state';
   static const healthProfileIntro = '/onboarding/health-profile';
   static const healthSetup = '/onboarding/health-profile/setup';
   static const caregivers = '/profile/caregivers';
@@ -115,6 +124,19 @@ Route<dynamic>? onGenerateRoute(
   ValueListenable<bool>? familyAdherenceAvailability,
 }) {
   return switch (settings.name) {
+    AppRoutes.shareAndLink => MaterialPageRoute<void>(
+        settings: settings, builder: (_) => const ShareAndLinkScreen()),
+    AppRoutes.patientMonitor => MaterialPageRoute<void>(
+        settings: settings,
+        builder: (_) => PatientMonitorScreen(
+            patientId: settings.arguments is String
+                ? settings.arguments! as String
+                : '')),
+    AppRoutes.receivedReminders => MaterialPageRoute<void>(
+        settings: settings,
+        builder: (_) => ReceivedRemindersScreen(
+            reminderId:
+                settings.arguments is int ? settings.arguments! as int : null)),
     AppRoutes.profileInvite => MaterialPageRoute<void>(
         settings: settings, builder: (_) => const InviteCaregiverScreen()),
     AppRoutes.profileNotifications => MaterialPageRoute<void>(
@@ -158,7 +180,13 @@ Route<dynamic>? onGenerateRoute(
     AppRoutes.personalProfile => MaterialPageRoute<void>(
         settings: settings, builder: (_) => const PersonalProfileScreen()),
     AppRoutes.medicalProfile => MaterialPageRoute<void>(
-        settings: settings, builder: (_) => const MedicalProfileScreen()),
+        settings: settings,
+        builder: (_) =>
+            MedicalProfileScreen(repository: healthSetupRepository)),
+    AppRoutes.physiologicalState => MaterialPageRoute<void>(
+        settings: settings,
+        builder: (_) =>
+            PhysiologicalStateScreen(repository: healthSetupRepository)),
     AppRoutes.healthProfileIntro => healthSetupPageRoute<void>(
         settings: settings, builder: (_) => const HealthProfileIntroScreen()),
     AppRoutes.healthSetup => healthSetupPageRoute<bool>(
@@ -188,7 +216,9 @@ Route<dynamic>? onGenerateRoute(
         settings: settings,
         builder: (_) => ConsentGate(
           child: AppShell(
-            initialTab: initialTab,
+            initialTab: settings.arguments == PersonalScheduleEntry.open
+                ? AppTab.reminders
+                : initialTab,
             showWelcome: settings.arguments == HomeEntry.profileCompleted,
           ),
         ),
@@ -334,18 +364,20 @@ Route<dynamic>? onGenerateRoute(
               MealRouteArgs(:final initialMeal) => initialMeal,
               _ => null,
             },
-            onDeclareAllergy: (context) =>
-                Navigator.of(context).pushNamed(AppRoutes.allergyDeclaration),
+            onDeclareAllergy: (context) => Navigator.of(context)
+                .pushNamed<bool>(AppRoutes.allergyDeclaration),
           ),
         ),
       ),
-    // Màn khai dị ứng làm sau (01 mục A); nối tới màn hồ sơ sức khỏe ở task nối dị ứng.
-    AppRoutes.allergyDeclaration => MaterialPageRoute<void>(
+    // Khai dị ứng từ Dumi AI: chỉ bước dị ứng của màn hồ sơ sức khỏe thật; lưu xong trả
+    // `true` để Dumi đi tiếp (N7, AC12).
+    AppRoutes.allergyDeclaration => healthSetupPageRoute<bool>(
         settings: settings,
-        builder: (_) => Scaffold(
-          appBar: AppBar(title: const Text('Khai dị ứng')),
-          body: const ComingSoonView(
-              title: 'Khai dị ứng', icon: LucideIcons.shieldAlert),
+        builder: (context) => ConsentGate(
+          child: HealthSetupScreen(
+            repository: healthSetupRepository,
+            steps: const [HealthSetupStepKind.allergy],
+          ),
         ),
       ),
     _ => null,

@@ -192,7 +192,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                       'Hồ sơ sức khỏe',
                       c.profile == null
                           ? 'Thông tin bệnh nền'
-                          : '${c.profile!.conditions.length} bệnh nền',
+                          : '${c.profile!.chronicConditions.length} bệnh nền',
                       'h-heart',
                       () => _open(AppRoutes.medicalProfile),
                       key: const Key('medical-profile-tile'),
@@ -204,6 +204,14 @@ class _ProfileScreenState extends State<ProfileScreen>
                       'h-users',
                       _openCaregivers,
                       key: const Key('supervisors-tile'),
+                    ),
+                    _divider(),
+                    _menu(
+                      'Chia sẻ và liên kết',
+                      'Kết nối với người thân',
+                      'h-users',
+                      () => _open(AppRoutes.shareAndLink),
+                      key: const Key('share-and-link-tile'),
                     ),
                     _divider(),
                     _menu(

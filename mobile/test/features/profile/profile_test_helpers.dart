@@ -3,6 +3,8 @@ import 'package:drugtime_mobile/features/profile/domain/entities/condition.dart'
 import 'package:drugtime_mobile/features/profile/domain/entities/health_profile.dart';
 import 'package:drugtime_mobile/features/profile/domain/entities/profile_failure.dart';
 import 'package:drugtime_mobile/features/profile/domain/repositories/profile_repository.dart';
+import 'package:drugtime_mobile/features/profile/domain/entities/health_setup.dart';
+import 'package:drugtime_mobile/features/profile/domain/repositories/health_setup_repository.dart';
 
 class FakeProfileRepository implements ProfileRepository {
   HealthProfile value = HealthProfile(
@@ -110,5 +112,60 @@ class FakeProfileRepository implements ProfileRepository {
         phone: value.phone,
         conditions: value.conditions.where((c) => c.id != linkId).toList());
     if (writeFailure case final f?) throw f;
+  }
+}
+
+/// In-memory `/profile/health-setup` with both condition categories (N10).
+class FakeHealthSetupRepository implements HealthSetupRepository {
+  FakeHealthSetupRepository({HealthSetupSnapshot? initial})
+      : current = initial ??
+            const HealthSetupSnapshot(
+                '1',
+                HealthSetupStep(HealthSetupStatus.reported,
+                    ids: ['penicillin']),
+                HealthSetupStep(HealthSetupStatus.unreported),
+                HealthSetupStep(HealthSetupStatus.unreported));
+  HealthSetupSnapshot current;
+  int saves = 0;
+  bool failSave = false;
+  final saved = <String>[];
+
+  @override
+  Future<HealthSetupSnapshot> read() async => current;
+
+  @override
+  Future<List<HealthSetupOption<String>>> allergens() async => const [
+        HealthSetupOption('penicillin', 'Penicillin', category: 'drug'),
+        HealthSetupOption('seafood', 'Hải sản', category: 'food'),
+        HealthSetupOption('cephalosporin',
+            'Cephalosporin (Cefalexin, Ceftriaxon, Cefuroxim…)',
+            category: 'drug'),
+      ];
+
+  @override
+  Future<List<HealthSetupOption<int>>> conditions() async => const [
+        HealthSetupOption(3, 'Tăng huyết áp', category: 'chronic_disease'),
+        HealthSetupOption(30, 'Đang mang thai',
+            category: 'physiological_state'),
+        HealthSetupOption(31, 'Đang cho con bú',
+            category: 'physiological_state'),
+      ];
+
+  @override
+  Future<HealthSetupSnapshot> save(String revision,
+      {HealthSetupStep<String>? allergies,
+      HealthSetupStep<int>? conditions,
+      HealthSetupStep<int>? physiological}) async {
+    if (failSave) throw const HealthSetupSaveException(needsReadback: false);
+    saves++;
+    if (allergies != null) saved.add('allergies');
+    if (conditions != null) saved.add('conditions');
+    if (physiological != null) saved.add('physiological');
+    current = HealthSetupSnapshot(
+        '${int.parse(current.revision) + 1}',
+        allergies ?? current.allergies,
+        conditions ?? current.conditions,
+        physiological ?? current.physiological);
+    return current;
   }
 }

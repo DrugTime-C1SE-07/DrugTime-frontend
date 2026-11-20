@@ -93,6 +93,18 @@ class HealthSetupCompleteScreen extends StatelessWidget {
                             'Bệnh nền',
                             healthSetupSummary(snapshot.conditions, conditions,
                                 'Không có bệnh nền đã biết')),
+                        // Physiological states are their own line, never "bệnh nền" (N10).
+                        if (snapshot.physiological.status !=
+                            HealthSetupStatus.unreported) ...[
+                          const Divider(
+                              height: 1, indent: 52, color: healthSetupBorder),
+                          _row(
+                              Icons.pregnant_woman,
+                              const Color(0xffb4235a),
+                              'Tình trạng sinh lý',
+                              healthSetupSummary(
+                                  snapshot.physiological, conditions, 'Không')),
+                        ],
                       ]),
                     ),
                   ],

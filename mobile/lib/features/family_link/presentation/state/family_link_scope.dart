@@ -7,6 +7,7 @@ import '../../domain/repositories/caregiver_repository.dart';
 import '../../domain/repositories/family_link_repository.dart';
 import 'incoming_requests_controller.dart';
 import 'invite_link_controller.dart';
+import '../../../patient_monitor/presentation/patient_monitor_controller.dart';
 
 /// Phụ thuộc của luồng theo dõi người thân, đặt trên `MaterialApp` để mọi route dùng được.
 class FamilyLinkScope extends InheritedWidget {
@@ -16,6 +17,7 @@ class FamilyLinkScope extends InheritedWidget {
     required this.caregivers,
     required this.invites,
     this.incomingRequests,
+    this.monitor,
     this.cameraPermission = const SystemCameraPermission(),
     this.sharer = const SystemInviteLinkSharer(),
     this.inviteLinkHost = AppConfig.inviteLinkHost,
@@ -28,6 +30,7 @@ class FamilyLinkScope extends InheritedWidget {
   final CaregiverRepository caregivers;
   final InviteLinkController invites;
   final IncomingRequestsController? incomingRequests;
+  final PatientMonitorController? monitor;
   final CameraPermission cameraPermission;
   final InviteLinkSharer sharer;
   final String inviteLinkHost;
@@ -35,7 +38,8 @@ class FamilyLinkScope extends InheritedWidget {
   /// Không đăng ký rebuild — các màn chỉ đọc phụ thuộc, không đọc trạng thái.
   static FamilyLinkScope read(BuildContext context) {
     final scope = context.getInheritedWidgetOfExactType<FamilyLinkScope>();
-    assert(scope != null, 'Không tìm thấy FamilyLinkScope phía trên widget này');
+    assert(
+        scope != null, 'Không tìm thấy FamilyLinkScope phía trên widget này');
     return scope!;
   }
 
@@ -48,6 +52,7 @@ class FamilyLinkScope extends InheritedWidget {
       caregivers != oldWidget.caregivers ||
       invites != oldWidget.invites ||
       incomingRequests != oldWidget.incomingRequests ||
+      monitor != oldWidget.monitor ||
       cameraPermission != oldWidget.cameraPermission ||
       sharer != oldWidget.sharer ||
       inviteLinkHost != oldWidget.inviteLinkHost;
