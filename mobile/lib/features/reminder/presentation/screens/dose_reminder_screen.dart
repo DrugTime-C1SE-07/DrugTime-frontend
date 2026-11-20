@@ -287,17 +287,18 @@ class _DoseReminderScreenState extends State<DoseReminderScreen> {
       children: [
         Container(
           padding: const EdgeInsets.symmetric(
-            horizontal: 16,
-            vertical: 8,
+            horizontal: AppSpacing.md,
+            vertical: AppSpacing.sm,
           ),
           decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.18),
-            borderRadius: BorderRadius.circular(9999),
+            color: const Color(0xFF1D746E),
+            borderRadius: BorderRadius.circular(999),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.notifications_none, size: 16, color: Colors.white),
+              const Icon(Icons.notifications_none,
+                  size: 18, color: Colors.white),
               const SizedBox(width: AppSpacing.sm),
               Flexible(
                 child: Text(
@@ -305,11 +306,7 @@ class _DoseReminderScreenState extends State<DoseReminderScreen> {
                       ? 'DrugTime · Đến giờ uống thuốc'
                       : 'DrugTime · $_sender nhắc bạn',
                   key: const Key('dose-reminder-source'),
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                  ),
+                  style: const TextStyle(color: Colors.white),
                 ),
               ),
             ],
@@ -321,9 +318,9 @@ class _DoseReminderScreenState extends State<DoseReminderScreen> {
             _sender == null ? _timeLabel : _nowLabel,
             style: const TextStyle(
               color: Colors.white,
-              fontSize: 72,
+              fontSize: 64,
               height: 1,
-              fontWeight: FontWeight.w700,
+              fontWeight: FontWeight.w600,
               fontFeatures: [FontFeature.tabularFigures()],
             ),
           ),
@@ -335,11 +332,7 @@ class _DoseReminderScreenState extends State<DoseReminderScreen> {
               : _controller.allConfirmed
                   ? 'Đã ghi nhận liều $_timeLabel'
                   : 'Bạn chưa uống liều $_timeLabel',
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 17,
-            fontWeight: FontWeight.w400,
-          ),
+          style: AppTextStyles.body.copyWith(color: AppColors.onBrand),
         ),
         if (_sender != null) ...[
           const SizedBox(height: AppSpacing.xs),
@@ -456,32 +449,32 @@ class _DoseReminderScreenState extends State<DoseReminderScreen> {
     return Semantics(
       label: 'Biểu tượng nhắc uống thuốc',
       child: Container(
-        width: 176,
-        height: 176,
-        decoration: BoxDecoration(
+        width: 150,
+        height: 150,
+        decoration: const BoxDecoration(
           shape: BoxShape.circle,
-          color: Colors.white.withValues(alpha: 0.12),
+          color: Color(0xFF146C66),
         ),
         alignment: Alignment.center,
         child: Container(
-          width: 136,
-          height: 136,
-          decoration: BoxDecoration(
+          width: 112,
+          height: 112,
+          decoration: const BoxDecoration(
             shape: BoxShape.circle,
-            color: Colors.white.withValues(alpha: 0.20),
+            color: Color(0xFF4C8E89),
           ),
           alignment: Alignment.center,
           child: Container(
-            width: 96,
-            height: 96,
+            width: 78,
+            height: 78,
             decoration: const BoxDecoration(
               shape: BoxShape.circle,
-              color: Color(0xFFE6F4F2),
+              color: AppColors.brandTint,
             ),
             child: const Icon(
               Icons.medication_outlined,
-              size: 44,
-              color: Color(0xFF01554F),
+              size: 38,
+              color: AppColors.brand,
             ),
           ),
         ),
@@ -537,21 +530,14 @@ class _DoseReminderScreenState extends State<DoseReminderScreen> {
       children: [
         SizedBox(
           width: double.infinity,
-          height: 56,
+          height: AppSizes.primaryButton,
           child: FilledButton.icon(
             style: FilledButton.styleFrom(
-              backgroundColor: Colors.white,
-              foregroundColor: const Color(0xFF01554F),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-              textStyle: const TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-              ),
+              backgroundColor: AppColors.surface,
+              foregroundColor: AppColors.brand,
             ),
             onPressed: canConfirm ? handleConfirm : null,
-            icon: const Icon(Icons.check, size: 22),
+            icon: const Icon(Icons.check),
             label: Text(confirmLabel),
           ),
         ),
@@ -560,34 +546,23 @@ class _DoseReminderScreenState extends State<DoseReminderScreen> {
         if (_sender == null)
           SizedBox(
             width: double.infinity,
-            height: 48,
+            height: AppSizes.tapTarget,
             child: OutlinedButton.icon(
               style: OutlinedButton.styleFrom(
-                foregroundColor: Colors.white,
-                side: const BorderSide(color: Colors.white, width: 1.5),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                textStyle: const TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w500,
-                ),
+                foregroundColor: AppColors.onBrand,
+                side: const BorderSide(color: Color(0xFF7AB0AC)),
               ),
               onPressed: busy || allConfirmed ? null : _snooze,
-              icon: const ClockIcon(color: Colors.white, size: 18),
+              icon: const ClockIcon(color: AppColors.onBrand, size: 20),
               label: const Text('Nhắc lại sau 10 phút'),
             ),
           ),
         SizedBox(
           width: double.infinity,
-          height: 48,
+          height: AppSizes.tapTarget,
           child: TextButton(
             style: TextButton.styleFrom(
               foregroundColor: const Color(0xFFD9E7E6),
-              textStyle: const TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
-              ),
             ),
             onPressed: busy
                 ? null

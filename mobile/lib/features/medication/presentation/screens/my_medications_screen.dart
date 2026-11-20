@@ -105,14 +105,28 @@ class _MyMedicationsScreenState extends State<MyMedicationsScreen> {
           onChanged: (v) => setState(() => _query = v),
           onClear: _clearSearch,
         ),
-        Align(
-          alignment: Alignment.centerLeft,
-          child: TextButton.icon(
-            onPressed: () => _showNotBuilt('Danh mục thuốc'),
-            style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xs)),
-            icon: const Icon(Icons.menu_book_outlined, size: 20),
-            label: const Text('Tra cứu danh mục thuốc'),
-          ),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            TextButton.icon(
+              onPressed: () => _showNotBuilt('Danh mục thuốc'),
+              style: TextButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xs)),
+              icon: const Icon(Icons.menu_book_outlined, size: 20),
+              label: const Text('Tra cứu danh mục thuốc'),
+            ),
+            TextButton.icon(
+              key: const Key('medication-interaction-history-button'),
+              onPressed: () =>
+                  Navigator.pushNamed(context, AppRoutes.interactionHistory),
+              style: TextButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xs)),
+              icon: const Icon(Icons.shield_outlined,
+                  size: 18, color: AppColors.brand),
+              label: const Text('Lịch sử tương tác',
+                  style: TextStyle(color: AppColors.brand)),
+            ),
+          ],
         ),
         const SizedBox(height: AppSpacing.sm),
         MedicationFilterBar(
@@ -229,8 +243,15 @@ class _Header extends StatelessWidget {
             ],
           ),
         ),
+        IconButton(
+          key: const Key('medication-interaction-history-icon-button'),
+          tooltip: 'Lịch sử kiểm tra tương tác',
+          onPressed: () =>
+              Navigator.pushNamed(context, AppRoutes.interactionHistory),
+          icon: const Icon(Icons.history_outlined, color: AppColors.brand),
+        ),
         if (showAdd) ...[
-          const SizedBox(width: AppSpacing.md),
+          const SizedBox(width: AppSpacing.xs),
           // Nút có chữ thay cho dấu "+" trơn: người lớn tuổi hiểu ngay.
           FilledButton.icon(
             onPressed: onAdd,

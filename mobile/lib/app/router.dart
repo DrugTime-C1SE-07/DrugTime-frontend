@@ -49,6 +49,8 @@ import '../features/meal_suggestion/presentation/screens/meal_suggestion_screen.
 import '../features/profile/presentation/screens/notification_preferences_screen.dart';
 import '../features/profile/presentation/screens/reminder_sound_screen.dart';
 import '../features/profile/presentation/screens/profile_settings_screen.dart';
+import '../features/profile/presentation/screens/help_screen.dart';
+import '../features/interaction_check/presentation/screens/interaction_history_screen.dart';
 import '../features/family_link/presentation/screens/invite_caregiver_screen.dart';
 import '../features/profile/presentation/state/health_setup_controller.dart';
 
@@ -63,6 +65,7 @@ abstract final class AppRoutes {
   static const profileInvite = '/profile/invite';
   static const profileNotifications = '/profile/notifications';
   static const profileReminderSound = '/profile/notifications/sound';
+  static const profileHelp = '/profile/help';
   static const profileSettings = '/profile/settings';
   static const familyAlerts = '/family/alerts';
   static const familyAlertDetail = '/family/alerts/detail';
@@ -71,6 +74,7 @@ abstract final class AppRoutes {
   static const scanMedication = '/medications/scan';
   static const medicationDetail = '/medications/detail';
   static const editMedication = '/medications/edit';
+  static const interactionHistory = '/medications/interactions/history';
   static const login = '/login';
   static const otpPhone = '/login/otp/phone';
   static const otpEmail = '/login/otp/email';
@@ -144,6 +148,11 @@ Route<dynamic>? onGenerateRoute(
         builder: (_) => const NotificationPreferencesScreen()),
     AppRoutes.profileReminderSound => MaterialPageRoute<void>(
         settings: settings, builder: (_) => const ReminderSoundScreen()),
+    AppRoutes.profileHelp => MaterialPageRoute<void>(
+        settings: settings, builder: (_) => const HelpScreen()),
+    AppRoutes.interactionHistory => MaterialPageRoute<void>(
+        settings: settings,
+        builder: (_) => const InteractionHistoryScreen()),
     AppRoutes.profileSettings => MaterialPageRoute<void>(
         settings: settings,
         builder: (_) => ProfileSettingsScreen(

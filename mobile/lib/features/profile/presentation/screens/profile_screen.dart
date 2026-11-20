@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import '../../../../app/app_shell.dart';
 import '../../../../app/router.dart';
 import '../../../../app/theme/app_theme.dart';
-import '../../../../shared/widgets/coming_soon_view.dart';
 import '../../../auth/presentation/state/auth_controller.dart';
 import '../../../family_link/presentation/screens/caregivers_screen.dart';
 import '../state/profile_controller.dart';
@@ -93,16 +92,6 @@ class _ProfileScreenState extends State<ProfileScreen>
       return;
     }
     if (widget.active) await ProfileScope.read(context).load();
-  }
-
-  void _openComingSoon(String title, IconData icon) {
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => Scaffold(
-          body: ComingSoonView(title: title, icon: icon),
-        ),
-      ),
-    );
   }
 
   @override
@@ -235,7 +224,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                       'Trợ giúp',
                       'Câu hỏi thường gặp, liên hệ',
                       'h-help-circle',
-                      () => _openComingSoon('Trợ giúp', Icons.help_outline),
+                      () => Navigator.pushNamed(context, AppRoutes.profileHelp),
                       key: const Key('profile-help-tile'),
                     ),
                   ],

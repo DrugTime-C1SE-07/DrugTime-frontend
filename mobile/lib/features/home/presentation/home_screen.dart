@@ -168,10 +168,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           color: Colors.white,
           shape: const CircleBorder(),
           child: IconButton(
+              key: const Key('home-notification-bell'),
               tooltip: 'Thông báo',
-              onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                      content: Text('Thông báo đang được phát triển'))),
+              onPressed: () =>
+                  Navigator.pushNamed(context, AppRoutes.profileNotifications),
               icon: const Icon(LucideIcons.bell, color: AppColors.brand))),
       chips: chips,
     );

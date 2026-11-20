@@ -573,6 +573,9 @@ class _DrugTimeAppState extends State<DrugTimeApp> with WidgetsBindingObserver {
   @override
   void initState() {
     super.initState();
+    final initialUserId =
+        _auth.isAuthenticated ? _auth.currentSession?.userId : null;
+    _history.setPatient(initialUserId);
     if (widget.captureServices != null ||
         (!kIsWeb && defaultTargetPlatform == TargetPlatform.android)) {
       unawaited(_captures.initialize().catchError((Object e) {
@@ -758,7 +761,8 @@ class _DrugTimeAppState extends State<DrugTimeApp> with WidgetsBindingObserver {
       _profileUser =
           _auth.isAuthenticated ? _auth.currentSession?.userId : null;
     });
-    await _profiles.setAccount(_profileUser);
+    _history.setPatient(_profileUser);
+    unawaited(_profiles.setAccount(_profileUser));
     _bindMeals(_profileUser);
     _consumeMealLink();
     unawaited(_captures.bindSession(
@@ -767,8 +771,6 @@ class _DrugTimeAppState extends State<DrugTimeApp> with WidgetsBindingObserver {
       unawaited(_medications.load());
       unawaited(_incomingRequests.load());
     }
-    _history.setPatient(
-        _auth.isAuthenticated ? _auth.currentSession?.userId : null);
     _updateHomeAccess();
     _familyChanged();
   }

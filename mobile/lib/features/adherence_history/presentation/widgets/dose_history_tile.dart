@@ -90,6 +90,7 @@ class DoseHistoryTile extends StatelessWidget {
         dose.status == HistoryDoseStatus.missed ? AppColors.danger : null;
     return Semantics(
       container: true,
+      button: onTap != null,
       onTap: onTap,
       label:
           '${dose.medicationName}, ${upcoming ? 'Sắp tới' : dose.status.label}, giờ dự kiến ${HistoryFormat.time(dose.scheduledAt)}, ${showDate ? HistoryFormat.day(HistoryFormat.today(dose.scheduledAt)) : ''}, ${HistoryFormat.actual(dose)}',
