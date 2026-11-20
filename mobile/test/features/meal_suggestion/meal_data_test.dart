@@ -45,10 +45,10 @@ final _responseJson = {
       'status': 'ready',
       'url': '/meal-images/57',
       'attribution': {
-        'provider': 'pexels',
+        'provider': 'pixabay',
         'photographer_name': 'Trần Thị B',
-        'photographer_url': 'https://www.pexels.com/@b',
-        'source_url': 'https://www.pexels.com/photo/222/',
+        'photographer_url': 'https://pixabay.com/users/example-b-222222/',
+        'source_url': 'https://pixabay.com/photos/example-222/',
       },
     }),
   ],

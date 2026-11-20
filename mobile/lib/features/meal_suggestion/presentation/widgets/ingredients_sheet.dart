@@ -53,6 +53,7 @@ Future<void> showIngredientsSheet(
                       child: MealImageView(
                         image: plan.imageOf(dish),
                         loadBytes: plan.imageBytes,
+                        cachedBytes: plan.cachedImageBytes,
                         height: 58,
                         showAttribution: false,
                         placeholderIcon: dishTypeAsset(dish.dishType),

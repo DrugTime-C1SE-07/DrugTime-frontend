@@ -84,7 +84,31 @@ void main() {
       await tester.pumpAndSettle();
       expect(repo.bytesCalls, contains(42));
       expect(find.text('Ảnh minh họa'), findsOneWidget);
-      expect(find.text('Ảnh: Nguyễn Văn A / Pexels'), findsOneWidget);
+      expect(find.text('Ảnh: Nguyễn Văn A / Pixabay'), findsOneWidget);
+      expect(find.textContaining('Pexels'), findsNothing);
+    });
+
+    testWidgets(
+        'có nội dung tải sẵn: hiện ảnh ngay khung hình đầu, không giữ chỗ, không tải lại (AC4)',
+        (tester) async {
+      // adhoc-20261120-meal-image-loading
+      final bytes = await repo.imageBytes(const MealDishImage(
+          imageId: 0, status: MealImageStatus.ready, url: '/meal-images/0'));
+      repo.bytesCalls.clear();
+      await tester.pumpWidget(MaterialApp(
+          home: Scaffold(
+              body: MealImageView(
+                  image: const MealDishImage(
+                      imageId: 43,
+                      status: MealImageStatus.ready,
+                      url: '/meal-images/43',
+                      attribution: attribution),
+                  loadBytes: repo.imageBytes,
+                  cachedBytes: (_) => bytes))));
+      expect(find.byKey(const ValueKey('meal-image-pending')), findsNothing);
+      expect(find.byType(Image), findsOneWidget);
+      expect(find.text('Ảnh: Nguyễn Văn A / Pixabay'), findsOneWidget);
+      expect(repo.bytesCalls, isEmpty);
     });
   });
 

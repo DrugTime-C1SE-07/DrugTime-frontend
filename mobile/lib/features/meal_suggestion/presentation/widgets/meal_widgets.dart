@@ -32,12 +32,13 @@ class MealDisclaimer extends StatelessWidget {
 }
 
 /// Ảnh minh họa món: giữ chỗ khi `pending`, ảnh mặc định khi `failed`/không có ảnh/lỗi tải.
-/// Ảnh thật luôn kèm nhãn "Ảnh minh họa" và ghi nguồn tác giả / Pexels (AC7).
+/// Ảnh thật luôn kèm nhãn "Ảnh minh họa" và ghi nguồn tác giả / Pixabay (AC7).
 class MealImageView extends StatelessWidget {
   const MealImageView({
     super.key,
     required this.image,
     required this.loadBytes,
+    this.cachedBytes,
     this.height = 180,
     this.borderRadius = BorderRadius.zero,
     this.showAttribution = true,
@@ -47,6 +48,10 @@ class MealImageView extends StatelessWidget {
 
   final MealDishImage? image;
   final Future<Uint8List> Function(MealDishImage image) loadBytes;
+
+  /// Nội dung đã tải sẵn: có thì vẽ ngay, không qua ô giữ chỗ
+  /// (adhoc-20261120-meal-image-loading, AC4).
+  final Uint8List? Function(MealDishImage image)? cachedBytes;
   final double height;
   final BorderRadius borderRadius;
   final bool showAttribution;
@@ -65,28 +70,16 @@ class MealImageView extends StatelessWidget {
       child = _DefaultDishImage(placeholderIcon);
     } else if (!current.isReady) {
       child = const _PendingDishImage();
+    } else if (cachedBytes?.call(current) case final bytes?) {
+      child = KeyedSubtree(
+          key: ValueKey('meal-image-${current.imageId}'),
+          child: _picture(bytes, current));
     } else {
       child = FutureBuilder<Uint8List>(
         key: ValueKey('meal-image-${current.imageId}'),
         future: loadBytes(current),
         builder: (context, snapshot) {
-          if (snapshot.hasData) {
-            return Stack(fit: StackFit.expand, children: [
-              Image.memory(snapshot.data!,
-                  fit: BoxFit.cover,
-                  alignment: alignment,
-                  gaplessPlayback: true,
-                  errorBuilder: (_, __, ___) =>
-                      _DefaultDishImage(placeholderIcon)),
-              Positioned(
-                left: 8,
-                bottom: 8,
-                right: 8,
-                child: _ImageLabel(
-                    attribution: showAttribution ? current.attribution : null),
-              ),
-            ]);
-          }
+          if (snapshot.hasData) return _picture(snapshot.data!, current);
           if (snapshot.hasError) return _DefaultDishImage(placeholderIcon);
           return const _PendingDishImage();
         },
@@ -97,6 +90,22 @@ class MealImageView extends StatelessWidget {
       child: SizedBox(height: height, width: double.infinity, child: child),
     );
   }
+
+  Widget _picture(Uint8List bytes, MealDishImage current) =>
+      Stack(fit: StackFit.expand, children: [
+        Image.memory(bytes,
+            fit: BoxFit.cover,
+            alignment: alignment,
+            gaplessPlayback: true,
+            errorBuilder: (_, __, ___) => _DefaultDishImage(placeholderIcon)),
+        Positioned(
+          left: 8,
+          bottom: 8,
+          right: 8,
+          child: _ImageLabel(
+              attribution: showAttribution ? current.attribution : null),
+        ),
+      ]);
 }
 
 class _ImageLabel extends StatelessWidget {
@@ -121,7 +130,7 @@ class _ImageLabel extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
             decoration: BoxDecoration(
                 color: Colors.black54, borderRadius: BorderRadius.circular(6)),
-            child: Text('Ảnh: ${a.photographerName} / Pexels',
+            child: Text('Ảnh: ${a.photographerName} / Pixabay',
                 style: style, overflow: TextOverflow.ellipsis),
           ),
         ),
