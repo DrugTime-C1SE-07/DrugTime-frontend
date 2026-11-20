@@ -28,6 +28,8 @@ abstract class NotificationPlatform {
 
   Future<void> createNotificationChannel(AndroidNotificationChannel channel);
 
+  Future<void> deleteNotificationChannel(String channelId) async {}
+
   Future<void> zonedSchedule(
     int id,
     String? title,
@@ -135,6 +137,14 @@ class DefaultNotificationPlatform
         .resolvePlatformSpecificImplementation<
             AndroidFlutterLocalNotificationsPlugin>()
         ?.createNotificationChannel(channel);
+  }
+
+  @override
+  Future<void> deleteNotificationChannel(String channelId) async {
+    await _plugin
+        .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin>()
+        ?.deleteNotificationChannel(channelId);
   }
 
   @override

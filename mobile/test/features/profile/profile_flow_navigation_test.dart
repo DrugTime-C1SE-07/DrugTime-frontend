@@ -33,7 +33,7 @@ void main() {
     await t.tap(sound);
     await t.pumpAndSettle();
     expect(find.byType(ReminderSoundScreen), findsOneWidget);
-    expect(t.widget<Slider>(find.byType(Slider)).onChanged, isNull);
+    expect(find.byType(Slider), findsNothing);
     await t.tap(find.byType(BackButton));
     await t.pumpAndSettle();
     expect(find.byType(NotificationPreferencesScreen), findsOneWidget);

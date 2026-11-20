@@ -20,6 +20,9 @@ import 'core/config/app_config.dart';
 import 'core/storage/local_db/local_db.dart';
 import 'core/contracts/dose_outbox.dart';
 import 'core/notification/reminder_notification_scheduler.dart';
+import 'core/notification/reminder_sound_controller.dart';
+import 'core/notification/reminder_sound_native.dart';
+import 'core/notification/reminder_sound_store.dart';
 import 'core/notification/reminder_sync_coordinator.dart';
 import 'core/storage/local_db/local_medication_store.dart';
 import 'core/storage/local_db/sqlite_dose_outbox.dart';
@@ -80,11 +83,21 @@ Future<void> main() async {
   final localStore = SqliteLocalMedicationStore(localDb);
   final doseOutbox = SqliteDoseOutbox(localDb: localDb);
 
+  // Âm nhắc người dùng chọn ở S08-4a; mỗi âm một Android channel.
+  final reminderSounds = ReminderSoundController(
+    store: SecureReminderSoundStore(),
+    native: MethodChannelReminderSoundNative(),
+    notifications: notificationService.platform,
+    targetPlatform: defaultTargetPlatform,
+    onLog: debugPrint,
+  );
+
   // Khởi tạo dịch vụ lên lịch thông báo nhắc uống thuốc
   final scheduler = ReminderNotificationScheduler(
     platform: notificationService.platform,
     location: notificationService.location,
     targetPlatform: defaultTargetPlatform,
+    soundChannel: () => reminderSounds.selected,
   );
 
   final apiClient = _buildApiClient(authController);
@@ -98,6 +111,7 @@ Future<void> main() async {
     localStore: localStore,
     scheduler: scheduler,
     onLog: debugPrint,
+    beforeSchedule: reminderSounds.ensureValid,
   );
 
   final alerts = FamilyAlertController(RemoteFamilyAlertRepository(apiClient));
@@ -153,6 +167,12 @@ Future<void> main() async {
     alerts.clear();
     push.clear();
     await reminderSync.clear();
+    // Q1: âm tự thêm thuộc thiết bị của người dùng vừa đăng xuất.
+    try {
+      await reminderSounds.clearAll();
+    } on Exception catch (e) {
+      debugPrint('Không xóa được âm nhắc tự thêm: $e');
+    }
     await tokens?.logout(session);
   };
 
@@ -184,6 +204,7 @@ Future<void> main() async {
     doseOutbox: doseOutbox,
     reminderScheduler: scheduler,
     reminderSyncCoordinator: reminderSync,
+    reminderSoundController: reminderSounds,
     shouldAskReminderPermissions: secureStorage.markReminderPermissionsAsked,
     familyLinkCodeRepository: RemoteFamilyLinkCodeRepository(apiClient),
     familyLinkRepository: RemoteFamilyLinkRepository(apiClient),
