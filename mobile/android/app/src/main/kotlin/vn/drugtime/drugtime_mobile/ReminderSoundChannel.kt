@@ -30,7 +30,7 @@ class ReminderSoundChannel(
     companion object {
         const val NAME = "vn.drugtime.drugtime_mobile/reminder_sound"
         private const val PICK_REQUEST = 4107
-        private const val MAX_BYTES = 2L * 1024 * 1024
+        private const val MAX_BYTES = 10L * 1024 * 1024
         private const val HEAD_BYTES = 16
     }
 

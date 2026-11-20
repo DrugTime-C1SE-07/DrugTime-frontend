@@ -111,8 +111,8 @@ void main() {
             path: '/t', size: 900, head: [0x25, 0x50, 0x44, 0x46]),
         15000
       ),
-      'File quá lớn (tối đa 2 MB)': (
-        const PickedAudio(path: '/t', size: 2097153, head: mp3Head),
+      'File quá lớn (tối đa 10 MB)': (
+        const PickedAudio(path: '/t', size: 10485761, head: mp3Head),
         15000
       ),
       'Âm thanh phải dài từ 1 đến 30 giây': (mp3, 30001),

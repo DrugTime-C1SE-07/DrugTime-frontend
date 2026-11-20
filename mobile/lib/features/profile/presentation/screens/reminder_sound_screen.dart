@@ -98,7 +98,7 @@ class _SoundSettings extends StatelessWidget {
                     const SizedBox(height: 8),
                     Text(
                         c.canAdd
-                            ? 'MP3, M4A, AAC, OGG hoặc WAV, tối đa 2 MB, dài 1–30 giây.'
+                            ? 'MP3, M4A, AAC, OGG hoặc WAV, tối đa 10 MB, dài 1–30 giây.'
                             : 'Đã đủ ${ReminderSoundController.maxCustom} âm thanh. Xóa một âm thanh để thêm mới.',
                         style: AppTextStyles.caption),
                   ]),

@@ -39,15 +39,15 @@ void main() {
   group('checkFile__AC4', () {
     final mp3 = ascii('ID3');
 
-    test('2 MB exactly is accepted', () {
+    test('10 MB exactly is accepted', () {
       expect(
-          ReminderSoundValidator.checkFile(size: 2097152, head: mp3), isNull);
+          ReminderSoundValidator.checkFile(size: 10485760, head: mp3), isNull);
     });
 
-    test('2 MB + 1 byte is too large', () {
-      final error = ReminderSoundValidator.checkFile(size: 2097153, head: mp3);
+    test('10 MB + 1 byte is too large', () {
+      final error = ReminderSoundValidator.checkFile(size: 10485761, head: mp3);
       expect(error, ReminderSoundError.tooLarge);
-      expect(error!.message, 'File quá lớn (tối đa 2 MB)');
+      expect(error!.message, 'File quá lớn (tối đa 10 MB)');
     });
 
     test('unknown bytes are unsupported', () {
