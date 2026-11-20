@@ -1,6 +1,9 @@
 import 'package:drugtime_mobile/features/adherence_history/domain/entities/adherence_history.dart';
 import 'package:drugtime_mobile/features/home/presentation/home_schedule_controller.dart';
 import 'package:drugtime_mobile/features/home/presentation/widgets/home_dose_timeline.dart';
+import 'package:drugtime_mobile/features/medication/data/repositories/in_memory_medication_repository.dart';
+import 'package:drugtime_mobile/features/medication/domain/entities/medication.dart';
+import 'package:drugtime_mobile/features/medication/presentation/state/medication_controller.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -143,5 +146,57 @@ void main() {
         'Liều tiếp theo · 2 giờ 30 phút nữa');
     expect(nextDoseLabel(m, DateTime.utc(2026, 11, 17, 4, 5)),
         'Liều tiếp theo · Đến giờ rồi');
+  });
+
+  group('DoseIcon theo hình/màu đã chọn (AC23)', () {
+    Medication med(String id, String catalogId,
+            {PillShape? shape, PillColor? color}) =>
+        Medication(
+          id: id,
+          catalogId: catalogId,
+          name: 'Thuốc $id',
+          activeIngredient: '',
+          strength: '',
+          unit: 'viên',
+          dosePerIntake: 1,
+          frequency: DoseFrequency.twice,
+          timing: IntakeTiming.afterMeal,
+          pillShape: shape,
+          pillColor: color,
+        );
+
+    Future<void> pumpIcon(WidgetTester t, List<Medication> seed, int doseMedId) async {
+      final c = MedicationController(InMemoryMedicationRepository(seed: seed));
+      addTearDown(c.dispose);
+      await c.load();
+      await t.pumpWidget(MedicationScope(
+          controller: c,
+          child: MaterialApp(
+              home: Scaffold(
+                  body: Builder(
+                      builder: (context) => DoseIcon(
+                          medication: medicationOfDose(context,
+                              _dose(doseMedId, 8, HistoryDoseStatus.pending))))))));
+    }
+
+    testWidgets('thuốc có hình/màu thì vẽ theo lựa chọn', (t) async {
+      await pumpIcon(t, [med('5', '1007', shape: PillShape.roundTablet, color: PillColor.yellow)], 5);
+      expect(find.byKey(const Key('dose-icon-appearance')), findsOneWidget);
+    });
+
+    testWidgets('khớp theo id danh mục khi chỉ một thuốc', (t) async {
+      await pumpIcon(t, [med('5', '1007', color: PillColor.red)], 1007);
+      expect(find.byKey(const Key('dose-icon-appearance')), findsOneWidget);
+    });
+
+    testWidgets('chưa chọn hoặc nhập nhằng thì dùng icon mặc định', (t) async {
+      await pumpIcon(t, [med('5', '1007')], 5);
+      expect(find.byKey(const Key('dose-icon-appearance')), findsNothing);
+      await pumpIcon(t, [
+        med('5', '1007', color: PillColor.red),
+        med('6', '1007', color: PillColor.blue),
+      ], 1007);
+      expect(find.byKey(const Key('dose-icon-appearance')), findsNothing);
+    });
   });
 }

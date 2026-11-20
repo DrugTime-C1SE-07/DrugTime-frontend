@@ -280,4 +280,54 @@ void main() {
       expect(kindOf(409, '{"detail": "x"}'), MedicationFailureKind.unknown);
     });
   });
+
+  group('hình, màu và chi tiết danh mục (adhoc-20261120)', () {
+    test('đọc pill_shape/pill_color; thiếu hoặc lạ thành null (AC23)', () {
+      final chosen = MedicationApiMapper.medicationFromJson(
+          {...userMedicationJson(), 'pill_shape': 'capsule', 'pill_color': 'orange'});
+      expect(chosen.pillShape, PillShape.capsule);
+      expect(chosen.pillColor, PillColor.orange);
+
+      final missing = MedicationApiMapper.medicationFromJson(userMedicationJson());
+      expect(missing.pillShape, isNull);
+      final unknown = MedicationApiMapper.medicationFromJson(
+          {...userMedicationJson(), 'pill_shape': 'hexagon', 'pill_color': null});
+      expect(unknown.pillShape, isNull);
+      expect(unknown.pillColor, isNull);
+    });
+
+    test('POST chỉ gửi hình/màu khi đã chọn (AC11, AC18)', () {
+      expect(MedicationApiMapper.createBody(base(), 'u').containsKey('pill_shape'), isFalse);
+      final body = MedicationApiMapper.createBody(
+          base().withAppearance(PillShape.roundTablet, PillColor.yellow), 'u');
+      expect(body['pill_shape'], 'round_tablet');
+      expect(body['pill_color'], 'yellow');
+    });
+
+    test('PATCH gửi hình/màu khi đổi, kể cả về null', () {
+      final before = base().withAppearance(PillShape.capsule, PillColor.orange);
+      expect(MedicationApiMapper.patchBody(before, before), isEmpty);
+      expect(MedicationApiMapper.patchBody(before, before.withAppearance(PillShape.capsule, null)),
+          {'pill_color': null});
+    });
+
+    test('CatalogMedicationDetail → DrugCatalogDetail (AC7)', () {
+      final d = MedicationApiMapper.catalogDetailFromJson({
+        'id': 2210,
+        'name': 'Melas',
+        'active_ingredient': 'Hydroquinone',
+        'strength_text': '0,04',
+        'dosage_form': 'Kem bôi da',
+        'manufacturer_name': null,
+        'manufacturer_country': 'Việt Nam',
+        'packaging_spec': null,
+        'source': 'qd_5948',
+      });
+      expect(d.id, '2210');
+      expect(d.strength, '0,04');
+      expect(d.manufacturerName, isNull);
+      expect(d.manufacturerCountry, 'Việt Nam');
+      expect(d.source, 'qd_5948');
+    });
+  });
 }

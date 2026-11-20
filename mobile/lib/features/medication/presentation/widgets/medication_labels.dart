@@ -51,3 +51,24 @@ String drugSubtitle(String activeIngredient, String? dosageForm) {
   ];
   return parts.join(' · ');
 }
+
+final _numberThenUnit = RegExp(r'(\d)([a-zA-Zµμ%])');
+
+/// Hàm lượng dễ đọc: chỉ chèn khoảng trắng giữa số và đơn vị ("500mg" → "500 mg",
+/// "5mg/80mg" → "5 mg/80 mg"). Không đổi giá trị hay quy đổi đơn vị (QD-38): "0,04" giữ nguyên.
+String formatStrength(String raw) =>
+    raw.trim().replaceAllMapped(_numberThenUnit, (m) => '${m[1]} ${m[2]}');
+
+/// Nhãn của mã nguồn danh mục (`CatalogMedicationDetail.source`); `null` khi không rõ nguồn.
+String? sourceLabel(String? source) => switch (source) {
+      'dav_drugbank' => 'Cơ sở dữ liệu dược – Cục Quản lý Dược',
+      'qd_5948' => 'Danh mục theo Quyết định 5948',
+      'duoc_thu_qg' => 'Dược thư Quốc gia Việt Nam',
+      _ => null,
+    };
+
+/// Dòng phụ của thẻ thuốc ở các bước thêm thuốc: "500 mg · Viên nén", bỏ phần trống.
+String strengthAndForm(String strength, String? dosageForm) => [
+      if (strength.trim().isNotEmpty) formatStrength(strength),
+      if (dosageForm != null && dosageForm.trim().isNotEmpty) dosageForm.trim(),
+    ].join(' · ');

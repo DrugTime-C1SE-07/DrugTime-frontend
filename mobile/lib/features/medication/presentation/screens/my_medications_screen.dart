@@ -41,26 +41,10 @@ class _MyMedicationsScreenState extends State<MyMedicationsScreen> {
     setState(() => _query = '');
   }
 
+  /// Lưu xong, luồng thêm thuốc kết thúc ở màn "Đã thêm thuốc" (S07-M4), nên ở đây không cần
+  /// báo lại bằng snackbar.
   Future<void> _openAddMedication() async {
-    final added = await Navigator.of(context).pushNamed<Medication>(AppRoutes.addMedication);
-    if (!mounted || added == null) return;
-
-    final when = added.frequency.isAsNeeded
-        ? 'dùng khi cần, không đặt nhắc'
-        : 'nhắc lúc ${added.times.map((t) => t.format()).join(', ')}';
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: Row(
-            children: [
-              const Icon(Icons.check_circle, color: AppColors.safeBg),
-              const SizedBox(width: AppSpacing.md),
-              Expanded(child: Text('Đã thêm ${added.name} · $when')),
-            ],
-          ),
-        ),
-      );
+    await Navigator.of(context).pushNamed<Medication>(AppRoutes.addMedication);
   }
 
   void _showNotBuilt(String feature) {

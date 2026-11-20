@@ -6,7 +6,9 @@ import '../../domain/entities/medication.dart';
 import '../../domain/entities/medication_failure.dart';
 import '../state/medication_controller.dart';
 import '../widgets/medication_error_messages.dart';
+import '../widgets/drug_info_sheet.dart';
 import '../widgets/medication_labels.dart';
+import '../widgets/pill_appearance_icon.dart';
 import 'edit_medication_screen.dart';
 
 /// S06a · Xem chi tiết thuốc.
@@ -154,6 +156,12 @@ class _MedicationDetailScreenState extends State<MedicationDetailScreen> {
         ),
         actions: [
           IconButton(
+            key: const Key('detail-drug-info'),
+            tooltip: 'Xem thông tin thuốc',
+            icon: const Icon(Icons.info_outline, color: AppColors.brand),
+            onPressed: () => showMedicationInfoSheet(context, med),
+          ),
+          IconButton(
             tooltip: 'Sửa thông tin thuốc',
             icon: const Icon(Icons.edit_outlined, color: AppColors.brand),
             onPressed: _openEditScreen,
@@ -186,10 +194,21 @@ class _MedicationDetailScreenState extends State<MedicationDetailScreen> {
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: PillIcon(
-                    size: 26,
-                    color: active ? const Color(0xFF01554F) : AppColors.inkDisabled,
-                  ),
+                  child: med.pillShape == null && med.pillColor == null
+                      ? PillIcon(
+                          size: 26,
+                          color: active ? const Color(0xFF01554F) : AppColors.inkDisabled,
+                        )
+                      : Opacity(
+                          opacity: active ? 1 : 0.5,
+                          child: PillAppearanceIcon(
+                            key: const Key('detail-appearance'),
+                            shape: med.pillShape,
+                            color: med.pillColor,
+                            dosageForm: med.dosageForm,
+                            size: 30,
+                          ),
+                        ),
                 ),
                 const SizedBox(width: AppSpacing.md),
                 Expanded(

@@ -4,6 +4,7 @@ import '../../../../app/theme/app_theme.dart';
 import '../../../../shared/widgets/pill_icon.dart';
 import '../../domain/entities/medication.dart';
 import 'medication_labels.dart';
+import 'pill_appearance_icon.dart';
 
 /// Thẻ một thuốc trong danh sách "Thuốc của tôi".
 ///
@@ -38,7 +39,15 @@ class MedicationCard extends StatelessWidget {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                PillTile(muted: !active),
+                // Hình/màu người bệnh chọn (S07-M2b); chưa chọn thì như cũ.
+                med.pillShape == null && med.pillColor == null
+                    ? PillTile(muted: !active)
+                    : PillAppearanceTile(
+                        key: const Key('medication-card-appearance'),
+                        shape: med.pillShape,
+                        color: med.pillColor,
+                        dosageForm: med.dosageForm,
+                        muted: !active),
                 const SizedBox(width: AppSpacing.md),
                 Expanded(
                   child: Column(

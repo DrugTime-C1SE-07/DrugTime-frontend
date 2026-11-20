@@ -1,6 +1,10 @@
 /// Thực thể thuốc của người dùng và các kiểu giá trị đi kèm.
 library;
 
+import 'pill_appearance.dart';
+
+export 'pill_appearance.dart';
+
 enum MedicationStatus { active, stopped }
 
 enum IntakeTiming {
@@ -98,6 +102,37 @@ class DrugCatalogItem {
   final String unit;
 }
 
+/// Thông tin danh mục của một thuốc cho màn "Thông tin thuốc" (S07-M2i,
+/// `GET /catalog/medications/{id}`). Trường `null` khi nguồn không có; không có công dụng,
+/// liều tối đa hay cảnh báo.
+class DrugCatalogDetail {
+  const DrugCatalogDetail({
+    required this.id,
+    required this.name,
+    this.activeIngredient,
+    this.strength,
+    this.dosageForm,
+    this.manufacturerName,
+    this.manufacturerCountry,
+    this.packagingSpec,
+    this.source,
+  });
+
+  final String id;
+  final String name;
+  final String? activeIngredient;
+
+  /// Văn bản thô của danh mục, ví dụ "500mg" hay "0,04"; không quy đổi (QD-38).
+  final String? strength;
+  final String? dosageForm;
+  final String? manufacturerName;
+  final String? manufacturerCountry;
+  final String? packagingSpec;
+
+  /// Mã nguồn của contract: `dav_drugbank`, `qd_5948`, `duoc_thu_qg`.
+  final String? source;
+}
+
 class Medication {
   const Medication({
     required this.id,
@@ -116,6 +151,8 @@ class Medication {
     this.dosageForm,
     this.maxDosesPerDay,
     this.reminderEnabled = true,
+    this.pillShape,
+    this.pillColor,
   });
 
   /// Còn từ ngần này đơn vị trở xuống thì coi là sắp hết.
@@ -145,6 +182,10 @@ class Medication {
   /// Chỉ có với thuốc "Khi cần": số lần dùng tối đa mỗi ngày.
   final int? maxDosesPerDay;
   final bool reminderEnabled;
+
+  /// Hình và màu người bệnh chọn (S07-M2b); `null` = chưa chọn, hiển thị icon theo dạng bào chế.
+  final PillShape? pillShape;
+  final PillColor? pillColor;
 
   bool get isActive => status == MedicationStatus.active;
 
@@ -188,6 +229,30 @@ class Medication {
       dosageForm: dosageForm ?? this.dosageForm,
       maxDosesPerDay: maxDosesPerDay ?? this.maxDosesPerDay,
       reminderEnabled: reminderEnabled ?? this.reminderEnabled,
+      pillShape: pillShape,
+      pillColor: pillColor,
     );
   }
+
+  /// Bản sao với hình/màu đặt đúng giá trị truyền vào, kể cả `null` (xóa lựa chọn).
+  Medication withAppearance(PillShape? shape, PillColor? color) => Medication(
+        id: id,
+        catalogId: catalogId,
+        name: name,
+        activeIngredient: activeIngredient,
+        strength: strength,
+        unit: unit,
+        dosePerIntake: dosePerIntake,
+        frequency: frequency,
+        timing: timing,
+        times: times,
+        status: status,
+        stockRemaining: stockRemaining,
+        endedOn: endedOn,
+        dosageForm: dosageForm,
+        maxDosesPerDay: maxDosesPerDay,
+        reminderEnabled: reminderEnabled,
+        pillShape: shape,
+        pillColor: color,
+      );
 }

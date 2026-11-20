@@ -73,7 +73,11 @@ void main() {
                     strength: '',
                     dosageForm: 'Viên nén')))));
     await tester.pump();
+    // Bước 2 → S07-M3 không lưu; "Thêm thuốc" mới kiểm và chặn.
     await tester.tap(find.text('Tiếp tục'));
+    await tester.pump();
+    expect(repo.addCalls, isEmpty);
+    await tester.tap(find.byKey(const Key('confirm-add')));
     await tester.pump();
     expect(repo.addCalls, isEmpty);
     expect(find.textContaining('Hãy chọn thuốc có đủ'), findsOneWidget);

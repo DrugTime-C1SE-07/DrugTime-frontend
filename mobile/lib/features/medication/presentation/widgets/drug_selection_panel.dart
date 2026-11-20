@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../../app/theme/app_theme.dart';
 import '../../domain/entities/medication.dart';
-import 'medication_labels.dart';
+import 'catalog_result_tile.dart';
 
 enum DrugSelectionSource { ocr, search }
 
@@ -203,23 +203,9 @@ class _DrugSelectionPanelState extends State<DrugSelectionPanel> {
                         : Icons.radio_button_off),
                     const SizedBox(width: AppSpacing.md),
                     Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(item.name, style: AppTextStyles.bodyStrong),
-                          if (item.strength.trim().isNotEmpty)
-                            Text(item.strength, style: AppTextStyles.caption),
-                          Text(
-                              drugSubtitle(
-                                  item.activeIngredient, item.dosageForm),
-                              style: AppTextStyles.caption),
-                          if (item.unit.trim().isNotEmpty)
-                            Text('Đơn vị: ${item.unit}',
-                                style: AppTextStyles.caption),
-                          if (widget.isInUse?.call(item.id) ?? false)
-                            const Text('Đang dùng',
-                                style: AppTextStyles.captionStrong),
-                        ],
+                      child: CatalogResultTile(
+                        item: item,
+                        inUse: widget.isInUse?.call(item.id) ?? false,
                       ),
                     ),
                   ],

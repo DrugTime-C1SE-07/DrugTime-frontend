@@ -175,7 +175,8 @@ void main() {
     await scanGallery(tester, FakeMatcher()..result = lowConfidence());
     expect(find.byType(TextField), findsNothing);
     expect(find.byKey(const Key('ocr-single-result')), findsOneWidget);
-    expect(find.text('Metformin'), findsOneWidget);
+    // Tên và dòng "Hoạt chất" cùng là "Metformin"; chỉ ứng viên đầu tiên được hiện.
+    expect(find.text('Metformin'), findsNWidgets(2));
     expect(find.text('Thuốc khác'), findsNothing);
     expect(find.text('Hãy đối chiếu tên và số mg với vỏ hộp'), findsOneWidget);
     expect(find.text('Lịch uống'), findsNothing);
@@ -366,5 +367,44 @@ void main() {
     await tester.pumpWidget(const SizedBox());
     consent.dispose();
     services.dispose();
+  });
+
+  testWidgets('result buttons stay pinned while the card scrolls (AC4)',
+      (tester) async {
+    await tester.binding.setSurfaceSize(const Size(360, 640));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final long = 'Vitamin B1 (Thiamin nitrat) 125mg; Vitamin B12 (Mecobalamin) '
+        '500µg; Vitamin B6 (Pyridoxin HCl) 125mg; ' * 3;
+    await scanGallery(
+        tester,
+        FakeMatcher()
+          ..result = OcrMatchResult(
+              status: OcrMatchStatus.lowConfidence,
+              items: [
+                OcrCandidate(
+                    id: 5,
+                    name: 'Me2B',
+                    activeIngredient: long,
+                    strengthText: '125mg',
+                    dosageForm: 'Viên nén bao phim',
+                    hasActiveIngredients: true,
+                    score: 0.7),
+              ],
+              preselectedId: null,
+              suggestedQuery: 'me2b',
+              reasons: const ['below_threshold']));
+    final scroll = find.byKey(const Key('scan-result-scroll'));
+    expect(scroll, findsOneWidget);
+    await tester.drag(scroll, const Offset(0, -600));
+    await tester.pumpAndSettle();
+    final sheet = tester.getRect(find.byKey(const Key('scan-result-sheet')));
+    for (final label in ['Đúng thuốc này', 'Không phải thuốc này', 'Chụp lại']) {
+      final button = find.text(label);
+      expect(button.hitTestable(), findsOneWidget, reason: label);
+      expect(sheet.contains(tester.getCenter(button)), isTrue, reason: label);
+    }
+    await tester.tap(find.text('Không phải thuốc này'));
+    await tester.pumpAndSettle();
+    expect(find.byType(TextField), findsOneWidget);
   });
 }

@@ -7,6 +7,9 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../../../app/theme/app_theme.dart';
 import '../../../adherence_history/domain/entities/adherence_history.dart';
 import '../../../adherence_history/presentation/utils/adherence_history_format.dart';
+import '../../../medication/domain/entities/medication.dart';
+import '../../../medication/presentation/state/medication_controller.dart';
+import '../../../medication/presentation/widgets/pill_appearance_icon.dart';
 import '../home_schedule_controller.dart';
 
 const _green = Color(0xFF16A052);
@@ -180,7 +183,7 @@ class _NextDoseCard extends StatelessWidget {
         child:
             Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           Row(children: [
-            const DoseIcon(),
+            DoseIcon(medication: medicationOfDose(context, dose)),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
@@ -309,7 +312,7 @@ class _DoseRowState extends State<_DoseRow>
       child: Padding(
         padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
         child: Row(children: [
-          DoseIcon(muted: missed),
+          DoseIcon(muted: missed, medication: medicationOfDose(context, d)),
           const SizedBox(width: 10),
           Expanded(
             child:
@@ -387,13 +390,52 @@ class _DoseRowState extends State<_DoseRow>
   }
 }
 
-/// Ô vuông chứa viên thuốc (cam/trắng) dùng trong dòng liều.
+/// Thuốc của một liều để lấy hình/màu đã chọn. `medicationId` của liều được so với cả id thuốc
+/// của người bệnh lẫn id danh mục; chỉ dùng khi khớp đúng một thuốc, còn lại trả `null` (icon
+/// mặc định) để không vẽ nhầm hình của thuốc khác.
+Medication? medicationOfDose(BuildContext context, HistoryDose dose) {
+  final meds = context
+          .dependOnInheritedWidgetOfExactType<MedicationScope>()
+          ?.notifier
+          ?.medications ??
+      const <Medication>[];
+  final id = '${dose.medicationId}';
+  final byOwnId = meds.where((m) => m.id == id).toList();
+  if (byOwnId.length == 1) return byOwnId.single;
+  final byCatalog = meds.where((m) => m.catalogId == id).toList();
+  return byCatalog.length == 1 ? byCatalog.single : null;
+}
+
+/// Ô vuông chứa viên thuốc dùng trong dòng liều: hình/màu người bệnh chọn nếu có, không thì
+/// viên nang cam/trắng mặc định.
 class DoseIcon extends StatelessWidget {
-  const DoseIcon({super.key, this.muted = false});
+  const DoseIcon({super.key, this.muted = false, this.medication});
   final bool muted;
+  final Medication? medication;
 
   @override
-  Widget build(BuildContext context) => Container(
+  Widget build(BuildContext context) {
+    final m = medication;
+    if (m != null && (m.pillShape != null || m.pillColor != null)) {
+      return Container(
+        key: const Key('dose-icon-appearance'),
+        width: 44,
+        height: 44,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+            color: muted ? const Color(0xFFE6F3EF) : const Color(0xFFFFF0DF),
+            borderRadius: BorderRadius.circular(12)),
+        child: Opacity(
+          opacity: muted ? 0.55 : 1,
+          child: PillAppearanceIcon(
+              shape: m.pillShape, color: m.pillColor, dosageForm: m.dosageForm, size: 28),
+        ),
+      );
+    }
+    return _defaultIcon();
+  }
+
+  Widget _defaultIcon() => Container(
         width: 44,
         height: 44,
         decoration: BoxDecoration(

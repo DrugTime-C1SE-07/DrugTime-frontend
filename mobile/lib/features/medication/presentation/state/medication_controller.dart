@@ -72,6 +72,16 @@ class MedicationController extends ChangeNotifier {
   Future<List<DrugCatalogItem>> searchCatalog(String query) =>
       _repository.searchCatalog(query);
 
+  /// Thông tin danh mục của một thuốc (S07-M2i). Repo không hỗ trợ thì coi như không có
+  /// thông tin thêm; màn gọi vẫn hiện phần đã có.
+  Future<DrugCatalogDetail> fetchCatalogDetail(String catalogId) {
+    final repository = _repository;
+    if (repository is CatalogDetailSource) {
+      return (repository as CatalogDetailSource).fetchCatalogDetail(catalogId);
+    }
+    return Future.error(const MedicationFailure(MedicationFailureKind.notFound));
+  }
+
   /// Kiểm tra tương tác thuốc của người bệnh (PB24, Task 4.02).
   Future<InteractionCheckResult> checkInteractions({
     required String patientId,

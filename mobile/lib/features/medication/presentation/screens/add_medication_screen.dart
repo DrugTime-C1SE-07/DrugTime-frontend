@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
+import '../../../../app/router.dart';
 import '../../../../app/theme/app_theme.dart';
 import '../../../../core/storage/local_db/client_uuid.dart';
 import '../../../../shared/widgets/selectable_pill.dart';
@@ -11,10 +12,14 @@ import '../../domain/entities/medication.dart';
 import '../../domain/entities/medication_failure.dart';
 import '../state/medication_controller.dart';
 import '../widgets/drug_catalog_sheet.dart';
+import '../widgets/drug_info_sheet.dart';
+import '../widgets/medication_confirm_view.dart';
 import '../widgets/medication_error_messages.dart';
 import '../widgets/medication_form_fields.dart';
 import '../widgets/medication_labels.dart';
 import '../../../auth/presentation/state/auth_controller.dart';
+import 'medication_added_screen.dart';
+import 'pill_appearance_screen.dart';
 import '../../../interaction_check/presentation/widgets/interaction_warning_dialog.dart';
 
 import '../../../drug_food_warning/data/repositories/in_memory_food_interaction_repository.dart';
@@ -24,7 +29,8 @@ import '../../../drug_food_warning/presentation/widgets/food_warning_dialog.dart
 /// S07 · Thêm thuốc mới theo luồng 3 bước Figma (Prototype_DrugTime):
 /// Bước 1: Thuốc (từ màn quét `ScanMedicationScreen`, hoặc tìm trong danh mục)
 /// Bước 2: Lịch uống (Liều, Tần suất, Giờ uống, Cách uống)
-/// Bước 3: Xác nhận (Tóm tắt thông tin, kiểm tra tương tác)
+/// Bước 3: Xác nhận S07-M3 (dùng chung cho cả hai luồng), đổi dạng & màu S07-M2b, rồi
+/// S07-M4 "Đã thêm thuốc" (adhoc-20261120-add-medication-ux).
 class AddMedicationScreen extends StatefulWidget {
   const AddMedicationScreen({
     super.key,
@@ -54,6 +60,8 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
   DoseFrequency _frequency = DoseFrequency.twice;
   List<DoseTime> _times = DoseFrequency.twice.defaultTimes;
   IntakeTiming _timing = IntakeTiming.afterMeal;
+  PillShape? _pillShape;
+  PillColor? _pillColor;
 
   bool _dirty = false;
   bool _showDrugError = false;
@@ -172,6 +180,8 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
     final navigator = Navigator.of(context);
     setState(() => _saving = true);
 
+    // Tóm tắt kết quả kiểm tra thuốc–thuốc cho S07-M4; không có mã danh mục thì chưa kiểm tra.
+    var outcome = InteractionOutcome.notChecked;
     final candidateId = int.tryParse(drug.id);
     if (candidateId != null) {
       final patientId =
@@ -199,6 +209,7 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
           if (proceed != true) {
             return;
           }
+          outcome = InteractionOutcome.acceptedWithInteractions;
           if (mounted) setState(() => _saving = true);
         } else if (checkResult.isInsufficientData ||
             checkResult.insufficientDataMedications.isNotEmpty) {
@@ -209,7 +220,10 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
           if (proceed != true) {
             return;
           }
+          outcome = InteractionOutcome.insufficientData;
           if (mounted) setState(() => _saving = true);
+        } else {
+          outcome = InteractionOutcome.noneFound;
         }
       } catch (_) {
         if (!mounted) return;
@@ -218,6 +232,7 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
         if (proceed != true) {
           return;
         }
+        outcome = InteractionOutcome.notChecked;
         if (mounted) setState(() => _saving = true);
       }
 
@@ -266,6 +281,8 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
       stockRemaining: int.tryParse(_stockController.text),
       dosageForm: drug.dosageForm.isEmpty ? null : drug.dosageForm,
       maxDosesPerDay: _frequency.isAsNeeded ? _maxDoses : null,
+      pillShape: _pillShape,
+      pillColor: _pillColor,
     );
     final Medication created;
     try {
@@ -276,7 +293,43 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
       showMedicationFailure(context, failure);
       return;
     }
-    if (mounted) navigator.pop(created);
+    if (!mounted) return;
+    // S07-M4 thay màn quét và màn thêm thuốc; chỉ còn khung app phía dưới.
+    unawaited(navigator.pushAndRemoveUntil(
+      MaterialPageRoute<void>(
+        builder: (_) => MedicationAddedScreen(
+          medication: created,
+          outcome: outcome,
+          addAnotherRoute: widget.scannedDrug != null
+              ? AppRoutes.scanMedication
+              : AppRoutes.addMedication,
+        ),
+      ),
+      (route) => route.isFirst,
+    ));
+  }
+
+  Future<void> _changeAppearance() async {
+    final drug = _drug;
+    if (drug == null) return;
+    final choice = await showPillAppearanceScreen(
+      context,
+      drugName: drug.name,
+      dosageForm: drug.dosageForm,
+      shape: _pillShape,
+      color: _pillColor,
+    );
+    if (choice == null || !mounted) return;
+    final (shape, color) = choice;
+    _update(() {
+      _pillShape = shape;
+      _pillColor = color;
+    });
+  }
+
+  void _showInfo() {
+    final drug = _drug;
+    if (drug != null) showDrugInfoSheet(context, drug);
   }
 
   Future<bool> _confirmDiscard() async {
@@ -325,7 +378,12 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
     final drug = _drug;
     final inUse = drug != null && MedicationScope.of(context).isInUse(drug.id);
     if (widget.scannedDrug != null && drug != null) {
-      return _buildScanSchedule(drug, inUse);
+      return _currentStep == 2
+          ? _buildConfirmScaffold(drug, inUse)
+          : _buildScanSchedule(drug, inUse);
+    }
+    if (_currentStep == 2 && drug != null) {
+      return _buildConfirmScaffold(drug, inUse);
     }
 
     return PopScope(
@@ -353,7 +411,7 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
       case 1:
         return _buildStep2Schedule(drug!, inUse);
       case 2:
-        return _buildStep3Confirm(drug!, inUse);
+        return _buildStep2Schedule(drug!, inUse);
       default:
         return const SizedBox.shrink();
     }
@@ -399,10 +457,15 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
       ),
       children: [
         const FormFieldLabel('Thuốc đã chọn'),
-        DrugPickerField(
+        // Hàm lượng nằm ở dòng phụ của thẻ; nút (i) mở S07-M2i (nhận xét 4).
+        AddFlowDrugCard(
           key: _drugFieldKey,
-          value: drug,
-          onTap: _pickDrug,
+          name: drug.name,
+          subtitle: strengthAndForm(drug.strength, drug.dosageForm),
+          dosageForm: drug.dosageForm,
+          onInfo: _showInfo,
+          actionLabel: 'Đổi',
+          onAction: _pickDrug,
         ),
         if (inUse) ...[
           const SizedBox(height: AppSpacing.sm),
@@ -411,14 +474,6 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
                 'Kiểm tra lại để tránh uống trùng liều.',
           ),
         ],
-        const SizedBox(height: AppSpacing.xl),
-
-        // 2. Hàm lượng
-        const FormFieldLabel('Hàm lượng'),
-        ReadOnlyField(
-          value: drug.strength,
-          placeholder: 'Tự điền khi chọn thuốc',
-        ),
         const SizedBox(height: AppSpacing.xl),
 
         // 3. Mỗi lần uống
@@ -507,38 +562,58 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
     );
   }
 
-  Widget _buildStep3Confirm(DrugCatalogItem drug, bool inUse) {
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(
-        AppSpacing.page,
-        AppSpacing.sm,
-        AppSpacing.page,
-        AppSpacing.xl,
-      ),
-      children: [
-        Semantics(
-          header: true,
-          child: const Text('Xác nhận thông tin', style: AppTextStyles.heading),
-        ),
-        const SizedBox(height: AppSpacing.md),
-        ScheduleSummaryCard(
+  /// S07-M3, dùng chung cho luồng quét và luồng tìm tay.
+  Widget _buildConfirmScaffold(DrugCatalogItem drug, bool inUse) {
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop && !_saving) setState(() => _currentStep = 1);
+      },
+      child: Scaffold(
+        backgroundColor: AddFlowColors.background,
+        appBar: addFlowAppBar(context, 'Xác nhận'),
+        body: MedicationConfirmView(
           drug: drug,
           dose: _dose,
           frequency: _frequency,
           times: _times,
           timing: _timing,
-          stock: int.tryParse(_stockController.text),
           maxDoses: _maxDoses,
-          onEdit: () => setState(() => _currentStep = 1),
+          shape: _pillShape,
+          color: _pillColor,
+          inUse: inUse,
+          onInfo: _showInfo,
+          onChangeAppearance: _changeAppearance,
         ),
-        if (inUse) ...[
-          const SizedBox(height: AppSpacing.md),
-          CautionNote(
-            text: '${drug.name} đã có trong danh sách đang dùng. '
-                'Kiểm tra lại để tránh uống trùng liều.',
+        bottomNavigationBar: AddFlowBottomBar(children: [
+          Expanded(
+            child: OutlinedButton(
+              key: const Key('confirm-edit'),
+              style: OutlinedButton.styleFrom(
+                  minimumSize: const Size.fromHeight(AppSizes.primaryButton)),
+              onPressed: _saving ? null : () => setState(() => _currentStep = 1),
+              child: const Text('Sửa'),
+            ),
           ),
-        ],
-      ],
+          const SizedBox(width: 12),
+          Expanded(
+            flex: 2,
+            child: FilledButton.icon(
+              key: const Key('confirm-add'),
+              style: FilledButton.styleFrom(
+                  minimumSize: const Size.fromHeight(AppSizes.primaryButton)),
+              onPressed: _saving ? null : _save,
+              icon: _saving
+                  ? const SizedBox.square(
+                      dimension: 20,
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2.5, color: AppColors.onBrand))
+                  : const Icon(LucideIcons.check),
+              label: Text(_saving ? 'Đang thêm…' : 'Thêm thuốc'),
+            ),
+          ),
+        ]),
+      ),
     );
   }
 
@@ -549,16 +624,9 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
         onPressed: _nextStep,
       );
     }
-    if (_currentStep == 1) {
-      return _StepActionBar(
-        label: 'Tiếp tục',
-        onPressed: _nextStep,
-      );
-    }
-    return _SaveBar(
-      summary: _summary(),
-      saving: _saving,
-      onSave: _save,
+    return _StepActionBar(
+      label: 'Tiếp tục',
+      onPressed: _nextStep,
     );
   }
 
@@ -601,79 +669,20 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
                                   : const Color(0xFFE1E5E3),
                               borderRadius: BorderRadius.circular(4)))))),
           const SizedBox(height: 20),
-          Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                  color: Colors.white, borderRadius: BorderRadius.circular(16)),
-              child: Row(children: [
-                Container(
-                    width: 48,
-                    height: 48,
-                    decoration: BoxDecoration(
-                        color: const Color(0xFFFFEFDF),
-                        borderRadius: BorderRadius.circular(12)),
-                    child: Center(
-                        child: SizedBox.square(
-                            dimension: 30,
-                            child:
-                                Stack(alignment: Alignment.center, children: [
-                              Transform.rotate(
-                                  angle: -0.785398,
-                                  child: ClipRRect(
-                                      borderRadius: BorderRadius.circular(8),
-                                      child: const SizedBox(
-                                          width: 23,
-                                          height: 11,
-                                          child: Row(
-                                              crossAxisAlignment:
-                                                  CrossAxisAlignment.stretch,
-                                              children: [
-                                                Expanded(
-                                                    child: ColoredBox(
-                                                        color:
-                                                            Color(0xFFFFAC56))),
-                                                Expanded(
-                                                    child: ColoredBox(
-                                                        color:
-                                                            Color(0xFFF9FAFA)))
-                                              ])))),
-                              const Icon(LucideIcons.pill,
-                                  size: 30, color: Color(0xFF17396F)),
-                            ])))),
-                const SizedBox(width: 12),
-                Expanded(
-                    child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                      Text(drug.name, style: AppTextStyles.bodyStrong),
-                      Text(
-                          [drug.dosageForm]
-                              .where((v) => v.isNotEmpty)
-                              .join(' · '),
-                          style: AppTextStyles.caption)
-                    ])),
-                TextButton(
-                    onPressed: _pickDrug,
-                    style: TextButton.styleFrom(
-                        backgroundColor: const Color(0xFFE4F2EF),
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12))),
-                    child: const Text('Đổi'))
-              ])),
+          // Hàm lượng nằm ở dòng phụ của thẻ thay cho chip "500mg" đứng riêng; nút (i) mở
+          // S07-M2i (nhận xét 4).
+          AddFlowDrugCard(
+              name: drug.name,
+              subtitle: strengthAndForm(drug.strength, drug.dosageForm),
+              dosageForm: drug.dosageForm,
+              onInfo: _showInfo,
+              actionLabel: 'Đổi',
+              onAction: _pickDrug),
           if (inUse)
             const Padding(
                 padding: EdgeInsets.only(top: 8),
                 child: Text(
                     'Thuốc này đã có trong danh sách đang dùng. Hãy kiểm tra để tránh trùng liều.')),
-          if (drug.strength.isNotEmpty) ...[
-            const SizedBox(height: 12),
-            Align(
-                alignment: Alignment.centerLeft,
-                child: Chip(
-                    label: Text(drug.strength),
-                    backgroundColor: Colors.white,
-                    side: const BorderSide(color: Color(0xFFE1E5E3)))),
-          ],
           const SizedBox(height: 16),
           Container(
               padding: const EdgeInsets.all(16),
@@ -855,25 +864,14 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
                 child: Padding(
                     padding: const EdgeInsets.all(20),
                     child: FilledButton.icon(
-                        onPressed: _saving ? null : _save,
+                        key: const Key('schedule-continue'),
+                        onPressed: () => setState(() => _currentStep = 2),
                         style: FilledButton.styleFrom(
                             minimumSize: const Size.fromHeight(52)),
                         icon: const Icon(LucideIcons.arrowRight),
-                        label: Text(_saving ? 'Đang lưu…' : 'Tiếp tục'))))),
+                        label: const Text('Tiếp tục'))))),
       ),
     );
-  }
-
-  /// Tóm tắt ngay trên nút Lưu để người dùng rà lại trước khi xác nhận.
-  String? _summary() {
-    final drug = _drug;
-    if (drug == null) return null;
-    final dose =
-        '${formatQuantity(_dose)} ${drug.unit.isEmpty ? "viên" : drug.unit}';
-    if (_frequency.isAsNeeded) {
-      return '$dose mỗi lần · Khi cần · tối đa $_maxDoses lần/ngày';
-    }
-    return '$dose · ${_times.map((t) => t.format()).join(', ')} · ${_timing.label}';
   }
 }
 
@@ -908,69 +906,6 @@ class _StepActionBar extends StatelessWidget {
               minimumSize: const Size.fromHeight(AppSizes.primaryButton),
             ),
             child: Text(label),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _SaveBar extends StatelessWidget {
-  const _SaveBar({
-    required this.summary,
-    required this.saving,
-    required this.onSave,
-  });
-
-  final String? summary;
-  final bool saving;
-  final VoidCallback onSave;
-
-  @override
-  Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: const BoxDecoration(
-        color: AppColors.surface,
-        border: Border(top: BorderSide(color: AppColors.border)),
-      ),
-      child: SafeArea(
-        top: false,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(
-            AppSpacing.page,
-            AppSpacing.md,
-            AppSpacing.page,
-            AppSpacing.md,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              if (summary != null) ...[
-                Text(
-                  summary!,
-                  textAlign: TextAlign.center,
-                  style: AppTextStyles.figureSmall
-                      .copyWith(color: AppColors.inkMuted),
-                ),
-                const SizedBox(height: AppSpacing.sm),
-              ],
-              FilledButton(
-                onPressed: saving ? null : onSave,
-                style: FilledButton.styleFrom(
-                  minimumSize: const Size.fromHeight(AppSizes.primaryButton),
-                ),
-                child: saving
-                    ? const SizedBox.square(
-                        dimension: 24,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2.5,
-                          color: AppColors.onBrand,
-                        ),
-                      )
-                    : const Text('Lưu thuốc'),
-              ),
-            ],
           ),
         ),
       ),

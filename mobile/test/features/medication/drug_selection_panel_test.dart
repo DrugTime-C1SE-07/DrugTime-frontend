@@ -122,8 +122,13 @@ void main() {
     await mount(tester, candidates: _Samples.missing);
     await tester.tap(candidate(0));
     await tester.pump();
+    // Khung "Thông tin thuốc đã chọn"; dòng kết quả cũng ghi "Hoạt chất: Chưa có thông tin".
+    final review = find.byKey(const ValueKey('drug-selection-review'));
     for (final label in ['Hoạt chất', 'Hàm lượng', 'Dạng bào chế', 'Đơn vị']) {
-      expect(find.text('$label: Chưa có thông tin'), findsOneWidget);
+      expect(
+          find.descendant(
+              of: review, matching: find.text('$label: Chưa có thông tin')),
+          findsOneWidget);
     }
     expect(find.textContaining('null'), findsNothing);
     expect(find.textContaining('500 mg'), findsNothing);
