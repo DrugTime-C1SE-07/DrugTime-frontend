@@ -1,4 +1,6 @@
 import 'dart:async';
+import '../features/consent/data/account_deletion_repository.dart';
+import '../features/consent/presentation/screens/account_deletion_screen.dart';
 import '../features/patient_monitor/data/patient_monitor_repository.dart';
 import '../features/patient_monitor/presentation/patient_monitor_controller.dart';
 import '../features/meal_suggestion/domain/repositories/allergy_profile_repository.dart';
@@ -121,10 +123,12 @@ class DrugTimeApp extends StatefulWidget {
     this.deviceTokenCoordinator,
     this.familyConnectivity,
     this.patientMonitorRepository,
+    this.accountDeletionRepository,
   });
 
   /// Trạng thái đăng nhập; app chạy thật dựng với RemoteAuthRepository (xem main.dart).
   final AuthController authController;
+  final AccountDeletionRepository? accountDeletionRepository;
   final AppTab initialTab;
   final bool preview;
   final AdherenceHistoryRepository? adherenceHistoryRepository;
@@ -941,8 +945,10 @@ class _DrugTimeAppState extends State<DrugTimeApp> with WidgetsBindingObserver {
       scaffoldMessengerKey: _scaffoldMessengerKey,
       title: 'DrugTime',
       debugShowCheckedModeBanner: false,
-      builder: (context, child) =>
-          CaptureScope(services: _captures, child: child!),
+      builder: (context, child) => AccountDeletionScope(
+          repository: widget.accountDeletionRepository,
+          child: AccountDeletionGate(
+              child: CaptureScope(services: _captures, child: child!))),
       theme: buildAppTheme(),
       locale: const Locale('vi'),
       supportedLocales: const [Locale('vi'), Locale('en')],

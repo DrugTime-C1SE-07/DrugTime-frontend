@@ -29,6 +29,8 @@ enum MascotMood {
 
   /// Được xoa đầu: nhắm mắt cười, má ửng đậm, tim bay lên; tự quay về trạng thái trước.
   blissful,
+  farewell,
+  thumbsUp,
 }
 
 /// Trang phục của linh vật. [chef]: mũ đầu bếp + bát salad ở tay phải.
