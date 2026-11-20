@@ -24,6 +24,7 @@ import '../core/notification/notification_id.dart';
 import '../core/notification/notification_service.dart';
 import '../core/notification/reminder_scheduler.dart';
 import '../core/notification/reminder_sync_coordinator.dart';
+import '../core/notification/reminder_sound_controller.dart';
 import '../core/platform/keyguard_service.dart';
 import '../core/storage/local_db/local_medication_store.dart';
 import '../core/storage/local_db/local_models.dart';
@@ -103,6 +104,7 @@ class DrugTimeApp extends StatefulWidget {
     this.doseOutbox,
     this.reminderScheduler,
     this.reminderSyncCoordinator,
+    this.reminderSoundController,
     this.shouldAskReminderPermissions,
     this.keyguardPlatform,
     this.clock,
@@ -185,6 +187,9 @@ class DrugTimeApp extends StatefulWidget {
 
   /// Đồng bộ lịch uống và lập lại nhắc khi có phiên hoặc khi sửa thuốc.
   final ReminderSyncCoordinator? reminderSyncCoordinator;
+
+  /// Âm thanh nhắc (S08-4a); null thì màn S08-4a hiện chưa khả dụng.
+  final ReminderSoundController? reminderSoundController;
 
   /// Chỉ xin quyền nhắc thuốc khi trả `true` (lần đầu sau khi cài); `null` thì luôn xin.
   final Future<bool> Function()? shouldAskReminderPermissions;
@@ -305,6 +310,12 @@ class _DrugTimeAppState extends State<DrugTimeApp> with WidgetsBindingObserver {
   // Q1: xin quyền toàn màn hình cùng lúc xin quyền thông báo, khi phiên được kích hoạt.
   Future<void> _activateReminders(String userId) async {
     if (await _shouldAskPermissions()) await _askReminderPermissions();
+    try {
+      // AC7: âm đã chọn bị xóa từ ngoài app thì về chuông mặc định khi mở app.
+      await widget.reminderSoundController?.load();
+    } on Exception catch (e) {
+      debugPrint('Không đọc được âm nhắc đã chọn: $e');
+    }
     await widget.reminderSyncCoordinator?.refresh(userId);
   }
 
@@ -329,6 +340,13 @@ class _DrugTimeAppState extends State<DrugTimeApp> with WidgetsBindingObserver {
     } on Exception catch (e) {
       debugPrint('Không xin được quyền thông báo toàn màn hình: $e');
     }
+  }
+
+  Widget _withReminderSound(Widget child) {
+    final sounds = widget.reminderSoundController;
+    return sounds == null
+        ? child
+        : ReminderSoundScope(controller: sounds, child: child);
   }
 
   void _refreshReminders() {
@@ -580,6 +598,7 @@ class _DrugTimeAppState extends State<DrugTimeApp> with WidgetsBindingObserver {
       }));
     }
     WidgetsBinding.instance.addObserver(this);
+    widget.reminderSoundController?.onSoundChanged = _refreshReminders;
     widget.familyPushService?.addListener(_openPendingFamily);
     widget.notificationService?.onFamilyAction =
         (id) => widget.familyPushService?.offer(id == null ? null : '$id');
@@ -881,7 +900,7 @@ class _DrugTimeAppState extends State<DrugTimeApp> with WidgetsBindingObserver {
               invites: _invites,
               incomingRequests: _incomingRequests,
               monitor: _monitor,
-              child: ProfileScope(
+              child: _withReminderSound(ProfileScope(
                 controller: _profiles,
                 child: HealthSetupStatusScope(
                   controller: _healthSetup,
@@ -899,7 +918,7 @@ class _DrugTimeAppState extends State<DrugTimeApp> with WidgetsBindingObserver {
                     ),
                   ),
                 ),
-              ),
+              )),
             ),
           ),
         ),

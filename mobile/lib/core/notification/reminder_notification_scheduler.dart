@@ -6,6 +6,7 @@ import 'package:timezone/timezone.dart' as tz;
 import 'package:drugtime_mobile/core/notification/notification_id.dart';
 import 'package:drugtime_mobile/core/notification/notification_service.dart';
 import 'package:drugtime_mobile/core/notification/reminder_occurrence_generator.dart';
+import 'package:drugtime_mobile/core/notification/reminder_sound.dart';
 import 'package:drugtime_mobile/core/notification/reminder_scheduler.dart';
 
 /// Dịch vụ lên lịch và hủy thông báo nhắc uống thuốc cục bộ trên Android/iOS.
@@ -23,7 +24,9 @@ class ReminderNotificationScheduler implements ReminderScheduler {
     this.onTakeDose,
     this.onLog,
     this.targetPlatform,
-  }) : _clock = clockProvider ?? DateTime.timestamp;
+    ReminderSound Function()? soundChannel,
+  })  : _clock = clockProvider ?? DateTime.timestamp,
+        _soundChannel = soundChannel ?? (() => ReminderSounds.system);
 
   static const int maxIosScheduledNotifications = 64;
 
@@ -31,6 +34,9 @@ class ReminderNotificationScheduler implements ReminderScheduler {
   final tz.Location location;
   final DateTime Function() _clock;
   final TargetPlatform? targetPlatform;
+
+  /// Âm đang chọn (S08-4a); chỉ đổi channel, mọi trường khác giữ nguyên (QD-26).
+  final ReminderSound Function() _soundChannel;
 
   /// Callback xử lý khi người dùng nhấn nút hành động "Đã uống".
   final Future<void> Function(NotificationPayload payload)? onTakeDose;
@@ -43,21 +49,24 @@ class ReminderNotificationScheduler implements ReminderScheduler {
   static const String defaultTitle = 'Nhắc uống thuốc';
   static const String defaultBody = 'Đã đến giờ uống thuốc theo lịch';
 
-  static const AndroidNotificationDetails _androidNotificationDetails =
-      AndroidNotificationDetails(
-    NotificationService.reminderChannelId,
-    NotificationService.reminderChannelName,
-    channelDescription: NotificationService.reminderChannelDescription,
-    importance: Importance.max,
-    priority: Priority.high,
-    fullScreenIntent: true,
-    category: AndroidNotificationCategory.alarm,
-    color: Color(0xFF004D40),
-  );
-
-  static const NotificationDetails _notificationDetails = NotificationDetails(
-    android: _androidNotificationDetails,
-  );
+  NotificationDetails get _notificationDetails {
+    final sound = _soundChannel();
+    return NotificationDetails(
+      android: AndroidNotificationDetails(
+        sound.channelId,
+        sound.channelName,
+        channelDescription: NotificationService.reminderChannelDescription,
+        importance: Importance.max,
+        priority: Priority.high,
+        fullScreenIntent: true,
+        category: AndroidNotificationCategory.alarm,
+        color: const Color(0xFF004D40),
+        playSound: sound.playsSound,
+        sound: sound.androidSound,
+        enableVibration: true,
+      ),
+    );
+  }
 
   /// Lên lịch các lượt nhắc uống thuốc từ danh sách [occurrences].
   ///
