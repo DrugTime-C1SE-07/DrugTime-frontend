@@ -18,6 +18,8 @@ import '../state/capture_scope.dart';
 import '../state/ocr_controller.dart';
 import '../widgets/capture_warning_text.dart';
 import '../widgets/ocr_single_result_card.dart';
+import '../widgets/recognition_steps.dart';
+import '../widgets/scanning_mascot.dart';
 
 /// S07-O: camera, recognition, confirmation and scheduling.
 class ScanMedicationScreen extends StatefulWidget {
@@ -364,14 +366,12 @@ class _ScanMedicationScreenState extends State<ScanMedicationScreen>
     }
     _clearImage();
     if (!mounted) return;
-    final result = await Navigator.of(context).push<Medication>(
-        MaterialPageRoute(
-            builder: (_) => AddMedicationScreen(scannedDrug: drug)));
-    if (mounted && result != null) {
-      Navigator.of(context).pop(result);
-    } else if (mounted) {
-      await _retake();
-    }
+    final route = ModalRoute.of(context);
+    await Navigator.of(context).push<Medication>(MaterialPageRoute(
+        builder: (_) => AddMedicationScreen(scannedDrug: drug)));
+    // Lưu xong, màn "Đã thêm thuốc" gỡ cả màn quét khỏi stack: không mở lại camera. Chỉ chụp
+    // lại khi người dùng quay về từ bước lịch uống.
+    if (mounted && (route?.isActive ?? false)) await _retake();
   }
 
   Future<void> _manualEntry() async {
@@ -580,12 +580,19 @@ class _ScanMedicationScreenState extends State<ScanMedicationScreen>
                                     onTap: _screen == _Screen.recognizing
                                         ? _failDuringRecognition
                                         : null,
-                                    child: _resultSheet(math.max(
-                                        constraints.maxHeight * .5,
-                                        constraints.maxHeight -
-                                            48 -
-                                            frameHeight -
-                                            8)))),
+                                    // Below the photo on normal phones; on very
+                                    // short screens it may cover part of the photo
+                                    // so the pinned buttons always fit.
+                                    child: _resultSheet(math.min(
+                                        constraints.maxHeight,
+                                        math.max(
+                                            _minResultSheetHeight,
+                                            math.max(
+                                                constraints.maxHeight * .5,
+                                                constraints.maxHeight -
+                                                    48 -
+                                                    frameHeight -
+                                                    8)))))),
                         ]);
                       })),
             if (_screen == _Screen.camera) _cameraActions(),
@@ -738,132 +745,108 @@ class _ScanMedicationScreenState extends State<ScanMedicationScreen>
               ]))));
 
   /// [maxHeight] keeps the sheet below the photo so the box stays visible
-  /// while the user compares it with the one result; the card scrolls.
+  /// while the user compares it with the one result. Only the card scrolls: the
+  /// buttons stay pinned at the bottom of the sheet (adhoc-20261120 nhận xét 2).
   Widget _resultSheet(double maxHeight) => Container(
       key: const Key('scan-result-sheet'),
       width: double.infinity,
       constraints: _screen == _Screen.result
           ? BoxConstraints(maxHeight: maxHeight)
           : null,
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
       decoration: const BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.vertical(top: Radius.circular(28))),
       child: _screen == _Screen.recognizing
-          ? Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                  Center(
-                      child: Container(
-                          width: 40,
-                          height: 4,
-                          decoration: BoxDecoration(
-                              color: const Color(0xFFD6D8D6),
-                              borderRadius: BorderRadius.circular(4)))),
-                  const SizedBox(height: 16),
-                  const Text('Đang nhận diện thuốc...',
-                      style:
-                          TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 16),
-                  ClipRRect(
-                      borderRadius: BorderRadius.circular(8),
-                      child: const LinearProgressIndicator(
-                          value: 0.6,
-                          minHeight: 7,
-                          color: Color(0xFF00534D),
-                          backgroundColor: Color(0xFFE5F3EF))),
-                  const SizedBox(height: 16),
-                  ListenableBuilder(
-                      listenable: _ocr ?? _empty,
-                      builder: (_, __) {
-                        final matching = _ocr?.stage == OcrStage.matching;
-                        return Column(children: [
-                          _recognitionStep(
-                              LucideIcons.check,
-                              'Đã chụp ảnh vỏ thuốc',
-                              const Color(0xFF16A34A),
-                              Colors.white),
-                          _recognitionStep(
-                              matching
-                                  ? LucideIcons.check
-                                  : LucideIcons.loaderCircle,
-                              matching
-                                  ? 'Đã đọc chữ trên vỏ'
-                                  : 'Đang đọc chữ trên vỏ',
-                              const Color(0xFFE2F1ED),
-                              const Color(0xFF00534D)),
-                          _recognitionStep(
-                              matching
-                                  ? LucideIcons.loaderCircle
-                                  : LucideIcons.circle,
-                              matching
-                                  ? 'Đang đối chiếu danh mục thuốc'
-                                  : 'Đối chiếu danh mục thuốc',
-                              const Color(0xFFF0F1EF),
-                              matching ? const Color(0xFF00534D) : Colors.grey),
-                        ]);
-                      }),
-                  const SizedBox(height: 12),
-                  Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                          color: const Color(0xFFF2F5F3),
-                          borderRadius: BorderRadius.circular(12)),
-                      child: const Row(children: [
-                        Icon(LucideIcons.shield,
-                            size: 18, color: Color(0xFF00534D)),
-                        SizedBox(width: 10),
-                        Expanded(
-                            child: Text('Ảnh chỉ xử lý trên máy, không gửi đi',
-                                style: TextStyle(fontSize: 12)))
-                      ])),
-                ])
-          : SingleChildScrollView(
-              child: Column(mainAxisSize: MainAxisSize.min, children: [
-              Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                      color: const Color(0xFFD6D8D6),
-                      borderRadius: BorderRadius.circular(4))),
+          ? SingleChildScrollView(child: _recognizingContent())
+          : Column(mainAxisSize: MainAxisSize.min, children: [
+              _sheetHandle(),
               const SizedBox(height: 14),
               const Text('Có đúng thuốc trên vỏ hộp không?',
                   style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
               const SizedBox(height: 12),
-              if (_candidate case final candidate?)
-                OcrSingleResultCard(
-                    candidate: candidate,
-                    strengthUnverified:
-                        _ocr?.result?.reasons.contains('strength_unverified') ??
-                            false,
-                    checkReminder: _checkReminder,
+              Flexible(
+                  child: SingleChildScrollView(
+                      key: const Key('scan-result-scroll'),
+                      child: _candidate == null
+                          ? const SizedBox.shrink()
+                          : OcrSingleResultCard(
+                              candidate: _candidate!,
+                              strengthUnverified: _ocr?.result?.reasons
+                                      .contains('strength_unverified') ??
+                                  false,
+                              checkReminder: _checkReminder))),
+              const SizedBox(height: 12),
+              if (_candidate != null)
+                OcrResultActions(
                     onConfirm: _confirm,
-                    onNotThis: _manualEntry),
-              TextButton(onPressed: _retake, child: const Text('Chụp lại')),
-            ])));
+                    onNotThis: _manualEntry,
+                    onRetake: _retake)
+              else
+                TextButton(onPressed: _retake, child: const Text('Chụp lại')),
+            ]));
 
-  Widget _recognitionStep(
-          IconData icon, String label, Color background, Color foreground) =>
-      Padding(
-          padding: const EdgeInsets.only(bottom: 12),
-          child: Row(children: [
-            Container(
-                width: 32,
-                height: 32,
-                decoration:
-                    BoxDecoration(color: background, shape: BoxShape.circle),
-                child: Icon(icon, size: 17, color: foreground)),
-            const SizedBox(width: 12),
-            Expanded(
-                child: Text(label,
-                    style: TextStyle(
-                        color: foreground == Colors.grey
-                            ? Colors.grey
-                            : const Color(0xFF202221),
-                        fontWeight: foreground == const Color(0xFF00534D)
-                            ? FontWeight.bold
-                            : FontWeight.normal))),
-          ]));
+  /// Title + the three pinned buttons + a little of the card.
+  static const double _minResultSheetHeight = 340;
+
+  Widget _sheetHandle() => Center(
+      child: Container(
+          width: 40,
+          height: 4,
+          decoration: BoxDecoration(
+              color: const Color(0xFFD6D8D6),
+              borderRadius: BorderRadius.circular(4))));
+
+  /// Steps share one style and the bar follows the real OCR stage (nhận xét 1).
+  Widget _recognizingContent() => ListenableBuilder(
+      listenable: _ocr ?? _empty,
+      builder: (_, __) {
+        final stage = _ocr?.stage ?? OcrStage.recognizing;
+        return Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _sheetHandle(),
+              const SizedBox(height: 12),
+              const Row(children: [
+                ScanningMascot(size: 72),
+                SizedBox(width: 8),
+                Expanded(
+                    child: Text('Đang nhận diện thuốc...',
+                        style: TextStyle(
+                            fontSize: 22, fontWeight: FontWeight.bold))),
+              ]),
+              const SizedBox(height: 12),
+              ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: TweenAnimationBuilder<double>(
+                      tween: Tween(end: recognitionProgress(stage)),
+                      duration: MediaQuery.disableAnimationsOf(context)
+                          ? Duration.zero
+                          : const Duration(milliseconds: 400),
+                      builder: (_, value, __) => LinearProgressIndicator(
+                          key: const Key('scan-progress'),
+                          value: value,
+                          minHeight: 7,
+                          color: const Color(0xFF00534D),
+                          backgroundColor: const Color(0xFFE5F3EF)))),
+              const SizedBox(height: 16),
+              RecognitionSteps(stage: stage),
+              const SizedBox(height: 4),
+              Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                      color: const Color(0xFFF2F5F3),
+                      borderRadius: BorderRadius.circular(12)),
+                  child: const Row(children: [
+                    Icon(LucideIcons.shield,
+                        size: 18, color: Color(0xFF00534D)),
+                    SizedBox(width: 10),
+                    Expanded(
+                        child: Text('Ảnh chỉ xử lý trên máy, không gửi đi',
+                            style: TextStyle(fontSize: 12)))
+                  ])),
+            ]);
+      });
 }

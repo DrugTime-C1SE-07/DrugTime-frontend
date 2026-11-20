@@ -7,7 +7,7 @@ import '../models/medication_api_mapper.dart';
 
 /// Thuốc của người dùng qua Backend API (`/medications`, `/catalog/medications`).
 /// Quyền được server kiểm ở mỗi request; app không giữ quyết định phân quyền.
-class RemoteMedicationRepository implements MedicationRepository {
+class RemoteMedicationRepository implements MedicationRepository, CatalogDetailSource {
   RemoteMedicationRepository(this._api);
 
   final ApiClient _api;
@@ -62,6 +62,12 @@ class RemoteMedicationRepository implements MedicationRepository {
       return MedicationApiMapper.catalogListFromJson(json);
     });
   }
+
+  @override
+  Future<DrugCatalogDetail> fetchCatalogDetail(String catalogId) => _guard(() async {
+        final json = await _api.getJson('/catalog/medications/${Uri.encodeComponent(catalogId)}');
+        return MedicationApiMapper.catalogDetailFromJson(json as Map<String, dynamic>);
+      });
 
   Future<T> _guard<T>(Future<T> Function() call) async {
     try {

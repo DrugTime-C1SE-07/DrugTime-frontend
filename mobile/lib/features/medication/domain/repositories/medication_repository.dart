@@ -24,3 +24,10 @@ abstract interface class MedicationRepository {
   /// Tìm theo tên thuốc hoặc hoạt chất. Chuỗi rỗng trả danh sách rỗng.
   Future<List<DrugCatalogItem>> searchCatalog(String query);
 }
+
+/// Chi tiết một thuốc trong danh mục cho màn "Thông tin thuốc" (S07-M2i). Tách khỏi
+/// [MedicationRepository] để các bản giả chỉ cần danh sách thuốc không phải cài thêm.
+abstract interface class CatalogDetailSource {
+  /// Ném `MedicationFailure` (`notFound` khi không có thuốc).
+  Future<DrugCatalogDetail> fetchCatalogDetail(String catalogId);
+}

@@ -1,18 +1,18 @@
 import 'package:flutter/material.dart';
 
 import '../../../../app/theme/app_theme.dart';
+import '../../../medication/presentation/widgets/medication_labels.dart';
 import '../../domain/ocr_models.dart';
 
-/// The one medicine recognised on the box (`matched`), sized for older users:
-/// large name, explicit confirmation, and a way out when it is not the right one
-/// (QD-39: the user always confirms).
+/// The one medicine recognised on the box (`matched`), sized for older users: large name
+/// and one "label: value" row per field, the same layout as the drug information sheet
+/// (S07-M2i). The buttons live in [OcrResultActions], pinned below the scrollable card so
+/// they never scroll away (QD-39: the user always confirms).
 class OcrSingleResultCard extends StatelessWidget {
   const OcrSingleResultCard({
     super.key = const Key('ocr-single-result'),
     required this.candidate,
     required this.strengthUnverified,
-    required this.onConfirm,
-    required this.onNotThis,
     this.checkReminder = false,
   });
 
@@ -24,15 +24,12 @@ class OcrSingleResultCard extends StatelessWidget {
   /// `low_confidence`: the server is not sure, so ask to compare name and mg with the
   /// box before confirming (adhoc-20261116 01 §6.1, QD-39). Replaces the mg hint.
   final bool checkReminder;
-  final VoidCallback onConfirm, onNotThis;
 
   @override
   Widget build(BuildContext context) {
     String? present(String? value) =>
-        value == null || value.trim().isEmpty ? null : value;
+        value == null || value.trim().isEmpty ? null : value.trim();
     final strength = present(candidate.strengthText);
-    final form = present(candidate.dosageForm);
-    final ingredient = present(candidate.activeIngredient);
     return Container(
       padding: const EdgeInsets.all(AppSpacing.lg),
       decoration: BoxDecoration(
@@ -71,19 +68,15 @@ class OcrSingleResultCard extends StatelessWidget {
                 ),
             ],
           ),
-          if (strength != null) ...[
-            const SizedBox(height: AppSpacing.sm),
-            Text('Hàm lượng: $strength', style: AppTextStyles.title),
-          ],
-          if (form != null) ...[
-            const SizedBox(height: AppSpacing.xs),
-            Text('Dạng: $form', style: AppTextStyles.body),
-          ],
-          if (ingredient != null) ...[
-            const SizedBox(height: AppSpacing.xs),
-            Text('Hoạt chất: $ingredient',
-                style: AppTextStyles.body.copyWith(color: AppColors.inkMuted)),
-          ],
+          const SizedBox(height: AppSpacing.md),
+          OcrInfoRow(
+              label: 'Hàm lượng',
+              value: strength == null ? null : formatStrength(strength)),
+          OcrInfoRow(label: 'Dạng bào chế', value: present(candidate.dosageForm)),
+          OcrInfoRow(
+              label: 'Hoạt chất',
+              value: present(candidate.activeIngredient),
+              last: true),
           if (checkReminder || strengthUnverified) ...[
             const SizedBox(height: AppSpacing.md),
             Container(
@@ -107,7 +100,72 @@ class OcrSingleResultCard extends StatelessWidget {
               ]),
             ),
           ],
-          const SizedBox(height: AppSpacing.lg),
+        ],
+      ),
+    );
+  }
+}
+
+/// One "label: value" line; a missing value reads "Chưa có thông tin" instead of vanishing,
+/// so every result has the same rows.
+class OcrInfoRow extends StatelessWidget {
+  const OcrInfoRow({
+    super.key,
+    required this.label,
+    required this.value,
+    this.last = false,
+  });
+
+  final String label;
+  final String? value;
+  final bool last;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
+        decoration: BoxDecoration(
+          border: last
+              ? null
+              : const Border(bottom: BorderSide(color: AppColors.border)),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SizedBox(
+              width: 112,
+              child: Text(label,
+                  style: AppTextStyles.body.copyWith(color: AppColors.inkMuted)),
+            ),
+            Expanded(
+              child: Text(
+                value ?? 'Chưa có thông tin',
+                textAlign: TextAlign.end,
+                style: value == null
+                    ? AppTextStyles.body.copyWith(color: AppColors.inkMuted)
+                    : AppTextStyles.bodyStrong,
+              ),
+            ),
+          ],
+        ),
+      );
+}
+
+/// Buttons under the scan result, pinned to the bottom of the sheet.
+class OcrResultActions extends StatelessWidget {
+  const OcrResultActions({
+    super.key = const Key('ocr-result-actions'),
+    required this.onConfirm,
+    required this.onNotThis,
+    required this.onRetake,
+  });
+
+  final VoidCallback onConfirm, onNotThis, onRetake;
+
+  @override
+  Widget build(BuildContext context) => Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
           FilledButton.icon(
             style: FilledButton.styleFrom(
                 minimumSize: const Size.fromHeight(AppSizes.primaryButton)),
@@ -122,8 +180,7 @@ class OcrSingleResultCard extends StatelessWidget {
             onPressed: onNotThis,
             child: const Text('Không phải thuốc này'),
           ),
+          TextButton(onPressed: onRetake, child: const Text('Chụp lại')),
         ],
-      ),
-    );
-  }
+      );
 }

@@ -205,7 +205,9 @@ void main() {
     expect(find.text('Cùng tên'), findsNWidgets(2));
     expect(find.text('5 mg'), findsOneWidget);
     expect(find.textContaining('null'), findsNothing);
-    expect(find.text('Chưa có thông tin hoạt chất'), findsOneWidget);
+    // Dòng thiếu dữ liệu giữ đủ hàng và ghi rõ là thiếu (nhận xét 5).
+    expect(find.text('Hoạt chất: Chưa có thông tin'), findsOneWidget);
+    expect(find.text('Chưa rõ hàm lượng'), findsOneWidget);
   });
 
   testWidgets(

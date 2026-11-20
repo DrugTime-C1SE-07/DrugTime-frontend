@@ -7,42 +7,58 @@ const _drug = OcrCandidate(
     id: 7,
     name: 'Glucophage 500 mg',
     activeIngredient: 'Metformin hydroclorid',
-    strengthText: '500 mg',
+    strengthText: '500mg',
     dosageForm: 'Viên nén bao phim',
     hasActiveIngredients: true,
     score: 0.82);
 
 void main() {
-  Future<List<String>> mount(WidgetTester tester,
-      {bool strengthUnverified = false, bool checkReminder = false}) async {
-    final calls = <String>[];
+  Future<void> mount(WidgetTester tester,
+      {OcrCandidate candidate = _drug,
+      bool strengthUnverified = false,
+      bool checkReminder = false}) async {
     await tester.pumpWidget(MaterialApp(
         home: Scaffold(
             body: SingleChildScrollView(
                 child: OcrSingleResultCard(
-                    candidate: _drug,
+                    candidate: candidate,
                     strengthUnverified: strengthUnverified,
-                    checkReminder: checkReminder,
-                    onConfirm: () => calls.add('confirm'),
-                    onNotThis: () => calls.add('not-this'))))));
-    return calls;
+                    checkReminder: checkReminder)))));
   }
 
-  testWidgets('shows one medicine with large strength and both actions (AC1)',
+  String valueOf(WidgetTester tester, String label) {
+    final row = tester.widget<OcrInfoRow>(find.ancestor(
+        of: find.text(label), matching: find.byType(OcrInfoRow)));
+    return row.value ?? 'Chưa có thông tin';
+  }
+
+  testWidgets('shows one medicine as label/value rows, strength readable (AC1)',
       (tester) async {
-    final calls = await mount(tester);
+    await mount(tester);
     expect(find.byKey(const Key('ocr-single-result')), findsOneWidget);
     expect(find.text('Glucophage 500 mg'), findsOneWidget);
-    expect(find.text('Hàm lượng: 500 mg'), findsOneWidget);
-    expect(find.text('Dạng: Viên nén bao phim'), findsOneWidget);
-    expect(find.text('Hoạt chất: Metformin hydroclorid'), findsOneWidget);
+    expect(valueOf(tester, 'Hàm lượng'), '500 mg');
+    expect(valueOf(tester, 'Dạng bào chế'), 'Viên nén bao phim');
+    expect(valueOf(tester, 'Hoạt chất'), 'Metformin hydroclorid');
+    expect(find.text('82% khớp'), findsOneWidget);
     expect(find.text('Hãy xem số mg trên vỏ hộp'), findsNothing);
     expect(find.text('Hãy đối chiếu tên và số mg với vỏ hộp'), findsNothing);
-    await tester.tap(find.text('Đúng thuốc này'));
-    await tester.tap(find.text('Không phải thuốc này'));
-    expect(calls, ['confirm', 'not-this']);
-    expect(tester.getSize(find.byType(FilledButton)).height,
-        greaterThanOrEqualTo(48));
+    // Nút không còn nằm trong thẻ: chúng được ghim ở đáy sheet.
+    expect(find.text('Đúng thuốc này'), findsNothing);
+  });
+
+  testWidgets('missing fields keep their row and say so', (tester) async {
+    await mount(tester,
+        candidate: const OcrCandidate(
+            id: 8,
+            name: 'Thuốc thiếu dữ liệu',
+            activeIngredient: null,
+            strengthText: ' ',
+            dosageForm: null,
+            hasActiveIngredients: false,
+            score: 0.6));
+    expect(find.byType(OcrInfoRow), findsNWidgets(3));
+    expect(find.text('Chưa có thông tin'), findsNWidgets(3));
   });
 
   testWidgets('strength_unverified asks to read the mg (AC1)', (tester) async {
@@ -55,5 +71,21 @@ void main() {
     await mount(tester, strengthUnverified: true, checkReminder: true);
     expect(find.text('Hãy đối chiếu tên và số mg với vỏ hộp'), findsOneWidget);
     expect(find.text('Hãy xem số mg trên vỏ hộp'), findsNothing);
+  });
+
+  testWidgets('actions call back and are large enough to tap', (tester) async {
+    final calls = <String>[];
+    await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+            body: OcrResultActions(
+                onConfirm: () => calls.add('confirm'),
+                onNotThis: () => calls.add('not-this'),
+                onRetake: () => calls.add('retake')))));
+    await tester.tap(find.text('Đúng thuốc này'));
+    await tester.tap(find.text('Không phải thuốc này'));
+    await tester.tap(find.text('Chụp lại'));
+    expect(calls, ['confirm', 'not-this', 'retake']);
+    expect(tester.getSize(find.byType(FilledButton)).height,
+        greaterThanOrEqualTo(48));
   });
 }

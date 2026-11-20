@@ -49,6 +49,8 @@ abstract final class MedicationApiMapper {
       endedOn: endedAt == null ? null : DateTime.parse(endedAt).toLocal(),
       dosageForm: dosageForm,
       maxDosesPerDay: asNeeded ? dosesPerDay : null,
+      pillShape: PillShape.fromApi(json['pill_shape']),
+      pillColor: PillColor.fromApi(json['pill_color']),
     );
   }
 
@@ -71,6 +73,20 @@ abstract final class MedicationApiMapper {
     );
   }
 
+  /// `CatalogMedicationDetail` → [DrugCatalogDetail].
+  static DrugCatalogDetail catalogDetailFromJson(Map<String, dynamic> json) =>
+      DrugCatalogDetail(
+        id: '${json['id']}',
+        name: json['name'] as String,
+        activeIngredient: json['active_ingredient'] as String?,
+        strength: json['strength_text'] as String?,
+        dosageForm: json['dosage_form'] as String?,
+        manufacturerName: json['manufacturer_name'] as String?,
+        manufacturerCountry: json['manufacturer_country'] as String?,
+        packagingSpec: json['packaging_spec'] as String?,
+        source: json['source'] as String?,
+      );
+
   static List<DrugCatalogItem> catalogListFromJson(Object? json) => [
         for (final item in ((json as Map<String, dynamic>)['items'] as List))
           catalogItemFromJson(item as Map<String, dynamic>),
@@ -90,6 +106,9 @@ abstract final class MedicationApiMapper {
       if (!asNeeded) 'intake_times': _times(draft.times),
       'intake_timing': _timingToApi[draft.timing],
       if (draft.stockRemaining != null) 'stock_quantity': draft.stockRemaining,
+      // Chỉ gửi khi người dùng đã chọn: request không đổi gì với backend cũ.
+      if (draft.pillShape != null) 'pill_shape': draft.pillShape!.apiValue,
+      if (draft.pillColor != null) 'pill_color': draft.pillColor!.apiValue,
     };
   }
 
@@ -104,6 +123,8 @@ abstract final class MedicationApiMapper {
     if (after.stockRemaining != before.stockRemaining) {
       body['stock_quantity'] = after.stockRemaining;
     }
+    if (after.pillShape != before.pillShape) body['pill_shape'] = after.pillShape?.apiValue;
+    if (after.pillColor != before.pillColor) body['pill_color'] = after.pillColor?.apiValue;
 
     final wasAsNeeded = before.frequency.isAsNeeded;
     final isAsNeeded = after.frequency.isAsNeeded;

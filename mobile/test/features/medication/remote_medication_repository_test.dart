@@ -271,4 +271,34 @@ void main() {
     expect(int.tryParse(base().catalogId), isNotNull);
     expect(base().frequency, DoseFrequency.twice);
   });
+
+  group('GET /catalog/medications/{id} (AC7, AC17)', () {
+    test('gọi đúng path và đọc chi tiết', () async {
+      replies.add((200, {
+        'id': 1007,
+        'name': 'Amlodipin 5mg',
+        'active_ingredient': 'Amlodipin besilat',
+        'strength_text': '5 mg',
+        'dosage_form': 'Viên nén',
+        'manufacturer_name': 'Công ty CP Dược phẩm ABC',
+        'manufacturer_country': 'Việt Nam',
+        'packaging_spec': 'Hộp 3 vỉ x 10 viên',
+        'source': 'dav_drugbank',
+      }));
+      final detail = await repo.fetchCatalogDetail('1007');
+      expect(requests.single.method, 'GET');
+      expect(requests.single.uri.path, '/catalog/medications/1007');
+      expect(requests.single.authorization, 'Bearer app-token');
+      expect(detail.manufacturerName, 'Công ty CP Dược phẩm ABC');
+    });
+
+    test('404 thành MedicationFailure notFound', () async {
+      replies.add((404, {'detail': 'catalog_medication_not_found'}));
+      await expectLater(
+        repo.fetchCatalogDetail('99'),
+        throwsA(isA<MedicationFailure>()
+            .having((f) => f.kind, 'kind', MedicationFailureKind.notFound)),
+      );
+    });
+  });
 }

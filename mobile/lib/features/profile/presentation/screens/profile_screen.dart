@@ -198,7 +198,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                     _menu(
                       'Chia sẻ và liên kết',
                       'Kết nối với người thân',
-                      'h-users',
+                      'h-share',
                       () => _open(AppRoutes.shareAndLink),
                       key: const Key('share-and-link-tile'),
                     ),

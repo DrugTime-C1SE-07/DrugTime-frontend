@@ -6,7 +6,7 @@ import '../../domain/repositories/medication_repository.dart';
 /// Dữ liệu mẫu trong bộ nhớ: dùng cho bản web (xem giao diện, không có `dart:io`) và test.
 /// Mô phỏng hành vi của server ở những điểm app dựa vào: gửi lại cùng `clientUuid` không tạo
 /// trùng, ngừng/dùng lại, thuốc đã xoá không còn tìm thấy.
-class InMemoryMedicationRepository implements MedicationRepository {
+class InMemoryMedicationRepository implements MedicationRepository, CatalogDetailSource {
   InMemoryMedicationRepository({List<Medication>? seed})
       : _medications = [...(seed ?? sampleMedications)];
 
@@ -75,6 +75,23 @@ class InMemoryMedicationRepository implements MedicationRepository {
             d.name.toLowerCase().contains(q) ||
             d.activeIngredient.toLowerCase().contains(q))
         .toList();
+  }
+
+  /// Bản giả: chỉ có dữ liệu của `sampleCatalog`, không có nhà sản xuất hay xuất xứ.
+  @override
+  Future<DrugCatalogDetail> fetchCatalogDetail(String catalogId) async {
+    for (final d in sampleCatalog) {
+      if (d.id == catalogId) {
+        return DrugCatalogDetail(
+          id: d.id,
+          name: d.name,
+          activeIngredient: d.activeIngredient.isEmpty ? null : d.activeIngredient,
+          strength: d.strength.isEmpty ? null : d.strength,
+          dosageForm: d.dosageForm.isEmpty ? null : d.dosageForm,
+        );
+      }
+    }
+    throw const MedicationFailure(MedicationFailureKind.notFound);
   }
 
   Medication _find(String id) {

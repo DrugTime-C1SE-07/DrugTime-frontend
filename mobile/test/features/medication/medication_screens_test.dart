@@ -7,6 +7,7 @@ import 'package:drugtime_mobile/features/medication/data/repositories/in_memory_
 import 'package:drugtime_mobile/features/medication/domain/entities/medication.dart';
 import 'package:drugtime_mobile/features/medication/domain/entities/medication_failure.dart';
 import 'package:drugtime_mobile/features/medication/presentation/screens/add_medication_screen.dart';
+import 'package:drugtime_mobile/features/medication/presentation/widgets/medication_confirm_view.dart';
 import 'package:drugtime_mobile/features/medication/presentation/widgets/medication_filter_bar.dart';
 import 'package:drugtime_mobile/features/medication/presentation/widgets/medication_form_fields.dart';
 import 'package:flutter/material.dart';
@@ -136,6 +137,15 @@ Future<void> openAddScreen(WidgetTester tester) async {
   expect(find.text('Thêm thuốc mới'), findsOneWidget);
 }
 
+/// Bước 2 → S07-M3 → "Thêm thuốc".
+Future<void> confirmAndAdd(WidgetTester tester) async {
+  await tester.tap(find.text('Tiếp tục'));
+  await tester.pumpAndSettle();
+  expect(find.byKey(const Key('medication-confirm-view')), findsOneWidget);
+  await tester.tap(find.byKey(const Key('confirm-add')));
+  await tester.pumpAndSettle();
+}
+
 Future<void> tapVisible(WidgetTester tester, Finder finder) async {
   // ListView dựng lười: cuộn tới khi widget được build rồi mới chạm.
   await tester.scrollUntilVisible(
@@ -262,20 +272,17 @@ void main() {
       await pickDrug(tester, 'amlo', 'Amlodipin 5mg');
       await tapVisible(tester, find.byTooltip('Tăng liều'));
       await tapVisible(tester, find.text('3 lần/ngày'));
-      // DrugPickerField is at the TOP of step-1 ListView.
-      // After tapVisible() calls the list has scrolled down, so scroll back up first.
-      final step1Scrollable = find
+      // Thẻ thuốc ở đầu bước 2; tapVisible() đã cuộn xuống nên cuộn lên trước.
+      final step2Scrollable = find
           .descendant(
               of: find.byType(AddMedicationScreen),
               matching: find.byType(Scrollable))
           .first;
-      await tester.scrollUntilVisible(
-        find.byType(DrugPickerField),
-        -200,
-        scrollable: step1Scrollable,
-      );
+      final change = find.descendant(
+          of: find.byType(AddFlowDrugCard), matching: find.text('Đổi'));
+      await tester.scrollUntilVisible(change, -200, scrollable: step2Scrollable);
       await tester.pumpAndSettle();
-      await tester.tap(find.byType(DrugPickerField));
+      await tester.tap(change);
       await tester.pumpAndSettle();
       await tester.enterText(find.byType(TextField).last, 'losartan');
       await tester.pumpAndSettle();
@@ -285,17 +292,10 @@ void main() {
       expect(repository.addCalls, isEmpty);
       Navigator.of(tester.element(find.byType(TextField).last)).pop();
       await tester.pumpAndSettle();
-      final original =
-          tester.widget<DrugPickerField>(find.byType(DrugPickerField)).value!;
-      expect(original.id, 'amlodipin-5');
+      expect(tester.widget<AddFlowDrugCard>(find.byType(AddFlowDrugCard)).name,
+          'Amlodipin 5mg');
       expect(repository.addCalls, isEmpty);
-      await tester.scrollUntilVisible(
-        find.byType(DrugPickerField),
-        -200,
-        scrollable: step1Scrollable,
-      );
-      await tester.pumpAndSettle();
-      await tester.tap(find.byType(DrugPickerField));
+      await tester.tap(change);
       await tester.pumpAndSettle();
       await tester.enterText(find.byType(TextField).last, 'losartan');
       await tester.pumpAndSettle();
@@ -305,24 +305,17 @@ void main() {
       expect(repository.addCalls, isEmpty);
       await tester.tap(find.text('Xác nhận thuốc'));
       await tester.pumpAndSettle();
-      final picked =
-          tester.widget<DrugPickerField>(find.byType(DrugPickerField)).value!;
-      expect(picked.id, 'losartan-50');
-      expect(picked.strength, '50 mg');
+      final card = tester.widget<AddFlowDrugCard>(find.byType(AddFlowDrugCard));
+      expect(card.name, 'Losartan 50mg');
+      expect(card.subtitle, startsWith('50 mg'));
       expect(repository.addCalls, isEmpty);
       expect(find.textContaining('đã có trong danh sách đang dùng'),
           findsOneWidget);
-      await tester.tap(find.text('Tiếp tục'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Lưu thuốc'));
-      await tester.pumpAndSettle();
+      await confirmAndAdd(tester);
       final saved = repository.addCalls.single.$1;
-      expect(saved.catalogId, picked.id);
-      expect(saved.name, picked.name);
-      expect(saved.activeIngredient, picked.activeIngredient);
-      expect(saved.strength, picked.strength);
-      expect(saved.dosageForm, picked.dosageForm);
-      expect(saved.unit, picked.unit);
+      expect(saved.catalogId, 'losartan-50');
+      expect(saved.name, 'Losartan 50mg');
+      expect(saved.strength, '50 mg');
       expect(saved.dosePerIntake, 2);
       expect(saved.frequency, DoseFrequency.thrice);
       expect(saved.times, DoseFrequency.thrice.defaultTimes);
@@ -345,17 +338,12 @@ void main() {
       expect(repository.addCalls, isEmpty);
       await tester.tap(find.text('Xác nhận thuốc'));
       await tester.pumpAndSettle();
-      final picked =
-          tester.widget<DrugPickerField>(find.byType(DrugPickerField)).value;
-      expect(picked, same(repository.items.last));
-      expect(
-          tester.widget<ReadOnlyField>(find.byType(ReadOnlyField)).value, '');
+      // Thuốc thiếu hàm lượng và dạng: dòng phụ trống, không hiện "null".
+      expect(tester.widget<AddFlowDrugCard>(find.byType(AddFlowDrugCard)).subtitle,
+          '');
       expect(find.textContaining('null'), findsNothing);
       expect(repository.addCalls, isEmpty);
-      await tester.tap(find.text('Tiếp tục'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Lưu thuốc'));
-      await tester.pumpAndSettle();
+      await confirmAndAdd(tester);
       final saved = repository.addCalls.single.$1;
       expect(saved.catalogId, '200');
       expect(saved.activeIngredient, '');
@@ -386,8 +374,8 @@ void main() {
       await tester.tap(find.text('Xác nhận thuốc'));
       await tester.pumpAndSettle();
 
-      // Hàm lượng tự điền từ danh mục.
-      expect(find.text('5 mg'), findsOneWidget);
+      // Hàm lượng nằm ở dòng phụ của thẻ thuốc (không còn ô riêng).
+      expect(find.text('5 mg · Viên nén'), findsOneWidget);
 
       await tapVisible(tester, find.byTooltip('Tăng liều'));
       expect(find.text('2 viên'), findsOneWidget);
@@ -399,14 +387,17 @@ void main() {
       await tapVisible(tester, find.text('1 lần/ngày'));
       expect(find.text('08:00'), findsOneWidget);
 
-      await tester.tap(find.text('Tiếp tục'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Lưu thuốc'));
-      await tester.pumpAndSettle();
+      await confirmAndAdd(tester);
 
+      // Kết thúc ở S07-M4; thuốc đã có trong danh sách.
+      expect(find.text('Đã thêm thuốc!'), findsOneWidget);
+      expect(find.textContaining('Amlodipin 5mg'), findsOneWidget);
+      await tester.tap(find.byKey(const Key('added-go-home')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Thuốc'));
+      await tester.pumpAndSettle();
       expect(find.text('Thuốc của tôi'), findsOneWidget);
       expect(find.text('Amlodipin 5mg'), findsOneWidget);
-      expect(find.textContaining('Đã thêm Amlodipin 5mg'), findsOneWidget);
     });
 
     testWidgets('cảnh báo khi chọn thuốc đã có trong danh sách',
@@ -447,10 +438,10 @@ void main() {
       await tester.tap(find.text('Tiếp tục'));
       await tester.pumpAndSettle();
 
-      // Hai lần nhấn trước khi frame kế tiếp kịp vô hiệu nút. Gọi thẳng onPressed
+      // Hai lần nhấn trước khi frame kế tiếp kịp vô hiệu nút (AC12). Gọi thẳng onPressed
       // vì tap() thứ hai sẽ trượt: repo trong bộ nhớ lưu xong và đóng màn ngay.
       final save = tester
-          .widget<FilledButton>(find.widgetWithText(FilledButton, 'Lưu thuốc'))
+          .widget<ButtonStyleButton>(find.byKey(const Key('confirm-add')))
           .onPressed!;
       save();
       save();
@@ -459,7 +450,7 @@ void main() {
       final saved = await repository.fetchAll();
       expect(saved, hasLength(before + 1));
       expect(saved.where((m) => m.catalogId == 'amlodipin-5'), hasLength(1));
-      expect(find.text('Thuốc của tôi'), findsOneWidget);
+      expect(find.text('Đã thêm thuốc!'), findsOneWidget);
     });
 
     testWidgets('hỏi xác nhận trước khi bỏ thông tin đã nhập', (tester) async {
@@ -497,22 +488,20 @@ void main() {
 
       repository.failNextAdd =
           const MedicationFailure(MedicationFailureKind.network);
-      await tester.tap(find.text('Tiếp tục'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Lưu thuốc'));
-      await tester.pumpAndSettle();
+      await confirmAndAdd(tester);
 
-      expect(find.text('Thêm thuốc mới'), findsOneWidget);
+      // Ở lại S07-M3, báo lỗi và giữ dữ liệu (AC15).
+      expect(find.byKey(const Key('medication-confirm-view')), findsOneWidget);
       expect(
           find.text('Không kết nối được máy chủ. Kiểm tra mạng rồi thử lại.'),
           findsOneWidget);
       expect(
           find.text('Amlodipin 5mg'), findsOneWidget); // thuốc đã chọn vẫn còn
 
-      await tester.tap(find.text('Lưu thuốc'));
+      await tester.tap(find.byKey(const Key('confirm-add')));
       await tester.pumpAndSettle();
 
-      expect(find.text('Thuốc của tôi'), findsOneWidget);
+      expect(find.text('Đã thêm thuốc!'), findsOneWidget);
       expect(repository.addCalls, hasLength(2));
       expect(repository.addCalls[0].$2, repository.addCalls[1].$2);
       expect(await repository.fetchAll(), hasLength(before + 1));
@@ -527,17 +516,14 @@ void main() {
 
       repository.failNextAdd =
           const MedicationFailure(MedicationFailureKind.catalogNotFound);
-      await tester.tap(find.text('Tiếp tục'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Lưu thuốc'));
-      await tester.pumpAndSettle();
+      await confirmAndAdd(tester);
 
       expect(
         find.text(
             'Thuốc này không còn trong danh mục. Vui lòng chọn thuốc khác.'),
         findsOneWidget,
       );
-      expect(find.text('Thêm thuốc mới'), findsOneWidget);
+      expect(find.byKey(const Key('medication-confirm-view')), findsOneWidget);
     });
 
     testWidgets(
@@ -568,10 +554,7 @@ void main() {
       );
       expect(increase.onPressed, isNull, reason: 'không vượt quá 6');
 
-      await tester.tap(find.text('Tiếp tục'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Lưu thuốc'));
-      await tester.pumpAndSettle();
+      await confirmAndAdd(tester);
       final draft = repository.addCalls.single.$1;
       expect(draft.frequency, DoseFrequency.asNeeded);
       expect(draft.maxDosesPerDay, 6);
@@ -589,10 +572,7 @@ void main() {
       await tapVisible(tester, find.text('2 lần/ngày'));
       expect(find.text('Tối đa mỗi ngày'), findsNothing);
 
-      await tester.tap(find.text('Tiếp tục'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Lưu thuốc'));
-      await tester.pumpAndSettle();
+      await confirmAndAdd(tester);
       expect(repository.addCalls.single.$1.maxDosesPerDay, isNull);
     });
 
