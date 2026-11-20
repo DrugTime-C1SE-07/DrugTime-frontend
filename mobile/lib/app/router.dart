@@ -338,10 +338,23 @@ Route<dynamic>? onGenerateRoute(
       ),
     AppRoutes.familyLinkResult => MaterialPageRoute<void>(
         settings: settings,
-        builder: (_) => LinkRequestResultScreen(
-          outcome: settings.arguments as LinkSubmitOutcome? ??
-              LinkSubmitOutcome.waiting,
-        ),
+        builder: (_) {
+          final args = settings.arguments;
+          if (args is LinkRequestResultArgs) {
+            return LinkRequestResultScreen(
+              outcome: args.outcome,
+              recipientName: args.recipientName,
+              recipientRole: args.recipientRole,
+              recipientContact: args.recipientContact,
+              onCancelRequest: args.onCancelRequest,
+              showCancelButton: args.showCancelButton,
+            );
+          }
+          return LinkRequestResultScreen(
+            outcome: args as LinkSubmitOutcome? ?? LinkSubmitOutcome.waiting,
+            showCancelButton: false,
+          );
+        },
       ),
     AppRoutes.linkConsentConfirmation => MaterialPageRoute<bool>(
         settings: settings,
