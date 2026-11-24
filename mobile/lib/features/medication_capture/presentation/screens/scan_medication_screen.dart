@@ -54,6 +54,59 @@ class _ScanCorners extends CustomPainter {
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
+class _ScanBeam extends StatefulWidget {
+  const _ScanBeam();
+
+  static const int _cycles = 30;
+  static const period = Duration(milliseconds: 1400);
+
+  @override
+  State<_ScanBeam> createState() => _ScanBeamState();
+}
+
+class _ScanBeamState extends State<_ScanBeam>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller =
+      AnimationController(vsync: this, duration: _ScanBeam.period);
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (MediaQuery.disableAnimationsOf(context)) {
+      _controller
+        ..stop()
+        ..value = 0.5;
+    } else if (!_controller.isAnimating && _controller.value == 0) {
+      _controller.repeat(reverse: true, count: _ScanBeam._cycles * 2);
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) {
+        final t = Curves.easeInOut.transform(_controller.value);
+        return Align(
+          key: const Key('scan-beam'),
+          alignment: Alignment(0, -1 + 2 * t),
+          child: child,
+        );
+      },
+      child: Container(
+        height: 2,
+        color: const Color(0xFF76DACC),
+      ),
+    );
+  }
+}
+
 enum _Screen { camera, recognizing, result, failure }
 
 class _ScanMedicationScreenState extends State<ScanMedicationScreen>
@@ -78,6 +131,24 @@ class _ScanMedicationScreenState extends State<ScanMedicationScreen>
   bool _nameMissed = false;
   // The shown medicine came from low_confidence: ask to compare it with the box.
   bool _checkReminder = false;
+  CaptureCropRect? _scanCropRect;
+
+  static const double _cameraFrameMargin = 36;
+  static const double _cameraFrameHeight = 220;
+
+  CaptureCropRect? _computeScanCropRect(double vw, double vh) {
+    if (vw <= 0 || vh <= 0) return null;
+    final frameW = (vw - _cameraFrameMargin * 2).clamp(0.0, vw);
+    final frameH = math.min(_cameraFrameHeight, vh);
+    if (frameW <= 0 || frameH <= 0) return null;
+    return CaptureCropRect(
+      left: ((vw - frameW) / 2) / vw,
+      top: ((vh - frameH) / 2) / vh,
+      width: frameW / vw,
+      height: frameH / vh,
+      viewportAspectRatio: vw / vh,
+    );
+  }
 
   @override
   void initState() {
@@ -173,7 +244,7 @@ class _ScanMedicationScreenState extends State<ScanMedicationScreen>
     if (gallery) {
       pickOutcome = await camera.pickPhoto();
     } else {
-      await camera.takePhoto();
+      await camera.takePhoto(crop: _scanCropRect);
     }
     if (!mounted || generation != _generation) return;
     if (pickOutcome == PhotoPickOutcome.canceled) {
@@ -468,6 +539,10 @@ class _ScanMedicationScreenState extends State<ScanMedicationScreen>
                     ? _failureBody()
                     : LayoutBuilder(builder: (context, constraints) {
                         final showingResult = _screen != _Screen.camera;
+                        if (!showingResult) {
+                          _scanCropRect = _computeScanCropRect(
+                              constraints.maxWidth, constraints.maxHeight);
+                        }
                         final frameHeight =
                             (constraints.maxHeight * .38).clamp(120.0, 220.0);
                         return Stack(fit: StackFit.expand, children: [
@@ -480,13 +555,26 @@ class _ScanMedicationScreenState extends State<ScanMedicationScreen>
                                           builder: (_, __) => camera
                                                   .source.ready
                                               ? camera.source.preview()
-                                              : Center(
-                                                  child: Text(
-                                                      camera.error ??
-                                                          'Đang mở camera…',
-                                                      style: const TextStyle(
-                                                          color:
-                                                              Colors.white))))
+                                              : camera.stage ==
+                                                          CaptureStage
+                                                              .reviewing ||
+                                                      camera.stage ==
+                                                          CaptureStage.prepared
+                                                  ? const ColoredBox(
+                                                      color: Color(0xFF171A19),
+                                                      child: Center(
+                                                          child:
+                                                              CircularProgressIndicator(
+                                                                  color: Color(
+                                                                      0xFF70D9CC))))
+                                                  : Center(
+                                                      child: Text(
+                                                          camera.error ??
+                                                              'Đang mở camera…',
+                                                          style:
+                                                              const TextStyle(
+                                                                  color: Colors
+                                                                      .white))))
                                       : const ColoredBox(
                                           color: Color(0xFF171A19))),
                           if (showingResult)
@@ -539,29 +627,13 @@ class _ScanMedicationScreenState extends State<ScanMedicationScreen>
                                               color: Colors.black)
                                         ]))),
                           if (_screen == _Screen.camera)
-                            Center(
+                            const Center(
                                 child: SizedBox(
-                                    height: 220,
+                                    height: _cameraFrameHeight,
                                     child: Padding(
-                                      padding: const EdgeInsets.symmetric(
+                                      padding: EdgeInsets.symmetric(
                                           horizontal: 42),
-                                      child: TweenAnimationBuilder<double>(
-                                        tween: Tween(begin: -1, end: 1),
-                                        duration:
-                                            MediaQuery.disableAnimationsOf(
-                                                    context)
-                                                ? Duration.zero
-                                                : const Duration(
-                                                    milliseconds: 1400),
-                                        builder: (context, value, child) =>
-                                            Align(
-                                          alignment: Alignment(0, value),
-                                          child: child,
-                                        ),
-                                        child: Container(
-                                            height: 2,
-                                            color: const Color(0xFF76DACC)),
-                                      ),
+                                      child: _ScanBeam(),
                                     ))),
                           if (_screen == _Screen.recognizing)
                             Positioned.fill(
@@ -690,12 +762,7 @@ class _ScanMedicationScreenState extends State<ScanMedicationScreen>
               TextButton(
                   onPressed:
                       _camera?.busy == true ? null : _camera?.openSettings,
-                  child: const Text('Mở cài đặt'))
-            else if (_camera?.source.ready == false)
-              TextButton(
-                  onPressed:
-                      _camera?.busy == true ? null : _camera?.requestPermission,
-                  child: const Text('Cho phép camera')),
+                  child: const Text('Mở cài đặt')),
           ])));
 
   static final ChangeNotifier _empty = ChangeNotifier();

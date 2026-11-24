@@ -16,6 +16,21 @@ class CaptureFailure implements Exception {
   String toString() => message;
 }
 
+class CaptureCropRect {
+  const CaptureCropRect({
+    required this.left,
+    required this.top,
+    required this.width,
+    required this.height,
+    required this.viewportAspectRatio,
+  });
+  final double left;
+  final double top;
+  final double width;
+  final double height;
+  final double viewportAspectRatio;
+}
+
 class ProcessedCapture {
   const ProcessedCapture(this.bytes, this.width, this.height,
       {this.warnings = const []});

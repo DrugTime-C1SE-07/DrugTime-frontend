@@ -53,23 +53,36 @@ void main() {
     expect(find.text('Thuốc kiểm thử'), findsOneWidget);
   });
 
-  testWidgets('permanent camera denial opens app settings', (tester) async {
+  testWidgets('permanent camera denial opens app settings without allow button',
+      (tester) async {
     final source = TestSource()..access = CapturePermission.permanentlyDenied;
     await openScan(tester, source, FakeReader(), FakeMatcher());
+    expect(source.statusRequests, [true]);
+    expect(find.text('Cho phép camera'), findsNothing);
     await tester.tap(find.text('Mở cài đặt'));
     await tester.pumpAndSettle();
     expect(source.settingsCalls, 1);
   });
 
-  testWidgets('camera asks for permission only after tapping allow',
+  testWidgets(
+      'camera requests permission automatically on open without allow button',
       (tester) async {
     final source = TestSource()..access = CapturePermission.denied;
     await openScan(tester, source, FakeReader(), FakeMatcher());
-    expect(source.statusRequests, isNot(contains(true)));
-    source.access = CapturePermission.granted;
-    await tester.tap(find.text('Cho phép camera'));
-    await tester.pumpAndSettle();
-    expect(source.statusRequests, contains(true));
+    expect(source.statusRequests, [true]);
+    expect(find.text('Cho phép camera'), findsNothing);
+    expect(find.text('Mở cài đặt'), findsNothing);
+    expect(find.byTooltip('Thư viện'), findsOneWidget);
+    expect(find.byTooltip('Nhập tay'), findsOneWidget);
+    expect(find.byKey(const Key('test-camera')), findsNothing);
+  });
+
+  testWidgets('camera opens preview automatically when permission is granted',
+      (tester) async {
+    final source = TestSource()..access = CapturePermission.granted;
+    await openScan(tester, source, FakeReader(), FakeMatcher());
+    expect(source.statusRequests, [true]);
+    expect(find.text('Cho phép camera'), findsNothing);
     expect(find.byKey(const Key('test-camera')), findsOneWidget);
   });
 
@@ -406,5 +419,110 @@ void main() {
     await tester.tap(find.text('Không phải thuốc này'));
     await tester.pumpAndSettle();
     expect(find.byType(TextField), findsOneWidget);
+  });
+
+  testWidgets(
+      'scan beam sweeps down to bottom and reverses back up in camera mode (AC1)',
+      (tester) async {
+    final services = CaptureServices(
+        store: TestStore(),
+        processor: TestProcessor(),
+        newSource: TestSource.new,
+        reader: FakeReader(),
+        matching: FakeMatcher());
+    await services.bindSession('test-session');
+    addTearDown(services.dispose);
+    final medication = MedicationController(InMemoryMedicationRepository());
+    addTearDown(medication.dispose);
+    await tester.pumpWidget(MedicationScope(
+        controller: medication,
+        child: CaptureScope(
+            services: services,
+            child: const MaterialApp(home: ScanMedicationScreen()))));
+    await tester.pump();
+
+    double beamY() => (tester
+            .widget<Align>(find.byKey(const Key('scan-beam')))
+            .alignment as Alignment)
+        .y;
+
+    expect(beamY(), closeTo(-1.0, 0.05));
+    await tester.pump(const Duration(milliseconds: 700));
+    expect(beamY(), greaterThan(-0.2));
+    expect(beamY(), lessThan(0.2));
+    await tester.pump(const Duration(milliseconds: 700));
+    expect(beamY(), closeTo(1.0, 0.05));
+    // Reverses back up instead of staying stuck at the bottom.
+    await tester.pump(const Duration(milliseconds: 700));
+    expect(beamY(), lessThan(0.2));
+    expect(beamY(), greaterThan(-0.2));
+    await tester.pump(const Duration(milliseconds: 700));
+    expect(beamY(), closeTo(-1.0, 0.05));
+  });
+
+  testWidgets(
+      'scan beam stays still when disableAnimations is true and stops cleanly on screen change (AC2)',
+      (tester) async {
+    final services = CaptureServices(
+        store: TestStore(),
+        processor: TestProcessor(),
+        newSource: TestSource.new,
+        reader: FakeReader(),
+        matching: FakeMatcher());
+    await services.bindSession('test-session');
+    addTearDown(services.dispose);
+    final medication = MedicationController(InMemoryMedicationRepository());
+    addTearDown(medication.dispose);
+    await tester.pumpWidget(MediaQuery(
+        data: const MediaQueryData(disableAnimations: true),
+        child: MedicationScope(
+            controller: medication,
+            child: CaptureScope(
+                services: services,
+                child: const MaterialApp(home: ScanMedicationScreen())))));
+    await tester.pump();
+
+    double beamY() => (tester
+            .widget<Align>(find.byKey(const Key('scan-beam')))
+            .alignment as Alignment)
+        .y;
+
+    expect(beamY(), closeTo(0.0, 0.01));
+    await tester.pump(const Duration(milliseconds: 700));
+    expect(beamY(), closeTo(0.0, 0.01));
+    await tester.tap(find.byTooltip('Chụp ảnh'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('scan-beam')), findsNothing);
+    expect(find.text('Thuốc kiểm thử'), findsOneWidget);
+  });
+
+  testWidgets(
+      'camera capture passes scan frame crop while gallery pick passes null crop (AC3, AC4)',
+      (tester) async {
+    await tester.binding.setSurfaceSize(const Size(375, 812));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final source = TestSource()..picked = makeImage();
+    final processor = TestProcessor();
+    await openScan(tester, source, FakeReader(), FakeMatcher(),
+        processor: processor);
+
+    await tester.tap(find.byTooltip('Chụp ảnh'));
+    await tester.pumpAndSettle();
+    expect(processor.crops.length, 1);
+    final cameraCrop = processor.crops.first;
+    expect(cameraCrop, isNotNull);
+    expect(cameraCrop!.left, greaterThan(0));
+    expect(cameraCrop.top, greaterThan(0));
+    expect(cameraCrop.width, greaterThan(0));
+    expect(cameraCrop.width, lessThan(1));
+    expect(cameraCrop.height, greaterThan(0));
+    expect(cameraCrop.height, lessThan(1));
+    expect(cameraCrop.viewportAspectRatio, greaterThan(0));
+
+    await tapVisible(tester, 'Chụp lại');
+    await tester.tap(find.byTooltip('Thư viện'));
+    await tester.pumpAndSettle();
+    expect(processor.crops.length, 2);
+    expect(processor.crops.last, isNull);
   });
 }
