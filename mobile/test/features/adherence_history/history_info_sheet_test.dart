@@ -37,7 +37,7 @@ void main() {
   testWidgets(
       'info opens, explains short labels, closes and restores opener focus',
       (tester) async {
-    await pumpHistory(tester, FakeHistoryRepository());
+    await _pumpButton(tester);
     final opener = find.byType(HistoryInfoButton);
     await tester.tap(opener);
     await tester.pumpAndSettle();
@@ -52,14 +52,29 @@ void main() {
   testWidgets(
       'revoke removes information at first frame and only closes owned sheet',
       (tester) async {
-    final c = await pumpHistory(tester, FakeHistoryRepository());
+    final c = await _pumpButton(tester);
     await tester.tap(find.byType(HistoryInfoButton));
     await tester.pumpAndSettle();
     c.revoke();
     await tester.pump();
     expect(find.text('Về lịch sử', skipOffstage: false), findsNothing);
     await tester.pumpAndSettle();
-    expect(find.byKey(const Key('history-title')), findsOneWidget);
+    expect(find.byType(HistoryInfoButton), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
+}
+
+/// The Lịch nhắc tab no longer shows the button, so it is mounted on its own, as on the
+/// other history pages that still carry it.
+Future<AdherenceHistoryController> _pumpButton(WidgetTester tester) async {
+  final c = AdherenceHistoryController(FakeHistoryRepository(),
+      clock: () => historyNow)
+    ..setPatient('one');
+  addTearDown(c.dispose);
+  await tester.pumpWidget(AdherenceHistoryScope(
+      controller: c,
+      child: const MaterialApp(home: Scaffold(body: HistoryInfoButton()))));
+  await c.load();
+  await tester.pump();
+  return c;
 }

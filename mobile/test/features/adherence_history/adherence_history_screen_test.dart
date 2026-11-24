@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:drugtime_mobile/core/utils/app_assets.dart';
+import 'package:drugtime_mobile/features/adherence_history/presentation/widgets/dose_timeline_rail.dart';
 import 'package:drugtime_mobile/features/adherence_history/domain/entities/adherence_history.dart';
 import 'package:drugtime_mobile/features/adherence_history/domain/entities/adherence_history_failure.dart';
 import 'package:drugtime_mobile/features/adherence_history/presentation/screens/adherence_month_screen.dart';
@@ -59,7 +61,7 @@ void main() {
         controller: home,
         child: AdherenceHistoryScope(
           controller: history,
-          child: const Scaffold(body: AdherenceHistoryScreen()),
+          child: Scaffold(body: AdherenceHistoryScreen(clock: () => now)),
         ),
       ),
     ));
@@ -81,7 +83,10 @@ void main() {
         findsOneWidget);
     final adjacentTile =
         find.byKey(ValueKey((5, DateTime.parse('2026-10-19T08:01:00+07:00'))));
-    expect(find.descendant(of: adjacentTile, matching: find.text('Chờ')),
+    // At 07:50 the 08:01 dose is still ahead: it shows the countdown (AC11) instead of the
+    // old "Chờ", which compared against the fixture's later `as_of`.
+    expect(
+        find.descendant(of: adjacentTile, matching: find.text('Còn 11 phút')),
         findsOneWidget);
   });
 
@@ -97,7 +102,8 @@ void main() {
       await tester.pumpWidget(MaterialApp(
         home: AdherenceHistoryScope(
           controller: controller,
-          child: Scaffold(body: AdherenceHistoryScreen(active: active)),
+          child: Scaffold(
+              body: AdherenceHistoryScreen(active: active, clock: () => now)),
         ),
       ));
       await tester.pumpAndSettle();
@@ -349,6 +355,187 @@ void main() {
     expect(find.text('Đủ liều'), findsNothing);
     expect(find.textContaining('Tất cả đúng giờ'), findsNothing);
     expect(find.text('Trễ'), findsOneWidget);
+  });
+
+  group('day timeline (AC10, AC11, AC14, AC16)', () {
+    final today = DateTime.utc(2026, 10, 21);
+    HistoryDose dose(int id, int hour, int minute, HistoryDoseStatus status) =>
+        HistoryDose(
+          medicationId: 7,
+          medicationName: 'Thuốc $id',
+          scheduleId: 100 + id,
+          scheduledAt: DateTime.utc(2026, 10, 21, hour - 7, minute),
+          takenAt: status == HistoryDoseStatus.taken
+              ? DateTime.utc(2026, 10, 21, hour - 7, minute + 5)
+              : null,
+          status: status,
+          statusSource: 'fixture',
+        );
+
+    /// Adds a "today" group to the seeded history.
+    AdherenceHistory withToday(AdherenceHistory h, List<HistoryDose> doses) {
+      int count(HistoryDoseStatus s) =>
+          doses.where((d) => d.status == s).length;
+      final summary = AdherenceSummary(
+        total: doses.length,
+        taken: count(HistoryDoseStatus.taken),
+        late: count(HistoryDoseStatus.late),
+        missed: count(HistoryDoseStatus.missed),
+        pending: count(HistoryDoseStatus.pending),
+        counted: doses.length - count(HistoryDoseStatus.pending),
+        rate: null,
+      );
+      return AdherenceHistory(
+        patientId: h.patientId,
+        from: h.from,
+        to: h.to,
+        asOf: h.asOf,
+        mode: h.mode,
+        summary: h.summary,
+        dates: [...h.dates, DateHistoryGroup(today, summary, doses)],
+      );
+    }
+
+    Finder tileOf(int id) => find.byWidgetPredicate(
+        (w) => w is DoseHistoryTile && w.dose.scheduleId == 100 + id);
+    String mascot(WidgetTester tester) => (tester
+            .widget<Image>(find.descendant(
+                of: find.byKey(const Key('reminder-scene-header')),
+                matching: find.byType(Image)))
+            .image as AssetImage)
+        .assetName;
+
+    testWidgets(
+        'now marker sits between passed and upcoming doses, ticks each minute',
+        (tester) async {
+      final semantics = tester.ensureSemantics();
+      // 03:00 UTC = 10:00 in Vietnam; the device zone does not matter.
+      var now = DateTime.utc(2026, 10, 21, 3);
+      final repo = FakeHistoryRepository()
+        ..transform = (h) => withToday(h, [
+              dose(1, 8, 0, HistoryDoseStatus.taken),
+              dose(2, 10, 25, HistoryDoseStatus.pending),
+              dose(3, 18, 0, HistoryDoseStatus.pending),
+            ]);
+      await pumpHistory(tester, repo, clock: () => now);
+      final marker = find.byKey(const Key('history-now-marker'));
+      expect(marker, findsOneWidget);
+      expect(find.text('Bây giờ · 10:00'), findsOneWidget);
+      expect(tester.getTopLeft(marker).dy,
+          greaterThan(tester.getTopLeft(tileOf(1)).dy));
+      expect(tester.getTopLeft(marker).dy,
+          lessThan(tester.getTopLeft(tileOf(2)).dy));
+      // Countdown under 60 minutes, plain "Sắp tới" further ahead; no confirm action.
+      expect(find.descendant(of: tileOf(2), matching: find.text('Còn 25 phút')),
+          findsOneWidget);
+      expect(find.descendant(of: tileOf(3), matching: find.text('Sắp tới')),
+          findsOneWidget);
+      expect(find.bySemanticsLabel(RegExp('còn 25 phút')), findsOneWidget);
+      expect(find.byType(FilledButton), findsNothing);
+      // Rail: the dose already due is drawn as passed, the later ones are not.
+      Color? dotOf(int id) {
+        final row =
+            find.ancestor(of: tileOf(id), matching: find.byType(Stack)).first;
+        final dot = tester.widget<Container>(find.descendant(
+            of: row, matching: find.byKey(const Key('dose-rail-dot'))));
+        return (dot.decoration as BoxDecoration).color;
+      }
+
+      expect(dotOf(1), DoseRailSegment.passedColor);
+      expect(dotOf(2), isNot(DoseRailSegment.passedColor));
+
+      // Next minute boundary: no reload needed, the line and countdown follow the clock.
+      final calls = repo.calls.length;
+      now = DateTime.utc(2026, 10, 21, 3, 26);
+      await tester.pump(const Duration(minutes: 1));
+      await tester.pump();
+      // Let the badge cross-fade finish.
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(repo.calls.length, calls);
+      expect(find.text('Bây giờ · 10:26'), findsOneWidget);
+      expect(tester.getTopLeft(marker).dy,
+          greaterThan(tester.getTopLeft(tileOf(2)).dy));
+      expect(tester.getTopLeft(marker).dy,
+          lessThan(tester.getTopLeft(tileOf(3)).dy));
+      // 10:25 has passed: its badge falls back to the real status, not "Sắp tới".
+      expect(
+          find.descendant(of: tileOf(2), matching: find.textContaining('Còn')),
+          findsNothing);
+      expect(find.descendant(of: tileOf(2), matching: find.text('Sắp tới')),
+          findsNothing);
+      semantics.dispose();
+    });
+
+    testWidgets('no marker on another day; mascot follows today',
+        (tester) async {
+      final repo = FakeHistoryRepository()
+        ..transform = (h) => withToday(h, [
+              dose(1, 8, 0, HistoryDoseStatus.taken),
+              dose(2, 18, 0, HistoryDoseStatus.pending),
+            ]);
+      final c = await pumpHistory(tester, repo);
+      expect(find.byKey(const Key('history-now-marker')), findsOneWidget);
+      expect(mascot(tester), AppAssets.mascotHello);
+      await c.selectDay(DateTime.utc(2026, 10, 19));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('history-now-marker')), findsNothing);
+      // Viewing another day keeps the mascot on today's progress.
+      expect(mascot(tester), AppAssets.mascotHello);
+    });
+
+    testWidgets('today all taken → happy, any missed → thinking',
+        (tester) async {
+      final happy = FakeHistoryRepository()
+        ..transform = (h) => withToday(h, [
+              dose(1, 7, 0, HistoryDoseStatus.taken),
+              dose(2, 9, 0, HistoryDoseStatus.taken),
+            ]);
+      await pumpHistory(tester, happy);
+      expect(mascot(tester), AppAssets.mascotHappy);
+      // All doses are behind "now": the line sits after the last one.
+      expect(tester.getTopLeft(find.byKey(const Key('history-now-marker'))).dy,
+          greaterThan(tester.getTopLeft(tileOf(2)).dy));
+
+      final thinking = FakeHistoryRepository()
+        ..transform = (h) => withToday(h, [
+              dose(1, 7, 0, HistoryDoseStatus.missed),
+              dose(2, 18, 0, HistoryDoseStatus.pending),
+            ]);
+      await tester.pumpWidget(const SizedBox());
+      await pumpHistory(tester, thinking);
+      expect(mascot(tester), AppAssets.mascotThinking);
+      expect(find.bySemanticsLabel('Dumi, linh vật DrugTime'), findsOneWidget);
+    });
+
+    testWidgets('returning to the app refreshes the clock at once',
+        (tester) async {
+      var now = DateTime.utc(2026, 10, 21, 3);
+      final repo = FakeHistoryRepository()
+        ..transform = (h) => withToday(h, [
+              dose(1, 8, 0, HistoryDoseStatus.taken),
+              dose(2, 18, 0, HistoryDoseStatus.pending),
+            ]);
+      await pumpHistory(tester, repo, clock: () => now);
+      expect(find.text('Bây giờ · 10:00'), findsOneWidget);
+      for (final state in [
+        AppLifecycleState.inactive,
+        AppLifecycleState.hidden,
+        AppLifecycleState.paused
+      ]) {
+        tester.binding.handleAppLifecycleStateChanged(state);
+      }
+      await tester.pump();
+      now = DateTime.utc(2026, 10, 21, 3, 40);
+      for (final state in [
+        AppLifecycleState.hidden,
+        AppLifecycleState.inactive,
+        AppLifecycleState.resumed
+      ]) {
+        tester.binding.handleAppLifecycleStateChanged(state);
+      }
+      await tester.pumpAndSettle();
+      expect(find.text('Bây giờ · 10:40'), findsOneWidget);
+    });
   });
 }
 

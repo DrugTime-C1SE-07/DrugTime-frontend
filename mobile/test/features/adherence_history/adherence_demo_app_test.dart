@@ -6,7 +6,6 @@ import 'package:drugtime_mobile/app/adherence_demo_app.dart';
 import 'package:drugtime_mobile/app/router.dart';
 import 'package:drugtime_mobile/features/auth/presentation/state/auth_controller.dart';
 import 'package:drugtime_mobile/features/adherence_history/presentation/state/adherence_history_controller.dart';
-import 'adherence_history_test_helpers.dart';
 
 void main() {
   setUp(() {
@@ -96,8 +95,7 @@ void main() {
     await tester.pumpAndSettle();
     context = tester.element(find.byKey(const Key('history-title')));
     final auth = AuthScope.read(context);
-    await tester.tap(find.byTooltip('Giải thích lịch sử'));
-    await tester.pumpAndSettle();
+    // The Lịch nhắc tab no longer has the info button; sign-out still tears the tab down.
     await auth.signOut();
     await tester.pump();
     expect(find.text('Về lịch sử', skipOffstage: false), findsNothing);

@@ -89,8 +89,10 @@ class _MyMedicationsScreenState extends State<MyMedicationsScreen> {
           onChanged: (v) => setState(() => _query = v),
           onClear: _clearSearch,
         ),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        // Wrap (not Row): on narrow screens or large text the two links go to two lines
+        // instead of overflowing.
+        Wrap(
+          alignment: WrapAlignment.spaceBetween,
           children: [
             TextButton.icon(
               onPressed: () => _showNotBuilt('Danh mục thuốc'),

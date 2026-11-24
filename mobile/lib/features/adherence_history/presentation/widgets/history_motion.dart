@@ -6,6 +6,21 @@ abstract final class HistoryMotion {
   static const progress = Duration(milliseconds: 450);
   static const shimmer = Duration(milliseconds: 1200);
 
+  /// Day/week change: content slides [daySlideOffset] dp in the travel direction.
+  static const daySlide = Duration(milliseconds: 260);
+  static const daySlideOffset = 24.0;
+
+  /// Check mark drawn when a dose turns "Đã uống".
+  static const check = Duration(milliseconds: 300);
+
+  /// A horizontal swipe counts when it is fast enough or long enough.
+  static const swipeVelocity = 300.0;
+  static const swipeDistance = 48.0;
+
+  /// Horizontal entrance offset for travelling to a later (+1) or earlier (-1) day.
+  static Offset travel(int direction) =>
+      Offset(daySlideOffset * direction.sign, 0);
+
   static bool enabled(BuildContext context) =>
       context.dependOnInheritedWidgetOfExactType<_MotionEnabled>()?.enabled ??
       (!MediaQuery.disableAnimationsOf(context) &&
