@@ -50,15 +50,22 @@ class _AnalyzingViewState extends State<AnalyzingView>
   Timer? _minTimer, _settleTimer, _imageTimer;
   bool _preparingImages = false;
   MealTabStatus? _refreshStatus;
+  bool _allFailed = false;
+  Map<MealType, MealTabStatus>? _latchedStatuses;
+  MealSuggestionFailure? _latchedFailure;
+  MealSuggestionFailure? _lastSeenFailure;
   late MealType _reveal = widget.refreshMeal ?? widget.plan.tab;
 
   MealPlanController get plan => widget.plan;
   List<MealType> get _meals =>
       widget.refreshMeal == null ? MealType.values : [widget.refreshMeal!];
 
-  Map<MealType, MealTabStatus> get _statuses => widget.refreshMeal == null
-      ? {for (final t in MealType.values) t: plan.stateOf(t).status}
-      : {widget.refreshMeal!: _refreshStatus ?? MealTabStatus.loading};
+  Map<MealType, MealTabStatus> get _statuses {
+    if (_allFailed && _latchedStatuses != null) return _latchedStatuses!;
+    return widget.refreshMeal == null
+        ? {for (final t in MealType.values) t: plan.stateOf(t).status}
+        : {widget.refreshMeal!: _refreshStatus ?? MealTabStatus.loading};
+  }
 
   bool get _still => MediaQuery.disableAnimationsOf(context);
 
@@ -85,6 +92,10 @@ class _AnalyzingViewState extends State<AnalyzingView>
       _minPassed = false;
       _preparingImages = false;
       _refreshStatus = MealTabStatus.loading;
+      _allFailed = false;
+      _latchedStatuses = null;
+      _latchedFailure = null;
+      _lastSeenFailure = null;
     });
     mascot.play(MascotMood.cooking);
     if (!_still) _clock.repeat(period: const Duration(hours: 1));
@@ -97,8 +108,10 @@ class _AnalyzingViewState extends State<AnalyzingView>
     if (r != null) {
       plan.refresh(r).then((ok) {
         if (!mounted) return;
-        setState(() =>
-            _refreshStatus = ok ? MealTabStatus.data : MealTabStatus.error);
+        setState(() {
+          if (!ok) _latchedFailure ??= plan.lastRefreshFailure;
+          _refreshStatus = ok ? MealTabStatus.data : MealTabStatus.error;
+        });
         _check();
       });
       return;
@@ -111,6 +124,30 @@ class _AnalyzingViewState extends State<AnalyzingView>
 
   void _check() {
     if (!mounted || _stage != _Stage.running) return;
+    if (widget.refreshMeal != null) {
+      if (plan.lastRefreshFailure != null) {
+        _latchedFailure ??= plan.lastRefreshFailure;
+      }
+    } else if (!_allFailed) {
+      final currentFailures = [
+        for (final t in MealType.values)
+          if (plan.stateOf(t).failure case final f?) f,
+      ];
+      if (currentFailures.isNotEmpty) {
+        _lastSeenFailure = MealSuggestionFailure.pickPrimary(currentFailures);
+      }
+      final allErr = MealType.values
+          .every((t) => plan.stateOf(t).status == MealTabStatus.error);
+      final resetAfterError = _inFlight &&
+          _lastSeenFailure != null &&
+          MealType.values
+              .every((t) => plan.stateOf(t).status == MealTabStatus.idle);
+      if (allErr || resetAfterError) {
+        _allFailed = true;
+        _latchedStatuses = {for (final m in _meals) m: MealTabStatus.error};
+        _latchedFailure = _lastSeenFailure;
+      }
+    }
     final statuses = _statuses;
     final reveal = widget.refreshMeal ??
         AnalysisTimeline.revealMeal(
@@ -132,8 +169,7 @@ class _AnalyzingViewState extends State<AnalyzingView>
       // Ảnh xong thì controller báo listener; hẹn thêm lượt kiểm khi hết giờ chờ (AC5).
       final left = plan.imageWaitRemaining(reveal);
       if (left != null && !(_imageTimer?.isActive ?? false)) {
-        _imageTimer =
-            Timer(left + const Duration(milliseconds: 50), _check);
+        _imageTimer = Timer(left + const Duration(milliseconds: 50), _check);
       }
       return;
     }
@@ -311,6 +347,7 @@ class _AnalyzingViewState extends State<AnalyzingView>
               finaleSeg(f, FinalePhase.anticipateEnd, FinalePhase.flashPeak),
           child: _Status(
             failed: _stage == _Stage.failed,
+            failure: _latchedFailure,
             statuses: {for (final m in _meals) m: _statuses[m]!},
             refreshMeal: widget.refreshMeal,
             preparingImages: _preparingImages,
@@ -466,6 +503,7 @@ class _PlateReveal extends StatelessWidget {
 class _Status extends StatelessWidget {
   const _Status({
     required this.failed,
+    required this.failure,
     required this.statuses,
     required this.refreshMeal,
     required this.preparingImages,
@@ -473,6 +511,7 @@ class _Status extends StatelessWidget {
     required this.onKeep,
   });
   final bool failed;
+  final MealSuggestionFailure? failure;
   final bool preparingImages;
   final Map<MealType, MealTabStatus> statuses;
   final MealType? refreshMeal;
@@ -481,6 +520,8 @@ class _Status extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (failed) {
+      final effectiveFailure =
+          failure ?? const MealSuggestionFailure(MealFailureKind.unknown);
       return Column(mainAxisSize: MainAxisSize.min, children: [
         Text(
             refreshMeal == null
@@ -492,32 +533,64 @@ class _Status extends StatelessWidget {
                 fontWeight: FontWeight.w700,
                 color: MealColors.ink)),
         const SizedBox(height: 6),
-        Text(
-            refreshMeal == null
-                ? 'Kết nối đang chập chờn. Bạn thử lại nhé.'
-                : 'Món cũ cho ${refreshMeal!.mealLabel} vẫn còn. Bạn thử lại nhé.',
+        Text(effectiveFailure.message,
             textAlign: TextAlign.center,
             style: const TextStyle(fontSize: 15, color: MealColors.ink2)),
+        if (refreshMeal != null) ...[
+          const SizedBox(height: 4),
+          Text('Món cũ cho ${refreshMeal!.mealLabel} vẫn còn.',
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 14, color: MealColors.ink2)),
+        ],
         const SizedBox(height: 18),
-        SizedBox(
-          width: double.infinity,
-          height: 52,
-          child: FilledButton(
-            key: const ValueKey('analyzing-retry'),
-            style: FilledButton.styleFrom(
-                backgroundColor: MealColors.brand,
-                shape: const StadiumBorder()),
-            onPressed: onRetry,
-            child: const Text('Thử lại',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+        if (effectiveFailure.canRetry) ...[
+          SizedBox(
+            width: double.infinity,
+            height: 52,
+            child: FilledButton(
+              key: const ValueKey('analyzing-retry'),
+              style: FilledButton.styleFrom(
+                  backgroundColor: MealColors.brand,
+                  shape: const StadiumBorder()),
+              onPressed: onRetry,
+              child: const Text('Thử lại',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+            ),
           ),
-        ),
-        if (refreshMeal != null)
-          TextButton(
-            key: const ValueKey('analyzing-keep'),
-            onPressed: onKeep,
-            child: const Text('Giữ món cũ',
-                style: TextStyle(fontSize: 15, color: MealColors.brand)),
+          if (refreshMeal != null)
+            TextButton(
+              key: const ValueKey('analyzing-keep'),
+              onPressed: onKeep,
+              child: const Text('Giữ món cũ',
+                  style: TextStyle(fontSize: 15, color: MealColors.brand)),
+            ),
+        ] else if (refreshMeal == null)
+          SizedBox(
+            width: double.infinity,
+            height: 52,
+            child: FilledButton(
+              key: const ValueKey('analyzing-back-action'),
+              style: FilledButton.styleFrom(
+                  backgroundColor: MealColors.brand,
+                  shape: const StadiumBorder()),
+              onPressed: onKeep,
+              child: const Text('Quay lại',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+            ),
+          )
+        else
+          SizedBox(
+            width: double.infinity,
+            height: 52,
+            child: FilledButton(
+              key: const ValueKey('analyzing-keep'),
+              style: FilledButton.styleFrom(
+                  backgroundColor: MealColors.brand,
+                  shape: const StadiumBorder()),
+              onPressed: onKeep,
+              child: const Text('Giữ món cũ',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+            ),
           ),
       ]);
     }

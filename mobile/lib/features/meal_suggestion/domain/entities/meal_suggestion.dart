@@ -211,15 +211,36 @@ class MealSuggestionFailure implements Exception {
 
   final MealFailureKind kind;
 
-  /// `llm_disabled` không có nút "Thử lại" (AC18).
+  static const _priority = <MealFailureKind>[
+    MealFailureKind.consentRevoked,
+    MealFailureKind.forbidden,
+    MealFailureKind.llmDisabled,
+    MealFailureKind.refreshLimit,
+  ];
+
+  /// Chọn lỗi đại diện khi nhiều bữa cùng lỗi: ưu tiên lỗi không thử lại được theo thứ tự
+  /// `consentRevoked` > `forbidden` > `llmDisabled` > `refreshLimit`, còn lại lấy lỗi đầu tiên.
+  static MealSuggestionFailure? pickPrimary(
+      Iterable<MealSuggestionFailure> failures) {
+    final list = failures.toList();
+    if (list.isEmpty) return null;
+    for (final kind in _priority) {
+      for (final f in list) {
+        if (f.kind == kind) return f;
+      }
+    }
+    return list.first;
+  }
+
+  /// Lỗi cấu hình, quyền hoặc hết lượt trong ngày không có nút "Thử lại" (AC18, task 6.03).
   bool get canRetry =>
       kind != MealFailureKind.llmDisabled &&
       kind != MealFailureKind.forbidden &&
-      kind != MealFailureKind.consentRevoked;
+      kind != MealFailureKind.consentRevoked &&
+      kind != MealFailureKind.refreshLimit;
 
   String get message => switch (kind) {
-        MealFailureKind.llmDisabled =>
-          'Tính năng gợi ý bữa ăn đang tạm ngưng.',
+        MealFailureKind.llmDisabled => 'Tính năng gợi ý bữa ăn đang tạm ngưng.',
         MealFailureKind.llmUnavailable ||
         MealFailureKind.serviceUnavailable =>
           'Chưa tạo được gợi ý lúc này. Bạn thử lại sau ít phút nhé.',

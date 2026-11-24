@@ -544,7 +544,8 @@ void main() {
           result(id: 3, type: MealType.toi),
         ]);
 
-    test('AnalysisTimeline: có kết quả nhưng ảnh chưa xong → preparingImages (AC3)',
+    test(
+        'AnalysisTimeline: có kết quả nhưng ảnh chưa xong → preparingImages (AC3)',
         () {
       const statuses = {
         MealType.sang: MealTabStatus.data,
@@ -588,7 +589,8 @@ void main() {
       h.repository.imageAnswer = (_) => const [ready501];
       await advance(tester, 2100); // một nhịp hỏi trạng thái
       expect(h.repository.bytesCalls, contains(501));
-      expect(find.byType(AnalyzingView), findsOneWidget); // nội dung ảnh chưa về
+      expect(
+          find.byType(AnalyzingView), findsOneWidget); // nội dung ảnh chưa về
 
       gate.complete();
       await FlowHarness.settle(tester);
@@ -668,10 +670,12 @@ void main() {
       expect(h.repository.bytesCalls, contains(502));
       expect(h.plan.cachedImageBytes(h.plan.imageOf(dishB)!), isNotNull);
       expect(find.byKey(const ValueKey('meal-image-502')), findsWidgets);
-      await FlowHarness.settle(tester); // hết ảnh pending: dừng polling và hoạt ảnh
+      await FlowHarness.settle(
+          tester); // hết ảnh pending: dừng polling và hoạt ảnh
     });
 
-    testWidgets('bữa không có ảnh: mở kết quả ngay sau thời gian tối thiểu (AC6)',
+    testWidgets(
+        'bữa không có ảnh: mở kết quả ngay sau thời gian tối thiểu (AC6)',
         (tester) async {
       final h = FlowHarness();
       await h.pump(tester);
@@ -711,6 +715,202 @@ void main() {
       expect(find.byType(AnalyzingView), findsNothing);
       expect(find.text('Bún cá'), findsOneWidget);
       expect(h.repository.bytesCalls, contains(777));
+    });
+  });
+
+  group('màn chờ lỗi & chặn thử lại vô ích (task 6.03)', () {
+    void expectNoUnsafeMedicalCopy(WidgetTester tester) {
+      for (final banned in [
+        'an toàn',
+        'hợp với thuốc',
+        'Tôm',
+        'Đậu phộng',
+        'Losartan',
+      ]) {
+        expect(find.textContaining(banned), findsNothing, reason: banned);
+      }
+    }
+
+    testWidgets(
+        'cả 3 lỗi network: hiện thông điệp network, có Thử lại, bấm gọi lại cả 3 (AC1, AC8)',
+        (tester) async {
+      final h = FlowHarness();
+      h.repository.responses.addAll(
+          List.filled(3, const MealSuggestionFailure(MealFailureKind.network)));
+      await h.pump(tester);
+      await h.openToResults(tester);
+      expect(find.text('Dumi chưa lên được thực đơn'), findsOneWidget);
+      expect(
+          find.text('Không kết nối được máy chủ. Kiểm tra mạng rồi thử lại.'),
+          findsOneWidget);
+      expect(key('analyzing-retry'), findsOneWidget);
+      expect(key('analyzing-back-action'), findsNothing);
+      expectNoUnsafeMedicalCopy(tester);
+
+      await tester.tap(key('analyzing-retry'));
+      await FlowHarness.settle(tester);
+      expect(h.repository.calls, hasLength(6));
+      expect(find.byType(AnalyzingView), findsNothing);
+      expect(h.plan.hasMenu, isTrue);
+    });
+
+    testWidgets(
+        'cả 3 lỗi 403 consentRevoked: hiện thông điệp bật quyền, ẩn Thử lại, hiện Quay lại, tải lại consent và giữ đúng 3 lời gọi (AC2, AC8)',
+        (tester) async {
+      final h = FlowHarness();
+      h.repository.responses.addAll(List.filled(
+          3, const MealSuggestionFailure(MealFailureKind.consentRevoked)));
+      await h.pump(tester);
+      final fetchesBefore = h.consentRepository.fetches;
+      h.consentRepository.aiMeal = false;
+
+      await h.openToResults(tester);
+      expect(find.byType(AnalyzingView), findsOneWidget);
+      expect(find.text('Dumi chưa lên được thực đơn'), findsOneWidget);
+      expect(
+          find.text('Bạn cần bật gợi ý bữa ăn để xem gợi ý.'), findsOneWidget);
+      expect(key('analyzing-retry'), findsNothing);
+      expect(key('analyzing-back-action'), findsOneWidget);
+      expect(h.repository.calls, hasLength(3));
+      expect(h.consentRepository.fetches, fetchesBefore + 1);
+      expectNoUnsafeMedicalCopy(tester);
+
+      await tester.tap(key('analyzing-back-action'));
+      await tester.pumpAndSettle();
+      expect(find.byType(AnalyzingView), findsNothing);
+      expect(find.byType(MealSuggestionScreen), findsNothing);
+      expect(h.repository.calls, hasLength(3));
+    });
+
+    testWidgets(
+        'cả 3 lỗi 503 llmDisabled: hiện thông điệp tạm ngưng, ẩn Thử lại, hiện Quay lại (AC3, AC8)',
+        (tester) async {
+      final h = FlowHarness();
+      h.repository.responses.addAll(List.filled(
+          3, const MealSuggestionFailure(MealFailureKind.llmDisabled)));
+      await h.pump(tester);
+      await h.openToResults(tester);
+      expect(find.text('Dumi chưa lên được thực đơn'), findsOneWidget);
+      expect(
+          find.text('Tính năng gợi ý bữa ăn đang tạm ngưng.'), findsOneWidget);
+      expect(key('analyzing-retry'), findsNothing);
+      expect(key('analyzing-back-action'), findsOneWidget);
+      expectNoUnsafeMedicalCopy(tester);
+
+      await tester.tap(key('analyzing-back-action'));
+      await tester.pumpAndSettle();
+      expect(find.byType(AnalyzingView), findsNothing);
+      expect(find.byType(MealSuggestionScreen), findsNothing);
+      expect(h.repository.calls, hasLength(3));
+    });
+
+    testWidgets(
+        'lỗi hỗn hợp (network + llmDisabled + llmUnavailable): chọn llmDisabled và ẩn Thử lại (AC4, AC8)',
+        (tester) async {
+      final h = FlowHarness();
+      h.repository.responses.addAll(const [
+        MealSuggestionFailure(MealFailureKind.network),
+        MealSuggestionFailure(MealFailureKind.llmDisabled),
+        MealSuggestionFailure(MealFailureKind.llmUnavailable),
+      ]);
+      await h.pump(tester);
+      await h.openToResults(tester);
+      expect(
+          find.text('Tính năng gợi ý bữa ăn đang tạm ngưng.'), findsOneWidget);
+      expect(key('analyzing-retry'), findsNothing);
+      expect(key('analyzing-back-action'), findsOneWidget);
+      expectNoUnsafeMedicalCopy(tester);
+    });
+
+    testWidgets(
+        '"Gợi ý khác" lỗi llmUnavailable: hiện thông điệp lỗi + món cũ vẫn còn, có cả Thử lại và Giữ món cũ (AC5, AC8)',
+        (tester) async {
+      final h = FlowHarness();
+      await h.pump(tester);
+      await h.openToResults(tester);
+      final oldId = h.plan.stateOf(MealType.trua).result!.suggestionId;
+      h.repository.responses
+          .add(const MealSuggestionFailure(MealFailureKind.llmUnavailable));
+
+      await tester.tap(key('refresh'));
+      await FlowHarness.settle(tester);
+      expect(find.text('Dumi chưa tìm được món khác'), findsOneWidget);
+      expect(
+          find.text(
+              'Chưa tạo được gợi ý lúc này. Bạn thử lại sau ít phút nhé.'),
+          findsOneWidget);
+      expect(find.text('Món cũ cho bữa trưa vẫn còn.'), findsOneWidget);
+      expect(key('analyzing-retry'), findsOneWidget);
+      expect(key('analyzing-keep'), findsOneWidget);
+      expectNoUnsafeMedicalCopy(tester);
+
+      await tester.tap(key('analyzing-keep'));
+      await tester.pumpAndSettle();
+      expect(h.plan.stateOf(MealType.trua).result!.suggestionId, oldId);
+      expect(h.plan.refreshesRemaining, 2);
+    });
+
+    testWidgets(
+        '"Gợi ý khác" lỗi 403 consentRevoked: ẩn Thử lại, giữ Giữ món cũ, tải lại consent, xóa thực đơn và món đã chọn (AC6, AC8)',
+        (tester) async {
+      final h = FlowHarness();
+      await h.pump(tester);
+      await h.openToResults(tester);
+      await tester.tap(key('choose-0'));
+      await tester.pumpAndSettle();
+      expect(h.choices.choiceOf(MealType.trua), isNotNull);
+      // Quay lại tab Trưa sau khi chọn món tự chuyển sang Tối.
+      await tester.tap(find.text('Trưa').last);
+      await tester.pumpAndSettle();
+
+      final fetchesBefore = h.consentRepository.fetches;
+      h.consentRepository.aiMeal = false;
+      h.repository.responses
+          .add(const MealSuggestionFailure(MealFailureKind.consentRevoked));
+
+      await tester.tap(key('refresh'));
+      await FlowHarness.settle(tester);
+      expect(find.byType(AnalyzingView), findsOneWidget);
+      expect(
+          find.text('Bạn cần bật gợi ý bữa ăn để xem gợi ý.'), findsOneWidget);
+      expect(find.text('Món cũ cho bữa trưa vẫn còn.'), findsOneWidget);
+      expect(key('analyzing-retry'), findsNothing);
+      expect(key('analyzing-keep'), findsOneWidget);
+      expect(h.consentRepository.fetches, fetchesBefore + 1);
+      expect(h.plan.hasMenu, isFalse);
+      expect(h.choices.choiceOf(MealType.trua), isNull);
+      expectNoUnsafeMedicalCopy(tester);
+
+      await tester.tap(key('analyzing-keep'));
+      await tester.pumpAndSettle();
+      expect(find.byType(AnalyzingView), findsNothing);
+      expect(find.byType(MealSuggestionScreen), findsNothing);
+    });
+
+    testWidgets(
+        '"Gợi ý khác" lỗi 429 refreshLimit: hiện thông điệp hết lượt, ẩn Thử lại, bấm Giữ món cũ mở sheet hết lượt (AC7, AC8)',
+        (tester) async {
+      final h = FlowHarness();
+      await h.pump(tester);
+      await h.openToResults(tester);
+      h.repository.responses
+          .add(const MealSuggestionFailure(MealFailureKind.refreshLimit));
+
+      await tester.tap(key('refresh'));
+      await FlowHarness.settle(tester);
+      expect(find.text('Hôm nay bạn đã dùng hết lượt gợi ý khác.'),
+          findsOneWidget);
+      expect(find.text('Món cũ cho bữa trưa vẫn còn.'), findsOneWidget);
+      expect(key('analyzing-retry'), findsNothing);
+      expect(key('analyzing-keep'), findsOneWidget);
+      expectNoUnsafeMedicalCopy(tester);
+
+      await tester.tap(key('analyzing-keep'));
+      await tester.pumpAndSettle();
+      expect(key('refresh-limit-sheet'), findsOneWidget);
+      await tester.tap(key('refresh-limit-ok'));
+      await tester.pumpAndSettle();
+      expect(key('refresh-locked'), findsOneWidget);
     });
   });
 }

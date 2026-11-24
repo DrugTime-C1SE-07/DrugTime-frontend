@@ -67,6 +67,8 @@ class _MealSuggestionScreenState extends State<MealSuggestionScreen> {
 
   /// Đang mở màn chờ "Gợi ý khác": chặn bấm liên tục (mở 2 màn, gọi 2 lần) (AC9b).
   bool _opening = false;
+  bool _reloadingConsent = false;
+  bool _consentSyncedForCurrentFailure = false;
 
   @override
   void didChangeDependencies() {
@@ -97,14 +99,43 @@ class _MealSuggestionScreenState extends State<MealSuggestionScreen> {
   bool _consentGranted(ConsentController c) =>
       c.isGranted(ConsentPurpose.aiMeal);
 
-  /// Server trả 403 dù app thấy đã đồng ý: tải lại consent, không hiện gợi ý.
+  bool _isAuthOrConsentFailure(MealFailureKind? kind) =>
+      kind == MealFailureKind.consentRevoked ||
+      kind == MealFailureKind.forbidden;
+
+  /// Server trả 403 dù app thấy đã đồng ý: chờ lượt phân tích kết thúc rồi tải lại consent;
+  /// nếu `ai_meal` đã tắt thì xóa ngay thực đơn và món đã chọn trong phiên (AC2, AC6).
   void _onPlan() {
-    final revoked = MealType.values.any((t) {
-      final k = plan.stateOf(t).failure?.kind;
-      return k == MealFailureKind.consentRevoked ||
-          k == MealFailureKind.forbidden;
-    });
-    if (revoked && mounted) unawaited(ConsentScope.read(context).load());
+    if (!mounted) return;
+    if (plan.isAnalyzing) {
+      _consentSyncedForCurrentFailure = false;
+      return;
+    }
+    final revoked = _isAuthOrConsentFailure(plan.lastRefreshFailure?.kind) ||
+        MealType.values
+            .any((t) => _isAuthOrConsentFailure(plan.stateOf(t).failure?.kind));
+    if (!revoked) {
+      _consentSyncedForCurrentFailure = false;
+      return;
+    }
+    if (_reloadingConsent || _consentSyncedForCurrentFailure) return;
+    _consentSyncedForCurrentFailure = true;
+    unawaited(_reloadConsent());
+  }
+
+  Future<void> _reloadConsent() async {
+    _reloadingConsent = true;
+    try {
+      final consent = ConsentScope.read(context);
+      await consent.load();
+      if (!mounted) return;
+      if (!_consentGranted(consent)) {
+        plan.reset();
+        await choices.clear();
+      }
+    } finally {
+      _reloadingConsent = false;
+    }
   }
 
   Future<void> _boot() async {
@@ -268,6 +299,7 @@ class _MealSuggestionScreenState extends State<MealSuggestionScreen> {
       await showRefreshLimitSheet(context);
       return;
     }
+    _consentSyncedForCurrentFailure = false;
     setState(() => _opening = true);
     final meal = plan.tab;
     // "Gợi ý khác" chạy lại màn chờ cho riêng bữa đang xem (AC9).
@@ -275,6 +307,10 @@ class _MealSuggestionScreenState extends State<MealSuggestionScreen> {
         .push<bool>(AnalyzingView.route(plan, refreshMeal: meal));
     if (!mounted) return;
     setState(() => _opening = false);
+    if (!plan.hasMenu) {
+      Navigator.of(context).pop();
+      return;
+    }
     if (plan.lastRefreshFailure?.kind == MealFailureKind.refreshLimit) {
       await showRefreshLimitSheet(context); // server trả 429 (AC9b)
     }
