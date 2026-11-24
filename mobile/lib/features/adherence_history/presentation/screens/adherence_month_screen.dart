@@ -323,7 +323,10 @@ class _PrototypeCalendar extends StatelessWidget {
         }
       },
       child: LayoutBuilder(builder: (context, constraints) {
-        final gridWidth = math.max(7 * 48.0, constraints.maxWidth).toDouble();
+        // The grid lives inside 12px padding and a 1px border on each side; sizing it to the
+        // outer width pushed Sunday past the card edge.
+        final gridWidth =
+            math.max(7 * 48.0, constraints.maxWidth - 26).toDouble();
         return Container(
           key: const Key('history-calendar-card'),
           padding: const EdgeInsets.fromLTRB(12, 12, 12, 10),

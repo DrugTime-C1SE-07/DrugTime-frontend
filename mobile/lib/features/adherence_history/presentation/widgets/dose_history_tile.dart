@@ -4,6 +4,8 @@ import '../../../../shared/widgets/pill_icon.dart';
 import '../../domain/entities/adherence_history.dart';
 import '../utils/adherence_history_format.dart';
 import '../utils/reminder_palette.dart';
+import 'dose_timeline_rail.dart';
+import 'history_motion.dart';
 
 class DoseHistoryTile extends StatelessWidget {
   const DoseHistoryTile(
@@ -14,6 +16,7 @@ class DoseHistoryTile extends StatelessWidget {
       this.locallyConfirmed = false,
       this.prototypeStyle = false,
       this.details,
+      this.countdownMinutes,
       this.onTap});
   final HistoryDose dose;
   final bool showDate;
@@ -21,6 +24,9 @@ class DoseHistoryTile extends StatelessWidget {
   final bool locallyConfirmed;
   final bool prototypeStyle;
   final String? details;
+
+  /// Minutes left before an upcoming dose (day tab only, under 60): badge reads "Còn N phút".
+  final int? countdownMinutes;
   final VoidCallback? onTap;
 
   @override
@@ -58,21 +64,27 @@ class DoseHistoryTile extends StatelessWidget {
                 Icons.cloud_off_outlined
               ),
           };
-    final badge = isUpcoming ? 'Sắp tới' : HistoryFormat.status(status);
+    final countdown = prototypeStyle && isUpcoming ? countdownMinutes : null;
+    final badge = countdown != null
+        ? 'Còn ${countdown < 1 ? 1 : countdown} phút'
+        : isUpcoming
+            ? 'Sắp tới'
+            : HistoryFormat.status(status);
     final clock = HistoryFormat.time(dose.scheduledAt);
-    final state = Container(
-      constraints: const BoxConstraints(minHeight: 40),
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-      decoration: BoxDecoration(
-          color: background, borderRadius: BorderRadius.circular(12)),
-      child: Row(mainAxisSize: MainAxisSize.min, children: [
-        Icon(isUpcoming ? Icons.schedule : icon, size: 16, color: color),
-        const SizedBox(width: 6),
-        Flexible(
-            child: Text(badge,
-                style: AppTextStyles.captionStrong.copyWith(color: color))),
-      ]),
-    );
+    final Widget state = prototypeStyle
+        ? _AnimatedStatusBadge(
+            label: badge,
+            status: isUpcoming ? null : status,
+            color: color,
+            background: background,
+            icon: isUpcoming ? Icons.schedule : icon,
+          )
+        : _badgeBox(
+            color: color,
+            background: background,
+            label: badge,
+            iconWidget: Icon(isUpcoming ? Icons.schedule : icon,
+                size: 16, color: color));
     final name =
         Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Text(dose.medicationName, style: AppTextStyles.bodyStrong),
@@ -106,62 +118,75 @@ class DoseHistoryTile extends StatelessWidget {
       button: interactive,
       onTap: interactive ? onTap : null,
       label:
-          '${dose.medicationName}, ${isUpcoming ? 'Sắp tới' : status.label}, giờ dự kiến ${HistoryFormat.time(dose.scheduledAt)}, ${showDate ? HistoryFormat.day(HistoryFormat.today(dose.scheduledAt)) : ''}, ${locallyConfirmed ? 'Đã xác nhận tại Trang chủ' : HistoryFormat.actual(dose)}',
+          '${dose.medicationName}, ${isUpcoming ? 'Sắp tới' : status.label}${countdown != null ? ', còn ${countdown < 1 ? 1 : countdown} phút' : ''}, giờ dự kiến ${HistoryFormat.time(dose.scheduledAt)}, ${showDate ? HistoryFormat.day(HistoryFormat.today(dose.scheduledAt)) : ''}, ${locallyConfirmed ? 'Đã xác nhận tại Trang chủ' : HistoryFormat.actual(dose)}',
       child: ExcludeSemantics(
         child: LayoutBuilder(builder: (context, constraints) {
           final compact = constraints.maxWidth < 290 ||
               MediaQuery.textScalerOf(context).scale(16) > 20;
-          return Padding(
-            padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-            child: Material(
-              color: rail ?? cardColor,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(AppRadius.field),
-                side: missed && prototypeStyle
-                    ? const BorderSide(color: ReminderPalette.missedBackground)
-                    : BorderSide.none,
-              ),
-              clipBehavior: Clip.antiAlias,
-              child: Padding(
-                padding: EdgeInsets.only(left: rail == null ? 0 : 4),
-                child: Material(
-                  color: cardColor,
-                  child: InkWell(
-                    onTap: interactive ? onTap : null,
-                    child: Padding(
-                      padding: EdgeInsets.all(prototypeStyle ? 9 : 14),
-                      child: prototypeStyle
-                          ? _prototypeRow(
-                              clock: clock,
-                              state: state,
-                              statusColor: color,
-                            )
-                          : Row(
-                              children: [
-                                const PillTile(colored: true),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                    child: compact
-                                        ? Column(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
-                                            children: [
-                                                name,
-                                                const SizedBox(height: 8),
-                                                state
-                                              ])
-                                        : name),
-                                if (!compact) ...[
-                                  const SizedBox(width: 8),
-                                  state,
-                                ],
+          final card = Material(
+            color: rail ?? cardColor,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(AppRadius.field),
+              side: missed && prototypeStyle
+                  ? const BorderSide(color: ReminderPalette.missedBackground)
+                  : BorderSide.none,
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: Padding(
+              padding: EdgeInsets.only(left: rail == null ? 0 : 4),
+              child: Material(
+                color: cardColor,
+                child: InkWell(
+                  onTap: interactive ? onTap : null,
+                  child: Padding(
+                    padding: prototypeStyle
+                        // Same metrics as the Home dose card so both tabs read alike.
+                        ? const EdgeInsets.fromLTRB(10, 8, 10, 8)
+                        : const EdgeInsets.all(14),
+                    child: prototypeStyle
+                        ? _prototypeRow(
+                            clock: clock,
+                            state: state,
+                            statusColor: color,
+                          )
+                        : Row(
+                            children: [
+                              const PillTile(colored: true),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                  child: compact
+                                      ? Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                              name,
+                                              const SizedBox(height: 8),
+                                              state
+                                            ])
+                                      : name),
+                              if (!compact) ...[
+                                const SizedBox(width: 8),
+                                state,
                               ],
-                            ),
-                    ),
+                            ],
+                          ),
                   ),
                 ),
               ),
             ),
+          );
+          // Only the day tab's rows fly into the detail page; "Theo thuốc" rows reuse this
+          // widget and must not share hero tags with them.
+          final hero = prototypeStyle && onTap != null
+              ? HeroMode(
+                  enabled: HistoryMotion.enabled(context),
+                  child: Hero(
+                      tag: DoseHeroTag(dose.scheduleId, dose.scheduledAt),
+                      child: card))
+              : card;
+          return Padding(
+            padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+            child: hero,
           );
         }),
       ),
@@ -176,38 +201,126 @@ class DoseHistoryTile extends StatelessWidget {
     final info = details?.trim() ?? '';
     return Row(
       children: [
-        const SizedBox(
-          width: 40,
-          height: 40,
-          child: Center(child: PillTile(colored: true)),
-        ),
-        const SizedBox(width: 9),
+        const PillTile(colored: true, size: 44),
+        const SizedBox(width: 10),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(clock,
-                  style: AppTextStyles.captionStrong
-                      .copyWith(fontSize: 12, color: statusColor)),
+                  style: AppTextStyles.captionStrong.copyWith(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: statusColor)),
               Text(dose.medicationName,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: AppTextStyles.bodyStrong.copyWith(fontSize: 14)),
+                  style: AppTextStyles.bodyStrong
+                      .copyWith(fontSize: 16, fontWeight: FontWeight.w600)),
               if (info.isNotEmpty)
                 Text(info,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: AppTextStyles.caption.copyWith(fontSize: 11)),
+                    style: AppTextStyles.caption.copyWith(fontSize: 12)),
             ],
           ),
         ),
-        const SizedBox(width: 7),
+        const SizedBox(width: 8),
         ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 112),
           child: state,
         ),
       ],
+    );
+  }
+}
+
+Widget _badgeBox({
+  required Color color,
+  required Color background,
+  required String label,
+  required Widget iconWidget,
+  Key? key,
+}) =>
+    Container(
+      key: key,
+      constraints: const BoxConstraints(minHeight: 40),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+          color: background, borderRadius: BorderRadius.circular(12)),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        iconWidget,
+        const SizedBox(width: 6),
+        Flexible(
+            child: Text(label,
+                style: AppTextStyles.captionStrong.copyWith(color: color))),
+      ]),
+    );
+
+/// Status badge of a day-tab row. A new label scales and fades in over the old one; when the
+/// dose turns "Đã uống" while the row is on screen, the check mark draws itself once.
+class _AnimatedStatusBadge extends StatefulWidget {
+  const _AnimatedStatusBadge({
+    required this.label,
+    required this.status,
+    required this.color,
+    required this.background,
+    required this.icon,
+  });
+
+  final String label;
+
+  /// `null` while the dose is upcoming.
+  final HistoryDoseStatus? status;
+  final Color color, background;
+  final IconData icon;
+
+  @override
+  State<_AnimatedStatusBadge> createState() => _AnimatedStatusBadgeState();
+}
+
+class _AnimatedStatusBadgeState extends State<_AnimatedStatusBadge> {
+  final _check = GlobalKey<State<DrawnCheck>>();
+
+  @override
+  void didUpdateWidget(_AnimatedStatusBadge old) {
+    super.didUpdateWidget(old);
+    if (old.status != HistoryDoseStatus.taken &&
+        widget.status == HistoryDoseStatus.taken) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _check.replay();
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final taken = widget.status == HistoryDoseStatus.taken;
+    final box = _badgeBox(
+      key: ValueKey(('dose-badge', widget.label, widget.status)),
+      color: widget.color,
+      background: widget.background,
+      label: widget.label,
+      iconWidget: taken
+          ? DrawnCheck(key: _check, color: widget.color)
+          : Icon(widget.icon, size: 16, color: widget.color),
+    );
+    final animate = HistoryMotion.enabled(context);
+    return AnimatedSwitcher(
+      duration: animate ? HistoryMotion.selection : Duration.zero,
+      switchInCurve: Curves.easeOutCubic,
+      switchOutCurve: Curves.easeInCubic,
+      layoutBuilder: (current, previous) => Stack(
+          alignment: Alignment.centerRight,
+          children: [...previous, if (current != null) current]),
+      transitionBuilder: (child, animation) => FadeTransition(
+        opacity: animation,
+        child: ScaleTransition(
+            scale: Tween(begin: .92, end: 1.0).animate(animation),
+            child: child),
+      ),
+      child: box,
     );
   }
 }

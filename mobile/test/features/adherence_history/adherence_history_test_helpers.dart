@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:drugtime_mobile/app/theme/app_theme.dart';
 import 'package:drugtime_mobile/features/adherence_history/presentation/screens/adherence_history_screen.dart';
@@ -140,6 +141,7 @@ Future<AdherenceHistoryController> pumpHistory(
     double height = 1000,
     double scale = 1,
     bool reducedMotion = false,
+    DateTime Function()? clock,
     EdgeInsets safeInsets = EdgeInsets.zero}) async {
   tester.view.physicalSize = Size(width, height);
   tester.view.devicePixelRatio = 1;
@@ -158,7 +160,7 @@ Future<AdherenceHistoryController> pumpHistory(
                   padding: safeInsets,
                   viewPadding: safeInsets),
               child: child!),
-          home: const Scaffold(body: AdherenceHistoryScreen()))));
+          home: Scaffold(body: AdherenceHistoryScreen(clock: clock ?? () => historyNow)))));
   await tester.pumpAndSettle();
   return controller;
 }
@@ -177,12 +179,29 @@ Future<void> openMedicationHistory(WidgetTester tester) async {
   await tester.pumpAndSettle();
 }
 
+/// The page's vertical scrollable (the day tab is a CustomScrollView, sub-pages may be lists).
+Finder historyScrollable() => find
+    .byWidgetPredicate((w) =>
+        w is Scrollable &&
+        (w.axisDirection == AxisDirection.down ||
+            w.axisDirection == AxisDirection.up))
+    .first;
+
 Future<void> scrollHistoryTop(WidgetTester tester) async {
-  final vertical = find
-      .descendant(
-          of: find.byType(ListView).first, matching: find.byType(Scrollable))
-      .first;
   await tester.scrollUntilVisible(find.byKey(const Key('history-title')), -600,
-      scrollable: vertical, maxScrolls: 100);
+      scrollable: historyScrollable(), maxScrolls: 100);
   await tester.pumpAndSettle();
+}
+
+/// Records `HapticFeedback` calls sent to the platform channel.
+List<String> recordHaptics(WidgetTester tester) {
+  final calls = <String>[];
+  tester.binding.defaultBinaryMessenger
+      .setMockMethodCallHandler(SystemChannels.platform, (call) async {
+    if (call.method == 'HapticFeedback.vibrate') calls.add('${call.arguments}');
+    return null;
+  });
+  addTearDown(() => tester.binding.defaultBinaryMessenger
+      .setMockMethodCallHandler(SystemChannels.platform, null));
+  return calls;
 }

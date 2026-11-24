@@ -32,11 +32,7 @@ void main() {
           expect(find.byKey(const Key('demo-preset-picker')), findsNothing);
           final lastDose = find.byWidgetPredicate(
               (w) => w is DoseHistoryTile && w.dose.scheduleId == 2023);
-          final vertical = find
-              .descendant(
-                  of: find.byType(ListView).first,
-                  matching: find.byType(Scrollable))
-              .first;
+          final vertical = historyScrollable();
           await tester.scrollUntilVisible(lastDose, 500,
               scrollable: vertical, maxScrolls: 100);
           await tester.ensureVisible(lastDose);
@@ -46,11 +42,7 @@ void main() {
           await openHistoryMonth(tester);
           final day = find.byKey(const ValueKey('history-day-22'));
           await tester.scrollUntilVisible(day, 300,
-              scrollable: find
-                  .descendant(
-                      of: find.byType(ListView).first,
-                      matching: find.byType(Scrollable))
-                  .first);
+              scrollable: historyScrollable());
           expect(tester.getSize(day).width, greaterThanOrEqualTo(48));
           expect(tester.getSize(day).height, greaterThanOrEqualTo(48));
           await tester.binding.handlePopRoute();
@@ -58,11 +50,7 @@ void main() {
           await openMedicationHistory(tester);
           final arrow = find.byKey(const ValueKey('history-expand-7'));
           await tester.scrollUntilVisible(arrow, 300,
-              scrollable: find
-                  .descendant(
-                      of: find.byType(ListView).first,
-                      matching: find.byType(Scrollable))
-                  .first);
+              scrollable: historyScrollable());
           await tester.ensureVisible(arrow);
           await tester.pumpAndSettle();
           await tester.tap(arrow);

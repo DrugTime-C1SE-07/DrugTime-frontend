@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../../domain/entities/adherence_history.dart';
 import '../utils/adherence_history_format.dart';
+import '../widgets/dose_timeline_rail.dart';
+import '../widgets/history_motion.dart';
 
 /// Màn hình S09d · Chi tiết liều dùng theo chuẩn Figma Prototype_DrugTime (node-id=74-7713)
 class DoseDetailScreen extends StatefulWidget {
@@ -46,8 +48,8 @@ class _DoseDetailScreenState extends State<DoseDetailScreen> {
   Widget build(BuildContext context) {
     final dose = widget.dose;
     final scheduledTime = HistoryFormat.time(dose.scheduledAt);
-    final upcoming =
-        dose.status == HistoryDoseStatus.pending && dose.scheduledAt.isAfter(widget.asOf);
+    final upcoming = dose.status == HistoryDoseStatus.pending &&
+        dose.scheduledAt.isAfter(widget.asOf);
 
     return Scaffold(
       backgroundColor: const Color(0xFFFCFCFC),
@@ -69,7 +71,8 @@ class _DoseDetailScreenState extends State<DoseDetailScreen> {
               ),
               child: IconButton(
                 padding: EdgeInsets.zero,
-                icon: const Icon(Icons.chevron_left, color: Color(0xFF01554F), size: 24),
+                icon: const Icon(Icons.chevron_left,
+                    color: Color(0xFF01554F), size: 24),
                 onPressed: () => Navigator.maybePop(context),
               ),
             ),
@@ -92,54 +95,61 @@ class _DoseDetailScreenState extends State<DoseDetailScreen> {
                 padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
                 children: [
                   // 1. Hero Medication Card
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFE7F3F1),
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        // Pill icon box
-                        Container(
-                          width: 56,
-                          height: 56,
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFFFE8D6),
-                            borderRadius: BorderRadius.circular(14),
-                          ),
-                          child: const Icon(
-                            Icons.medication_outlined,
-                            color: Color(0xFFD97706),
-                            size: 32,
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        Text(
-                          dose.medicationName,
-                          style: const TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w700,
-                            color: Color(0xFF211D1D),
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                        const SizedBox(height: 4),
-                        const Text(
-                          '1 viên · Trước ăn tối',
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: Color(0xFF5B6169),
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        // Status pill
-                        _buildStatusChip(dose, scheduledTime, upcoming),
-                      ],
-                    ),
-                  ),
+                  HeroMode(
+                      enabled: HistoryMotion.enabled(context),
+                      child: Hero(
+                          tag: DoseHeroTag(dose.scheduleId, dose.scheduledAt),
+                          child: Material(
+                              type: MaterialType.transparency,
+                              child: Container(
+                                width: double.infinity,
+                                padding: const EdgeInsets.all(20),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFE7F3F1),
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    // Pill icon box
+                                    Container(
+                                      width: 56,
+                                      height: 56,
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFFFFE8D6),
+                                        borderRadius: BorderRadius.circular(14),
+                                      ),
+                                      child: const Icon(
+                                        Icons.medication_outlined,
+                                        color: Color(0xFFD97706),
+                                        size: 32,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 12),
+                                    Text(
+                                      dose.medicationName,
+                                      style: const TextStyle(
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.w700,
+                                        color: Color(0xFF211D1D),
+                                      ),
+                                      textAlign: TextAlign.center,
+                                    ),
+                                    const SizedBox(height: 4),
+                                    const Text(
+                                      '1 viên · Trước ăn tối',
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        color: Color(0xFF5B6169),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 12),
+                                    // Status pill
+                                    _buildStatusChip(
+                                        dose, scheduledTime, upcoming),
+                                  ],
+                                ),
+                              )))),
                   const SizedBox(height: 20),
 
                   // 2. Section: THÔNG TIN LIỀU DÙNG
@@ -162,10 +172,12 @@ class _DoseDetailScreenState extends State<DoseDetailScreen> {
                     child: Column(
                       children: [
                         Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 16, vertical: 14),
                           child: Row(
                             children: [
-                              const Icon(Icons.access_time, size: 20, color: Color(0xFF5B6169)),
+                              const Icon(Icons.access_time,
+                                  size: 20, color: Color(0xFF5B6169)),
                               const SizedBox(width: 10),
                               const Expanded(
                                 child: Text(
@@ -189,7 +201,8 @@ class _DoseDetailScreenState extends State<DoseDetailScreen> {
                         ),
                         const Divider(height: 1, color: Color(0xFFE4E4E1)),
                         const Padding(
-                          padding: EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                          padding: EdgeInsets.symmetric(
+                              horizontal: 16, vertical: 14),
                           child: Row(
                             children: [
                               Icon(Icons.restaurant_outlined,
@@ -241,7 +254,8 @@ class _DoseDetailScreenState extends State<DoseDetailScreen> {
                     ),
                     child: const Row(
                       children: [
-                        Icon(Icons.description_outlined, size: 20, color: Color(0xFFA6A6A6)),
+                        Icon(Icons.description_outlined,
+                            size: 20, color: Color(0xFFA6A6A6)),
                         SizedBox(width: 10),
                         Expanded(
                           child: Text(
@@ -325,8 +339,9 @@ class _DoseDetailScreenState extends State<DoseDetailScreen> {
                 child: FilledButton.icon(
                   key: const Key('dose-confirm-button'),
                   style: FilledButton.styleFrom(
-                    backgroundColor:
-                        _confirmed ? const Color(0xFF16A34A) : const Color(0xFF01554F),
+                    backgroundColor: _confirmed
+                        ? const Color(0xFF16A34A)
+                        : const Color(0xFF01554F),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(16),
                     ),
@@ -349,7 +364,8 @@ class _DoseDetailScreenState extends State<DoseDetailScreen> {
     );
   }
 
-  Widget _buildStatusChip(HistoryDose dose, String scheduledTime, bool upcoming) {
+  Widget _buildStatusChip(
+      HistoryDose dose, String scheduledTime, bool upcoming) {
     if (_confirmed) {
       return Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
@@ -416,7 +432,9 @@ class _DoseDetailScreenState extends State<DoseDetailScreen> {
           const Icon(Icons.access_time, size: 16, color: Color(0xFFD97706)),
           const SizedBox(width: 6),
           Text(
-            upcoming ? 'Sắp tới · $scheduledTime' : 'Chưa uống · $scheduledTime',
+            upcoming
+                ? 'Sắp tới · $scheduledTime'
+                : 'Chưa uống · $scheduledTime',
             style: const TextStyle(
               fontSize: 13,
               fontWeight: FontWeight.w600,
