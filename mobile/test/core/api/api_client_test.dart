@@ -15,6 +15,7 @@ void main() {
   late List<String?> contentTypes;
   late int status;
   late String? retryAfterHeader;
+  late String? errorBody;
   Completer<void>? responseGate;
 
   setUp(() async {
@@ -25,6 +26,7 @@ void main() {
     contentTypes = [];
     status = 200;
     retryAfterHeader = null;
+    errorBody = null;
     responseGate = null;
     server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     server.listen((request) async {
@@ -43,7 +45,7 @@ void main() {
           ..headers.contentType = ContentType.json
           ..write(status == 200
               ? '{"ok": true}'
-              : '{"detail": "Invalid bearer token"}');
+              : (errorBody ?? '{"detail": "Invalid bearer token"}'));
       }
       await request.response.close();
     });
@@ -343,5 +345,62 @@ void main() {
       throwsA(isA<ApiException>()
           .having((e) => e.isTransient, 'isTransient', true)),
     );
+  });
+
+  test('gọi onAccountPendingDeletion khi 403 account_pending_deletion',
+      () async {
+    status = 403;
+    errorBody = '{"detail": "account_pending_deletion"}';
+    var triggered = 0;
+    final client = ApiClient(
+      baseUrl: base(),
+      authTokenProvider: () async => 'session-a',
+      onAccountPendingDeletion: () => triggered++,
+    );
+
+    await expectLater(
+      client.getJson('/medications'),
+      throwsA(isA<ApiException>().having((e) => e.statusCode, 'status', 403)),
+    );
+    expect(triggered, 1);
+  });
+
+  test('không gọi onAccountPendingDeletion cho 403 khác hoặc phiên cũ',
+      () async {
+    status = 403;
+    errorBody = '{"detail": "khong_co_quyen"}';
+    var triggered = 0;
+    var activeToken = 'session-a';
+    final client = ApiClient(
+      baseUrl: base(),
+      authTokenProvider: () async => activeToken,
+      onAccountPendingDeletion: () => triggered++,
+    );
+
+    await expectLater(
+      client.getJson('/medications'),
+      throwsA(isA<ApiException>().having((e) => e.statusCode, 'status', 403)),
+    );
+    expect(triggered, 0);
+
+    errorBody = '{"detail": "consent_revoked"}';
+    await expectLater(
+      client.getJson('/medications'),
+      throwsA(isA<ApiException>().having((e) => e.statusCode, 'status', 403)),
+    );
+    expect(triggered, 0);
+
+    // Response 403 account_pending_deletion trễ từ phiên A không được khóa phiên B.
+    errorBody = '{"detail": "account_pending_deletion"}';
+    responseGate = Completer<void>();
+    final pending = client.getJson('/medications');
+    final assertion = expectLater(pending, throwsA(isA<ApiException>()));
+    while (authHeaders.length < 3) {
+      await Future<void>.delayed(Duration.zero);
+    }
+    activeToken = 'session-b';
+    responseGate!.complete();
+    await assertion;
+    expect(triggered, 0);
   });
 }

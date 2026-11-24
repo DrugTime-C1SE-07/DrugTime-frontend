@@ -1,11 +1,15 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'dart:math' as math;
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../../../core/api/api_exception.dart';
+import '../../../../core/sync/sync_engine.dart';
 import '../../data/account_deletion_repository.dart';
+import '../../data/account_deletion_status_store.dart';
 import '../../../auth/presentation/state/auth_controller.dart';
 import '../../../auth/presentation/widgets/otp_pin_input.dart';
 import '../../../profile/presentation/state/profile_controller.dart';
@@ -16,18 +20,42 @@ const _green = Color(0xff01554f), _red = Color(0xffb91c1c);
 const _ink = Color(0xff211d1d), _muted = Color(0xff5b6169);
 
 class AccountDeletionScope extends InheritedWidget {
-  const AccountDeletionScope(
-      {super.key, required this.repository, required super.child});
+  const AccountDeletionScope({
+    super.key,
+    required this.repository,
+    this.statusStore,
+    this.connectivity,
+    this.recheckNotifier,
+    this.clock,
+    required super.child,
+  });
   final AccountDeletionRepository? repository;
-  static AccountDeletionRepository? of(BuildContext context) => context
-      .dependOnInheritedWidgetOfExactType<AccountDeletionScope>()
-      ?.repository;
+  final AccountDeletionStatusStore? statusStore;
+  final ConnectivityMonitor? connectivity;
+  final ValueListenable<int>? recheckNotifier;
+  final DateTime Function()? clock;
+
+  static AccountDeletionScope? maybeOf(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<AccountDeletionScope>();
+
+  static AccountDeletionRepository? of(BuildContext context) =>
+      maybeOf(context)?.repository;
+
   @override
   bool updateShouldNotify(AccountDeletionScope oldWidget) =>
-      repository != oldWidget.repository;
+      repository != oldWidget.repository ||
+      statusStore != oldWidget.statusStore ||
+      connectivity != oldWidget.connectivity ||
+      recheckNotifier != oldWidget.recheckNotifier ||
+      clock != oldWidget.clock;
 }
 
-/// A failed lookup never opens the app; login itself never cancels a request.
+/// Kiểm tra trạng thái chờ xóa khi vào phiên.
+///
+/// Khi mất mạng/lỗi tạm thời: chỉ fail-open nếu `userId` đã từng xác minh
+/// không có yêu cầu xóa (`pending == null` trong cache), đồng thời đánh dấu
+/// kiểm tra lại ngầm khi có mạng, khi `resumed` hoặc khi nhận `403`.
+/// Đăng nhập hoặc mở app không bao giờ tự hủy yêu cầu xóa (QD-35).
 class AccountDeletionGate extends StatefulWidget {
   const AccountDeletionGate({super.key, required this.child});
   final Widget child;
@@ -35,42 +63,246 @@ class AccountDeletionGate extends StatefulWidget {
   State<AccountDeletionGate> createState() => _AccountDeletionGateState();
 }
 
-class _AccountDeletionGateState extends State<AccountDeletionGate> {
+class _AccountDeletionGateState extends State<AccountDeletionGate>
+    with WidgetsBindingObserver {
   String? _token;
+  String? _userId;
   bool _checking = false;
+  bool _needsRevalidation = false;
+  bool _revalidating = false;
   String? _error;
   PendingAccountDeletion? _pending;
   int _generation = 0;
+
+  ConnectivityMonitor? _connectivity;
+  StreamSubscription<bool>? _connectivitySub;
+  ValueListenable<int>? _recheckNotifier;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    unawaited(_connectivitySub?.cancel());
+    _recheckNotifier?.removeListener(_onRecheckTriggered);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && _needsRevalidation) {
+      unawaited(_revalidateInBackground());
+    }
+  }
+
+  void _syncListeners(AccountDeletionScope? scope) {
+    final nextConnectivity = scope?.connectivity;
+    if (nextConnectivity != _connectivity) {
+      unawaited(_connectivitySub?.cancel());
+      _connectivity = nextConnectivity;
+      _connectivitySub = nextConnectivity?.onlineChanges.listen((online) {
+        if (online && _needsRevalidation) {
+          unawaited(_revalidateInBackground());
+        }
+      });
+    }
+    final nextRecheck = scope?.recheckNotifier;
+    if (nextRecheck != _recheckNotifier) {
+      _recheckNotifier?.removeListener(_onRecheckTriggered);
+      _recheckNotifier = nextRecheck;
+      _recheckNotifier?.addListener(_onRecheckTriggered);
+    }
+  }
+
+  void _onRecheckTriggered() {
+    if (!mounted) return;
+    unawaited(_revalidateInBackground(force: true));
+  }
+
+  DateTime _now(AccountDeletionScope? scope) =>
+      scope?.clock?.call() ?? DateTime.now().toUtc();
+
+  static bool _isNetworkOrTransientError(Object error) {
+    if (error is ApiException) {
+      return error.isTransient;
+    }
+    return error is SocketException || error is TimeoutException;
+  }
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    final scope = AccountDeletionScope.maybeOf(context);
+    _syncListeners(scope);
     final auth = AuthScope.of(context);
-    final token =
-        auth.isAuthenticated ? auth.currentSession?.accessToken : null;
+    final session = auth.isAuthenticated ? auth.currentSession : null;
+    final token = session?.accessToken;
     if (token == _token) return;
     _token = token;
+    _userId = session?.userId;
     _pending = null;
     _error = null;
+    _needsRevalidation = false;
+    _revalidating = false;
     _generation++;
-    _checking = token != null && AccountDeletionScope.of(context) != null;
-    if (_checking) unawaited(_load(_generation));
+    _checking = token != null && scope?.repository != null;
+    if (_checking) {
+      unawaited(_load(
+        _generation,
+        userId: _userId,
+        repository: scope!.repository!,
+        statusStore: scope.statusStore,
+        now: () => _now(scope),
+      ));
+    }
   }
 
-  Future<void> _load(int generation) async {
+  Future<CachedDeletionStatus?> _safeReadCache(
+    AccountDeletionStatusStore? statusStore,
+    String? userId,
+  ) async {
+    if (statusStore == null || userId == null) return null;
     try {
-      final pending = await AccountDeletionScope.of(context)!.current();
+      return await statusStore.read(userId);
+    } catch (error) {
+      debugPrint('AccountDeletionGate cache read failed: ${error.runtimeType}');
+      return null;
+    }
+  }
+
+  Future<void> _safeWriteCache(
+    AccountDeletionStatusStore? statusStore,
+    String? userId, {
+    required PendingAccountDeletion? pending,
+    required DateTime verifiedAt,
+  }) async {
+    if (statusStore == null || userId == null) return;
+    try {
+      await statusStore.write(userId, pending: pending, verifiedAt: verifiedAt);
+    } catch (error) {
+      debugPrint(
+          'AccountDeletionGate cache write failed: ${error.runtimeType}');
+    }
+  }
+
+  Future<void> _safeClearCache(
+    AccountDeletionStatusStore? statusStore,
+    String? userId,
+  ) async {
+    if (statusStore == null || userId == null) return;
+    try {
+      await statusStore.clear(userId);
+    } catch (error) {
+      debugPrint(
+          'AccountDeletionGate cache clear failed: ${error.runtimeType}');
+    }
+  }
+
+  Future<void> _load(
+    int generation, {
+    required String? userId,
+    required AccountDeletionRepository repository,
+    required AccountDeletionStatusStore? statusStore,
+    required DateTime Function() now,
+  }) async {
+    try {
+      final pending = await repository.current();
+      if (generation == _generation) {
+        await _safeWriteCache(
+          statusStore,
+          userId,
+          pending: pending,
+          verifiedAt: now(),
+        );
+      }
       if (mounted && generation == _generation) {
         setState(() {
           _pending = pending;
+          _error = null;
           _checking = false;
+          _needsRevalidation = false;
         });
       }
-    } catch (_) {
+    } catch (error) {
+      if (!mounted || generation != _generation) return;
+      if (error is ApiException && error.statusCode == 401) {
+        await _safeClearCache(statusStore, userId);
+        if (mounted && generation == _generation) {
+          setState(() {
+            _error = 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.';
+            _checking = false;
+            _needsRevalidation = false;
+          });
+        }
+        return;
+      }
+
+      if (_isNetworkOrTransientError(error) &&
+          userId != null &&
+          statusStore != null) {
+        final cached = await _safeReadCache(statusStore, userId);
+        if (!mounted || generation != _generation) return;
+        if (cached != null) {
+          setState(() {
+            _pending = cached.pending;
+            _error = null;
+            _checking = false;
+            _needsRevalidation = true;
+          });
+          return;
+        }
+      }
+
       if (mounted && generation == _generation) {
         setState(() {
           _error = 'Chưa kiểm tra được trạng thái tài khoản. Vui lòng thử lại.';
           _checking = false;
         });
+      }
+    }
+  }
+
+  Future<void> _revalidateInBackground({bool force = false}) async {
+    if (!mounted || _revalidating || _checking || _token == null) return;
+    if (!force && !_needsRevalidation) return;
+    final scope = AccountDeletionScope.maybeOf(context);
+    final repository = scope?.repository;
+    if (repository == null) return;
+    final statusStore = scope?.statusStore;
+    final userId = _userId;
+    final generation = _generation;
+
+    _revalidating = true;
+    try {
+      final pending = await repository.current();
+      if (generation == _generation) {
+        await _safeWriteCache(
+          statusStore,
+          userId,
+          pending: pending,
+          verifiedAt: _now(scope),
+        );
+      }
+      if (mounted && generation == _generation) {
+        setState(() {
+          _pending = pending;
+          _error = null;
+          _needsRevalidation = false;
+        });
+      }
+    } on ApiException catch (error) {
+      if (error.statusCode == 401 && generation == _generation) {
+        await _safeClearCache(statusStore, userId);
+      }
+    } catch (_) {
+      // Vẫn lỗi mạng khi kiểm tra ngầm: giữ _needsRevalidation = true để thử lại sau.
+    } finally {
+      if (generation == _generation) {
+        _revalidating = false;
       }
     }
   }
@@ -85,15 +317,28 @@ class _AccountDeletionGateState extends State<AccountDeletionGate> {
       overlay = AccountDeletionScreen(
           statusError: _error,
           onRetry: () {
+            final scope = AccountDeletionScope.maybeOf(context);
+            final repository = scope?.repository;
+            if (repository == null) return;
             setState(() {
               _checking = true;
               _error = null;
             });
-            unawaited(_load(_generation));
+            unawaited(_load(
+              _generation,
+              userId: _userId,
+              repository: repository,
+              statusStore: scope?.statusStore,
+              now: () => _now(scope),
+            ));
           });
     } else if (_pending != null) {
       overlay = AccountDeletionScreen(
-          pending: _pending, onRestored: () => setState(() => _pending = null));
+          pending: _pending,
+          onRestored: () => setState(() {
+                _pending = null;
+                _needsRevalidation = false;
+              }));
     }
     // Preserve the Navigator so sign-out can replace its routes even while X7
     // is visible. Offstage hides all underlying pixels/semantics, and both
@@ -272,9 +517,25 @@ class _AccountDeletionScreenState extends State<AccountDeletionScreen> {
         await _repo.verify(_challenge!.id, _pin.text);
         if (mounted) _go(DeletionStep.confirm);
       });
+  Future<void> _writeCachedStatus(PendingAccountDeletion? pending) async {
+    final store = AccountDeletionScope.maybeOf(context)?.statusStore;
+    final userId = AuthScope.maybeOf(context)?.currentSession?.userId;
+    if (store != null && userId != null) {
+      try {
+        await store.write(userId, pending: pending, verifiedAt: _now().toUtc());
+      } catch (error) {
+        debugPrint(
+            'AccountDeletionScreen cache write failed: ${error.runtimeType}');
+      }
+    }
+  }
+
   Future<void> _create() => _call(() async {
         // Repeating the same challenge after a timeout returns the saved deadline.
         final saved = await _repo.create(_challenge!.id);
+        if (mounted) {
+          await _writeCachedStatus(saved);
+        }
         if (mounted) {
           setState(() {
             _saved = saved;
@@ -285,6 +546,9 @@ class _AccountDeletionScreenState extends State<AccountDeletionScreen> {
       });
   Future<void> _cancel() => _call(() async {
         await _repo.cancel();
+        if (mounted) {
+          await _writeCachedStatus(null);
+        }
         if (mounted) widget.onRestored?.call();
       });
   Future<void> _leave() => _call(() async {

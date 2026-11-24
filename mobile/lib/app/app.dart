@@ -1,5 +1,6 @@
 import 'dart:async';
 import '../features/consent/data/account_deletion_repository.dart';
+import '../features/consent/data/account_deletion_status_store.dart';
 import '../features/consent/presentation/screens/account_deletion_screen.dart';
 import '../features/patient_monitor/data/patient_monitor_repository.dart';
 import '../features/patient_monitor/presentation/patient_monitor_controller.dart';
@@ -124,11 +125,15 @@ class DrugTimeApp extends StatefulWidget {
     this.familyConnectivity,
     this.patientMonitorRepository,
     this.accountDeletionRepository,
+    this.accountDeletionStatusStore,
+    this.accountDeletionRecheck,
   });
 
   /// Trạng thái đăng nhập; app chạy thật dựng với RemoteAuthRepository (xem main.dart).
   final AuthController authController;
   final AccountDeletionRepository? accountDeletionRepository;
+  final AccountDeletionStatusStore? accountDeletionStatusStore;
+  final ValueListenable<int>? accountDeletionRecheck;
   final AppTab initialTab;
   final bool preview;
   final AdherenceHistoryRepository? adherenceHistoryRepository;
@@ -949,6 +954,10 @@ class _DrugTimeAppState extends State<DrugTimeApp> with WidgetsBindingObserver {
       debugShowCheckedModeBanner: false,
       builder: (context, child) => AccountDeletionScope(
           repository: widget.accountDeletionRepository,
+          statusStore: widget.accountDeletionStatusStore,
+          connectivity: widget.familyConnectivity,
+          recheckNotifier: widget.accountDeletionRecheck,
+          clock: widget.clock,
           child: AccountDeletionGate(
               child: CaptureScope(services: _captures, child: child!))),
       theme: buildAppTheme(),
