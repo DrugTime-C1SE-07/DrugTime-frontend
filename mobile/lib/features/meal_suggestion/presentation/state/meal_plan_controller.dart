@@ -168,6 +168,7 @@ class MealPlanController extends ChangeNotifier {
     _generation++;
     _resultAt.clear();
     refreshesRemaining = null;
+    lastRefreshFailure = null;
     _stopPolling();
   }
 

@@ -116,6 +116,38 @@ void main() {
     expect(await store.getPendingDoseLogs(), [doseLog]);
   });
 
+  test(
+      'keeps batch pending and skips checkpoint on 403 account_pending_deletion (QD-07, AC6)',
+      () async {
+    final doseLog = _doseLog('dose-1');
+    final store = _FakeLocalMedicationStore([doseLog]);
+    final remote = _FakeDoseRemoteDataSource(
+      failuresBeforeSuccess: 1,
+      failure: const ApiException(
+        '{"detail":"account_pending_deletion"}',
+        statusCode: 403,
+      ),
+    );
+    final network = _FakeConnectivityMonitor(isOnline: true);
+    var checkpoints = 0;
+    final engine = DoseOutboxSyncEngine(
+      localStore: store,
+      remoteDataSource: remote,
+      connectivityMonitor: network,
+      delay: (_) async {},
+      checkpointSource: _CallbackCheckpointSource(() async => checkpoints++),
+    );
+
+    final synced = await engine.syncPendingDoseLogs();
+
+    expect(synced, isFalse);
+    expect(remote.uploadedClientUuids, ['dose-1']);
+    expect(store.syncedClientUuids, isEmpty);
+    expect(store.failedClientUuids, isEmpty);
+    expect(await store.getPendingDoseLogs(), [doseLog]);
+    expect(checkpoints, 0);
+  });
+
   test('does not upload a record again after it is marked synced', () async {
     final store = _FakeLocalMedicationStore([_doseLog('dose-1')]);
     final remote = _FakeDoseRemoteDataSource();
@@ -841,4 +873,13 @@ LocalDoseLog _doseLog(String clientUuid) {
     syncState: DoseLogSyncState.pendingUpload,
     localUpdatedAt: DateTime.utc(2026, 9, 30, 1, 5),
   );
+}
+
+class _CallbackCheckpointSource implements DoseSyncCheckpointSource {
+  _CallbackCheckpointSource(this._onRecord);
+
+  final Future<void> Function() _onRecord;
+
+  @override
+  Future<void> recordCheckpoint() => _onRecord();
 }
