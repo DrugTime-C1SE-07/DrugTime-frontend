@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:drugtime_mobile/features/adherence_history/presentation/utils/reminder_palette.dart';
 import 'package:drugtime_mobile/core/utils/app_assets.dart';
 import 'package:drugtime_mobile/features/adherence_history/presentation/widgets/dose_timeline_rail.dart';
 import 'package:drugtime_mobile/features/adherence_history/domain/entities/adherence_history.dart';
@@ -421,6 +422,11 @@ void main() {
       final marker = find.byKey(const Key('history-now-marker'));
       expect(marker, findsOneWidget);
       expect(find.text('Bây giờ · 10:00'), findsOneWidget);
+      // The line uses the neutral accent, never the "Bỏ lỡ" red.
+      final pill = tester.widget<Container>(find.ancestor(
+          of: find.text('Bây giờ · 10:00'), matching: find.byType(Container)).first);
+      expect((pill.decoration as BoxDecoration).color, NowMarker.color);
+      expect(NowMarker.color, isNot(ReminderPalette.missed));
       expect(tester.getTopLeft(marker).dy,
           greaterThan(tester.getTopLeft(tileOf(1)).dy));
       expect(tester.getTopLeft(marker).dy,
@@ -535,6 +541,47 @@ void main() {
       }
       await tester.pumpAndSettle();
       expect(find.text('Bây giờ · 10:40'), findsOneWidget);
+    });
+
+    testWidgets(
+        'covered by the detail page the minute timer stops; back shows the time at once (AC16)',
+        (tester) async {
+      var now = DateTime.utc(2026, 10, 21, 3);
+      var builds = 0;
+      final repo = FakeHistoryRepository()
+        ..transform = (h) => withToday(h, [
+              dose(1, 8, 0, HistoryDoseStatus.taken),
+              dose(2, 18, 0, HistoryDoseStatus.pending),
+            ]);
+      // The screen reads the clock once per build, so the call count tracks its rebuilds.
+      await pumpHistory(tester, repo, clock: () {
+        builds++;
+        return now;
+      });
+      expect(find.text('Bây giờ · 10:00'), findsOneWidget);
+
+      await tester.tap(tileOf(1));
+      await tester.pumpAndSettle();
+      expect(find.text('Chi tiết liều dùng'), findsOneWidget);
+
+      final covered = builds;
+      now = DateTime.utc(2026, 10, 21, 3, 5);
+      for (var i = 0; i < 5; i++) {
+        await tester.pump(const Duration(minutes: 1));
+      }
+      expect(builds, covered,
+          reason: 'no minute rebuilds while another route covers the tab');
+
+      await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+      expect(find.text('Chi tiết liều dùng'), findsNothing);
+      expect(find.text('Bây giờ · 10:05'), findsOneWidget);
+
+      // Ticking resumes once the tab is uncovered.
+      now = DateTime.utc(2026, 10, 21, 3, 6);
+      await tester.pump(const Duration(minutes: 1));
+      await tester.pump();
+      expect(find.text('Bây giờ · 10:06'), findsOneWidget);
     });
   });
 }

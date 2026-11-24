@@ -50,6 +50,9 @@ class _AdherenceHistoryScreenState extends State<AdherenceHistoryScreen>
   Timer? _minuteTick;
   AppLifecycleState? _lifecycle = WidgetsBinding.instance.lifecycleState;
 
+  /// False while another route (dose detail, month calendar…) covers the tab.
+  bool _routeCurrent = true;
+
   /// Direction of the last day change: +1 later day, -1 earlier day, 0 none yet.
   DateTime? _shownDay;
   int _dayDirection = 0;
@@ -70,6 +73,7 @@ class _AdherenceHistoryScreenState extends State<AdherenceHistoryScreen>
 
   bool get _ticking =>
       widget.active &&
+      _routeCurrent &&
       (_lifecycle == null || _lifecycle == AppLifecycleState.resumed);
 
   void _scheduleTick() {
@@ -87,6 +91,13 @@ class _AdherenceHistoryScreenState extends State<AdherenceHistoryScreen>
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    // Depending on the route's "current" flag rebuilds the tab when it is uncovered, so the
+    // "Bây giờ" line shows the right minute at once and the timer starts again.
+    final routeCurrent = ModalRoute.isCurrentOf(context) ?? true;
+    if (routeCurrent != _routeCurrent) {
+      _routeCurrent = routeCurrent;
+      _scheduleTick();
+    }
     final controller = AdherenceHistoryScope.read(context);
     if (_controller != controller) {
       _controller?.removeListener(_changed);
