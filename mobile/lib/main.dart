@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'features/consent/data/account_deletion_repository.dart';
+import 'features/consent/data/account_deletion_status_store.dart';
 import 'features/patient_monitor/data/patient_monitor_repository.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
@@ -101,7 +102,12 @@ Future<void> main() async {
     soundChannel: () => reminderSounds.selected,
   );
 
-  final apiClient = _buildApiClient(authController);
+  final deletionStatusStore = SecureAccountDeletionStatusStore(secureStorage);
+  final accountDeletionRecheck = ValueNotifier<int>(0);
+  final apiClient = _buildApiClient(
+    authController,
+    onAccountPendingDeletion: () => accountDeletionRecheck.value++,
+  );
 
   // Lịch uống lấy từ API về máy rồi mới lập nhắc; chạy khi có phiên (app.dart) và khi sửa thuốc.
   final reminderSync = ReminderSyncCoordinator(
@@ -167,6 +173,7 @@ Future<void> main() async {
   authController.beforeSignOut = (session) async {
     alerts.clear();
     push.clear();
+    await deletionStatusStore.clear(session.userId);
     await reminderSync.clear();
     // Q1: âm tự thêm thuộc thiết bị của người dùng vừa đăng xuất.
     try {
@@ -180,6 +187,7 @@ Future<void> main() async {
   authController.onSessionExpired = () async {
     alerts.clear();
     push.clear();
+    await deletionStatusStore.clearAll();
     await tokens?.expire();
   };
 
@@ -189,6 +197,8 @@ Future<void> main() async {
   runApp(DrugTimeApp(
     authController: authController,
     accountDeletionRepository: RemoteAccountDeletionRepository(apiClient),
+    accountDeletionStatusStore: deletionStatusStore,
+    accountDeletionRecheck: accountDeletionRecheck,
     familyAlertController: alerts,
     familyPushService: push,
     deviceTokenCoordinator: tokens,
@@ -230,12 +240,17 @@ Future<void> main() async {
   ));
 }
 
-ApiClient _buildApiClient(AuthController auth) => ApiClient(
+ApiClient _buildApiClient(
+  AuthController auth, {
+  AccountPendingDeletionHandler? onAccountPendingDeletion,
+}) =>
+    ApiClient(
       baseUrl: Uri.parse(AppConfig.apiBaseUrl),
       // Đọc phiên ở mỗi request: đăng xuất là token không còn được gửi.
       authTokenProvider: () async =>
           auth.isAuthenticated ? auth.currentSession?.accessToken : null,
       onUnauthorized: auth.handleUnauthorized,
+      onAccountPendingDeletion: onAccountPendingDeletion,
     );
 
 DoseOutboxSyncEngine _buildDoseOutboxSyncEngine(

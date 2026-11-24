@@ -11,22 +11,28 @@ typedef AuthTokenProvider = Future<String?> Function();
 /// Gọi khi API trả 401: phiên không còn hiệu lực, app đưa người dùng về màn Đăng nhập.
 typedef UnauthorizedHandler = Future<void> Function();
 
+/// Gọi khi API trả 403 với `detail == "account_pending_deletion"`: kích hoạt gate kiểm tra lại.
+typedef AccountPendingDeletionHandler = void Function();
+
 class ApiClient {
   ApiClient({
     required Uri baseUrl,
     http.Client? httpClient,
     AuthTokenProvider? authTokenProvider,
     UnauthorizedHandler? onUnauthorized,
+    AccountPendingDeletionHandler? onAccountPendingDeletion,
     this.timeout = const Duration(seconds: 20),
   })  : _baseUrl = baseUrl,
         _httpClient = httpClient ?? http.Client(),
         _authTokenProvider = authTokenProvider,
-        _onUnauthorized = onUnauthorized;
+        _onUnauthorized = onUnauthorized,
+        _onAccountPendingDeletion = onAccountPendingDeletion;
 
   final Uri _baseUrl;
   final http.Client _httpClient;
   final AuthTokenProvider? _authTokenProvider;
   final UnauthorizedHandler? _onUnauthorized;
+  final AccountPendingDeletionHandler? _onAccountPendingDeletion;
   final Duration timeout;
 
   Future<Object?> getJson(String path, {Map<String, String>? query}) =>
@@ -124,6 +130,14 @@ class ApiClient {
             await _authTokenProvider.call() == token) {
           await _onUnauthorized?.call();
         }
+      } else if (response.statusCode == 403 &&
+          _onAccountPendingDeletion != null &&
+          _isAccountPendingDeletion(response.body)) {
+        // A response for an old session must not lock the new account.
+        if (_authTokenProvider == null ||
+            await _authTokenProvider.call() == token) {
+          _onAccountPendingDeletion.call();
+        }
       }
       if (response.statusCode < 200 || response.statusCode >= 300) {
         final headers = {
@@ -161,5 +175,16 @@ class ApiClient {
   static Duration? _retryAfter(String? header) {
     final seconds = int.tryParse(header?.trim() ?? '');
     return seconds == null || seconds <= 0 ? null : Duration(seconds: seconds);
+  }
+
+  static bool _isAccountPendingDeletion(String body) {
+    if (body.isEmpty) return false;
+    try {
+      final decoded = jsonDecode(body);
+      return decoded is Map<String, dynamic> &&
+          decoded['detail'] == 'account_pending_deletion';
+    } catch (_) {
+      return false;
+    }
   }
 }
