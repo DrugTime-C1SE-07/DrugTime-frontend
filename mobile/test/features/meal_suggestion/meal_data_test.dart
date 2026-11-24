@@ -11,7 +11,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 
-Map<String, dynamic> _dishJson(String name, {Object? image, bool isNew = true}) => {
+Map<String, dynamic> _dishJson(String name,
+        {Object? image, bool isNew = true}) =>
+    {
       'name': name,
       'dish_type': 'com',
       'is_new': isNew,
@@ -30,8 +32,18 @@ Map<String, dynamic> _dishJson(String name, {Object? image, bool isNew = true}) 
         },
       ],
       'ingredients': [
-        {'name': 'Gạo lứt', 'amount': '60 g', 'group': 'chinh', 'use_sparingly': false},
-        {'name': 'Muối', 'amount': '¼ thìa', 'group': 'gia_vi', 'use_sparingly': true},
+        {
+          'name': 'Gạo lứt',
+          'amount': '60 g',
+          'group': 'chinh',
+          'use_sparingly': false
+        },
+        {
+          'name': 'Muối',
+          'amount': '¼ thìa',
+          'group': 'gia_vi',
+          'use_sparingly': true
+        },
       ],
     };
 
@@ -73,32 +85,40 @@ final _responseJson = {
 
 void main() {
   group('AllergyProfile (AC3, AC4)', () {
-    test('mock mặc định unreported → không có khai báo, không gọi API', () async {
+    test('mock mặc định unreported → không có khai báo, không gọi API',
+        () async {
       final profile = await MockAllergyProfileRepository().load();
       expect(profile.status, AllergyStatus.unreported);
       expect(profile.toDeclaration(), isNull);
     });
 
     test('reported: tên danh mục + tự nhập, none=false', () async {
-      final profile = await MockAllergyProfileRepository(scenario: 'reported').load();
+      final profile =
+          await MockAllergyProfileRepository(scenario: 'reported').load();
       final d = profile.toDeclaration()!;
-      expect(d.toJson(), {'none': false, 'items': ['Tôm', 'Đậu phộng']});
+      expect(d.toJson(), {
+        'none': false,
+        'items': ['Tôm', 'Đậu phộng']
+      });
     });
 
     test('none_known → none=true, items rỗng', () async {
       final profile =
           await MockAllergyProfileRepository(scenario: 'none_known').load();
-      expect(profile.toDeclaration()!.toJson(), {'none': true, 'items': <String>[]});
+      expect(profile.toDeclaration()!.toJson(),
+          {'none': true, 'items': <String>[]});
     });
 
-    test('reported rỗng hoặc trùng được làm sạch; rỗng hẳn coi như chưa khai', () {
+    test('reported rỗng hoặc trùng được làm sạch; rỗng hẳn coi như chưa khai',
+        () {
       const dup = AllergyProfile(
         status: AllergyStatus.reported,
         catalogItems: [AllergyCatalogItem(id: '1', name: 'Tôm')],
         customItems: [' tôm ', ' ', 'Cua'],
       );
       expect(dup.toDeclaration()!.items, ['Tôm', 'Cua']);
-      expect(const AllergyProfile(status: AllergyStatus.reported).toDeclaration(),
+      expect(
+          const AllergyProfile(status: AllergyStatus.reported).toDeclaration(),
           isNull);
     });
   });
@@ -122,7 +142,8 @@ void main() {
 
     test('dish_type lạ → khac', () {
       final json = _dishJson('X')..['dish_type'] = 'mon_moi_sau_nay';
-      expect(MealSuggestionMapper.dishFromJson(json).dishType, MealDishType.khac);
+      expect(
+          MealSuggestionMapper.dishFromJson(json).dishType, MealDishType.khac);
     });
 
     test('request body có/không có previous_suggestion_id', () {
@@ -134,7 +155,10 @@ void main() {
       );
       expect(body, {
         'meal_type': 'toi',
-        'allergies': {'none': false, 'items': ['Tôm']},
+        'allergies': {
+          'none': false,
+          'items': ['Tôm']
+        },
         'dietary_restrictions': {'none': true, 'items': <String>[]},
         'preferences': ['Ít cay'],
       });
@@ -172,14 +196,17 @@ void main() {
           previousSuggestionId: previous,
         );
 
-    test('POST đúng path, body có previous_suggestion_id; chỉ gọi Backend API', () async {
-      handler = (_) => http.Response.bytes(utf8.encode(jsonEncode(_responseJson)), 200,
+    test('POST đúng path, body có previous_suggestion_id; chỉ gọi Backend API',
+        () async {
+      handler = (_) => http.Response.bytes(
+          utf8.encode(jsonEncode(_responseJson)), 200,
           headers: {'content-type': 'application/json'});
       final r = repo();
       await suggest(r, previous: 3051);
       final req = requests.single;
       expect(req.method, 'POST');
-      expect(req.url.toString(), 'https://api.example/patients/p1/meal-suggestions');
+      expect(req.url.toString(),
+          'https://api.example/patients/p1/meal-suggestions');
       expect(jsonDecode(req.body)['previous_suggestion_id'], 3051);
     });
 
@@ -198,22 +225,25 @@ void main() {
         handler = (_) => http.Response(jsonEncode({'detail': detail}), status);
         await expectLater(
           suggest(repo()),
-          throwsA(isA<MealSuggestionFailure>().having((f) => f.kind, 'kind', kind)),
+          throwsA(
+              isA<MealSuggestionFailure>().having((f) => f.kind, 'kind', kind)),
         );
       });
     }
 
-    test('lỗi mạng → network, có thể thử lại; llm_disabled không thử lại', () async {
+    test('lỗi mạng → network, có thể thử lại; llm_disabled không thử lại',
+        () async {
       final client = MockClient((_) => throw http.ClientException('down'));
-      final r = RemoteMealSuggestionRepository(
-          ApiClient(baseUrl: Uri.parse('https://api.example'), httpClient: client));
+      final r = RemoteMealSuggestionRepository(ApiClient(
+          baseUrl: Uri.parse('https://api.example'), httpClient: client));
       await expectLater(
         suggest(r),
         throwsA(isA<MealSuggestionFailure>()
             .having((f) => f.kind, 'kind', MealFailureKind.network)
             .having((f) => f.canRetry, 'canRetry', true)),
       );
-      expect(const MealSuggestionFailure(MealFailureKind.llmDisabled).canRetry, isFalse);
+      expect(const MealSuggestionFailure(MealFailureKind.llmDisabled).canRetry,
+          isFalse);
     });
 
     test('trạng thái ảnh: lặp tham số ids; bytes cache theo id', () async {
@@ -221,7 +251,12 @@ void main() {
           ? http.Response(
               jsonEncode({
                 'items': [
-                  {'image_id': 42, 'status': 'pending', 'url': null, 'attribution': null}
+                  {
+                    'image_id': 42,
+                    'status': 'pending',
+                    'url': null,
+                    'attribution': null
+                  }
                 ]
               }),
               200)
@@ -236,12 +271,14 @@ void main() {
           imageId: 57, status: MealImageStatus.ready, url: '/meal-images/57');
       expect(await r.imageBytes(ready), [1, 2, 3]);
       expect(await r.imageBytes(ready), [1, 2, 3]);
-      expect(requests.where((q) => q.url.path == '/meal-images/57'), hasLength(1));
+      expect(
+          requests.where((q) => q.url.path == '/meal-images/57'), hasLength(1));
       // Không bao giờ gọi URL ngoài Backend API.
       expect(requests.every((q) => q.url.host == 'api.example'), isTrue);
     });
 
-    test('ảnh có url lạ (không phải /meal-images/) bị từ chối, không gọi mạng (AC9)',
+    test(
+        'ảnh có url lạ (không phải /meal-images/) bị từ chối, không gọi mạng (AC9)',
         () async {
       handler = (_) => http.Response('', 200);
       final r = repo();
@@ -249,16 +286,96 @@ void main() {
           imageId: 1,
           status: MealImageStatus.ready,
           url: 'https://xyz.supabase.co/storage/v1/object/1.jpg');
-      await expectLater(r.imageBytes(foreign), throwsA(isA<MealSuggestionFailure>()));
+      await expectLater(
+          r.imageBytes(foreign), throwsA(isA<MealSuggestionFailure>()));
       expect(requests, isEmpty);
     });
   });
 
   test('tab mặc định theo giờ Việt Nam', () {
-    DateTime vn(int h, int m) => DateTime.utc(2026, 11, 16, h, m).subtract(const Duration(hours: 7));
+    DateTime vn(int h, int m) =>
+        DateTime.utc(2026, 11, 16, h, m).subtract(const Duration(hours: 7));
     expect(MealType.forVietnamTime(vn(9, 59)), MealType.sang);
     expect(MealType.forVietnamTime(vn(10, 0)), MealType.trua);
     expect(MealType.forVietnamTime(vn(15, 59)), MealType.trua);
     expect(MealType.forVietnamTime(vn(16, 0)), MealType.toi);
+  });
+
+  group('MealSuggestionFailure (task 6.03)', () {
+    test(
+        'canRetry: false cho llmDisabled/forbidden/consentRevoked/refreshLimit, true cho các loại còn lại',
+        () {
+      const nonRetryable = {
+        MealFailureKind.llmDisabled,
+        MealFailureKind.forbidden,
+        MealFailureKind.consentRevoked,
+        MealFailureKind.refreshLimit,
+      };
+      for (final kind in MealFailureKind.values) {
+        expect(
+          MealSuggestionFailure(kind).canRetry,
+          !nonRetryable.contains(kind),
+          reason: '$kind',
+        );
+      }
+    });
+
+    test(
+        'pickPrimary: ưu tiên consentRevoked > forbidden > llmDisabled > refreshLimit > lỗi đầu tiên theo bữa',
+        () {
+      expect(MealSuggestionFailure.pickPrimary(const []), isNull);
+      expect(
+        MealSuggestionFailure.pickPrimary(const [
+          MealSuggestionFailure(MealFailureKind.network),
+          MealSuggestionFailure(MealFailureKind.llmUnavailable),
+        ])!
+            .kind,
+        MealFailureKind.network,
+      );
+      expect(
+        MealSuggestionFailure.pickPrimary(const [
+          MealSuggestionFailure(MealFailureKind.network),
+          MealSuggestionFailure(MealFailureKind.llmDisabled),
+          MealSuggestionFailure(MealFailureKind.llmUnavailable),
+        ])!
+            .kind,
+        MealFailureKind.llmDisabled,
+      );
+      expect(
+        MealSuggestionFailure.pickPrimary(const [
+          MealSuggestionFailure(MealFailureKind.llmDisabled),
+          MealSuggestionFailure(MealFailureKind.forbidden),
+          MealSuggestionFailure(MealFailureKind.refreshLimit),
+        ])!
+            .kind,
+        MealFailureKind.forbidden,
+      );
+      expect(
+        MealSuggestionFailure.pickPrimary(const [
+          MealSuggestionFailure(MealFailureKind.forbidden),
+          MealSuggestionFailure(MealFailureKind.llmDisabled),
+          MealSuggestionFailure(MealFailureKind.consentRevoked),
+        ])!
+            .kind,
+        MealFailureKind.consentRevoked,
+      );
+      expect(
+        MealSuggestionFailure.pickPrimary(const [
+          MealSuggestionFailure(MealFailureKind.network),
+          MealSuggestionFailure(MealFailureKind.refreshLimit),
+        ])!
+            .kind,
+        MealFailureKind.refreshLimit,
+      );
+    });
+
+    test('mọi thông điệp lỗi không khẳng định an toàn hay nhắc tên thuốc (AC8)',
+        () {
+      for (final kind in MealFailureKind.values) {
+        final msg = MealSuggestionFailure(kind).message.toLowerCase();
+        expect(msg.contains('an toàn'), isFalse, reason: '$kind');
+        expect(msg.contains('hợp với thuốc'), isFalse, reason: '$kind');
+      }
+    });
   });
 }

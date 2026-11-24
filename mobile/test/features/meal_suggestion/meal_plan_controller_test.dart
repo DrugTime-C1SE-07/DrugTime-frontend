@@ -181,6 +181,19 @@ void main() {
     expect(c.refreshLocked, isTrue);
   });
 
+  test('reset xóa luôn lastRefreshFailure (task 6.03, AC6)', () async {
+    final c = await make();
+    await c.analyze();
+    repo.responses
+        .add(const MealSuggestionFailure(MealFailureKind.consentRevoked));
+    expect(await c.refresh(MealType.trua), isFalse);
+    expect(c.lastRefreshFailure?.kind, MealFailureKind.consentRevoked);
+    c.reset();
+    expect(c.lastRefreshFailure, isNull);
+    expect(c.hasMenu, isFalse);
+    c.dispose();
+  });
+
   test('previous_suggestion_not_found: gợi ý lại từ đầu cho bữa đó', () async {
     final c = await make();
     await c.analyze();
@@ -248,7 +261,8 @@ void main() {
 
   test('mặc định: hỏi ảnh mỗi 2 giây, chờ ảnh 20 giây, tải song song 3', () {
     final c = MealPlanController(
-        repository: repo, allergyRepository: FakeAllergyRepository(reportedAllergy));
+        repository: repo,
+        allergyRepository: FakeAllergyRepository(reportedAllergy));
     expect(c.pollInterval, const Duration(seconds: 2));
     expect(c.imageWaitLimit, const Duration(seconds: 20));
     expect(c.imagePrefetchConcurrency, 3);
@@ -281,14 +295,17 @@ void main() {
     c.dispose();
   });
 
-  test('leadImageSettled: pending → chưa xong; failed hoặc không có ảnh → xong (AC4, AC6)',
+  test(
+      'leadImageSettled: pending → chưa xong; failed hoặc không có ảnh → xong (AC4, AC6)',
       () async {
     final c = await make();
     const pending = MealDishImage(imageId: 5, status: MealImageStatus.pending);
     const failed = MealDishImage(imageId: 6, status: MealImageStatus.failed);
     repo.responses.addAll([
-      result(type: MealType.sang, dishes: [dish('A', image: pending), dish('B')]),
-      result(type: MealType.trua, dishes: [dish('C', image: failed), dish('D')]),
+      result(
+          type: MealType.sang, dishes: [dish('A', image: pending), dish('B')]),
+      result(
+          type: MealType.trua, dishes: [dish('C', image: failed), dish('D')]),
     ]);
     await c.load(MealType.sang);
     await c.load(MealType.trua);
@@ -335,7 +352,8 @@ void main() {
     c.dispose();
   });
 
-  testWidgets('ảnh món đầu được tải trước các ảnh khác đang chờ trong hàng (AC7)',
+  testWidgets(
+      'ảnh món đầu được tải trước các ảnh khác đang chờ trong hàng (AC7)',
       (tester) async {
     final c = await make(pollInterval: const Duration(seconds: 2));
     const pending = MealDishImage(imageId: 11, status: MealImageStatus.pending);
@@ -368,7 +386,8 @@ void main() {
 
   test('imageWaitExpired sau 20 giây kể từ lúc có gợi ý (AC5)', () async {
     final c = await make();
-    expect(c.imageWaitExpired(MealType.sang), isTrue); // chưa có kết quả: không chờ
+    expect(c.imageWaitExpired(MealType.sang),
+        isTrue); // chưa có kết quả: không chờ
     const pending = MealDishImage(imageId: 5, status: MealImageStatus.pending);
     repo.responses
         .add(result(type: MealType.sang, dishes: [dish('A', image: pending)]));
@@ -384,7 +403,8 @@ void main() {
     c.dispose();
   });
 
-  test('tải nội dung ảnh lỗi: ảnh thành failed, bữa coi như xong (AC8)', () async {
+  test('tải nội dung ảnh lỗi: ảnh thành failed, bữa coi như xong (AC8)',
+      () async {
     final c = await make();
     repo.failBytes.add(9);
     repo.responses
@@ -398,7 +418,8 @@ void main() {
     c.dispose();
   });
 
-  testWidgets('hỏi trạng thái lỗi tạm thời: thử lại nhịp sau, ready thì tải sẵn (AC8)',
+  testWidgets(
+      'hỏi trạng thái lỗi tạm thời: thử lại nhịp sau, ready thì tải sẵn (AC8)',
       (tester) async {
     final c = await make(pollInterval: const Duration(seconds: 2));
     const pending = MealDishImage(imageId: 42, status: MealImageStatus.pending);
@@ -408,7 +429,9 @@ void main() {
     var calls = 0;
     repo.imageAnswer = (_) {
       calls++;
-      if (calls == 1) throw const MealSuggestionFailure(MealFailureKind.network);
+      if (calls == 1) {
+        throw const MealSuggestionFailure(MealFailureKind.network);
+      }
       return [ready(42)];
     };
     await tester.pump(const Duration(seconds: 2)); // lỗi tạm thời
