@@ -79,6 +79,9 @@ class NowMarker extends StatelessWidget {
   const NowMarker({super.key, required this.now});
   final DateTime now;
 
+  /// Teal, not the red of "Bỏ lỡ": the line only marks the time, it is not a warning.
+  static const color = ReminderPalette.teal;
+
   @override
   Widget build(BuildContext context) {
     final label = 'Bây giờ · ${HistoryFormat.time(now)}';
@@ -94,7 +97,7 @@ class NowMarker extends StatelessWidget {
               child: Center(
                 child: DecoratedBox(
                   decoration: BoxDecoration(
-                      color: ReminderPalette.missed, shape: BoxShape.circle),
+                      color: NowMarker.color, shape: BoxShape.circle),
                   child: SizedBox.square(dimension: 10),
                 ),
               ),
@@ -105,7 +108,7 @@ class NowMarker extends StatelessWidget {
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                 decoration: BoxDecoration(
-                  color: ReminderPalette.missed,
+                  color: NowMarker.color,
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(label,
@@ -118,7 +121,7 @@ class NowMarker extends StatelessWidget {
             const SizedBox(width: 6),
             const Expanded(
                 child: Divider(
-                    height: 2, thickness: 1.5, color: ReminderPalette.missed)),
+                    height: 2, thickness: 1.5, color: NowMarker.color)),
           ]),
         ),
       ),
