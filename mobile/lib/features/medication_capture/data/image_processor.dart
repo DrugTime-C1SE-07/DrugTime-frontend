@@ -6,41 +6,103 @@ import '../domain/capture_ports.dart';
 
 class DartCaptureProcessor implements CaptureProcessor {
   const DartCaptureProcessor();
+  static const int maxDimension = 1600;
+  static const int jpegQuality = 85;
+
   @override
-  Future<ProcessedCapture> process(Uint8List source) =>
-      compute(_process, source);
+  Future<ProcessedCapture> process(Uint8List source, {CaptureCropRect? crop}) =>
+      compute(_process, (source, crop));
 }
 
-ProcessedCapture _process(Uint8List bytes) {
+ProcessedCapture _process((Uint8List, CaptureCropRect?) input) {
+  final bytes = input.$1;
+  final crop = input.$2;
   if (bytes.isEmpty || bytes.length > 20 * 1024 * 1024) {
     throw const CaptureFailure(
         'Ảnh không hợp lệ hoặc quá lớn. Hãy chọn ảnh khác.');
   }
-  final info = img.findDecoderForData(bytes)?.startDecode(bytes);
-  if (info == null || info.width * info.height > 24000000) {
+  final decoder = img.findDecoderForData(bytes);
+  final info = decoder?.startDecode(bytes);
+  if (decoder == null || info == null || info.width * info.height > 24000000) {
     throw const CaptureFailure('Không mở được ảnh này. Hãy chọn ảnh khác.');
   }
-  final decoded = img.decodeImage(bytes);
+  final decoded = decoder.decode(bytes);
   if (decoded == null) throw const CaptureFailure('Không mở được ảnh này.');
   var upright = img.bakeOrientation(decoded);
-  if (math.max(upright.width, upright.height) > 4096) {
+  if (crop != null) {
+    upright = _cropToFrame(upright, crop);
+  }
+  if (math.max(upright.width, upright.height) >
+      DartCaptureProcessor.maxDimension) {
     upright = img.copyResize(upright,
-        width: upright.width >= upright.height ? 4096 : null,
-        height: upright.height > upright.width ? 4096 : null);
+        width: upright.width >= upright.height
+            ? DartCaptureProcessor.maxDimension
+            : null,
+        height: upright.height > upright.width
+            ? DartCaptureProcessor.maxDimension
+            : null);
   }
   final warnings = _quality(upright);
-  // A fresh RGB image strips EXIF/GPS and orientation metadata.
-  img.Image stripped(img.Image source) {
-    final target = img.Image(width: source.width, height: source.height);
-    img.compositeImage(target, source);
-    return target;
-  }
+  // Clear EXIF/GPS/orientation metadata in O(1) without full-frame pixel copy.
+  upright.exif.clear();
 
   return ProcessedCapture(
-      Uint8List.fromList(img.encodeJpg(stripped(upright), quality: 95)),
+      Uint8List.fromList(
+          img.encodeJpg(upright, quality: DartCaptureProcessor.jpegQuality)),
       upright.width,
       upright.height,
       warnings: warnings);
+}
+
+img.Image _cropToFrame(img.Image image, CaptureCropRect crop) {
+  if (!crop.left.isFinite ||
+      !crop.top.isFinite ||
+      !crop.width.isFinite ||
+      !crop.height.isFinite ||
+      !crop.viewportAspectRatio.isFinite ||
+      crop.viewportAspectRatio <= 0 ||
+      crop.width <= 0 ||
+      crop.height <= 0 ||
+      image.width < 2 ||
+      image.height < 2) {
+    return image;
+  }
+  final nLeft = crop.left.clamp(0.0, 1.0);
+  final nTop = crop.top.clamp(0.0, 1.0);
+  final nRight = (crop.left + crop.width).clamp(0.0, 1.0);
+  final nBottom = (crop.top + crop.height).clamp(0.0, 1.0);
+  if (nRight <= nLeft || nBottom <= nTop) return image;
+
+  final imgW = image.width.toDouble();
+  final imgH = image.height.toDouble();
+  final imgAspect = imgW / imgH;
+  final viewAspect = crop.viewportAspectRatio;
+  final double visibleW;
+  final double visibleH;
+  final double offsetX;
+  final double offsetY;
+  if (imgAspect > viewAspect) {
+    visibleH = imgH;
+    visibleW = imgH * viewAspect;
+    offsetX = (imgW - visibleW) / 2;
+    offsetY = 0;
+  } else {
+    visibleW = imgW;
+    visibleH = imgW / viewAspect;
+    offsetX = 0;
+    offsetY = (imgH - visibleH) / 2;
+  }
+
+  final x = (offsetX + nLeft * visibleW).round().clamp(0, image.width - 1);
+  final y = (offsetY + nTop * visibleH).round().clamp(0, image.height - 1);
+  final right =
+      (offsetX + nRight * visibleW).round().clamp(x + 1, image.width);
+  final bottom =
+      (offsetY + nBottom * visibleH).round().clamp(y + 1, image.height);
+  final w = right - x;
+  final h = bottom - y;
+  if (w <= 0 || h <= 0) return image;
+  return img.copyCrop(image, x: x, y: y, width: w, height: h);
 }
 
 List<CaptureWarning> _quality(img.Image source) {

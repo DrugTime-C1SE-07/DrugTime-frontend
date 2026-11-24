@@ -70,7 +70,7 @@ class CaptureController extends ChangeNotifier {
     }
     if (_closed || generation != _generation) return;
     busy = false;
-    await requestPermission(request: false);
+    await requestPermission(request: true);
   }
 
   Future<void> requestPermission({bool request = true}) async {
@@ -145,7 +145,7 @@ class CaptureController extends ChangeNotifier {
     await requestPermission(request: false);
   }
 
-  Future<void> takePhoto() async {
+  Future<void> takePhoto({CaptureCropRect? crop}) async {
     if (busy || _closed || !source.ready) return;
     busy = true;
     error = null;
@@ -153,7 +153,9 @@ class CaptureController extends ChangeNotifier {
     final generation = _generation;
     try {
       final bytes = await source.capture();
-      if (!_closed && generation == _generation) await accept(bytes);
+      if (!_closed && generation == _generation) {
+        await accept(bytes, crop: crop);
+      }
     } catch (e) {
       if (!_closed && generation == _generation) {
         error = _message(e, 'Chưa chụp được ảnh. Hãy thử lại.');
@@ -198,7 +200,7 @@ class CaptureController extends ChangeNotifier {
     }
   }
 
-  Future<void> accept(Uint8List bytes) async {
+  Future<void> accept(Uint8List bytes, {CaptureCropRect? crop}) async {
     if (_closed) return;
     final generation = ++_imageGeneration;
     stage = CaptureStage.reviewing;
@@ -207,10 +209,12 @@ class CaptureController extends ChangeNotifier {
     error = null;
     _changed();
     try {
-      await source.stop();
+      final results = await Future.wait<Object?>([
+        source.stop().then<Object?>((_) => null),
+        processor.process(bytes, crop: crop),
+      ]);
       if (_closed || generation != _imageGeneration) return;
-      final rendered = await processor.process(bytes);
-      if (!_closed && generation == _imageGeneration) image = rendered;
+      image = results[1] as ProcessedCapture;
     } catch (e) {
       if (!_closed && generation == _imageGeneration) {
         image = null;

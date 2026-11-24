@@ -103,8 +103,8 @@ class SystemCaptureSource extends CaptureSource {
             .where((c) => c.lensDirection == CameraLensDirection.back)
             .firstOrNull ??
         cameras.first;
-    final camera = CameraController(selected, ResolutionPreset.veryHigh,
-        enableAudio: false);
+    final camera =
+        CameraController(selected, ResolutionPreset.high, enableAudio: false);
     try {
       await camera.initialize();
       if (generation != _generation) {

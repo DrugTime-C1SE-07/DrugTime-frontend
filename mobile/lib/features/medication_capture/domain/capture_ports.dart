@@ -18,7 +18,7 @@ abstract class CaptureSource extends ChangeNotifier {
 }
 
 abstract interface class CaptureProcessor {
-  Future<ProcessedCapture> process(Uint8List source);
+  Future<ProcessedCapture> process(Uint8List source, {CaptureCropRect? crop});
 }
 
 abstract interface class CaptureStore {

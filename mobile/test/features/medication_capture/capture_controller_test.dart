@@ -22,6 +22,7 @@ class TestSource extends CaptureSource {
   Completer<Uint8List>? pending;
   Completer<CapturePermission>? permissionPending;
   Completer<void>? settingsPending;
+  Completer<void>? stopPending;
   Uint8List? picked, recovered;
   bool fail = false, settingsFail = false;
   @override
@@ -59,6 +60,7 @@ class TestSource extends CaptureSource {
     stops++;
     available = false;
     torch = false;
+    await stopPending?.future;
   }
 
   @override
@@ -82,10 +84,17 @@ class TestSource extends CaptureSource {
 
 class TestProcessor implements CaptureProcessor {
   final pending = <Completer<ProcessedCapture>>[];
+  final crops = <CaptureCropRect?>[];
+  CaptureCropRect? lastCrop;
+  int calls = 0;
   bool delayed = false, failProcessing = false;
   List<CaptureWarning> warnings = const [];
   @override
-  Future<ProcessedCapture> process(Uint8List bytes) async {
+  Future<ProcessedCapture> process(Uint8List bytes,
+      {CaptureCropRect? crop}) async {
+    calls++;
+    lastCrop = crop;
+    crops.add(crop);
     if (failProcessing) throw const CaptureFailure('Không mở được ảnh này.');
     if (delayed) {
       final task = Completer<ProcessedCapture>();
@@ -157,17 +166,17 @@ void main() {
       c.dispose();
     });
   }
-  test('entry reads status; only explicit permission action requests access',
+  test('start requests camera permission automatically while resume checks silently',
       () async {
     final source = TestSource()..access = CapturePermission.denied;
     final c = CaptureController(
         source: source, processor: TestProcessor(), store: TestStore());
     await c.start();
-    expect(source.statusRequests, [false]);
+    expect(source.statusRequests, [true]);
     expect(source.ready, isFalse);
     source.access = CapturePermission.granted;
-    await c.requestPermission();
-    expect(source.statusRequests, [false, true]);
+    await c.resume();
+    expect(source.statusRequests, [true, false]);
     expect(source.ready, isTrue);
     await c.requestPermission(request: false);
     expect(source.initializations, 1);
@@ -212,7 +221,7 @@ void main() {
     await c.resume();
     source.access = CapturePermission.granted;
     await c.resume();
-    expect(source.statusRequests, [false, true, false, false]);
+    expect(source.statusRequests, [true, true, false, false]);
     expect(source.ready, isTrue);
     await c.close();
     c.dispose();
@@ -234,7 +243,7 @@ void main() {
     await c.resume();
     source.settingsPending!.complete();
     await opening;
-    expect(source.statusRequests, [false, false]);
+    expect(source.statusRequests, [true, false]);
     expect(source.ready, isTrue);
     await c.close();
     c.dispose();
@@ -253,7 +262,7 @@ void main() {
     await c.openSettings();
     expect(source.settingsCalls, 2);
     expect(c.error, isNull);
-    expect(source.statusRequests, [false]);
+    expect(source.statusRequests, [true]);
     await c.close();
     c.dispose();
   });
@@ -340,6 +349,41 @@ void main() {
     expect(c.error, 'Lỗi chụp');
     expect(c.busy, isFalse);
     expect(c.image, isNull);
+    await c.close();
+    c.dispose();
+  });
+
+  test(
+      'takePhoto forwards crop while pickPhoto keeps full frame; stop runs concurrently with process',
+      () async {
+    final source = TestSource();
+    final processor = TestProcessor();
+    final c = CaptureController(
+        source: source, processor: processor, store: TestStore());
+    await c.start();
+
+    source.stopPending = Completer<void>();
+    const crop = CaptureCropRect(
+        left: 0.1,
+        top: 0.3,
+        width: 0.8,
+        height: 0.4,
+        viewportAspectRatio: 0.6);
+    final taking = c.takePhoto(crop: crop);
+    await Future<void>.delayed(Duration.zero);
+    // Processor starts before stop() finishes.
+    expect(processor.calls, 1);
+    expect(processor.lastCrop, same(crop));
+    source.stopPending!.complete();
+    await taking;
+    expect(c.canUseImage, isTrue);
+
+    source.stopPending = null;
+    await c.retake();
+    source.picked = makeImage();
+    await c.pickPhoto();
+    expect(processor.calls, 2);
+    expect(processor.lastCrop, isNull);
     await c.close();
     c.dispose();
   });
