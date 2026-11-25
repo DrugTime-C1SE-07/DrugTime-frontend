@@ -49,6 +49,9 @@ import 'features/medication_capture/data/ocr_api_repository.dart';
 import 'features/interaction_check/data/repositories/remote_interaction_check_repository.dart';
 import 'features/profile/data/repositories/profile_repository_provider.dart';
 import 'features/profile/data/repositories/remote_health_setup_repository.dart';
+import 'core/security/app_lock_controller.dart';
+import 'core/security/app_lock_settings_store.dart';
+import 'core/security/device_authenticator.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -196,6 +199,10 @@ Future<void> main() async {
 
   runApp(DrugTimeApp(
     authController: authController,
+    appLockController: AppLockController(
+      store: SecureAppLockSettingsStore(),
+      authenticator: LocalDeviceAuthenticator(),
+    ),
     accountDeletionRepository: RemoteAccountDeletionRepository(apiClient),
     accountDeletionStatusStore: deletionStatusStore,
     accountDeletionRecheck: accountDeletionRecheck,

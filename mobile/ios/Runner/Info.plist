@@ -28,6 +28,8 @@
 	<true/>
 	<key>NSCameraUsageDescription</key>
 	<string>DrugTime dùng camera để quét mã QR liên kết của người thân.</string>
+	<key>NSFaceIDUsageDescription</key>
+	<string>DrugTime dùng Face ID để mở khóa ứng dụng, bảo vệ thông tin sức khỏe của bạn.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

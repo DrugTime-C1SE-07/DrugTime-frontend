@@ -29,6 +29,9 @@ import '../core/notification/reminder_scheduler.dart';
 import '../core/notification/reminder_sync_coordinator.dart';
 import '../core/notification/reminder_sound_controller.dart';
 import '../core/platform/keyguard_service.dart';
+import '../core/security/app_lock_controller.dart';
+import '../core/security/app_lock_gate.dart';
+import '../core/security/top_route_observer.dart';
 import '../core/storage/local_db/local_medication_store.dart';
 import '../core/storage/local_db/local_models.dart';
 import '../features/home/presentation/home_schedule_controller.dart';
@@ -110,6 +113,7 @@ class DrugTimeApp extends StatefulWidget {
     this.reminderSoundController,
     this.shouldAskReminderPermissions,
     this.keyguardPlatform,
+    this.appLockController,
     this.clock,
     this.initialRoute,
     this.navigatorKey,
@@ -205,6 +209,9 @@ class DrugTimeApp extends StatefulWidget {
 
   /// Bộ kiểm tra trạng thái màn hình khóa.
   final KeyguardPlatform? keyguardPlatform;
+
+  /// "Khóa ứng dụng" bằng Face ID / vân tay / mã khóa màn hình; null thì không khóa.
+  final AppLockController? appLockController;
 
   /// Đồng hồ tiêm vào phục vụ test thời gian.
   final DateTime Function()? clock;
@@ -444,6 +451,7 @@ class _DrugTimeAppState extends State<DrugTimeApp> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    unawaited(widget.appLockController?.onLifecycle(state));
     _foreground = state == AppLifecycleState.resumed;
     // Xóa nội dung khỏi RAM khi app ra nền; lần mở lại phải đọc quyền từ server.
     if (!_foreground) widget.familyAlertController?.clear();
@@ -782,6 +790,8 @@ class _DrugTimeAppState extends State<DrugTimeApp> with WidgetsBindingObserver {
 
   Future<void> _loadSession() async {
     await _auth.initSession();
+    // Đọc cài đặt khóa trước khi dựng app để khởi động lạnh vào thẳng màn khóa.
+    await widget.appLockController?.load(signedIn: _auth.isAuthenticated);
     if (!mounted) return;
     setState(() {
       _sessionLoaded = true;
@@ -821,6 +831,7 @@ class _DrugTimeAppState extends State<DrugTimeApp> with WidgetsBindingObserver {
       DietarySession.instance.clear();
       _bindMeals(user);
     }
+    unawaited(widget.appLockController?.onAuthChanged(signedIn: authenticated));
     if (_wasAuthenticated && !authenticated) {
       _medications.clear();
       _consents.clear();
@@ -869,6 +880,7 @@ class _DrugTimeAppState extends State<DrugTimeApp> with WidgetsBindingObserver {
     _expiryTimer?.cancel();
     unawaited(_familyConnection?.cancel());
     _familyAdherenceAvailability.dispose();
+    _topRoute.topRoute.dispose();
     _monitor?.dispose();
     unawaited(widget.familyConnectivity?.dispose());
     widget.familyPushService?.removeListener(_openPendingFamily);
@@ -946,26 +958,41 @@ class _DrugTimeAppState extends State<DrugTimeApp> with WidgetsBindingObserver {
         familyAdherenceAvailability: _familyAdherenceAvailability,
       );
 
+  final _topRoute = TopRouteObserver();
+
+  Widget _withAppLock(Widget child) {
+    final lock = widget.appLockController;
+    if (lock == null) return child;
+    return AppLockGate(
+      controller: lock,
+      topRoute: _topRoute.topRoute,
+      // Màn nhắc liều trên màn hình khóa đã có cổng riêng (Q2).
+      exemptRoutes: const {AppRoutes.doseReminder},
+      onSignOut: _auth.signOut,
+      child: child,
+    );
+  }
+
   Widget _buildApp() {
     final app = MaterialApp(
       navigatorKey: _navigatorKey,
       scaffoldMessengerKey: _scaffoldMessengerKey,
       title: 'DrugTime',
       debugShowCheckedModeBanner: false,
-      builder: (context, child) => AccountDeletionScope(
+      builder: (context, child) => _withAppLock(AccountDeletionScope(
           repository: widget.accountDeletionRepository,
           statusStore: widget.accountDeletionStatusStore,
           connectivity: widget.familyConnectivity,
           recheckNotifier: widget.accountDeletionRecheck,
           clock: widget.clock,
           child: AccountDeletionGate(
-              child: CaptureScope(services: _captures, child: child!))),
+              child: CaptureScope(services: _captures, child: child!)))),
       theme: buildAppTheme(),
       locale: const Locale('vi'),
       supportedLocales: const [Locale('vi'), Locale('en')],
       localizationsDelegates: GlobalMaterialLocalizations.delegates,
       initialRoute: _startRoute,
-      navigatorObservers: [familyAdherenceRouteObserver],
+      navigatorObservers: [familyAdherenceRouteObserver, _topRoute],
       onGenerateRoute: _route,
       // Chỉ dựng đúng một route đầu.
       onGenerateInitialRoutes: (name) => [

@@ -11,6 +11,43 @@ abstract class KeyguardPlatform {
   Future<bool> requestDismissKeyguard();
 }
 
+/// Tín hiệu native cho "Khóa ứng dụng" (Android), dùng chung channel keyguard.
+abstract class AppLeavePlatform {
+  /// `true` nếu từ lần resume trước người dùng đã tự rời app (Home, Recents)
+  /// hoặc tắt màn hình; đọc xong thì native reset cờ.
+  Future<bool> consumeUserLeftApp();
+
+  /// Ẩn ảnh chụp app trong màn đa nhiệm (Android 13+).
+  Future<void> setRecentsPrivacy(bool enabled);
+}
+
+class DefaultAppLeavePlatform implements AppLeavePlatform {
+  const DefaultAppLeavePlatform([MethodChannel? channel])
+      : _channel = channel ??
+            const MethodChannel('vn.drugtime.drugtime_mobile/keyguard');
+
+  final MethodChannel _channel;
+
+  @override
+  Future<bool> consumeUserLeftApp() async {
+    try {
+      return await _channel.invokeMethod<bool>('consumeUserLeftApp') ?? true;
+    } catch (_) {
+      // Fail-closed: không biết thì khóa, tránh lộ dữ liệu sức khỏe.
+      return true;
+    }
+  }
+
+  @override
+  Future<void> setRecentsPrivacy(bool enabled) async {
+    try {
+      await _channel.invokeMethod<void>('setRecentsPrivacy', enabled);
+    } catch (_) {
+      // Máy cũ/không hỗ trợ: vẫn còn lớp che phía Flutter.
+    }
+  }
+}
+
 /// Triển khai mặc định của [KeyguardPlatform] qua [MethodChannel].
 class DefaultKeyguardPlatform implements KeyguardPlatform {
   const DefaultKeyguardPlatform([MethodChannel? channel])
