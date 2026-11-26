@@ -468,6 +468,9 @@ class _ScanMedicationScreenState extends State<ScanMedicationScreen>
   @override
   Widget build(BuildContext context) {
     final camera = _camera;
+    final previewWidth = (MediaQuery.sizeOf(context).width *
+            MediaQuery.devicePixelRatioOf(context))
+        .round();
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, _) {
@@ -563,10 +566,9 @@ class _ScanMedicationScreenState extends State<ScanMedicationScreen>
                                                   ? const ColoredBox(
                                                       color: Color(0xFF171A19),
                                                       child: Center(
-                                                          child:
-                                                              CircularProgressIndicator(
-                                                                  color: Color(
-                                                                      0xFF70D9CC))))
+                                                          child: CircularProgressIndicator(
+                                                              color: Color(
+                                                                  0xFF70D9CC))))
                                                   : Center(
                                                       child: Text(
                                                           camera.error ??
@@ -589,6 +591,10 @@ class _ScanMedicationScreenState extends State<ScanMedicationScreen>
                                     child: Center(
                                         child: _image != null
                                             ? Image.memory(_image!,
+                                                // ảnh camera ~12MP: chỉ decode bằng bề ngang màn hình
+                                                cacheWidth: previewWidth > 0
+                                                    ? previewWidth
+                                                    : null,
                                                 fit: BoxFit.contain,
                                                 excludeFromSemantics: true)
                                             : const SizedBox.shrink()))),
@@ -631,8 +637,8 @@ class _ScanMedicationScreenState extends State<ScanMedicationScreen>
                                 child: SizedBox(
                                     height: _cameraFrameHeight,
                                     child: Padding(
-                                      padding: EdgeInsets.symmetric(
-                                          horizontal: 42),
+                                      padding:
+                                          EdgeInsets.symmetric(horizontal: 42),
                                       child: _ScanBeam(),
                                     ))),
                           if (_screen == _Screen.recognizing)

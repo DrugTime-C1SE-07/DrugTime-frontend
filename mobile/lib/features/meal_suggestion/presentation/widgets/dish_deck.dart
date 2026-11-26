@@ -399,7 +399,8 @@ class _ShimmerBadgeState extends State<_ShimmerBadge>
   }
 
   @override
-  Widget build(BuildContext context) => AnimatedBuilder(
+  Widget build(BuildContext context) => RepaintBoundary(
+          child: AnimatedBuilder(
         animation: _c,
         builder: (_, __) {
           final x = -1.5 + _c.value * 4;
@@ -431,5 +432,5 @@ class _ShimmerBadgeState extends State<_ShimmerBadge>
             ]),
           );
         },
-      );
+      ));
 }

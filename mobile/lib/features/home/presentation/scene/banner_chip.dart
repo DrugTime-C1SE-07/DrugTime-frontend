@@ -138,7 +138,8 @@ class _BannerCtaButtonState extends State<BannerCtaButton>
         onTapCancel: () => setState(() => _down = false),
         onTapUp: (_) => setState(() => _down = false),
         onTap: widget.onPressed,
-        child: AnimatedBuilder(
+        child: RepaintBoundary(
+            child: AnimatedBuilder(
           animation: _hint,
           builder: (context, child) {
             // nảy nhẹ hai nhịp ở đầu mỗi chu kỳ, phần còn lại đứng yên
@@ -207,7 +208,7 @@ class _BannerCtaButtonState extends State<BannerCtaButton>
               ),
             ]),
           ),
-        ),
+        )),
       ),
     );
   }
