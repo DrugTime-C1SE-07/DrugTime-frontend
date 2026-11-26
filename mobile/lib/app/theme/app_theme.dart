@@ -262,24 +262,5 @@ ThemeData buildAppTheme() {
       titleTextStyle: AppTextStyles.heading,
       contentTextStyle: AppTextStyles.body,
     ),
-    navigationBarTheme: NavigationBarThemeData(
-      height: 72,
-      backgroundColor: AppColors.surface,
-      surfaceTintColor: Colors.transparent,
-      indicatorColor: AppColors.brandTint,
-      labelTextStyle: WidgetStateProperty.resolveWith(
-        (states) => states.contains(WidgetState.selected)
-            ? AppTextStyles.captionStrong.copyWith(color: AppColors.brand)
-            : AppTextStyles.caption,
-      ),
-      iconTheme: WidgetStateProperty.resolveWith(
-        (states) => IconThemeData(
-          size: 24,
-          color: states.contains(WidgetState.selected)
-              ? AppColors.brand
-              : AppColors.inkMuted,
-        ),
-      ),
-    ),
   );
 }
