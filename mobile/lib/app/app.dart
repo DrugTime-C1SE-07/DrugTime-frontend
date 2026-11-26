@@ -27,6 +27,7 @@ import '../core/notification/notification_id.dart';
 import '../core/notification/notification_service.dart';
 import '../core/notification/reminder_scheduler.dart';
 import '../core/notification/reminder_sync_coordinator.dart';
+import '../core/notification/notification_preferences.dart';
 import '../core/notification/reminder_sound_controller.dart';
 import '../core/platform/keyguard_service.dart';
 import '../core/security/app_lock_controller.dart';
@@ -111,6 +112,7 @@ class DrugTimeApp extends StatefulWidget {
     this.reminderScheduler,
     this.reminderSyncCoordinator,
     this.reminderSoundController,
+    this.notificationPreferencesController,
     this.shouldAskReminderPermissions,
     this.keyguardPlatform,
     this.appLockController,
@@ -203,6 +205,9 @@ class DrugTimeApp extends StatefulWidget {
 
   /// Âm thanh nhắc (S08-4a); null thì màn S08-4a hiện chưa khả dụng.
   final ReminderSoundController? reminderSoundController;
+
+  /// Tùy chọn màn Thông báo & Nhắc nhở; null thì màn đó hiện chưa khả dụng.
+  final NotificationPreferencesController? notificationPreferencesController;
 
   /// Chỉ xin quyền nhắc thuốc khi trả `true` (lần đầu sau khi cài); `null` thì luôn xin.
   final Future<bool> Function()? shouldAskReminderPermissions;
@@ -332,6 +337,11 @@ class _DrugTimeAppState extends State<DrugTimeApp> with WidgetsBindingObserver {
     } on Exception catch (e) {
       debugPrint('Không đọc được âm nhắc đã chọn: $e');
     }
+    try {
+      await widget.notificationPreferencesController?.load();
+    } on Exception catch (e) {
+      debugPrint('Không đọc được tùy chọn nhắc: $e');
+    }
     await widget.reminderSyncCoordinator?.refresh(userId);
   }
 
@@ -360,9 +370,13 @@ class _DrugTimeAppState extends State<DrugTimeApp> with WidgetsBindingObserver {
 
   Widget _withReminderSound(Widget child) {
     final sounds = widget.reminderSoundController;
-    return sounds == null
+    final prefs = widget.notificationPreferencesController;
+    final withPrefs = prefs == null
         ? child
-        : ReminderSoundScope(controller: sounds, child: child);
+        : NotificationPreferencesScope(controller: prefs, child: child);
+    return sounds == null
+        ? withPrefs
+        : ReminderSoundScope(controller: sounds, child: withPrefs);
   }
 
   void _refreshReminders() {
@@ -619,6 +633,8 @@ class _DrugTimeAppState extends State<DrugTimeApp> with WidgetsBindingObserver {
     }
     WidgetsBinding.instance.addObserver(this);
     widget.reminderSoundController?.onSoundChanged = _refreshReminders;
+    widget.notificationPreferencesController?.onRemindersChanged =
+        _refreshReminders;
     widget.familyPushService?.addListener(_openPendingFamily);
     widget.notificationService?.onFamilyAction =
         (id) => widget.familyPushService?.offer(id == null ? null : '$id');

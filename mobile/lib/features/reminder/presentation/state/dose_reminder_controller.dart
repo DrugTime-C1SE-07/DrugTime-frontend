@@ -101,16 +101,15 @@ class DoseReminderController extends ChangeNotifier {
       _records[item.occurrenceKey] = record;
       _statuses[item.occurrenceKey] = DoseReminderItemStatus.confirmed;
 
-      // Hủy thông báo khi uống sớm trước giờ cữ (Subtask 65 / Task 2.08)
-      if (now.isBefore(item.scheduledAt)) {
-        try {
-          await _scheduler.cancelOccurrence(
-            scheduleId: item.medicationScheduleId,
-            scheduledAt: item.scheduledAt,
-          );
-        } catch (_) {
-          // Lỗi hủy không ngăn cản việc ghi nhận liều thành công
-        }
+      // Hủy thông báo của liều đã xác nhận: lượt gốc khi uống sớm (Subtask 65 / Task 2.08)
+      // và lượt "nhắc lại nếu bỏ lỡ" còn chờ khi uống đúng/sau giờ.
+      try {
+        await _scheduler.cancelOccurrence(
+          scheduleId: item.medicationScheduleId,
+          scheduledAt: item.scheduledAt,
+        );
+      } catch (_) {
+        // Lỗi hủy không ngăn cản việc ghi nhận liều thành công
       }
 
       _notify();

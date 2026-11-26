@@ -23,7 +23,16 @@ int notificationIdFor(int medicationScheduleId, DateTime scheduledAt) {
   }
 
   final epochSeconds = scheduledAt.millisecondsSinceEpoch ~/ 1000;
-  final canonical = '$medicationScheduleId:$epochSeconds';
+  return _fnv31('$medicationScheduleId:$epochSeconds');
+}
+
+/// ID của lượt "nhắc lại nếu bỏ lỡ" cho cùng liều; khác ID lượt gốc để cả hai cùng chờ.
+int repeatNotificationIdFor(int medicationScheduleId, DateTime scheduledAt) {
+  final base = notificationIdFor(medicationScheduleId, scheduledAt);
+  return _fnv31('repeat:$base');
+}
+
+int _fnv31(String canonical) {
   final bytes = utf8.encode(canonical);
 
   var hash = _fnvOffsetBasis;

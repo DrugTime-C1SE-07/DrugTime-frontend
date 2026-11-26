@@ -5,6 +5,7 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/timezone.dart' as tz;
 import 'package:drugtime_mobile/core/notification/notification_id.dart';
 import 'package:drugtime_mobile/core/notification/notification_service.dart';
+import 'package:drugtime_mobile/core/notification/notification_preferences.dart';
 import 'package:drugtime_mobile/core/notification/reminder_occurrence_generator.dart';
 import 'package:drugtime_mobile/core/notification/reminder_sound.dart';
 import 'package:drugtime_mobile/core/notification/reminder_scheduler.dart';
@@ -25,8 +26,10 @@ class ReminderNotificationScheduler implements ReminderScheduler {
     this.onLog,
     this.targetPlatform,
     ReminderSound Function()? soundChannel,
+    ReminderPreferences Function()? preferences,
   })  : _clock = clockProvider ?? DateTime.timestamp,
-        _soundChannel = soundChannel ?? (() => ReminderSounds.system);
+        _soundChannel = soundChannel ?? (() => ReminderSounds.system),
+        _preferences = preferences ?? (() => const ReminderPreferences());
 
   static const int maxIosScheduledNotifications = 64;
 
@@ -38,6 +41,10 @@ class ReminderNotificationScheduler implements ReminderScheduler {
   /// Âm đang chọn (S08-4a); chỉ đổi channel, mọi trường khác giữ nguyên (QD-26).
   final ReminderSound Function() _soundChannel;
 
+  /// Tùy chọn ở màn Thông báo & Nhắc nhở, đọc lại mỗi lần lập lịch.
+  final ReminderPreferences Function() _preferences;
+  ReminderPreferences get preferences => _preferences();
+
   /// Callback xử lý khi người dùng nhấn nút hành động "Đã uống".
   final Future<void> Function(NotificationPayload payload)? onTakeDose;
 
@@ -48,13 +55,16 @@ class ReminderNotificationScheduler implements ReminderScheduler {
   static const String actionTakeDoseTitle = 'Đã uống';
   static const String defaultTitle = 'Nhắc uống thuốc';
   static const String defaultBody = 'Đã đến giờ uống thuốc theo lịch';
+  static const String repeatBody = 'Bạn chưa xác nhận liều thuốc theo lịch';
 
   NotificationDetails get _notificationDetails {
     final sound = _soundChannel();
+    final vibrate = _preferences().vibrate;
+    // Channel Android không đổi được rung sau khi tạo: tắt rung dùng channel riêng.
     return NotificationDetails(
       android: AndroidNotificationDetails(
-        sound.channelId,
-        sound.channelName,
+        vibrate ? sound.channelId : '${sound.channelId}_no_vibration',
+        vibrate ? sound.channelName : '${sound.channelName} · không rung',
         channelDescription: NotificationService.reminderChannelDescription,
         importance: Importance.max,
         priority: Priority.high,
@@ -63,9 +73,45 @@ class ReminderNotificationScheduler implements ReminderScheduler {
         color: const Color(0xFF004D40),
         playSound: sound.playsSound,
         sound: sound.androidSound,
-        enableVibration: true,
+        enableVibration: vibrate,
       ),
     );
+  }
+
+  /// Lập một thông báo; thiếu quyền exact alarm thì fallback inexact và ghi log
+  /// (lưu ý: không đạt NFR04 về độ trễ).
+  Future<void> _schedule(
+      int id, String body, DateTime at, String payload, String label) async {
+    final date = tz.TZDateTime.from(at, location);
+    try {
+      await platform.zonedSchedule(
+        id,
+        defaultTitle,
+        body,
+        date,
+        _notificationDetails,
+        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+        uiLocalNotificationDateInterpretation:
+            UILocalNotificationDateInterpretation.absoluteTime,
+        payload: payload,
+      );
+    } catch (e) {
+      onLog?.call(
+        'Lỗi lên lịch exact alarm cho $label $id: $e. '
+        'Fallback sang inexactAllowWhileIdle (lưu ý: không thỏa mãn NFR04 về độ trễ).',
+      );
+      await platform.zonedSchedule(
+        id,
+        defaultTitle,
+        body,
+        date,
+        _notificationDetails,
+        androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+        uiLocalNotificationDateInterpretation:
+            UILocalNotificationDateInterpretation.absoluteTime,
+        payload: payload,
+      );
+    }
   }
 
   /// Lên lịch các lượt nhắc uống thuốc từ danh sách [occurrences].
@@ -76,9 +122,14 @@ class ReminderNotificationScheduler implements ReminderScheduler {
   /// 3. Lên lịch từng lượt với chế độ ưu tiên [AndroidScheduleMode.exactAllowWhileIdle].
   /// 4. Nếu thiếu quyền exact alarm (ném ngoại lệ), tự động fallback sang
   ///    [AndroidScheduleMode.inexactAllowWhileIdle] và ghi log (lưu ý: không đạt NFR04).
+  ///
+  /// Tùy chọn nhắc: tắt nhắc thì không lập gì; bật "nhắc lại nếu bỏ lỡ" thì mỗi lượt có thêm
+  /// một thông báo sau [ReminderPreferences.repeatDelay], cùng payload với lượt gốc.
   Future<void> scheduleOccurrences(
     Iterable<ReminderOccurrence> occurrences,
   ) async {
+    final prefs = _preferences();
+    if (!prefs.enabled) return;
     final now = _clock().toUtc();
 
     // Lọc bỏ lượt trong quá khứ hoặc hiện tại
@@ -91,10 +142,15 @@ class ReminderNotificationScheduler implements ReminderScheduler {
       onCollision: onLog,
     );
 
-    final isIos = (targetPlatform ?? defaultTargetPlatform) == TargetPlatform.iOS;
-    if (isIos && deduplicated.length > maxIosScheduledNotifications) {
+    final isIos =
+        (targetPlatform ?? defaultTargetPlatform) == TargetPlatform.iOS;
+    // Nhắc lại chiếm thêm một chỗ mỗi lượt trong giới hạn 64 thông báo chờ của iOS.
+    final iosLimit = prefs.repeatIfMissed
+        ? maxIosScheduledNotifications ~/ 2
+        : maxIosScheduledNotifications;
+    if (isIos && deduplicated.length > iosLimit) {
       final sorted = List<ReminderOccurrence>.from(deduplicated)..sort();
-      deduplicated = sorted.take(maxIosScheduledNotifications).toList(growable: false);
+      deduplicated = sorted.take(iosLimit).toList(growable: false);
     }
 
     for (final occ in deduplicated) {
@@ -104,36 +160,14 @@ class ReminderNotificationScheduler implements ReminderScheduler {
         scheduledAt: occ.scheduledAt,
       ).serialize();
 
-      final scheduledDate = tz.TZDateTime.from(occ.scheduledAt, location);
-
-      try {
-        await platform.zonedSchedule(
-          id,
-          defaultTitle,
-          defaultBody,
-          scheduledDate,
-          _notificationDetails,
-          androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
-          uiLocalNotificationDateInterpretation:
-              UILocalNotificationDateInterpretation.absoluteTime,
-          payload: payload,
-        );
-      } catch (e) {
-        onLog?.call(
-          'Lỗi lên lịch exact alarm cho thông báo $id: $e. '
-          'Fallback sang inexactAllowWhileIdle (lưu ý: không thỏa mãn NFR04 về độ trễ).',
-        );
-
-        await platform.zonedSchedule(
-          id,
-          defaultTitle,
-          defaultBody,
-          scheduledDate,
-          _notificationDetails,
-          androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
-          uiLocalNotificationDateInterpretation:
-              UILocalNotificationDateInterpretation.absoluteTime,
-          payload: payload,
+      await _schedule(id, defaultBody, occ.scheduledAt, payload, 'thông báo');
+      if (prefs.repeatIfMissed) {
+        await _schedule(
+          repeatNotificationIdFor(occ.medicationScheduleId, occ.scheduledAt),
+          repeatBody,
+          occ.scheduledAt.add(ReminderPreferences.repeatDelay),
+          payload,
+          'nhắc lại',
         );
       }
     }
@@ -143,14 +177,14 @@ class ReminderNotificationScheduler implements ReminderScheduler {
   ///
   /// Triển khai interface [ReminderScheduler].
   /// Lưu ý: [scheduledAt] vẫn là mốc thời gian gốc của cữ thuốc để đảm bảo
-  /// tính nhất quán cho luồng xác nhận liều và outbox.
+  /// tính nhất quán cho luồng xác nhận liều và outbox. Người dùng đã chọn giờ nhắc
+  /// nên lượt "nhắc lại nếu bỏ lỡ" của liều này bị bỏ.
   @override
   Future<void> snooze({
     required int medicationScheduleId,
     required DateTime scheduledAt,
     required DateTime remindAt,
   }) async {
-    final utcRemindAt = remindAt.toUtc();
     final utcScheduledAt = scheduledAt.toUtc();
     final id = notificationIdFor(medicationScheduleId, utcScheduledAt);
     final payload = NotificationPayload(
@@ -158,41 +192,12 @@ class ReminderNotificationScheduler implements ReminderScheduler {
       scheduledAt: utcScheduledAt,
     ).serialize();
 
-    final scheduledDate = tz.TZDateTime.from(utcRemindAt, location);
-
-    try {
-      await platform.zonedSchedule(
-        id,
-        defaultTitle,
-        defaultBody,
-        scheduledDate,
-        _notificationDetails,
-        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
-        uiLocalNotificationDateInterpretation:
-            UILocalNotificationDateInterpretation.absoluteTime,
-        payload: payload,
-      );
-    } catch (e) {
-      onLog?.call(
-        'Lỗi lên lịch exact alarm cho snooze $id: $e. '
-        'Fallback sang inexactAllowWhileIdle (lưu ý: không thỏa mãn NFR04 về độ trễ).',
-      );
-
-      await platform.zonedSchedule(
-        id,
-        defaultTitle,
-        defaultBody,
-        scheduledDate,
-        _notificationDetails,
-        androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
-        uiLocalNotificationDateInterpretation:
-            UILocalNotificationDateInterpretation.absoluteTime,
-        payload: payload,
-      );
-    }
+    await platform
+        .cancel(repeatNotificationIdFor(medicationScheduleId, utcScheduledAt));
+    await _schedule(id, defaultBody, remindAt.toUtc(), payload, 'snooze');
   }
 
-  /// Hủy một lượt thông báo cụ thể (idempotent).
+  /// Hủy một lượt thông báo cụ thể, kể cả lượt nhắc lại của nó (idempotent).
   @override
   Future<void> cancelOccurrence({
     int? scheduleId,
@@ -207,6 +212,8 @@ class ReminderNotificationScheduler implements ReminderScheduler {
     }
     final id = notificationIdFor(targetId, scheduledAt.toUtc());
     await platform.cancel(id);
+    await platform
+        .cancel(repeatNotificationIdFor(targetId, scheduledAt.toUtc()));
   }
 
   /// Hủy toàn bộ các thông báo đang chờ thuộc về [scheduleId].
@@ -219,8 +226,7 @@ class ReminderNotificationScheduler implements ReminderScheduler {
 
     for (final request in pendingRequests) {
       final payload = NotificationPayload.tryParse(request.payload);
-      if (payload != null &&
-          payload.medicationScheduleId == scheduleId) {
+      if (payload != null && payload.medicationScheduleId == scheduleId) {
         await platform.cancel(request.id);
       }
     }

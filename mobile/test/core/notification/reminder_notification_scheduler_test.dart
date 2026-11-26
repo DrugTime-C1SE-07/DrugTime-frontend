@@ -8,6 +8,7 @@ import 'package:timezone/data/latest_all.dart' as tz_data;
 import 'package:timezone/timezone.dart' as tz;
 import 'package:drugtime_mobile/core/notification/notification_id.dart';
 import 'package:drugtime_mobile/core/notification/notification_service.dart';
+import 'package:drugtime_mobile/core/notification/notification_preferences.dart';
 import 'package:drugtime_mobile/core/notification/reminder_notification_scheduler.dart';
 import 'package:drugtime_mobile/core/notification/reminder_occurrence_generator.dart';
 import 'package:drugtime_mobile/core/notification/reminder_sound.dart';
@@ -333,15 +334,19 @@ void main() {
         scheduledAt: targetTime,
       );
 
-      final expectedId = notificationIdFor(42, targetTime);
-      expect(mockPlatform.cancelCalls, [expectedId]);
+      // Kèm lượt "nhắc lại nếu bỏ lỡ" của cùng liều.
+      final expected = [
+        notificationIdFor(42, targetTime),
+        repeatNotificationIdFor(42, targetTime),
+      ];
+      expect(mockPlatform.cancelCalls, expected);
 
       // Gọi lần 2 vẫn không sinh lỗi (idempotent)
       await scheduler.cancelOccurrence(
         medicationScheduleId: 42,
         scheduledAt: targetTime,
       );
-      expect(mockPlatform.cancelCalls, [expectedId, expectedId]);
+      expect(mockPlatform.cancelCalls, [...expected, ...expected]);
     });
   });
 
@@ -657,6 +662,91 @@ void main() {
           reason: '${file.path} must not contain "$term"',
         );
       }
+    });
+  });
+
+  group('Tùy chọn ở màn Thông báo & Nhắc nhở', () {
+    final now = DateTime.utc(2026, 10, 8, 7);
+    final occ = ReminderOccurrence(
+      medicationScheduleId: 10,
+      scheduledAt: DateTime.utc(2026, 10, 9, 1),
+    );
+    ReminderNotificationScheduler build(ReminderPreferences prefs) =>
+        ReminderNotificationScheduler(
+          platform: mockPlatform,
+          location: vnLocation,
+          clockProvider: () => now,
+          preferences: () => prefs,
+        );
+    AndroidNotificationDetails android(ScheduledCallRecord call) =>
+        call.notificationDetails.android!;
+
+    test('tắt nhắc nhở: không lập thông báo nào', () async {
+      await build(const ReminderPreferences(enabled: false))
+          .scheduleOccurrences([occ]);
+      expect(mockPlatform.zonedScheduleCalls, isEmpty);
+    });
+
+    test('mặc định: rung, một thông báo mỗi lượt', () async {
+      await build(const ReminderPreferences()).scheduleOccurrences([occ]);
+      final call = mockPlatform.zonedScheduleCalls.single;
+      expect(android(call).enableVibration, isTrue);
+      expect(android(call).channelId, ReminderSounds.system.channelId);
+    });
+
+    test('tắt rung: channel riêng không rung', () async {
+      await build(const ReminderPreferences(vibrate: false))
+          .scheduleOccurrences([occ]);
+      final details = android(mockPlatform.zonedScheduleCalls.single);
+      expect(details.enableVibration, isFalse);
+      expect(details.channelId, '${ReminderSounds.system.channelId}_no_vibration');
+    });
+
+    test('nhắc lại nếu bỏ lỡ: thêm lượt sau 15 phút, cùng payload, ID khác',
+        () async {
+      await build(const ReminderPreferences(repeatIfMissed: true))
+          .scheduleOccurrences([occ]);
+      final calls = mockPlatform.zonedScheduleCalls;
+      expect(calls, hasLength(2));
+      expect(calls[1].id, repeatNotificationIdFor(10, occ.scheduledAt));
+      expect(calls[1].id, isNot(calls[0].id));
+      expect(calls[1].payload, calls[0].payload);
+      expect(calls[1].scheduledDate.toUtc(),
+          occ.scheduledAt.add(const Duration(minutes: 15)));
+    });
+
+    test('iOS: nhắc lại chiếm chỗ nên chỉ lập 32 lượt gần nhất', () async {
+      final scheduler = ReminderNotificationScheduler(
+        platform: mockPlatform,
+        location: vnLocation,
+        clockProvider: () => now,
+        targetPlatform: TargetPlatform.iOS,
+        preferences: () => const ReminderPreferences(repeatIfMissed: true),
+      );
+      await scheduler.scheduleOccurrences([
+        for (var i = 0; i < 40; i++)
+          ReminderOccurrence(
+              medicationScheduleId: 10,
+              scheduledAt: DateTime.utc(2026, 10, 9).add(Duration(hours: i))),
+      ]);
+      expect(mockPlatform.zonedScheduleCalls, hasLength(64));
+    });
+
+    test('hủy lượt và hoãn cữ đều bỏ lượt nhắc lại', () async {
+      final scheduler = build(const ReminderPreferences(repeatIfMissed: true));
+      final repeatId = repeatNotificationIdFor(10, occ.scheduledAt);
+      await scheduler.cancelOccurrence(
+          scheduleId: 10, scheduledAt: occ.scheduledAt);
+      expect(mockPlatform.cancelCalls,
+          [notificationIdFor(10, occ.scheduledAt), repeatId]);
+      mockPlatform.cancelCalls.clear();
+      await scheduler.snooze(
+          medicationScheduleId: 10,
+          scheduledAt: occ.scheduledAt,
+          remindAt: occ.scheduledAt.add(const Duration(minutes: 10)));
+      expect(mockPlatform.cancelCalls, [repeatId]);
+      expect(mockPlatform.zonedScheduleCalls.single.id,
+          notificationIdFor(10, occ.scheduledAt));
     });
   });
 }

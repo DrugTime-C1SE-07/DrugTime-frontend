@@ -22,6 +22,7 @@ import 'core/config/app_config.dart';
 import 'core/storage/local_db/local_db.dart';
 import 'core/contracts/dose_outbox.dart';
 import 'core/notification/reminder_notification_scheduler.dart';
+import 'core/notification/notification_preferences.dart';
 import 'core/notification/reminder_sound_controller.dart';
 import 'core/notification/reminder_sound_native.dart';
 import 'core/notification/reminder_sound_store.dart';
@@ -97,19 +98,26 @@ Future<void> main() async {
     onLog: debugPrint,
   );
 
+  final deletionStatusStore = SecureAccountDeletionStatusStore(secureStorage);
+  final accountDeletionRecheck = ValueNotifier<int>(0);
+  final apiClient = _buildApiClient(
+    authController,
+    onAccountPendingDeletion: () => accountDeletionRecheck.value++,
+  );
+
+  // Màn Thông báo & Nhắc nhở: tùy chọn nhắc lưu trên máy, báo người giám sát lưu ở server.
+  final notificationPreferences = NotificationPreferencesController(
+    store: SecureReminderPreferencesStore(),
+    familyAlerts: RemoteFamilyAlertPreferenceRepository(apiClient),
+  );
+
   // Khởi tạo dịch vụ lên lịch thông báo nhắc uống thuốc
   final scheduler = ReminderNotificationScheduler(
     platform: notificationService.platform,
     location: notificationService.location,
     targetPlatform: defaultTargetPlatform,
     soundChannel: () => reminderSounds.selected,
-  );
-
-  final deletionStatusStore = SecureAccountDeletionStatusStore(secureStorage);
-  final accountDeletionRecheck = ValueNotifier<int>(0);
-  final apiClient = _buildApiClient(
-    authController,
-    onAccountPendingDeletion: () => accountDeletionRecheck.value++,
+    preferences: () => notificationPreferences.reminders,
   );
 
   // Lịch uống lấy từ API về máy rồi mới lập nhắc; chạy khi có phiên (app.dart) và khi sửa thuốc.
@@ -184,6 +192,11 @@ Future<void> main() async {
     } on Exception catch (e) {
       debugPrint('Không xóa được âm nhắc tự thêm: $e');
     }
+    try {
+      await notificationPreferences.clear();
+    } on Exception catch (e) {
+      debugPrint('Không xóa được tùy chọn nhắc: $e');
+    }
     await tokens?.logout(session);
   };
 
@@ -224,6 +237,7 @@ Future<void> main() async {
     reminderScheduler: scheduler,
     reminderSyncCoordinator: reminderSync,
     reminderSoundController: reminderSounds,
+    notificationPreferencesController: notificationPreferences,
     shouldAskReminderPermissions: secureStorage.markReminderPermissionsAsked,
     familyLinkCodeRepository: RemoteFamilyLinkCodeRepository(apiClient),
     familyLinkRepository: RemoteFamilyLinkRepository(apiClient),
