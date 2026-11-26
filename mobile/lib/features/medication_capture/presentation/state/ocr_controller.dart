@@ -29,6 +29,12 @@ class OcrController extends ChangeNotifier {
   int _generation = 0;
   Future<bool>? _closing;
   bool get busy => _busy;
+  bool get canRetry =>
+      !_closed &&
+      !_disposed &&
+      !image.isReleased &&
+      _clock().isBefore(image.expiresAt) &&
+      (failure?.canRetry ?? false);
   bool _current(int generation) =>
       !_closed &&
       generation == _generation &&

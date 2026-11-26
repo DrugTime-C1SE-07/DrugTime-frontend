@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:drugtime_mobile/app/theme/app_theme.dart';
 import 'package:drugtime_mobile/features/consent/data/repositories/in_memory_consent_repository.dart';
 import 'package:drugtime_mobile/features/consent/domain/entities/consent.dart';
 import 'package:drugtime_mobile/features/consent/presentation/state/consent_controller.dart';
@@ -8,6 +9,7 @@ import 'package:drugtime_mobile/features/medication_capture/data/capture_service
 import 'package:drugtime_mobile/features/medication_capture/domain/capture_models.dart';
 import 'package:drugtime_mobile/features/medication_capture/domain/ocr_models.dart';
 import 'package:drugtime_mobile/features/medication_capture/presentation/state/capture_scope.dart';
+import 'package:drugtime_mobile/features/medication_capture/presentation/widgets/scan_camera_overlay.dart';
 import 'capture_controller_test.dart'
     show TestSource, TestStore, TestProcessor, makeImage;
 import 'ocr_controller_test.dart' show FakeReader, FakeMatcher;
@@ -15,12 +17,58 @@ import 'package:drugtime_mobile/features/medication_capture/presentation/screens
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+class _FailingInitSource extends TestSource {
+  @override
+  Future<void> initialize() async {
+    initializations++;
+    throw const CaptureFailure('Camera đang bận ở ứng dụng khác.');
+  }
+}
+
+class _ConfigurableStore extends TestStore {
+  _ConfigurableStore({
+    this.ttl = const Duration(hours: 24),
+    this.failRelease = false,
+  });
+
+  Duration ttl;
+  bool failRelease;
+
+  @override
+  Future<PreparedMedicationImage> save(
+      ProcessedCapture image, PackagingKind kind) async {
+    final id = 'cfg-${saves++}';
+    live[id] = image.bytes;
+    final now = DateTime.now();
+    return PreparedMedicationImage(
+      id: id,
+      kind: kind,
+      width: image.width,
+      height: image.height,
+      createdAt: now,
+      expiresAt: now.add(ttl),
+      read: () async {
+        final bytes = live[id];
+        if (bytes == null) throw const CaptureFailure('Hết phiên');
+        return bytes;
+      },
+      release: () async {
+        if (failRelease) throw StateError('disk busy');
+        releases++;
+        live.remove(id);
+      },
+    );
+  }
+}
+
 void main() {
   Future<void> openScan(WidgetTester tester, TestSource source,
       FakeReader reader, FakeMatcher matcher,
-      {TestProcessor? processor}) async {
+      {TestProcessor? processor,
+      TestStore? store,
+      TextScaler? textScaler}) async {
     final services = CaptureServices(
-        store: TestStore(),
+        store: store ?? TestStore(),
         processor: processor ?? TestProcessor(),
         newSource: () => source,
         reader: reader,
@@ -29,11 +77,16 @@ void main() {
     addTearDown(services.dispose);
     final medication = MedicationController(InMemoryMedicationRepository());
     addTearDown(medication.dispose);
+    Widget app = MaterialApp(home: ScanMedicationScreen(key: UniqueKey()));
+    if (textScaler != null) {
+      app = MediaQuery(
+        data: MediaQueryData(textScaler: textScaler),
+        child: app,
+      );
+    }
     await tester.pumpWidget(MedicationScope(
         controller: medication,
-        child: CaptureScope(
-            services: services,
-            child: const MaterialApp(home: ScanMedicationScreen()))));
+        child: CaptureScope(services: services, child: app)));
     await tester.pumpAndSettle();
   }
 
@@ -524,5 +577,313 @@ void main() {
     await tester.pumpAndSettle();
     expect(processor.crops.length, 2);
     expect(processor.crops.last, isNull);
+  });
+
+  testWidgets(
+      'camera renders 4-side cameraScrim aligned with crop frame, guide pill below frame, no overflow at 360x640 1.3x (AC1)',
+      (tester) async {
+    await tester.binding.setSurfaceSize(const Size(360, 640));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await openScan(tester, TestSource(), FakeReader(), FakeMatcher(),
+        textScaler: const TextScaler.linear(1.3));
+    expect(tester.takeException(), isNull);
+    expect(find.byKey(const Key('scan-scrim')), findsOneWidget);
+    final scrimPaint =
+        tester.widget<CustomPaint>(find.byKey(const Key('scan-scrim')));
+    final scrimPainter = scrimPaint.painter as ScanScrimPainter;
+    expect(scrimPainter.scrimColor, AppColors.cameraScrim);
+    final cornersRect =
+        tester.getRect(find.byKey(const Key('scan-camera-corners')));
+    final pillRect = tester.getRect(find.byKey(const Key('scan-hint')));
+    expect(pillRect.top, greaterThanOrEqualTo(cornersRect.bottom));
+    expect(tester.getSize(find.byTooltip('Thư viện')).height,
+        greaterThanOrEqualTo(48));
+    expect(tester.getSize(find.byTooltip('Nhập tay')).height,
+        greaterThanOrEqualTo(48));
+    expect(
+        find.text('Ảnh chỉ xử lý trên điện thoại của bạn'), findsOneWidget);
+  });
+
+  testWidgets(
+      'denied, permanentlyDenied, and camera error show elderly guidance and hide overlay without allow button (AC2)',
+      (tester) async {
+    await openScan(tester, TestSource()..access = CapturePermission.denied,
+        FakeReader(), FakeMatcher());
+    expect(find.byKey(const Key('scan-camera-issue')), findsOneWidget);
+    expect(find.byKey(const Key('scan-scrim')), findsNothing);
+    expect(find.text('Cho phép camera'), findsNothing);
+    expect(find.text('Mở cài đặt'), findsNothing);
+    expect(
+        find.text(
+            'Bạn vẫn có thể chọn ảnh từ Thư viện hoặc Nhập tay ở bên dưới.'),
+        findsOneWidget);
+
+    final permanent = TestSource()
+      ..access = CapturePermission.permanentlyDenied;
+    await openScan(tester, permanent, FakeReader(), FakeMatcher());
+    expect(find.byKey(const Key('scan-camera-issue')), findsOneWidget);
+    expect(find.byKey(const Key('scan-scrim')), findsNothing);
+    expect(find.text('Mở cài đặt'), findsOneWidget);
+    await tester.tap(find.text('Mở cài đặt'));
+    await tester.pumpAndSettle();
+    expect(permanent.settingsCalls, 1);
+
+    await openScan(tester, _FailingInitSource(), FakeReader(), FakeMatcher());
+    expect(find.byKey(const Key('scan-camera-issue')), findsOneWidget);
+    expect(find.byKey(const Key('scan-scrim')), findsNothing);
+    expect(find.text('Camera đang bận ở ứng dụng khác.'), findsOneWidget);
+  });
+
+  testWidgets(
+      'recognizing sheet shows 14px privacy banner, brand progress, no overflow at 360x640 1.3x, and cancelling resets stale _nameMissed (AC3)',
+      (tester) async {
+    await tester.binding.setSurfaceSize(const Size(360, 640));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final matcher = FakeMatcher()..result = noMatch('paracetamol');
+    final source = TestSource()..picked = makeImage();
+    await openScan(tester, source, FakeReader(), matcher,
+        textScaler: const TextScaler.linear(1.3));
+    // First scan produces no_match (sets _nameMissed = true).
+    await tester.tap(find.byTooltip('Thư viện'));
+    await tester.pumpAndSettle();
+    expect(find.text('Chưa thấy tên thuốc'), findsOneWidget);
+
+    // Retake and start a second pending scan.
+    await tapVisible(tester, 'Chụp lại');
+    matcher.pending = Completer<OcrMatchResult>();
+    source.picked = makeImage();
+    await tester.tap(find.byTooltip('Thư viện'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(tester.takeException(), isNull);
+
+    final privacy =
+        tester.widget<Text>(find.text('Ảnh chỉ xử lý trên máy, không gửi đi'));
+    expect(privacy.style?.fontSize, 14);
+    expect(privacy.style?.fontWeight, FontWeight.w500);
+    final progress = tester.widget<LinearProgressIndicator>(
+        find.byKey(const Key('scan-progress')));
+    expect(progress.color, AppColors.brand);
+
+    // Cancel mid-recognition: _nameMissed must be reset and Retry hidden.
+    await tester.tap(find.byKey(const Key('scan-recognizing')));
+    await tester.pumpAndSettle();
+    expect(find.text('Chưa đọc được vỏ hộp'), findsOneWidget);
+    expect(find.text('Chưa thấy tên thuốc'), findsNothing);
+    expect(find.text('Thử lại'), findsNothing);
+    expect(find.text('Tìm thuốc thủ công'), findsOneWidget);
+    expect(find.text('Chọn ảnh khác'), findsOneWidget);
+    expect(find.text('Chụp lại'), findsOneWidget);
+    matcher.pending!.complete(matcher.result);
+    await tester.pump();
+  });
+
+  testWidgets(
+      'matched and low_confidence result sheets show status pills without overflow at 360x640 1.3x (AC4, AC5)',
+      (tester) async {
+    await tester.binding.setSurfaceSize(const Size(360, 640));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await openScan(tester, TestSource()..picked = makeImage(), FakeReader(),
+        FakeMatcher(),
+        textScaler: const TextScaler.linear(1.3));
+    await tester.tap(find.byTooltip('Thư viện'));
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    expect(find.text('Đã nhận diện · 80% khớp'), findsOneWidget);
+    expect(find.text('Đúng thuốc này').hitTestable(), findsOneWidget);
+
+    await openScan(tester, TestSource()..picked = makeImage(), FakeReader(),
+        FakeMatcher()..result = lowConfidence(),
+        textScaler: const TextScaler.linear(1.3));
+    await tester.tap(find.byTooltip('Thư viện'));
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    expect(find.text('Cần đối chiếu · 65% khớp'), findsOneWidget);
+    expect(find.text('Đúng thuốc này').hitTestable(), findsOneWidget);
+  });
+
+  testWidgets(
+      'no_match failure uses AppColors.brand header, 160x160 illus, 40x40 tips badges 17px, no Retry, no overflow at 360x640 1.3x (AC6)',
+      (tester) async {
+    await tester.binding.setSurfaceSize(const Size(360, 640));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await openScan(tester, TestSource()..picked = makeImage(), FakeReader(),
+        FakeMatcher()..result = noMatch('zyrtec'),
+        textScaler: const TextScaler.linear(1.3));
+    await tester.tap(find.byTooltip('Thư viện'));
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+
+    final stepLabel =
+        tester.widget<Text>(find.byKey(const Key('scan-step-label')));
+    expect(stepLabel.style?.color, AppColors.brand);
+    expect(tester.getSize(find.byKey(const Key('scan-failure-illus'))),
+        const Size(160, 160));
+    expect(tester.getSize(find.byKey(const Key('tip-badge-light'))),
+        const Size(40, 40));
+    expect(tester.getSize(find.byKey(const Key('tip-badge-frame'))),
+        const Size(40, 40));
+    final tipText = tester.widget<Text>(find.text('Đủ ánh sáng, không bị loá'));
+    expect(tipText.style?.fontSize, 17);
+    expect(find.text('Thử lại'), findsNothing);
+    expect(find.text('Tìm thuốc thủ công'), findsOneWidget);
+    expect(find.text('Chọn ảnh khác'), findsOneWidget);
+    expect(find.text('Chụp lại'), findsOneWidget);
+  });
+
+  testWidgets(
+      'blurred and invalidImage failures offer manual search, gallery, retake without Retry (AC7)',
+      (tester) async {
+    final processor = TestProcessor()..warnings = [CaptureWarning.blurred];
+    await openScan(
+        tester, TestSource()..picked = makeImage(), FakeReader(), FakeMatcher(),
+        processor: processor);
+    await tester.tap(find.byTooltip('Thư viện'));
+    await tester.pumpAndSettle();
+    expect(find.text('Thử lại'), findsNothing);
+    expect(find.text('Tìm thuốc thủ công'), findsOneWidget);
+    expect(find.text('Chọn ảnh khác'), findsOneWidget);
+    expect(find.text('Chụp lại'), findsOneWidget);
+
+    await openScan(
+        tester,
+        TestSource()..picked = makeImage(),
+        FakeReader()..failureKind = OcrFailureKind.invalidImage,
+        FakeMatcher());
+    await tester.tap(find.byTooltip('Thư viện'));
+    await tester.pumpAndSettle();
+    expect(find.text('Không mở được ảnh'), findsOneWidget);
+    expect(find.text('Thử lại'), findsNothing);
+    expect(find.text('Tìm thuốc thủ công'), findsOneWidget);
+    expect(find.text('Chọn ảnh khác'), findsOneWidget);
+    expect(find.text('Chụp lại'), findsOneWidget);
+  });
+
+  testWidgets(
+      'network and recognition failures show Retry that re-runs OcrController.start() without retaking (AC8)',
+      (tester) async {
+    final reader = FakeReader();
+    final matcher = FakeMatcher()..failureKind = OcrFailureKind.network;
+    await openScan(
+        tester, TestSource()..picked = makeImage(), reader, matcher);
+    await tester.tap(find.byTooltip('Thư viện'));
+    await tester.pumpAndSettle();
+    expect(find.text('Thử lại'), findsOneWidget);
+    expect(find.text('Tìm thuốc thủ công'), findsOneWidget);
+    expect(find.text('Chọn ảnh khác'), findsOneWidget);
+    expect(find.text('Chụp lại'), findsOneWidget);
+
+    matcher.failureKind = null;
+    await tapVisible(tester, 'Thử lại');
+    expect(reader.calls, 1);
+    expect(matcher.calls, 2);
+    expect(find.text('Thuốc kiểm thử'), findsOneWidget);
+
+    final reader2 = FakeReader()..failureKind = OcrFailureKind.recognition;
+    final matcher2 = FakeMatcher();
+    await openScan(
+        tester, TestSource()..picked = makeImage(), reader2, matcher2);
+    await tester.tap(find.byTooltip('Thư viện'));
+    await tester.pumpAndSettle();
+    expect(find.text('Thử lại'), findsOneWidget);
+
+    reader2.failureKind = null;
+    await tapVisible(tester, 'Thử lại');
+    expect(reader2.calls, 2);
+    expect(matcher2.calls, 1);
+    expect(find.text('Thuốc kiểm thử'), findsOneWidget);
+  });
+
+  testWidgets(
+      'expiring encrypted image on failure screen hides Retry and shows expired message (AC8, AC9)',
+      (tester) async {
+    final store = _ConfigurableStore(ttl: const Duration(milliseconds: 80));
+    final matcher = FakeMatcher()..failureKind = OcrFailureKind.network;
+    await openScan(tester, TestSource()..picked = makeImage(), FakeReader(),
+        matcher,
+        store: store);
+    await tester.tap(find.byTooltip('Thư viện'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 20));
+    expect(find.text('Thử lại'), findsOneWidget);
+
+    await tester.pump(const Duration(milliseconds: 120));
+    await tester.pumpAndSettle();
+    expect(store.releases, 1);
+    expect(find.text('Thử lại'), findsNothing);
+    expect(find.text('Ảnh đã hết hạn'), findsOneWidget);
+    expect(find.text('Chụp lại'), findsOneWidget);
+  });
+
+  testWidgets(
+      'unauthorized (401) and cleanup failure release/lock UI fail-closed without Retry/Manual/Gallery/Retake (AC9)',
+      (tester) async {
+    final store = _ConfigurableStore();
+    await openScan(
+        tester,
+        TestSource()..picked = makeImage(),
+        FakeReader(),
+        FakeMatcher()..failureKind = OcrFailureKind.unauthorized,
+        store: store);
+    await tester.tap(find.byTooltip('Thư viện'));
+    await tester.pumpAndSettle();
+    expect(store.releases, 1);
+    expect(find.text('Phiên đăng nhập đã hết hạn'), findsOneWidget);
+    expect(find.text('Thử lại'), findsNothing);
+    expect(find.text('Tìm thuốc thủ công'), findsNothing);
+    expect(find.text('Chọn ảnh khác'), findsNothing);
+    expect(find.text('Chụp lại'), findsNothing);
+    expect(find.text('Đóng'), findsOneWidget);
+
+    // Cleanup failure during exit stays fail-closed with "Thử dọn lại" until cleanup succeeds.
+    final stickyStore = _ConfigurableStore(failRelease: true);
+    final matcher = FakeMatcher()..pending = Completer<OcrMatchResult>();
+    final services = CaptureServices(
+        store: stickyStore,
+        processor: TestProcessor(),
+        newSource: () => TestSource()..picked = makeImage(),
+        reader: FakeReader(),
+        matching: matcher);
+    await services.bindSession('session-clean');
+    addTearDown(services.dispose);
+    var popped = false;
+    await tester.pumpWidget(CaptureScope(
+      services: services,
+      child: MaterialApp(
+        home: Builder(
+          builder: (context) => TextButton(
+            onPressed: () async {
+              await Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const ScanMedicationScreen()),
+              );
+              popped = true;
+            },
+            child: const Text('Open'),
+          ),
+        ),
+      ),
+    ));
+    await tester.tap(find.text('Open'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Thư viện'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+    await tester.tap(find.byKey(const Key('scan-recognizing')));
+    await tester.pumpAndSettle();
+    expect(find.text('Chưa dọn được ảnh tạm'), findsOneWidget);
+    expect(find.text('Thử lại'), findsNothing);
+    expect(find.text('Tìm thuốc thủ công'), findsNothing);
+    expect(find.text('Chọn ảnh khác'), findsNothing);
+    expect(find.text('Chụp lại'), findsNothing);
+    expect(find.text('Thử dọn lại'), findsOneWidget);
+    expect(popped, isFalse);
+
+    stickyStore.failRelease = false;
+    await tester.tap(find.text('Thử dọn lại'));
+    await tester.pumpAndSettle();
+    expect(stickyStore.releases, 1);
+    expect(popped, isTrue);
+    matcher.pending!.complete(matcher.result);
+    await tester.pump();
   });
 }

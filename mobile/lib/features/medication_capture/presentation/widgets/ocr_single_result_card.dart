@@ -4,10 +4,10 @@ import '../../../../app/theme/app_theme.dart';
 import '../../../medication/presentation/widgets/medication_labels.dart';
 import '../../domain/ocr_models.dart';
 
-/// The one medicine recognised on the box (`matched`), sized for older users: large name
-/// and one "label: value" row per field, the same layout as the drug information sheet
-/// (S07-M2i). The buttons live in [OcrResultActions], pinned below the scrollable card so
-/// they never scroll away (QD-39: the user always confirms).
+/// The one medicine recognised on the box (`matched` or `low_confidence`), sized for older
+/// users: status pill (Figma S07-O2r), large name and one "label: value" row per field, the
+/// same layout as the drug information sheet (S07-M2i). The buttons live in [OcrResultActions],
+/// pinned below the scrollable card so they never scroll away (QD-39: the user always confirms).
 class OcrSingleResultCard extends StatelessWidget {
   const OcrSingleResultCard({
     super.key = const Key('ocr-single-result'),
@@ -30,43 +30,68 @@ class OcrSingleResultCard extends StatelessWidget {
     String? present(String? value) =>
         value == null || value.trim().isEmpty ? null : value.trim();
     final strength = present(candidate.strengthText);
+    final scorePercent = (candidate.score * 100).round();
+    final statusLabel = checkReminder
+        ? (candidate.score > 0
+            ? 'Cần đối chiếu · $scorePercent% khớp'
+            : 'Cần đối chiếu')
+        : (candidate.score > 0
+            ? 'Đã nhận diện · $scorePercent% khớp'
+            : 'Đã nhận diện');
     return Container(
       padding: const EdgeInsets.all(AppSpacing.lg),
       decoration: BoxDecoration(
         color: AppColors.surface,
         border: Border.all(color: AppColors.border),
         borderRadius: BorderRadius.circular(AppRadius.card),
+        boxShadow: AppShadows.cardElevation,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         mainAxisSize: MainAxisSize.min,
         children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Semantics(
-                  header: true,
-                  child: Text(candidate.name, style: AppTextStyles.display),
-                ),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: Container(
+              key: const Key('ocr-status-pill'),
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.md,
+                vertical: AppSpacing.xs + 2,
               ),
-              if (candidate.score > 0)
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: AppColors.brandTint,
-                    borderRadius: BorderRadius.circular(12),
+              decoration: BoxDecoration(
+                color: checkReminder ? AppColors.cautionBg : AppColors.safeBg,
+                borderRadius: BorderRadius.circular(999),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    checkReminder
+                        ? Icons.warning_amber_rounded
+                        : Icons.check_circle_outline,
+                    size: 16,
+                    color: checkReminder ? AppColors.caution : AppColors.safe,
                   ),
-                  child: Text(
-                    '${(candidate.score * 100).round()}% khớp',
-                    style: AppTextStyles.caption.copyWith(
-                      color: AppColors.brand,
-                      fontWeight: FontWeight.w600,
+                  const SizedBox(width: AppSpacing.xs + 2),
+                  Flexible(
+                    child: Text(
+                      statusLabel,
+                      style: AppTextStyles.captionStrong.copyWith(
+                        color: checkReminder
+                            ? AppColors.cautionText
+                            : AppColors.safe,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                   ),
-                ),
-            ],
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          Semantics(
+            header: true,
+            child: Text(candidate.name, style: AppTextStyles.display),
           ),
           const SizedBox(height: AppSpacing.md),
           OcrInfoRow(
