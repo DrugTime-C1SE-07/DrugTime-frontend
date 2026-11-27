@@ -36,7 +36,6 @@ dependencies:
   lucide_icons_flutter: 4.0.3
   unorm_dart: 0.3.3
   home_widget: ^0.10.0
-  local_auth: ^3.0.2
 
 dev_dependencies:
   flutter_test:

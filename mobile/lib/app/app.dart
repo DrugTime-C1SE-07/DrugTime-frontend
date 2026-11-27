@@ -27,12 +27,8 @@ import '../core/notification/notification_id.dart';
 import '../core/notification/notification_service.dart';
 import '../core/notification/reminder_scheduler.dart';
 import '../core/notification/reminder_sync_coordinator.dart';
-import '../core/notification/notification_preferences.dart';
 import '../core/notification/reminder_sound_controller.dart';
 import '../core/platform/keyguard_service.dart';
-import '../core/security/app_lock_controller.dart';
-import '../core/security/app_lock_gate.dart';
-import '../core/security/top_route_observer.dart';
 import '../core/storage/local_db/local_medication_store.dart';
 import '../core/storage/local_db/local_models.dart';
 import '../features/home/presentation/home_schedule_controller.dart';
@@ -112,10 +108,8 @@ class DrugTimeApp extends StatefulWidget {
     this.reminderScheduler,
     this.reminderSyncCoordinator,
     this.reminderSoundController,
-    this.notificationPreferencesController,
     this.shouldAskReminderPermissions,
     this.keyguardPlatform,
-    this.appLockController,
     this.clock,
     this.initialRoute,
     this.navigatorKey,
@@ -206,17 +200,11 @@ class DrugTimeApp extends StatefulWidget {
   /// Âm thanh nhắc (S08-4a); null thì màn S08-4a hiện chưa khả dụng.
   final ReminderSoundController? reminderSoundController;
 
-  /// Tùy chọn màn Thông báo & Nhắc nhở; null thì màn đó hiện chưa khả dụng.
-  final NotificationPreferencesController? notificationPreferencesController;
-
   /// Chỉ xin quyền nhắc thuốc khi trả `true` (lần đầu sau khi cài); `null` thì luôn xin.
   final Future<bool> Function()? shouldAskReminderPermissions;
 
   /// Bộ kiểm tra trạng thái màn hình khóa.
   final KeyguardPlatform? keyguardPlatform;
-
-  /// "Khóa ứng dụng" bằng Face ID / vân tay / mã khóa màn hình; null thì không khóa.
-  final AppLockController? appLockController;
 
   /// Đồng hồ tiêm vào phục vụ test thời gian.
   final DateTime Function()? clock;
@@ -337,11 +325,6 @@ class _DrugTimeAppState extends State<DrugTimeApp> with WidgetsBindingObserver {
     } on Exception catch (e) {
       debugPrint('Không đọc được âm nhắc đã chọn: $e');
     }
-    try {
-      await widget.notificationPreferencesController?.load();
-    } on Exception catch (e) {
-      debugPrint('Không đọc được tùy chọn nhắc: $e');
-    }
     await widget.reminderSyncCoordinator?.refresh(userId);
   }
 
@@ -370,13 +353,9 @@ class _DrugTimeAppState extends State<DrugTimeApp> with WidgetsBindingObserver {
 
   Widget _withReminderSound(Widget child) {
     final sounds = widget.reminderSoundController;
-    final prefs = widget.notificationPreferencesController;
-    final withPrefs = prefs == null
-        ? child
-        : NotificationPreferencesScope(controller: prefs, child: child);
     return sounds == null
-        ? withPrefs
-        : ReminderSoundScope(controller: sounds, child: withPrefs);
+        ? child
+        : ReminderSoundScope(controller: sounds, child: child);
   }
 
   void _refreshReminders() {
@@ -465,7 +444,6 @@ class _DrugTimeAppState extends State<DrugTimeApp> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    unawaited(widget.appLockController?.onLifecycle(state));
     _foreground = state == AppLifecycleState.resumed;
     // Xóa nội dung khỏi RAM khi app ra nền; lần mở lại phải đọc quyền từ server.
     if (!_foreground) widget.familyAlertController?.clear();
@@ -633,8 +611,6 @@ class _DrugTimeAppState extends State<DrugTimeApp> with WidgetsBindingObserver {
     }
     WidgetsBinding.instance.addObserver(this);
     widget.reminderSoundController?.onSoundChanged = _refreshReminders;
-    widget.notificationPreferencesController?.onRemindersChanged =
-        _refreshReminders;
     widget.familyPushService?.addListener(_openPendingFamily);
     widget.notificationService?.onFamilyAction =
         (id) => widget.familyPushService?.offer(id == null ? null : '$id');
@@ -821,8 +797,6 @@ class _DrugTimeAppState extends State<DrugTimeApp> with WidgetsBindingObserver {
 
   Future<void> _loadSession() async {
     await _auth.initSession();
-    // Đọc cài đặt khóa trước khi dựng app để khởi động lạnh vào thẳng màn khóa.
-    await widget.appLockController?.load(signedIn: _auth.isAuthenticated);
     if (!mounted) return;
     setState(() {
       _sessionLoaded = true;
@@ -862,7 +836,6 @@ class _DrugTimeAppState extends State<DrugTimeApp> with WidgetsBindingObserver {
       DietarySession.instance.clear();
       _bindMeals(user);
     }
-    unawaited(widget.appLockController?.onAuthChanged(signedIn: authenticated));
     if (_wasAuthenticated && !authenticated) {
       _medications.clear();
       _consents.clear();
@@ -911,7 +884,6 @@ class _DrugTimeAppState extends State<DrugTimeApp> with WidgetsBindingObserver {
     _expiryTimer?.cancel();
     unawaited(_familyConnection?.cancel());
     _familyAdherenceAvailability.dispose();
-    _topRoute.topRoute.dispose();
     _monitor?.dispose();
     unawaited(widget.familyConnectivity?.dispose());
     widget.familyPushService?.removeListener(_openPendingFamily);
@@ -989,41 +961,26 @@ class _DrugTimeAppState extends State<DrugTimeApp> with WidgetsBindingObserver {
         familyAdherenceAvailability: _familyAdherenceAvailability,
       );
 
-  final _topRoute = TopRouteObserver();
-
-  Widget _withAppLock(Widget child) {
-    final lock = widget.appLockController;
-    if (lock == null) return child;
-    return AppLockGate(
-      controller: lock,
-      topRoute: _topRoute.topRoute,
-      // Màn nhắc liều trên màn hình khóa đã có cổng riêng (Q2).
-      exemptRoutes: const {AppRoutes.doseReminder},
-      onSignOut: _auth.signOut,
-      child: child,
-    );
-  }
-
   Widget _buildApp() {
     final app = MaterialApp(
       navigatorKey: _navigatorKey,
       scaffoldMessengerKey: _scaffoldMessengerKey,
       title: 'DrugTime',
       debugShowCheckedModeBanner: false,
-      builder: (context, child) => _withAppLock(AccountDeletionScope(
+      builder: (context, child) => AccountDeletionScope(
           repository: widget.accountDeletionRepository,
           statusStore: widget.accountDeletionStatusStore,
           connectivity: widget.familyConnectivity,
           recheckNotifier: widget.accountDeletionRecheck,
           clock: widget.clock,
           child: AccountDeletionGate(
-              child: CaptureScope(services: _captures, child: child!)))),
+              child: CaptureScope(services: _captures, child: child!))),
       theme: buildAppTheme(),
       locale: const Locale('vi'),
       supportedLocales: const [Locale('vi'), Locale('en')],
       localizationsDelegates: GlobalMaterialLocalizations.delegates,
       initialRoute: _startRoute,
-      navigatorObservers: [familyAdherenceRouteObserver, _topRoute],
+      navigatorObservers: [familyAdherenceRouteObserver],
       onGenerateRoute: _route,
       // Chỉ dựng đúng một route đầu.
       onGenerateInitialRoutes: (name) => [

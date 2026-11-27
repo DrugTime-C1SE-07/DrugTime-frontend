@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../../app/router.dart';
 import '../../../../app/theme/app_theme.dart';
-import '../../../../core/security/app_lock_controller.dart';
-import '../../../../core/security/app_lock_gate.dart';
 import '../../../../shared/widgets/profile_flow_widgets.dart';
 
 class ProfileSettingsArgs {
@@ -53,9 +51,6 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
                       unavailable: true,
                       trailing: Switch(value: false, onChanged: null)),
                 ]),
-                if (AppLockScope.maybeOf(context) case final lock?)
-                  ProfileFlowSection('Bảo mật',
-                      children: [_AppLockRow(lock: lock, busy: _busy)]),
                 ProfileFlowSection('Về DrugTime', children: [
                   const ProfileFlowRow('Phiên bản ứng dụng',
                       icon: Icons.info_outline, unavailable: true),
@@ -97,62 +92,4 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
               ])),
         ),
       );
-}
-
-/// Công tắc "Khóa ứng dụng"; chỉ bật được khi máy đã đặt khóa màn hình.
-class _AppLockRow extends StatefulWidget {
-  const _AppLockRow({required this.lock, required this.busy});
-  final AppLockController lock;
-  final bool busy;
-  @override
-  State<_AppLockRow> createState() => _AppLockRowState();
-}
-
-class _AppLockRowState extends State<_AppLockRow> {
-  late final Future<bool> _supported = widget.lock.isDeviceSupported();
-  bool _changing = false;
-
-  Future<void> _toggle(bool on) async {
-    if (_changing) return;
-    setState(() => _changing = true);
-    try {
-      if (!on) {
-        await widget.lock.disable();
-      } else if (!await widget.lock.enable() && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content: Text('Chưa xác thực được nên chưa bật khóa ứng dụng')));
-      }
-    } finally {
-      if (mounted) setState(() => _changing = false);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) => FutureBuilder<bool>(
-      future: _supported,
-      builder: (context, snapshot) {
-        final supported = snapshot.data ?? false;
-        final enabled = widget.lock.enabled;
-        final canChange = supported && !_changing && !widget.busy;
-        return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          ProfileFlowRow('Khóa ứng dụng',
-              key: const Key('settings-app-lock'),
-              icon: Icons.lock_outline,
-              onTap: canChange ? () => _toggle(!enabled) : null,
-              trailing: Switch(
-                  key: const Key('settings-app-lock-switch'),
-                  value: enabled,
-                  onChanged: canChange ? _toggle : null)),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(44, 0, 14, 10),
-            child: Text(
-                snapshot.connectionState == ConnectionState.done && !supported
-                    ? 'Hãy đặt khóa màn hình cho điện thoại trước'
-                    : 'Mở DrugTime bằng Face ID, vân tay hoặc mã khóa màn hình',
-                key: const Key('settings-app-lock-hint'),
-                style: const TextStyle(
-                    fontSize: 12, height: 1.5, color: AppColors.inkMuted)),
-          ),
-        ]);
-      });
 }

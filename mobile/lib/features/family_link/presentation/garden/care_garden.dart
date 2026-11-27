@@ -280,9 +280,7 @@ class CareGardenState extends State<CareGarden>
   @override
   Widget build(BuildContext context) {
     final spec = _spec;
-    // Vườn vẽ lại mỗi frame; cô lập để không kéo cả màn chứa nó repaint theo.
-    return RepaintBoundary(
-        child: Semantics(
+    return Semantics(
       container: true,
       label: spec.label,
       child: SizedBox(
@@ -330,7 +328,7 @@ class CareGardenState extends State<CareGarden>
           );
         }),
       ),
-    ));
+    );
   }
 
   Widget _mascot(bool isRight, double x, double h, double m, double maxGap) {
