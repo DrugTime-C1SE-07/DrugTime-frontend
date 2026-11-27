@@ -24,15 +24,8 @@ abstract final class AppColors {
   static const inkDisabled = Color(0xFF9CA3AF);
   static const border = Color(0xFFE4E4E1);
 
-  /// Nền xám-xanh của Figma S06 (`#F5F7F6`).
-  static const canvasCool = Color(0xFFF5F7F6);
-
   /// Chevron, placeholder ô tìm của Figma S06 — chỉ trang trí, không mang chữ cần đọc.
   static const inkFaint = Color(0xFFA6A6A6);
-
-  /// Nút lịch sử kiểm tra tương tác (Figma S06).
-  static const historyTint = Color(0xFFFFF4E5);
-  static const historyIcon = Color(0xFFB4570F);
 
   /// Vạch chia mảnh trong danh sách (Figma S08: `#EEF0EF`).
   static const dividerSoft = Color(0xFFEEF0EF);

@@ -85,7 +85,8 @@ class PillPainter extends CustomPainter {
         canvas.save();
         canvas.translate(c.dx, c.dy);
         canvas.rotate(-math.pi / 4);
-        final rect = Rect.fromCenter(center: Offset.zero, width: w * 0.92, height: w * 0.42);
+        final rect = Rect.fromCenter(
+            center: Offset.zero, width: w * 0.92, height: w * 0.42);
         final rr = RRect.fromRectAndRadius(rect, Radius.circular(w * 0.21));
         canvas.save();
         canvas.clipRect(Rect.fromLTRB(rect.left, rect.top, 0, rect.bottom));
@@ -102,20 +103,23 @@ class PillPainter extends CustomPainter {
         final r = w * 0.4;
         canvas.drawCircle(c, r, body);
         canvas.drawCircle(c, r, outline);
-        canvas.drawLine(c - Offset(r * 0.6, 0), c + Offset(r * 0.6, 0), outline);
+        canvas.drawLine(
+            c - Offset(r * 0.6, 0), c + Offset(r * 0.6, 0), outline);
       case PillShape.oblongTablet:
         canvas.save();
         canvas.translate(c.dx, c.dy);
         canvas.rotate(-math.pi / 6);
         final rr = RRect.fromRectAndRadius(
-            Rect.fromCenter(center: Offset.zero, width: w * 0.9, height: w * 0.4),
+            Rect.fromCenter(
+                center: Offset.zero, width: w * 0.9, height: w * 0.4),
             Radius.circular(w * 0.2));
         canvas.drawRRect(rr, body);
         canvas.drawRRect(rr, outline);
         canvas.drawLine(Offset(0, -w * 0.12), Offset(0, w * 0.12), outline);
         canvas.restore();
       case PillShape.softgel:
-        final oval = Rect.fromCenter(center: c, width: w * 0.86, height: w * 0.56);
+        final oval =
+            Rect.fromCenter(center: c, width: w * 0.86, height: w * 0.56);
         canvas.drawOval(oval, body);
         canvas.drawOval(oval, outline);
         canvas.drawArc(
@@ -134,7 +138,11 @@ class PillPainter extends CustomPainter {
         final center = c + Offset(-w * 0.06, w * 0.06);
         canvas.drawCircle(center, r, body);
         canvas.drawCircle(center, r, outline);
-        for (final (dx, dy, br) in [(0.36, -0.36, 0.07), (0.24, -0.46, 0.045), (0.42, -0.2, 0.04)]) {
+        for (final (dx, dy, br) in [
+          (0.36, -0.36, 0.07),
+          (0.24, -0.46, 0.045),
+          (0.42, -0.2, 0.04)
+        ]) {
           canvas.drawCircle(c + Offset(w * dx, w * dy), w * br, outline);
         }
       default:
@@ -155,6 +163,7 @@ class PillAppearanceTile extends StatelessWidget {
     this.dosageForm,
     this.size = 48,
     this.muted = false,
+    this.background,
   });
 
   final PillShape? shape;
@@ -162,6 +171,9 @@ class PillAppearanceTile extends StatelessWidget {
   final String? dosageForm;
   final double size;
   final bool muted;
+
+  /// Nền ô; `null` = kem mặc định.
+  final Color? background;
 
   @override
   Widget build(BuildContext context) {
@@ -173,7 +185,9 @@ class PillAppearanceTile extends StatelessWidget {
       height: size,
       alignment: Alignment.center,
       decoration: BoxDecoration(
-        color: muted ? AppColors.surfaceMuted : const Color(0xFFFFF0DF),
+        color: muted
+            ? AppColors.surfaceMuted
+            : background ?? const Color(0xFFFFF0DF),
         borderRadius: BorderRadius.circular(AppRadius.field),
       ),
       child: Opacity(

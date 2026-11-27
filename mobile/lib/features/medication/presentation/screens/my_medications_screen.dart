@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../../../../app/router.dart';
 import '../../../../app/theme/app_theme.dart';
+import '../../../../core/utils/app_assets.dart';
+import '../../../adherence_history/presentation/utils/reminder_palette.dart';
 import '../../domain/entities/medication.dart';
 import '../../domain/entities/medication_failure.dart';
 import '../state/medication_controller.dart';
@@ -74,9 +76,7 @@ class _MyMedicationsScreenState extends State<MyMedicationsScreen> {
     final showsEmptyState = emptyList || (all.isNotEmpty && matches.isEmpty);
 
     final children = <Widget>[
-      _Header(showAdd: !showsEmptyState, onAdd: _openAddMedication),
       if (!emptyList) ...[
-        const SizedBox(height: AppSpacing.sm),
         _SearchField(
           controller: _searchController,
           onChanged: (v) => setState(() => _query = v),
@@ -109,13 +109,15 @@ class _MyMedicationsScreenState extends State<MyMedicationsScreen> {
     } else if (all.isEmpty) {
       children.add(MedicationEmptyState(
         title: 'Chưa có thuốc nào',
-        message: 'Thêm thuốc bạn đang dùng để DrugTime nhắc đúng giờ và kiểm tra tương tác.',
+        message:
+            'Thêm thuốc bạn đang dùng để DrugTime nhắc đúng giờ và kiểm tra tương tác.',
         onAdd: _openAddMedication,
       ));
     } else if (matches.isEmpty) {
       children.add(MedicationEmptyState(
         title: 'Không tìm thấy "${_query.trim()}"',
-        message: 'Thử tìm bằng tên hoạt chất, hoặc thêm thuốc này vào danh sách.',
+        message:
+            'Thử tìm bằng tên hoạt chất, hoặc thêm thuốc này vào danh sách.',
         onAdd: _openAddMedication,
       ));
     } else {
@@ -125,36 +127,39 @@ class _MyMedicationsScreenState extends State<MyMedicationsScreen> {
     }
 
     return Scaffold(
-      backgroundColor: AppColors.canvasCool,
+      backgroundColor: ReminderPalette.canvas,
       body: SafeArea(
         bottom: false,
-        child: RefreshIndicator(
-          onRefresh: controller.load,
-          child: ListView(
-            padding: const EdgeInsets.fromLTRB(
-              _pagePadding,
-              AppSpacing.sm,
-              _pagePadding,
-              AppSpacing.xl,
+        child: Column(
+          children: [
+            _Header(showAdd: !showsEmptyState, onAdd: _openAddMedication),
+            Expanded(
+              child: RefreshIndicator(
+                onRefresh: controller.load,
+                child: ListView(
+                  padding: const EdgeInsets.fromLTRB(
+                    _pagePadding,
+                    AppSpacing.md,
+                    _pagePadding,
+                    AppSpacing.xl,
+                  ),
+                  children: children,
+                ),
+              ),
             ),
-            children: children,
-          ),
+          ],
         ),
       ),
     );
   }
 
-  /// Lề ngang 20 theo Figma S06 (rộng hơn `AppSpacing.page` của các màn khác).
-  static const _pagePadding = 20.0;
-
-  List<Widget> _section(String title, List<Medication> meds, {required double gapBefore}) {
+  List<Widget> _section(String title, List<Medication> meds,
+      {required double gapBefore}) {
     if (meds.isEmpty) return const [];
     return [
       SizedBox(height: gapBefore),
-      Semantics(
-        header: true,
-        child: Text('$title · ${meds.length}', style: AppTextStyles.captionStrong),
-      ),
+      _GroupHeader(
+          title: title, count: meds.length, active: title == 'Đang dùng'),
       const SizedBox(height: AppSpacing.sm),
       for (final (i, m) in meds.indexed) ...[
         if (i > 0) const SizedBox(height: AppSpacing.md),
@@ -176,56 +181,62 @@ class _Header extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      height: 64,
-      child: Row(
-        children: [
-          Expanded(
-            child: Semantics(
-              header: true,
-              child: const Text('Thuốc của tôi', style: AppTextStyles.display),
+    // Cùng dải màu theo giờ trong ngày và nút tròn trắng như header "Lịch nhắc".
+    return Material(
+      key: const Key('medication-header'),
+      color: ReminderPalette.headerFor(DateTime.now()),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(_pagePadding, 8, 12, 8),
+        child: Row(
+          children: [
+            Expanded(
+              child: Semantics(
+                header: true,
+                child:
+                    const Text('Thuốc của tôi', style: AppTextStyles.display),
+              ),
             ),
-          ),
-          _RoundAction(
-            key: const Key('medication-interaction-history-icon-button'),
-            tooltip: 'Lịch sử kiểm tra tương tác',
-            icon: Icons.shield_outlined,
-            background: AppColors.historyTint,
-            foreground: AppColors.historyIcon,
-            onTap: () => Navigator.pushNamed(context, AppRoutes.interactionHistory),
-          ),
-          if (showAdd) ...[
-            const SizedBox(width: AppSpacing.md),
+            ExcludeSemantics(
+              child: Image.asset(AppAssets.mascotHappy, width: 40, height: 40),
+            ),
+            const SizedBox(width: AppSpacing.sm),
             _RoundAction(
-              key: const Key('medication-add-button'),
-              tooltip: 'Thêm thuốc',
-              icon: Icons.add,
-              background: AppColors.brandTint,
-              foreground: AppColors.brand,
-              onTap: onAdd,
+              key: const Key('medication-interaction-history-icon-button'),
+              tooltip: 'Lịch sử kiểm tra tương tác',
+              icon: Icons.shield_outlined,
+              onTap: () =>
+                  Navigator.pushNamed(context, AppRoutes.interactionHistory),
             ),
+            if (showAdd) ...[
+              const SizedBox(width: AppSpacing.sm),
+              _RoundAction(
+                key: const Key('medication-add-button'),
+                tooltip: 'Thêm thuốc',
+                icon: Icons.add,
+                onTap: onAdd,
+              ),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }
 }
 
-/// Nút tròn 48×48 ở header S06.
+/// Lề ngang 20 theo Figma S06.
+const _pagePadding = 20.0;
+
+/// Nút tròn trắng 48×48, icon teal — như nút lịch tháng của "Lịch nhắc".
 class _RoundAction extends StatelessWidget {
   const _RoundAction({
     super.key,
     required this.tooltip,
     required this.icon,
-    required this.background,
-    required this.foreground,
     required this.onTap,
   });
 
   final String tooltip;
   final IconData icon;
-  final Color background;
-  final Color foreground;
   final VoidCallback onTap;
 
   @override
@@ -233,16 +244,69 @@ class _RoundAction extends StatelessWidget {
     return Tooltip(
       message: tooltip,
       child: Material(
-        color: background,
+        color: ReminderPalette.surface,
         shape: const CircleBorder(),
+        elevation: 1,
+        shadowColor: ReminderPalette.outline,
         child: InkWell(
           customBorder: const CircleBorder(),
           onTap: onTap,
           child: SizedBox.square(
             dimension: AppSizes.tapTarget,
-            child: Icon(icon, color: foreground),
+            child: Icon(icon, color: ReminderPalette.teal),
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// Tiêu đề nhóm dạng chip màu có icon, như tiêu đề buổi của "Lịch nhắc".
+class _GroupHeader extends StatelessWidget {
+  const _GroupHeader(
+      {required this.title, required this.count, required this.active});
+
+  final String title;
+  final int count;
+  final bool active;
+
+  @override
+  Widget build(BuildContext context) {
+    final (bg, fg, icon) = active
+        ? (
+            ReminderPalette.surfaceTint,
+            ReminderPalette.teal,
+            Icons.medication_outlined
+          )
+        : (
+            ReminderPalette.pendingBackground,
+            ReminderPalette.pending,
+            Icons.pause_circle_outline
+          );
+    return Semantics(
+      header: true,
+      label: '$title, $count thuốc',
+      excludeSemantics: true,
+      child: Container(
+        constraints: const BoxConstraints(minHeight: 32),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        decoration:
+            BoxDecoration(color: bg, borderRadius: BorderRadius.circular(10)),
+        child: Row(children: [
+          DecoratedBox(
+            decoration: const BoxDecoration(
+                color: Colors.white, shape: BoxShape.circle),
+            child: Padding(
+              padding: const EdgeInsets.all(4),
+              child: Icon(icon, size: 16, color: fg),
+            ),
+          ),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text('$title · $count',
+                style: AppTextStyles.captionStrong.copyWith(color: fg)),
+          ),
+        ]),
       ),
     );
   }
@@ -268,7 +332,8 @@ class _CatalogLink extends StatelessWidget {
               Flexible(
                 child: Text(
                   'Tra cứu danh mục thuốc',
-                  style: AppTextStyles.captionStrong.copyWith(color: AppColors.brand),
+                  style: AppTextStyles.captionStrong
+                      .copyWith(color: AppColors.brand),
                 ),
               ),
               const SizedBox(width: AppSpacing.xs),
@@ -334,7 +399,8 @@ class _SearchField extends StatelessWidget {
 
 /// Không tải được danh sách: báo lỗi và cho thử lại. Danh sách cũ (nếu có) vẫn hiện bên dưới.
 class _LoadErrorCard extends StatelessWidget {
-  const _LoadErrorCard({required this.message, required this.onRetry, this.onConsent});
+  const _LoadErrorCard(
+      {required this.message, required this.onRetry, this.onConsent});
 
   final String message;
   final Future<void> Function() onRetry;

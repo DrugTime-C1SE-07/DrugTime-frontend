@@ -39,9 +39,11 @@ void main() {
   testWidgets('thẻ sắp hết có chip, thẻ còn nhiều thì không (S06 AC4)', (tester) async {
     await pumpCard(tester, _plain.copyWith(stockRemaining: 3));
     expect(find.text('Sắp hết · còn 3 viên'), findsOneWidget);
+    expect(find.byKey(const Key('medication-card-low-stock-rail')), findsOneWidget);
 
     await pumpCard(tester, _plain.copyWith(stockRemaining: 30));
     expect(find.textContaining('Sắp hết'), findsNothing);
+    expect(find.byKey(const Key('medication-card-low-stock-rail')), findsNothing);
   });
 
   testWidgets('thẻ đã ngừng: tên inkMuted, ô viên thuốc mờ 0.45 (S06 AC5)', (tester) async {
@@ -54,6 +56,16 @@ void main() {
 
     await pumpCard(tester, _plain);
     expect(find.byKey(const Key('medication-card-stopped-tile')), findsNothing);
+  });
+
+  testWidgets('thẻ chưa chọn màu: tự gán màu ổn định theo id', (tester) async {
+    expect(MedicationCard.fallbackPillColor('42'), MedicationCard.fallbackPillColor('42'));
+    final colors = {for (final id in ['1', '2', '3', '4', '5', '6']) MedicationCard.fallbackPillColor(id)};
+    expect(colors.length, greaterThan(1));
+
+    await pumpCard(tester, _plain);
+    final tile = tester.widget<PillAppearanceTile>(find.byType(PillAppearanceTile));
+    expect(tile.color, MedicationCard.fallbackPillColor('42'));
   });
 
   testWidgets('thẻ thuốc chưa chọn giữ icon cũ (AC23)', (tester) async {
