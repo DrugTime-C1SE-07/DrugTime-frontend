@@ -354,7 +354,8 @@ void main() {
 
       await scheduler.cancelOccurrence(scheduleId: 10, scheduledAt: at);
 
-      expect(mockPlatform.cancelCalls, [notificationIdFor(10, at)]);
+      expect(mockPlatform.cancelCalls,
+          [notificationIdFor(10, at), repeatNotificationIdFor(10, at)]);
       expect(mockPlatform.zonedScheduleCalls, hasLength(1));
       expect(mockPlatform.zonedScheduleCalls.single.id, notificationIdFor(20, at));
     });
