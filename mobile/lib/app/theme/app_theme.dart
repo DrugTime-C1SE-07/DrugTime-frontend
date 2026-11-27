@@ -24,6 +24,9 @@ abstract final class AppColors {
   static const inkDisabled = Color(0xFF9CA3AF);
   static const border = Color(0xFFE4E4E1);
 
+  /// Chevron, placeholder ô tìm của Figma S06 — chỉ trang trí, không mang chữ cần đọc.
+  static const inkFaint = Color(0xFFA6A6A6);
+
   /// Vạch chia mảnh trong danh sách (Figma S08: `#EEF0EF`).
   static const dividerSoft = Color(0xFFEEF0EF);
 
