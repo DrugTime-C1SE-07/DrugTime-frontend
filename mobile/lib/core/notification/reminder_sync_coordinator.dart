@@ -49,7 +49,9 @@ class ReminderSyncCoordinator {
           final schedules =
               await _localStore.getActiveSchedules(patientId: patientId);
           final now = _clock().toUtc();
-          await _cancelPendingReminders(onlyFrom: now);
+          // Tắt nhắc thì hủy cả nhắc hoãn cữ/nhắc lại của liều đã qua giờ.
+          await _cancelPendingReminders(
+              onlyFrom: _scheduler.preferences.enabled ? now : null);
           final occurrences = generateOccurrences(
             schedules: schedules,
             from: now,

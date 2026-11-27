@@ -75,4 +75,41 @@ void main() {
       expect(result, isFalse);
     });
   });
+
+  group('DefaultAppLeavePlatform', () {
+    test('consumeUserLeftApp returns the native flag', () async {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, (call) async {
+        log.add(call);
+        return false;
+      });
+
+      expect(await const DefaultAppLeavePlatform(channel).consumeUserLeftApp(),
+          isFalse);
+      expect(log.single.method, 'consumeUserLeftApp');
+    });
+
+    test('consumeUserLeftApp fails closed (locks) on platform errors',
+        () async {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, (call) async {
+        throw PlatformException(code: 'UNAVAILABLE');
+      });
+
+      expect(await const DefaultAppLeavePlatform(channel).consumeUserLeftApp(),
+          isTrue);
+    });
+
+    test('setRecentsPrivacy forwards the flag and never throws', () async {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, (call) async {
+        log.add(call);
+        throw PlatformException(code: 'UNAVAILABLE');
+      });
+
+      await const DefaultAppLeavePlatform(channel).setRecentsPrivacy(true);
+      expect(log.single.method, 'setRecentsPrivacy');
+      expect(log.single.arguments, isTrue);
+    });
+  });
 }

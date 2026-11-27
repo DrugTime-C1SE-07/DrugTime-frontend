@@ -5,12 +5,14 @@ import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.os.Bundle
+import android.os.PowerManager
 import android.view.WindowManager
-import io.flutter.embedding.android.FlutterActivity
+import io.flutter.embedding.android.FlutterFragmentActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 
-class MainActivity : FlutterActivity() {
+// local_auth cần FragmentActivity để hiện BiometricPrompt.
+class MainActivity : FlutterFragmentActivity() {
     companion object {
         private const val KEYGUARD_CHANNEL = "vn.drugtime.drugtime_mobile/keyguard"
     }
@@ -30,6 +32,30 @@ class MainActivity : FlutterActivity() {
     }
 
     private var reminderSound: ReminderSoundChannel? = null
+
+    // "Khóa ứng dụng": chỉ khóa khi người dùng tự rời app (Home/Recents) hoặc tắt màn
+    // hình, không khóa khi app tự mở activity khác (chọn ảnh, xin quyền, nhạc chuông).
+    private var userLeftApp = false
+
+    override fun onUserLeaveHint() {
+        userLeftApp = true
+        super.onUserLeaveHint()
+    }
+
+    override fun onPause() {
+        markIfScreenOff()
+        super.onPause()
+    }
+
+    override fun onStop() {
+        markIfScreenOff()
+        super.onStop()
+    }
+
+    private fun markIfScreenOff() {
+        val power = getSystemService(Context.POWER_SERVICE) as PowerManager
+        if (!power.isInteractive) userLeftApp = true
+    }
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         if (reminderSound?.onActivityResult(requestCode, resultCode, data) == true) return
@@ -67,6 +93,16 @@ class MainActivity : FlutterActivity() {
                     } else {
                         result.success(true)
                     }
+                }
+                "consumeUserLeftApp" -> {
+                    result.success(userLeftApp)
+                    userLeftApp = false
+                }
+                "setRecentsPrivacy" -> {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                        setRecentsScreenshotEnabled(call.arguments != true)
+                    }
+                    result.success(null)
                 }
                 else -> result.notImplemented()
             }
