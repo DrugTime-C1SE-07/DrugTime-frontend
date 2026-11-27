@@ -5,6 +5,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
+import '../../../../app/theme/app_theme.dart';
 import '../../../consent/presentation/state/consent_controller.dart';
 import '../../../medication/domain/entities/dose_unit.dart';
 import '../../../medication/domain/entities/medication.dart';
@@ -19,6 +20,8 @@ import '../state/ocr_controller.dart';
 import '../widgets/capture_warning_text.dart';
 import '../widgets/ocr_single_result_card.dart';
 import '../widgets/recognition_steps.dart';
+import '../widgets/scan_camera_overlay.dart';
+import '../widgets/scan_failure_view.dart';
 import '../widgets/scanning_mascot.dart';
 
 /// S07-O: camera, recognition, confirmation and scheduling.
@@ -26,85 +29,6 @@ class ScanMedicationScreen extends StatefulWidget {
   const ScanMedicationScreen({super.key});
   @override
   State<ScanMedicationScreen> createState() => _ScanMedicationScreenState();
-}
-
-class _ScanCorners extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = const Color(0xFF76DACC)
-      ..strokeWidth = 3
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round;
-    const length = 26.0;
-    for (final point in [
-      Offset.zero,
-      Offset(size.width, 0),
-      Offset(0, size.height),
-      Offset(size.width, size.height)
-    ]) {
-      final dx = point.dx == 0 ? length : -length;
-      final dy = point.dy == 0 ? length : -length;
-      canvas.drawLine(point, point + Offset(dx, 0), paint);
-      canvas.drawLine(point, point + Offset(0, dy), paint);
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
-}
-
-class _ScanBeam extends StatefulWidget {
-  const _ScanBeam();
-
-  static const int _cycles = 30;
-  static const period = Duration(milliseconds: 1400);
-
-  @override
-  State<_ScanBeam> createState() => _ScanBeamState();
-}
-
-class _ScanBeamState extends State<_ScanBeam>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller =
-      AnimationController(vsync: this, duration: _ScanBeam.period);
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    if (MediaQuery.disableAnimationsOf(context)) {
-      _controller
-        ..stop()
-        ..value = 0.5;
-    } else if (!_controller.isAnimating && _controller.value == 0) {
-      _controller.repeat(reverse: true, count: _ScanBeam._cycles * 2);
-    }
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _controller,
-      builder: (context, child) {
-        final t = Curves.easeInOut.transform(_controller.value);
-        return Align(
-          key: const Key('scan-beam'),
-          alignment: Alignment(0, -1 + 2 * t),
-          child: child,
-        );
-      },
-      child: Container(
-        height: 2,
-        color: const Color(0xFF76DACC),
-      ),
-    );
-  }
 }
 
 enum _Screen { camera, recognizing, result, failure }
@@ -115,6 +39,8 @@ class _ScanMedicationScreenState extends State<ScanMedicationScreen>
   ConsentController? _consent;
   bool _hadConsent = false;
   bool _invalidated = false;
+  bool _lockedFailure = false;
+  bool _cleanupPending = false;
   ModalRoute<dynamic>? _route;
   CaptureServices? _services;
   OcrController? _ocr;
@@ -127,28 +53,12 @@ class _ScanMedicationScreenState extends State<ScanMedicationScreen>
   int _generation = 0;
   _Screen _screen = _Screen.camera;
   String? _failure;
-  // The last scan read no usable medicine name: offer manual search next to retake.
-  bool _nameMissed = false;
   // The shown medicine came from low_confidence: ask to compare it with the box.
   bool _checkReminder = false;
   CaptureCropRect? _scanCropRect;
 
-  static const double _cameraFrameMargin = 36;
-  static const double _cameraFrameHeight = 220;
-
-  CaptureCropRect? _computeScanCropRect(double vw, double vh) {
-    if (vw <= 0 || vh <= 0) return null;
-    final frameW = (vw - _cameraFrameMargin * 2).clamp(0.0, vw);
-    final frameH = math.min(_cameraFrameHeight, vh);
-    if (frameW <= 0 || frameH <= 0) return null;
-    return CaptureCropRect(
-      left: ((vw - frameW) / 2) / vw,
-      top: ((vh - frameH) / 2) / vh,
-      width: frameW / vw,
-      height: frameH / vh,
-      viewportAspectRatio: vw / vh,
-    );
-  }
+  bool get _isLockedFailure =>
+      _invalidated || _lockedFailure || _cleanupPending;
 
   @override
   void initState() {
@@ -167,10 +77,11 @@ class _ScanMedicationScreenState extends State<ScanMedicationScreen>
     _consent?.addListener(_consentChanged);
     _services = CaptureScope.of(context);
     _camera = CaptureController(
-        source: _services!.newSource(),
-        processor: _services!.processor,
-        store: _services!.store,
-        session: _services);
+      source: _services!.newSource(),
+      processor: _services!.processor,
+      store: _services!.store,
+      session: _services,
+    );
     _services!.addListener(_sessionChanged);
     unawaited(_camera!.start());
   }
@@ -185,12 +96,14 @@ class _ScanMedicationScreenState extends State<ScanMedicationScreen>
   void _sessionChanged() {
     if (_invalidated) return;
     _invalidated = true;
+    _lockedFailure = true;
     _generation++;
     _clearImage();
     _candidate = null;
     if (mounted) {
       setState(() {
         _screen = _Screen.failure;
+        _failureTitle = 'Phiên đã thay đổi';
         _failure = 'Phiên hoặc quyền truy cập đã thay đổi.';
       });
     }
@@ -202,6 +115,9 @@ class _ScanMedicationScreenState extends State<ScanMedicationScreen>
     if (!mounted) return;
     if (!clean) {
       setState(() {
+        _lockedFailure = true;
+        _cleanupPending = true;
+        _failureTitle = 'Chưa dọn được ảnh tạm';
         _failure = 'Chưa dọn được ảnh tạm. Hãy thử lại.';
         _screen = _Screen.failure;
       });
@@ -234,8 +150,34 @@ class _ScanMedicationScreenState extends State<ScanMedicationScreen>
     }
   }
 
+  void _onOcrChanged() {
+    final ocr = _ocr;
+    if (!mounted ||
+        ocr == null ||
+        _screen != _Screen.failure ||
+        ocr.stage != OcrStage.failure) {
+      return;
+    }
+    final kind = ocr.failure?.kind;
+    if (kind == OcrFailureKind.expiredImage) {
+      _clearImage();
+      setState(() {
+        _failureTitle = 'Ảnh đã hết hạn';
+        _failure = ocr.failure!.message;
+      });
+    } else if (kind == OcrFailureKind.cleanup) {
+      _clearImage();
+      setState(() {
+        _lockedFailure = true;
+        _cleanupPending = true;
+        _failureTitle = 'Chưa dọn được ảnh tạm';
+        _failure = ocr.failure!.message;
+      });
+    }
+  }
+
   Future<void> _capture({bool gallery = false}) async {
-    if (_busy) return;
+    if (_busy || _isLockedFailure) return;
     _busy = true;
     _failureTitle = 'Chưa đọc được vỏ hộp';
     final generation = ++_generation;
@@ -284,14 +226,40 @@ class _ScanMedicationScreenState extends State<ScanMedicationScreen>
     _image =
         camera.image == null ? null : Uint8List.fromList(camera.image!.bytes);
     camera.image = null;
-    _ocr = OcrController(image: lease, services: _services!);
+    _ocr = OcrController(image: lease, services: _services!)
+      ..addListener(_onOcrChanged);
     setState(() {
       _screen = _Screen.recognizing;
       _failure = null;
     });
     await _ocr!.start();
+    await _applyOcrOutcome(generation);
+  }
+
+  Future<void> _retryOcr() async {
+    if (_busy || _isLockedFailure) return;
+    final ocr = _ocr;
+    if (ocr == null || !ocr.canRetry) {
+      _clearImage();
+      setState(() {
+        _failureTitle = 'Ảnh đã hết hạn';
+        _failure = const OcrFailure(OcrFailureKind.expiredImage).message;
+      });
+      return;
+    }
+    _busy = true;
+    final generation = ++_generation;
+    setState(() {
+      _screen = _Screen.recognizing;
+      _failure = null;
+    });
+    await ocr.start();
+    await _applyOcrOutcome(generation);
+  }
+
+  Future<void> _applyOcrOutcome(int generation) async {
     if (!mounted || generation != _generation) return;
-    final result = _ocr!.result;
+    final result = _ocr?.result;
     final failure = _ocr?.failure;
     // matched and low_confidence: show items[0] for the user to check and confirm
     // (01 §6.1; low_confidence adds a reminder). Never auto-select or auto-add (QD-39).
@@ -301,7 +269,48 @@ class _ScanMedicationScreenState extends State<ScanMedicationScreen>
       setState(() {
         _candidate = result.items.first;
         _checkReminder = result.status == OcrMatchStatus.lowConfidence;
+        _lockedFailure = false;
+        _cleanupPending = false;
         _screen = _Screen.result;
+        _busy = false;
+      });
+      return;
+    }
+    if (failure?.kind == OcrFailureKind.unauthorized) {
+      _lockedFailure = true;
+      final clean = await _closeOcr();
+      _clearImage();
+      if (!mounted || generation != _generation) return;
+      setState(() {
+        _cleanupPending = !clean;
+        _failureTitle =
+            clean ? 'Phiên đăng nhập đã hết hạn' : 'Chưa dọn được ảnh tạm';
+        _failure = clean
+            ? failure!.message
+            : 'Chưa dọn được ảnh tạm. Hãy thử lại.';
+        _screen = _Screen.failure;
+        _busy = false;
+      });
+      return;
+    }
+    if (failure?.kind == OcrFailureKind.cleanup) {
+      _clearImage();
+      setState(() {
+        _lockedFailure = true;
+        _cleanupPending = true;
+        _failureTitle = 'Chưa dọn được ảnh tạm';
+        _failure = failure!.message;
+        _screen = _Screen.failure;
+        _busy = false;
+      });
+      return;
+    }
+    if (failure?.kind == OcrFailureKind.expiredImage) {
+      _clearImage();
+      setState(() {
+        _failureTitle = 'Ảnh đã hết hạn';
+        _failure = failure!.message;
+        _screen = _Screen.failure;
         _busy = false;
       });
       return;
@@ -310,7 +319,6 @@ class _ScanMedicationScreenState extends State<ScanMedicationScreen>
     // (PB31), never opened automatically.
     final noName = result != null || failure?.kind == OcrFailureKind.noText;
     setState(() {
-      _nameMissed = noName;
       if (noName) {
         _failureTitle = 'Chưa thấy tên thuốc';
         _failure = 'Hãy chụp mặt có tên thuốc';
@@ -330,26 +338,43 @@ class _ScanMedicationScreenState extends State<ScanMedicationScreen>
 
   Future<bool> _closeOcr() async {
     final ocr = _ocr;
-    if (ocr == null) return true;
+    if (ocr == null) {
+      if (_cleanupPending && _services != null) {
+        final clean = await _services!.retryCleanup();
+        if (clean) _cleanupPending = false;
+        return clean;
+      }
+      return true;
+    }
+    ocr.removeListener(_onOcrChanged);
     var clean = await ocr.close();
     if (!clean) clean = await _services!.retryCleanup();
     if (clean) {
       ocr.dispose();
       _ocr = null;
+      _cleanupPending = false;
       _clearImage();
+    } else {
+      _cleanupPending = true;
     }
     return clean;
   }
 
   Future<void> _retake() async {
-    if (_invalidated) {
-      await _leaveInvalidated();
+    if (_isLockedFailure) {
+      await _exit();
       return;
     }
     _generation++;
     if (!await _closeOcr()) {
       if (mounted) {
-        setState(() => _failure = 'Chưa dọn được ảnh tạm. Hãy thử lại.');
+        setState(() {
+          _lockedFailure = true;
+          _cleanupPending = true;
+          _failureTitle = 'Chưa dọn được ảnh tạm';
+          _failure = 'Chưa dọn được ảnh tạm. Hãy thử lại.';
+          _screen = _Screen.failure;
+        });
       }
       return;
     }
@@ -370,6 +395,10 @@ class _ScanMedicationScreenState extends State<ScanMedicationScreen>
     if (!await _closeOcr()) {
       if (mounted) {
         setState(() {
+          _busy = false;
+          _lockedFailure = true;
+          _cleanupPending = true;
+          _failureTitle = 'Chưa dọn được ảnh tạm';
           _failure = 'Chưa dọn được ảnh tạm. Hãy thử lại.';
           _screen = _Screen.failure;
         });
@@ -379,6 +408,7 @@ class _ScanMedicationScreenState extends State<ScanMedicationScreen>
     if (mounted) {
       setState(() {
         _busy = false;
+        _failureTitle = 'Chưa đọc được vỏ hộp';
         _failure = 'Chưa đọc được vỏ hộp. Hãy quét lại.';
         _screen = _Screen.failure;
       });
@@ -386,11 +416,11 @@ class _ScanMedicationScreenState extends State<ScanMedicationScreen>
   }
 
   Future<void> _chooseAnotherPhoto() async {
-    if (_retryingGallery) return;
+    if (_retryingGallery || _isLockedFailure) return;
     setState(() => _retryingGallery = true);
     try {
       await _retake();
-      if (mounted && !_invalidated && _screen == _Screen.camera) {
+      if (mounted && !_isLockedFailure && _screen == _Screen.camera) {
         await _capture(gallery: true);
       }
     } finally {
@@ -403,6 +433,9 @@ class _ScanMedicationScreenState extends State<ScanMedicationScreen>
     if (!await _closeOcr()) {
       if (mounted) {
         setState(() {
+          _lockedFailure = true;
+          _cleanupPending = true;
+          _failureTitle = 'Chưa dọn được ảnh tạm';
           _failure = 'Chưa dọn được ảnh tạm. Hãy thử lại.';
           _screen = _Screen.failure;
         });
@@ -416,12 +449,13 @@ class _ScanMedicationScreenState extends State<ScanMedicationScreen>
     final candidate = _candidate;
     if (candidate == null) return;
     final drug = DrugCatalogItem(
-        id: candidate.id.toString(),
-        name: candidate.name,
-        activeIngredient: candidate.activeIngredient ?? '',
-        strength: candidate.strengthText ?? '',
-        dosageForm: candidate.dosageForm ?? '',
-        unit: doseUnitFor(candidate.dosageForm));
+      id: candidate.id.toString(),
+      name: candidate.name,
+      activeIngredient: candidate.activeIngredient ?? '',
+      strength: candidate.strengthText ?? '',
+      dosageForm: candidate.dosageForm ?? '',
+      unit: doseUnitFor(candidate.dosageForm),
+    );
     await _openDrug(drug);
   }
 
@@ -429,6 +463,9 @@ class _ScanMedicationScreenState extends State<ScanMedicationScreen>
     if (!await _closeOcr()) {
       if (mounted) {
         setState(() {
+          _lockedFailure = true;
+          _cleanupPending = true;
+          _failureTitle = 'Chưa dọn được ảnh tạm';
           _failure = 'Chưa dọn được ảnh tạm. Hãy thử lại.';
           _screen = _Screen.failure;
         });
@@ -439,16 +476,20 @@ class _ScanMedicationScreenState extends State<ScanMedicationScreen>
     if (!mounted) return;
     final route = ModalRoute.of(context);
     await Navigator.of(context).push<Medication>(MaterialPageRoute(
-        builder: (_) => AddMedicationScreen(scannedDrug: drug)));
+      builder: (_) => AddMedicationScreen(scannedDrug: drug),
+    ));
     // Lưu xong, màn "Đã thêm thuốc" gỡ cả màn quét khỏi stack: không mở lại camera. Chỉ chụp
     // lại khi người dùng quay về từ bước lịch uống.
     if (mounted && (route?.isActive ?? false)) await _retake();
   }
 
   Future<void> _manualEntry() async {
+    if (_isLockedFailure) return;
     final generation = _generation;
-    final drug = await showDrugCatalogSheet(context,
-        initialQuery: _ocr?.result?.suggestedQuery);
+    final drug = await showDrugCatalogSheet(
+      context,
+      initialQuery: _ocr?.result?.suggestedQuery,
+    );
     if (!mounted || drug == null || generation != _generation) return;
     await _openDrug(drug);
   }
@@ -459,6 +500,7 @@ class _ScanMedicationScreenState extends State<ScanMedicationScreen>
     _generation++;
     _services?.removeListener(_sessionChanged);
     _consent?.removeListener(_consentChanged);
+    _ocr?.removeListener(_onOcrChanged);
     _clearImage();
     _ocr?.dispose();
     _camera?.dispose();
@@ -468,378 +510,473 @@ class _ScanMedicationScreenState extends State<ScanMedicationScreen>
   @override
   Widget build(BuildContext context) {
     final camera = _camera;
-    final previewWidth = (MediaQuery.sizeOf(context).width *
-            MediaQuery.devicePixelRatioOf(context))
-        .round();
+    final isFailure = _screen == _Screen.failure;
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, _) {
         if (!didPop) unawaited(_exit());
       },
       child: Scaffold(
-          backgroundColor: _screen == _Screen.failure
-              ? const Color(0xFFF4F6F5)
-              : const Color(0xFF101111),
-          body: SafeArea(
-              child: Column(children: [
-            Padding(
-                padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
-                child: SizedBox(
-                    height: 112,
-                    child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(children: [
-                            const Spacer(),
-                            Text('Quét vỏ thuốc',
-                                style: TextStyle(
-                                    color: _screen == _Screen.failure
-                                        ? Colors.black
-                                        : Colors.white,
-                                    fontSize: 20,
-                                    fontWeight: FontWeight.bold)),
-                            const Spacer(),
-                            IconButton.filledTonal(
-                                onPressed: _exit,
-                                icon: const Icon(LucideIcons.x),
-                                tooltip: 'Đóng')
-                          ]),
-                          const SizedBox(height: 8),
-                          Text(
-                              _screen == _Screen.failure
-                                  ? 'Bước 1/3 · Chưa đọc được'
-                                  : _screen == _Screen.recognizing
-                                      ? 'Bước 1/3 · Đang đọc vỏ hộp'
-                                      : _screen == _Screen.result
-                                          ? 'Bước 1/3 · Đã nhận diện'
-                                          : 'Bước 1/3 · Quét vỏ',
-                              style: const TextStyle(
-                                  color: Color(0xFF70D9CC),
-                                  fontWeight: FontWeight.w600)),
-                          const SizedBox(height: 8),
-                          Row(
-                              children: List.generate(
-                                  3,
-                                  (index) => Expanded(
-                                      child: Container(
-                                          height: 5,
-                                          margin: EdgeInsets.only(
-                                              right: index == 2 ? 0 : 7),
-                                          decoration: BoxDecoration(
-                                              color: index == 0
-                                                  ? (_screen == _Screen.failure
-                                                      ? const Color(0xFF00534D)
-                                                      : const Color(0xFF70D9CC))
-                                                  : (_screen == _Screen.failure
-                                                      ? const Color(0xFFE0E3E1)
-                                                      : const Color(
-                                                          0xFF505454)),
-                                              borderRadius:
-                                                  BorderRadius.circular(8)))))),
-                        ]))),
-            Expanded(
-                child: _screen == _Screen.failure
-                    ? _failureBody()
+        backgroundColor: isFailure ? AppColors.canvas : AppColors.cameraCanvas,
+        body: SafeArea(
+          child: Column(
+            children: [
+              _buildHeader(isFailure: isFailure),
+              Expanded(
+                child: isFailure
+                    ? ScanFailureBody(
+                        title: _failureTitle,
+                        description:
+                            _failure ?? 'Hãy quét lại theo gợi ý bên dưới.',
+                      )
                     : LayoutBuilder(builder: (context, constraints) {
                         final showingResult = _screen != _Screen.camera;
+                        final viewport = Size(
+                          constraints.maxWidth,
+                          constraints.maxHeight,
+                        );
+                        final frameRect = computeScanFrameRect(viewport);
                         if (!showingResult) {
-                          _scanCropRect = _computeScanCropRect(
-                              constraints.maxWidth, constraints.maxHeight);
+                          _scanCropRect = toCaptureCropRect(frameRect, viewport);
                         }
                         final frameHeight =
                             (constraints.maxHeight * .38).clamp(120.0, 220.0);
-                        return Stack(fit: StackFit.expand, children: [
-                          Positioned.fill(
-                              child: showingResult
-                                  ? const ColoredBox(color: Color(0xFF171A19))
-                                  : camera != null
-                                      ? ListenableBuilder(
-                                          listenable: camera,
-                                          builder: (_, __) => camera
-                                                  .source.ready
-                                              ? camera.source.preview()
-                                              : camera.stage ==
-                                                          CaptureStage
-                                                              .reviewing ||
-                                                      camera.stage ==
-                                                          CaptureStage.prepared
-                                                  ? const ColoredBox(
-                                                      color: Color(0xFF171A19),
-                                                      child: Center(
-                                                          child: CircularProgressIndicator(
-                                                              color: Color(
-                                                                  0xFF70D9CC))))
-                                                  : Center(
-                                                      child: Text(
-                                                          camera.error ??
-                                                              'Đang mở camera…',
-                                                          style:
-                                                              const TextStyle(
-                                                                  color: Colors
-                                                                      .white))))
-                                      : const ColoredBox(
-                                          color: Color(0xFF171A19))),
-                          if (showingResult)
-                            Positioned(
-                                top: 48,
-                                left: 36,
-                                right: 36,
-                                height: frameHeight,
-                                child: Container(
-                                    key: const Key('scan-preview'),
-                                    color: const Color(0xFF303735),
-                                    child: Center(
-                                        child: _image != null
-                                            ? Image.memory(_image!,
-                                                // ảnh camera ~12MP: chỉ decode bằng bề ngang màn hình
-                                                cacheWidth: previewWidth > 0
-                                                    ? previewWidth
-                                                    : null,
-                                                fit: BoxFit.contain,
-                                                excludeFromSemantics: true)
-                                            : const SizedBox.shrink()))),
-                          if (showingResult)
-                            Positioned(
-                                top: 48,
-                                left: 36,
-                                right: 36,
-                                height: frameHeight,
-                                child: CustomPaint(
-                                    key: const Key('scan-frame'),
-                                    painter: _ScanCorners())),
-                          if (!showingResult)
-                            Center(
-                                child: Container(
-                                    margin: const EdgeInsets.all(36),
-                                    width: double.infinity,
-                                    height: 220,
-                                    child:
-                                        CustomPaint(painter: _ScanCorners()))),
-                          if (_screen == _Screen.camera)
-                            const Positioned(
-                                top: 12,
-                                left: 16,
-                                right: 16,
-                                child: Text('Đặt tên thuốc vào trong khung',
-                                    key: Key('scan-hint'),
-                                    textAlign: TextAlign.center,
-                                    style: TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 20,
-                                        fontWeight: FontWeight.bold,
-                                        shadows: [
-                                          Shadow(
-                                              blurRadius: 6,
-                                              color: Colors.black)
-                                        ]))),
-                          if (_screen == _Screen.camera)
-                            const Center(
-                                child: SizedBox(
-                                    height: _cameraFrameHeight,
-                                    child: Padding(
-                                      padding:
-                                          EdgeInsets.symmetric(horizontal: 42),
-                                      child: _ScanBeam(),
-                                    ))),
-                          if (_screen == _Screen.recognizing)
+                        return Stack(
+                          fit: StackFit.expand,
+                          children: [
                             Positioned.fill(
+                              child: showingResult
+                                  ? const ColoredBox(
+                                      color: AppColors.cameraSurface,
+                                    )
+                                  : _cameraViewport(camera, frameRect),
+                            ),
+                            if (showingResult)
+                              Positioned(
+                                top: 48,
+                                left: 36,
+                                right: 36,
+                                height: frameHeight,
+                                child: Container(
+                                  key: const Key('scan-preview'),
+                                  color: AppColors.cameraControl,
+                                  child: Center(
+                                    child: _image != null
+                                        ? Image.memory(
+                                            _image!,
+                                            fit: BoxFit.contain,
+                                            excludeFromSemantics: true,
+                                          )
+                                        : const SizedBox.shrink(),
+                                  ),
+                                ),
+                              ),
+                            if (showingResult)
+                              Positioned(
+                                top: 48,
+                                left: 36,
+                                right: 36,
+                                height: frameHeight,
+                                child: const CustomPaint(
+                                  key: Key('scan-frame'),
+                                  painter: ScanCornersPainter(),
+                                ),
+                              ),
+                            if (_screen == _Screen.recognizing)
+                              Positioned.fill(
                                 child: GestureDetector(
-                                    behavior: HitTestBehavior.opaque,
-                                    onTap: _failDuringRecognition)),
-                          if (_screen == _Screen.recognizing ||
-                              _screen == _Screen.result)
-                            Align(
+                                  behavior: HitTestBehavior.opaque,
+                                  onTap: _failDuringRecognition,
+                                ),
+                              ),
+                            if (_screen == _Screen.recognizing ||
+                                _screen == _Screen.result)
+                              Align(
                                 alignment: Alignment.bottomCenter,
                                 child: GestureDetector(
-                                    key: _screen == _Screen.recognizing
-                                        ? const Key('scan-recognizing')
-                                        : null,
-                                    behavior: HitTestBehavior.opaque,
-                                    onTap: _screen == _Screen.recognizing
-                                        ? _failDuringRecognition
-                                        : null,
-                                    // Below the photo on normal phones; on very
-                                    // short screens it may cover part of the photo
-                                    // so the pinned buttons always fit.
-                                    child: _resultSheet(math.min(
-                                        constraints.maxHeight,
-                                        math.max(
-                                            _minResultSheetHeight,
-                                            math.max(
-                                                constraints.maxHeight * .5,
-                                                constraints.maxHeight -
-                                                    48 -
-                                                    frameHeight -
-                                                    8)))))),
-                        ]);
-                      })),
-            if (_screen == _Screen.camera) _cameraActions(),
-            if (_screen == _Screen.failure)
-              Padding(
-                  padding: const EdgeInsets.all(20),
-                  child: SizedBox(
-                      width: double.infinity,
-                      child: Column(children: [
-                        if (_ocr?.result != null || _nameMissed) ...[
-                          const SizedBox(height: 12),
-                          OutlinedButton(
-                              style: OutlinedButton.styleFrom(
-                                  minimumSize: const Size.fromHeight(56)),
-                              onPressed: _manualEntry,
-                              child: const Text('Tìm thuốc thủ công')),
-                        ],
-                        if (!_invalidated)
-                          TextButton(
-                              onPressed:
-                                  _retryingGallery ? null : _chooseAnotherPhoto,
-                              child: const Text('Chọn ảnh khác')),
-                        FilledButton(
-                            style: FilledButton.styleFrom(
-                                minimumSize: const Size.fromHeight(56)),
-                            onPressed: _retryingGallery ? null : _retake,
-                            child: const Text('Chụp lại')),
-                      ]))),
-          ]))),
+                                  key: _screen == _Screen.recognizing
+                                      ? const Key('scan-recognizing')
+                                      : null,
+                                  behavior: HitTestBehavior.opaque,
+                                  onTap: _screen == _Screen.recognizing
+                                      ? _failDuringRecognition
+                                      : null,
+                                  // Below the photo on normal phones; on very
+                                  // short screens it may cover part of the photo
+                                  // so the pinned buttons always fit.
+                                  child: _resultSheet(math.min(
+                                    constraints.maxHeight,
+                                    math.max(
+                                      _minResultSheetHeight,
+                                      math.max(
+                                        constraints.maxHeight * .5,
+                                        constraints.maxHeight -
+                                            48 -
+                                            frameHeight -
+                                            8,
+                                      ),
+                                    ),
+                                  )),
+                                ),
+                              ),
+                          ],
+                        );
+                      }),
+              ),
+              if (_screen == _Screen.camera) _cameraActions(),
+              if (isFailure)
+                ListenableBuilder(
+                  listenable: _ocr ?? _empty,
+                  builder: (_, __) => ScanFailureActions(
+                    isLockedFailure: _isLockedFailure,
+                    cleanupPending: _cleanupPending,
+                    canRetry: _ocr?.canRetry ?? false,
+                    busy: _retryingGallery || _busy,
+                    onRetry: _retryOcr,
+                    onManualEntry: _manualEntry,
+                    onChooseAnother: _chooseAnotherPhoto,
+                    onRetake: _retake,
+                    onExit: _exit,
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHeader({required bool isFailure}) {
+    final stepLabel = switch (_screen) {
+      _Screen.failure => 'Bước 1/3 · Chưa đọc được',
+      _Screen.recognizing => 'Bước 1/3 · Đang đọc vỏ hộp',
+      _Screen.result => 'Bước 1/3 · Đã nhận diện',
+      _Screen.camera => 'Bước 1/3 · Quét vỏ',
+    };
+    final activeColor = isFailure ? AppColors.brand : AppColors.cameraAccent;
+    final inactiveColor =
+        isFailure ? AppColors.border : AppColors.cameraOutline;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, AppSpacing.sm, 20, AppSpacing.md),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const SizedBox(width: AppSizes.tapTarget),
+              Expanded(
+                child: Text(
+                  'Quét vỏ thuốc',
+                  textAlign: TextAlign.center,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTextStyles.heading.copyWith(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w700,
+                    color: isFailure ? AppColors.ink : AppColors.onCamera,
+                  ),
+                ),
+              ),
+              IconButton(
+                key: const Key('scan-close-button'),
+                style: IconButton.styleFrom(
+                  backgroundColor: AppColors.brandTint,
+                  foregroundColor: AppColors.brand,
+                  fixedSize: const Size(AppSizes.tapTarget, AppSizes.tapTarget),
+                ),
+                onPressed: _exit,
+                icon: const Icon(LucideIcons.x),
+                tooltip: 'Đóng',
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          Text(
+            stepLabel,
+            key: const Key('scan-step-label'),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: AppTextStyles.captionStrong.copyWith(color: activeColor),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          Row(
+            children: List.generate(
+              3,
+              (index) => Expanded(
+                child: Container(
+                  height: 5,
+                  margin: EdgeInsets.only(right: index == 2 ? 0 : 7),
+                  decoration: BoxDecoration(
+                    color: index == 0 ? activeColor : inactiveColor,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _cameraViewport(CaptureController? camera, Rect? frameRect) {
+    if (camera == null) {
+      return const ColoredBox(color: AppColors.cameraSurface);
+    }
+    return ListenableBuilder(
+      listenable: camera,
+      builder: (_, __) {
+        final showCameraIssue =
+            camera.permissionStatus == CapturePermission.denied ||
+                camera.permissionStatus ==
+                    CapturePermission.permanentlyDenied ||
+                camera.error != null;
+        if (showCameraIssue) {
+          return ColoredBox(
+            color: AppColors.cameraCanvas,
+            child: Center(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(AppSpacing.xl),
+                child: _cameraIssueCard(camera),
+              ),
+            ),
+          );
+        }
+        return Stack(
+          fit: StackFit.expand,
+          children: [
+            if (camera.source.ready)
+              camera.source.preview()
+            else if (camera.stage == CaptureStage.reviewing ||
+                camera.stage == CaptureStage.prepared)
+              const ColoredBox(
+                color: AppColors.cameraSurface,
+                child: Center(
+                  child: CircularProgressIndicator(
+                    color: AppColors.cameraAccent,
+                  ),
+                ),
+              )
+            else
+              ColoredBox(
+                color: AppColors.cameraSurface,
+                child: Center(
+                  child: Text(
+                    'Đang mở camera…',
+                    style: AppTextStyles.body.copyWith(
+                      color: AppColors.onCamera,
+                    ),
+                  ),
+                ),
+              ),
+            if (frameRect != null) ScanCameraOverlay(frameRect: frameRect),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _cameraIssueCard(CaptureController camera) {
+    final isPermanent =
+        camera.permissionStatus == CapturePermission.permanentlyDenied;
+    final headline = camera.error ??
+        (isPermanent
+            ? 'Camera đang bị tắt trong cài đặt'
+            : 'Chưa có quyền mở camera');
+    return Container(
+      key: const Key('scan-camera-issue'),
+      width: double.infinity,
+      padding: const EdgeInsets.all(AppSpacing.xl),
+      decoration: BoxDecoration(
+        color: AppColors.cameraSurface,
+        border: Border.all(color: AppColors.cameraOutline),
+        borderRadius: BorderRadius.circular(AppRadius.card),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(
+            LucideIcons.cameraOff,
+            size: 36,
+            color: AppColors.cameraAccent,
+          ),
+          const SizedBox(height: AppSpacing.md),
+          Text(
+            headline,
+            textAlign: TextAlign.center,
+            style: AppTextStyles.heading.copyWith(color: AppColors.onCamera),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          Text(
+            'Bạn vẫn có thể chọn ảnh từ Thư viện hoặc Nhập tay ở bên dưới.',
+            textAlign: TextAlign.center,
+            style: AppTextStyles.body.copyWith(color: AppColors.cameraMuted),
+          ),
+          if (isPermanent) ...[
+            const SizedBox(height: AppSpacing.lg),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton(
+                style: FilledButton.styleFrom(
+                  backgroundColor: AppColors.cameraAccent,
+                  foregroundColor: AppColors.onCameraAccent,
+                  minimumSize: const Size.fromHeight(AppSizes.tapTarget),
+                ),
+                onPressed: camera.busy ? null : camera.openSettings,
+                child: const Text('Mở cài đặt'),
+              ),
+            ),
+          ],
+        ],
+      ),
     );
   }
 
   Widget _cameraActions() => ListenableBuilder(
-      listenable: _camera ?? _empty,
-      builder: (_, __) => Padding(
-          padding: const EdgeInsets.fromLTRB(20, 20, 20, 26),
-          child: Column(children: [
-            Row(
-                mainAxisAlignment: MainAxisAlignment.spaceAround,
+        listenable: _camera ?? _empty,
+        builder: (_, __) => Padding(
+          padding: const EdgeInsets.fromLTRB(20, 14, 20, 18),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Column(children: [
-                    IconButton.filledTonal(
-                        style: IconButton.styleFrom(
-                            backgroundColor: const Color(0xFF303030),
-                            foregroundColor: Colors.white,
-                            fixedSize: const Size(56, 56)),
-                        onPressed: _camera?.busy == false
-                            ? () => _capture(gallery: true)
-                            : null,
-                        icon: const Icon(LucideIcons.image),
-                        tooltip: 'Thư viện'),
-                    const SizedBox(height: 6),
-                    const Text('Thư viện',
-                        style: TextStyle(color: Colors.white, fontSize: 13))
-                  ]),
+                  Expanded(
+                    child: Column(
+                      children: [
+                        IconButton.filledTonal(
+                          style: IconButton.styleFrom(
+                            backgroundColor: AppColors.cameraControl,
+                            foregroundColor: AppColors.onCamera,
+                            fixedSize: const Size(
+                              AppSizes.primaryButton,
+                              AppSizes.primaryButton,
+                            ),
+                          ),
+                          onPressed: _camera?.busy == false
+                              ? () => _capture(gallery: true)
+                              : null,
+                          icon: const Icon(LucideIcons.image),
+                          tooltip: 'Thư viện',
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          'Thư viện',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          textAlign: TextAlign.center,
+                          style: AppTextStyles.caption.copyWith(
+                            color: AppColors.onCamera,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.sm),
                   IconButton(
-                      onPressed: _camera?.source.ready == true &&
-                              _camera?.busy == false
-                          ? _capture
-                          : null,
-                      tooltip: 'Chụp ảnh',
-                      padding: EdgeInsets.zero,
-                      icon: Container(
-                          width: 80,
-                          height: 80,
-                          padding: const EdgeInsets.all(5),
-                          decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              border:
-                                  Border.all(color: Colors.white, width: 3)),
-                          child: Container(
-                              decoration: const BoxDecoration(
-                                  color: Colors.white,
-                                  shape: BoxShape.circle)))),
-                  Column(children: [
-                    IconButton.filledTonal(
-                        style: IconButton.styleFrom(
-                            backgroundColor: const Color(0xFF303030),
-                            foregroundColor: Colors.white,
-                            fixedSize: const Size(56, 56)),
-                        onPressed: _manualEntry,
-                        tooltip: 'Nhập tay',
-                        icon: const Icon(LucideIcons.pencil)),
-                    const SizedBox(height: 6),
-                    const Text('Nhập tay',
-                        style: TextStyle(color: Colors.white, fontSize: 13))
-                  ]),
-                ]),
-            const SizedBox(height: 10),
-            const Text('Ảnh chỉ xử lý trên điện thoại của bạn',
-                style: TextStyle(color: Colors.white70)),
-            if (_camera?.permissionStatus ==
-                CapturePermission.permanentlyDenied)
-              TextButton(
-                  onPressed:
-                      _camera?.busy == true ? null : _camera?.openSettings,
-                  child: const Text('Mở cài đặt')),
-          ])));
+                    onPressed: _camera?.source.ready == true &&
+                            _camera?.busy == false
+                        ? _capture
+                        : null,
+                    tooltip: 'Chụp ảnh',
+                    padding: EdgeInsets.zero,
+                    icon: Container(
+                      width: 80,
+                      height: 80,
+                      padding: const EdgeInsets.all(5),
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: AppColors.onCamera,
+                          width: 3,
+                        ),
+                      ),
+                      child: Container(
+                        decoration: const BoxDecoration(
+                          color: AppColors.onCamera,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.sm),
+                  Expanded(
+                    child: Column(
+                      children: [
+                        IconButton.filledTonal(
+                          style: IconButton.styleFrom(
+                            backgroundColor: AppColors.cameraControl,
+                            foregroundColor: AppColors.onCamera,
+                            fixedSize: const Size(
+                              AppSizes.primaryButton,
+                              AppSizes.primaryButton,
+                            ),
+                          ),
+                          onPressed: _manualEntry,
+                          tooltip: 'Nhập tay',
+                          icon: const Icon(LucideIcons.pencil),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          'Nhập tay',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          textAlign: TextAlign.center,
+                          style: AppTextStyles.caption.copyWith(
+                            color: AppColors.onCamera,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Text(
+                'Ảnh chỉ xử lý trên điện thoại của bạn',
+                textAlign: TextAlign.center,
+                style: AppTextStyles.caption.copyWith(
+                  color: AppColors.cameraMuted,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
 
   static final ChangeNotifier _empty = ChangeNotifier();
-
-  Widget _failureBody() => Center(
-      child: SingleChildScrollView(
-          child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Column(mainAxisSize: MainAxisSize.min, children: [
-                Container(
-                    width: 150,
-                    height: 150,
-                    decoration: const BoxDecoration(
-                        color: Color(0xFFFFEFDC), shape: BoxShape.circle),
-                    child: const Icon(LucideIcons.scanLine,
-                        color: Color(0xFFE77D0A), size: 64)),
-                const SizedBox(height: 24),
-                Text(_failureTitle,
-                    style: const TextStyle(
-                        fontSize: 20, fontWeight: FontWeight.bold)),
-                const SizedBox(height: 10),
-                Text(_failure ?? 'Hãy quét lại theo gợi ý bên dưới.',
-                    textAlign: TextAlign.center),
-                const SizedBox(height: 24),
-                Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(18),
-                    decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(16)),
-                    child: const Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(children: [
-                            Icon(LucideIcons.sun, color: Color(0xFFDF7900)),
-                            SizedBox(width: 12),
-                            Expanded(child: Text('Đủ ánh sáng, không bị loá'))
-                          ]),
-                          SizedBox(height: 16),
-                          Row(children: [
-                            Icon(LucideIcons.scanLine,
-                                color: Color(0xFF00534D)),
-                            SizedBox(width: 12),
-                            Expanded(child: Text('Tên thuốc nằm trong khung'))
-                          ]),
-                        ])),
-              ]))));
 
   /// [maxHeight] keeps the sheet below the photo so the box stays visible
   /// while the user compares it with the one result. Only the card scrolls: the
   /// buttons stay pinned at the bottom of the sheet (adhoc-20261120 nhận xét 2).
   Widget _resultSheet(double maxHeight) => Container(
-      key: const Key('scan-result-sheet'),
-      width: double.infinity,
-      constraints: _screen == _Screen.result
-          ? BoxConstraints(maxHeight: maxHeight)
-          : null,
-      padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
-      decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(28))),
-      child: _screen == _Screen.recognizing
-          ? SingleChildScrollView(child: _recognizingContent())
-          : Column(mainAxisSize: MainAxisSize.min, children: [
-              _sheetHandle(),
-              const SizedBox(height: 14),
-              const Text('Có đúng thuốc trên vỏ hộp không?',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 12),
-              Flexible(
-                  child: SingleChildScrollView(
+        key: const Key('scan-result-sheet'),
+        width: double.infinity,
+        constraints: BoxConstraints(maxHeight: maxHeight),
+        padding: const EdgeInsets.fromLTRB(20, AppSpacing.md, 20, AppSpacing.md),
+        decoration: const BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+        ),
+        child: _screen == _Screen.recognizing
+            ? SingleChildScrollView(child: _recognizingContent())
+            : Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _sheetHandle(),
+                  const SizedBox(height: 14),
+                  const Text(
+                    'Có đúng thuốc trên vỏ hộp không?',
+                    textAlign: TextAlign.center,
+                    style: AppTextStyles.heading,
+                  ),
+                  const SizedBox(height: AppSpacing.md),
+                  Flexible(
+                    child: SingleChildScrollView(
                       key: const Key('scan-result-scroll'),
                       child: _candidate == null
                           ? const SizedBox.shrink()
@@ -848,78 +985,117 @@ class _ScanMedicationScreenState extends State<ScanMedicationScreen>
                               strengthUnverified: _ocr?.result?.reasons
                                       .contains('strength_unverified') ??
                                   false,
-                              checkReminder: _checkReminder))),
-              const SizedBox(height: 12),
-              if (_candidate != null)
-                OcrResultActions(
-                    onConfirm: _confirm,
-                    onNotThis: _manualEntry,
-                    onRetake: _retake)
-              else
-                TextButton(onPressed: _retake, child: const Text('Chụp lại')),
-            ]));
+                              checkReminder: _checkReminder,
+                            ),
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.md),
+                  if (_candidate != null)
+                    OcrResultActions(
+                      onConfirm: _confirm,
+                      onNotThis: _manualEntry,
+                      onRetake: _retake,
+                    )
+                  else
+                    TextButton(
+                      onPressed: _retake,
+                      child: const Text('Chụp lại'),
+                    ),
+                ],
+              ),
+      );
 
   /// Title + the three pinned buttons + a little of the card.
   static const double _minResultSheetHeight = 340;
 
   Widget _sheetHandle() => Center(
-      child: Container(
+        child: Container(
           width: 40,
           height: 4,
           decoration: BoxDecoration(
-              color: const Color(0xFFD6D8D6),
-              borderRadius: BorderRadius.circular(4))));
+            color: AppColors.border,
+            borderRadius: BorderRadius.circular(4),
+          ),
+        ),
+      );
 
   /// Steps share one style and the bar follows the real OCR stage (nhận xét 1).
   Widget _recognizingContent() => ListenableBuilder(
-      listenable: _ocr ?? _empty,
-      builder: (_, __) {
-        final stage = _ocr?.stage ?? OcrStage.recognizing;
-        return Column(
+        listenable: _ocr ?? _empty,
+        builder: (_, __) {
+          final stage = _ocr?.stage ?? OcrStage.recognizing;
+          return Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               _sheetHandle(),
-              const SizedBox(height: 12),
-              const Row(children: [
-                ScanningMascot(size: 72),
-                SizedBox(width: 8),
-                Expanded(
-                    child: Text('Đang nhận diện thuốc...',
-                        style: TextStyle(
-                            fontSize: 22, fontWeight: FontWeight.bold))),
-              ]),
-              const SizedBox(height: 12),
+              const SizedBox(height: AppSpacing.md),
+              Row(
+                children: [
+                  const ScanningMascot(size: 72),
+                  const SizedBox(width: AppSpacing.sm),
+                  Expanded(
+                    child: Text(
+                      'Đang nhận diện thuốc...',
+                      style: AppTextStyles.title.copyWith(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: AppSpacing.md),
               ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
-                  child: TweenAnimationBuilder<double>(
-                      tween: Tween(end: recognitionProgress(stage)),
-                      duration: MediaQuery.disableAnimationsOf(context)
-                          ? Duration.zero
-                          : const Duration(milliseconds: 400),
-                      builder: (_, value, __) => LinearProgressIndicator(
-                          key: const Key('scan-progress'),
-                          value: value,
-                          minHeight: 7,
-                          color: const Color(0xFF00534D),
-                          backgroundColor: const Color(0xFFE5F3EF)))),
-              const SizedBox(height: 16),
+                borderRadius: BorderRadius.circular(8),
+                child: TweenAnimationBuilder<double>(
+                  tween: Tween(end: recognitionProgress(stage)),
+                  duration: MediaQuery.disableAnimationsOf(context)
+                      ? Duration.zero
+                      : const Duration(milliseconds: 400),
+                  builder: (_, value, __) => LinearProgressIndicator(
+                    key: const Key('scan-progress'),
+                    value: value,
+                    minHeight: 7,
+                    color: AppColors.brand,
+                    backgroundColor: AppColors.brandTint,
+                  ),
+                ),
+              ),
+              const SizedBox(height: AppSpacing.lg),
               RecognitionSteps(stage: stage),
-              const SizedBox(height: 4),
+              const SizedBox(height: AppSpacing.xs),
               Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                      color: const Color(0xFFF2F5F3),
-                      borderRadius: BorderRadius.circular(12)),
-                  child: const Row(children: [
-                    Icon(LucideIcons.shield,
-                        size: 18, color: Color(0xFF00534D)),
-                    SizedBox(width: 10),
+                key: const Key('scan-privacy-banner'),
+                width: double.infinity,
+                padding: const EdgeInsets.all(AppSpacing.md),
+                decoration: BoxDecoration(
+                  color: AppColors.surfaceMuted,
+                  border: Border.all(color: AppColors.border),
+                  borderRadius: BorderRadius.circular(AppRadius.field),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(
+                      LucideIcons.shield,
+                      size: 18,
+                      color: AppColors.brand,
+                    ),
+                    const SizedBox(width: 10),
                     Expanded(
-                        child: Text('Ảnh chỉ xử lý trên máy, không gửi đi',
-                            style: TextStyle(fontSize: 12)))
-                  ])),
-            ]);
-      });
+                      child: Text(
+                        'Ảnh chỉ xử lý trên máy, không gửi đi',
+                        style: AppTextStyles.caption.copyWith(
+                          color: AppColors.ink,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          );
+        },
+      );
 }

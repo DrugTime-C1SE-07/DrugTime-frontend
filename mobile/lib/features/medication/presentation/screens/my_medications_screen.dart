@@ -2,12 +2,13 @@ import 'package:flutter/material.dart';
 
 import '../../../../app/router.dart';
 import '../../../../app/theme/app_theme.dart';
+import '../../../../core/utils/app_assets.dart';
+import '../../../adherence_history/presentation/utils/reminder_palette.dart';
 import '../../domain/entities/medication.dart';
 import '../../domain/entities/medication_failure.dart';
 import '../state/medication_controller.dart';
 import '../widgets/medication_card.dart';
 import '../widgets/medication_error_messages.dart';
-import '../widgets/medication_filter_bar.dart';
 import '../widgets/medication_notices.dart';
 
 /// S06 · Thuốc của tôi (Figma node 32:4235).
@@ -20,7 +21,6 @@ class MyMedicationsScreen extends StatefulWidget {
 
 class _MyMedicationsScreenState extends State<MyMedicationsScreen> {
   final _searchController = TextEditingController();
-  MedicationFilter _filter = MedicationFilter.all;
   String _query = '';
 
   @override
@@ -67,63 +67,23 @@ class _MyMedicationsScreenState extends State<MyMedicationsScreen> {
     final matches = all.where(_matchesQuery).toList();
     final active = matches.where((m) => m.isActive).toList();
     final stopped = matches.where((m) => !m.isActive).toList();
-    final lowStock = all.where((m) => m.isLowStock).toList();
     final loadError = controller.loadError;
 
     // Tải xong, không lỗi, chưa có thuốc: chỉ còn lời mời "Thêm thuốc mới" ở giữa, không cần
-    // ô tìm kiếm, link tra cứu hay bộ lọc.
+    // ô tìm kiếm hay link tra cứu.
     final emptyList = all.isEmpty && loadError == null && !controller.isLoading;
     // Nút "Thêm" ở header trùng với nút của empty-state (chưa có thuốc, hoặc tìm không khớp).
     final showsEmptyState = emptyList || (all.isNotEmpty && matches.isEmpty);
 
     final children = <Widget>[
-      _Header(showAdd: !showsEmptyState, onAdd: _openAddMedication),
-      if (lowStock.isNotEmpty) ...[
-        const SizedBox(height: AppSpacing.lg),
-        LowStockBanner(medications: lowStock),
-      ],
       if (!emptyList) ...[
-        const SizedBox(height: AppSpacing.lg),
         _SearchField(
           controller: _searchController,
           onChanged: (v) => setState(() => _query = v),
           onClear: _clearSearch,
         ),
-        // Wrap (not Row): on narrow screens or large text the two links go to two lines
-        // instead of overflowing.
-        Wrap(
-          alignment: WrapAlignment.spaceBetween,
-          children: [
-            TextButton.icon(
-              onPressed: () => _showNotBuilt('Danh mục thuốc'),
-              style: TextButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xs)),
-              icon: const Icon(Icons.menu_book_outlined, size: 20),
-              label: const Text('Tra cứu danh mục thuốc'),
-            ),
-            TextButton.icon(
-              key: const Key('medication-interaction-history-button'),
-              onPressed: () =>
-                  Navigator.pushNamed(context, AppRoutes.interactionHistory),
-              style: TextButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xs)),
-              icon: const Icon(Icons.shield_outlined,
-                  size: 18, color: AppColors.brand),
-              label: const Text('Lịch sử tương tác',
-                  style: TextStyle(color: AppColors.brand)),
-            ),
-          ],
-        ),
         const SizedBox(height: AppSpacing.sm),
-        MedicationFilterBar(
-          selected: _filter,
-          counts: {
-            MedicationFilter.all: matches.length,
-            MedicationFilter.active: active.length,
-            MedicationFilter.stopped: stopped.length,
-          },
-          onChanged: (f) => setState(() => _filter = f),
-        ),
+        _CatalogLink(onTap: () => _showNotBuilt('Danh mục thuốc')),
       ],
     ];
 
@@ -149,58 +109,64 @@ class _MyMedicationsScreenState extends State<MyMedicationsScreen> {
     } else if (all.isEmpty) {
       children.add(MedicationEmptyState(
         title: 'Chưa có thuốc nào',
-        message: 'Thêm thuốc bạn đang dùng để DrugTime nhắc đúng giờ và kiểm tra tương tác.',
+        message:
+            'Thêm thuốc bạn đang dùng để DrugTime nhắc đúng giờ và kiểm tra tương tác.',
         onAdd: _openAddMedication,
       ));
     } else if (matches.isEmpty) {
       children.add(MedicationEmptyState(
         title: 'Không tìm thấy "${_query.trim()}"',
-        message: 'Thử tìm bằng tên hoạt chất, hoặc thêm thuốc này vào danh sách.',
+        message:
+            'Thử tìm bằng tên hoạt chất, hoặc thêm thuốc này vào danh sách.',
         onAdd: _openAddMedication,
       ));
     } else {
-      if (_filter != MedicationFilter.stopped) {
-        children.addAll(_section('Đang dùng', active));
-      }
-      if (_filter != MedicationFilter.active) {
-        children.addAll(_section('Đã ngừng', stopped));
-      }
+      children
+        ..addAll(_section('Đang dùng', active, gapBefore: AppSpacing.md))
+        ..addAll(_section('Đã ngừng', stopped, gapBefore: AppSpacing.lg));
     }
 
     return Scaffold(
+      backgroundColor: ReminderPalette.canvas,
       body: SafeArea(
         bottom: false,
-        child: RefreshIndicator(
-          onRefresh: controller.load,
-          child: ListView(
-            padding: const EdgeInsets.fromLTRB(
-              AppSpacing.page,
-              AppSpacing.lg,
-              AppSpacing.page,
-              AppSpacing.xl,
+        child: Column(
+          children: [
+            _Header(showAdd: !showsEmptyState, onAdd: _openAddMedication),
+            Expanded(
+              child: RefreshIndicator(
+                onRefresh: controller.load,
+                child: ListView(
+                  padding: const EdgeInsets.fromLTRB(
+                    _pagePadding,
+                    AppSpacing.md,
+                    _pagePadding,
+                    AppSpacing.xl,
+                  ),
+                  children: children,
+                ),
+              ),
             ),
-            children: children,
-          ),
+          ],
         ),
       ),
     );
   }
 
-  List<Widget> _section(String title, List<Medication> meds) {
+  List<Widget> _section(String title, List<Medication> meds,
+      {required double gapBefore}) {
     if (meds.isEmpty) return const [];
     return [
-      const SizedBox(height: AppSpacing.xl),
-      Semantics(
-        header: true,
-        child: Text('$title · ${meds.length}', style: AppTextStyles.captionStrong),
-      ),
-      const SizedBox(height: AppSpacing.md),
-      for (final m in meds) ...[
+      SizedBox(height: gapBefore),
+      _GroupHeader(
+          title: title, count: meds.length, active: title == 'Đang dùng'),
+      const SizedBox(height: AppSpacing.sm),
+      for (final (i, m) in meds.indexed) ...[
+        if (i > 0) const SizedBox(height: AppSpacing.md),
         MedicationCard(
           medication: m,
           onTap: () => _openMedicationDetail(m),
         ),
-        const SizedBox(height: AppSpacing.md),
       ],
     ];
   }
@@ -215,37 +181,167 @@ class _Header extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Semantics(
+    // Cùng dải màu theo giờ trong ngày và nút tròn trắng như header "Lịch nhắc".
+    return Material(
+      key: const Key('medication-header'),
+      color: ReminderPalette.headerFor(DateTime.now()),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(_pagePadding, 8, 12, 8),
+        child: Row(
+          children: [
+            Expanded(
+              child: Semantics(
                 header: true,
-                child: const Text('Thuốc của tôi', style: AppTextStyles.title),
+                child:
+                    const Text('Thuốc của tôi', style: AppTextStyles.display),
               ),
-              const SizedBox(height: AppSpacing.xs),
+            ),
+            ExcludeSemantics(
+              child: Image.asset(AppAssets.mascotHappy, width: 40, height: 40),
+            ),
+            const SizedBox(width: AppSpacing.sm),
+            _RoundAction(
+              key: const Key('medication-interaction-history-icon-button'),
+              tooltip: 'Lịch sử kiểm tra tương tác',
+              icon: Icons.shield_outlined,
+              onTap: () =>
+                  Navigator.pushNamed(context, AppRoutes.interactionHistory),
+            ),
+            if (showAdd) ...[
+              const SizedBox(width: AppSpacing.sm),
+              _RoundAction(
+                key: const Key('medication-add-button'),
+                tooltip: 'Thêm thuốc',
+                icon: Icons.add,
+                onTap: onAdd,
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Lề ngang 20 theo Figma S06.
+const _pagePadding = 20.0;
+
+/// Nút tròn trắng 48×48, icon teal — như nút lịch tháng của "Lịch nhắc".
+class _RoundAction extends StatelessWidget {
+  const _RoundAction({
+    super.key,
+    required this.tooltip,
+    required this.icon,
+    required this.onTap,
+  });
+
+  final String tooltip;
+  final IconData icon;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: Material(
+        color: ReminderPalette.surface,
+        shape: const CircleBorder(),
+        elevation: 1,
+        shadowColor: ReminderPalette.outline,
+        child: InkWell(
+          customBorder: const CircleBorder(),
+          onTap: onTap,
+          child: SizedBox.square(
+            dimension: AppSizes.tapTarget,
+            child: Icon(icon, color: ReminderPalette.teal),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Tiêu đề nhóm dạng chip màu có icon, như tiêu đề buổi của "Lịch nhắc".
+class _GroupHeader extends StatelessWidget {
+  const _GroupHeader(
+      {required this.title, required this.count, required this.active});
+
+  final String title;
+  final int count;
+  final bool active;
+
+  @override
+  Widget build(BuildContext context) {
+    final (bg, fg, icon) = active
+        ? (
+            ReminderPalette.surfaceTint,
+            ReminderPalette.teal,
+            Icons.medication_outlined
+          )
+        : (
+            ReminderPalette.pendingBackground,
+            ReminderPalette.pending,
+            Icons.pause_circle_outline
+          );
+    return Semantics(
+      header: true,
+      label: '$title, $count thuốc',
+      excludeSemantics: true,
+      child: Container(
+        constraints: const BoxConstraints(minHeight: 32),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        decoration:
+            BoxDecoration(color: bg, borderRadius: BorderRadius.circular(10)),
+        child: Row(children: [
+          DecoratedBox(
+            decoration: const BoxDecoration(
+                color: Colors.white, shape: BoxShape.circle),
+            child: Padding(
+              padding: const EdgeInsets.all(4),
+              child: Icon(icon, size: 16, color: fg),
+            ),
+          ),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text('$title · $count',
+                style: AppTextStyles.captionStrong.copyWith(color: fg)),
+          ),
+        ]),
+      ),
+    );
+  }
+}
+
+class _CatalogLink extends StatelessWidget {
+  const _CatalogLink({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(AppSpacing.sm),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: 44),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Flexible(
+                child: Text(
+                  'Tra cứu danh mục thuốc',
+                  style: AppTextStyles.captionStrong
+                      .copyWith(color: AppColors.brand),
+                ),
+              ),
+              const SizedBox(width: AppSpacing.xs),
+              const Icon(Icons.chevron_right, size: 16, color: AppColors.brand),
             ],
           ),
         ),
-        IconButton(
-          key: const Key('medication-interaction-history-icon-button'),
-          tooltip: 'Lịch sử kiểm tra tương tác',
-          onPressed: () =>
-              Navigator.pushNamed(context, AppRoutes.interactionHistory),
-          icon: const Icon(Icons.history_outlined, color: AppColors.brand),
-        ),
-        if (showAdd) ...[
-          const SizedBox(width: AppSpacing.xs),
-          // Nút có chữ thay cho dấu "+" trơn: người lớn tuổi hiểu ngay.
-          FilledButton.icon(
-            onPressed: onAdd,
-            icon: const Icon(Icons.add),
-            label: const Text('Thêm'),
-          ),
-        ],
-      ],
+      ),
     );
   }
 }
@@ -261,15 +357,30 @@ class _SearchField extends StatelessWidget {
   final ValueChanged<String> onChanged;
   final VoidCallback onClear;
 
+  static const _radius = BorderRadius.all(Radius.circular(8));
+
   @override
   Widget build(BuildContext context) {
     return TextField(
       controller: controller,
       onChanged: onChanged,
       textInputAction: TextInputAction.search,
-      style: AppTextStyles.body,
+      style: AppTextStyles.body.copyWith(fontSize: 17),
       decoration: InputDecoration(
+        filled: true,
+        fillColor: AppColors.surface,
+        constraints: const BoxConstraints(minHeight: AppSizes.field),
+        contentPadding: const EdgeInsets.symmetric(vertical: 16),
         hintText: 'Tìm theo tên thuốc, hoạt chất…',
+        hintStyle: const TextStyle(fontSize: 17, color: AppColors.inkFaint),
+        enabledBorder: const OutlineInputBorder(
+          borderRadius: _radius,
+          borderSide: BorderSide(color: AppColors.border),
+        ),
+        focusedBorder: const OutlineInputBorder(
+          borderRadius: _radius,
+          borderSide: BorderSide(color: AppColors.brand, width: 2),
+        ),
         prefixIcon: const Icon(Icons.search, color: AppColors.inkMuted),
         suffixIcon: ListenableBuilder(
           listenable: controller,
@@ -288,7 +399,8 @@ class _SearchField extends StatelessWidget {
 
 /// Không tải được danh sách: báo lỗi và cho thử lại. Danh sách cũ (nếu có) vẫn hiện bên dưới.
 class _LoadErrorCard extends StatelessWidget {
-  const _LoadErrorCard({required this.message, required this.onRetry, this.onConsent});
+  const _LoadErrorCard(
+      {required this.message, required this.onRetry, this.onConsent});
 
   final String message;
   final Future<void> Function() onRetry;

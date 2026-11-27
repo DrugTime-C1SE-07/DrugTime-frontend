@@ -11,6 +11,7 @@ import 'capture_controller_test.dart' show TestSource, TestStore, TestProcessor;
 class FakeReader implements OcrTextReader {
   int calls = 0;
   String text = 'TEST\r\n500mg';
+  OcrFailureKind? failureKind;
   Completer<String>? pending;
   @override
   Future<String> recognize(Uint8List jpeg,
@@ -18,6 +19,7 @@ class FakeReader implements OcrTextReader {
       required void Function() onRecognizing}) async {
     calls++;
     onRecognizing();
+    if (failureKind != null) throw OcrFailure(failureKind!);
     return pending == null ? text : await pending!.future;
   }
 }
@@ -25,6 +27,7 @@ class FakeReader implements OcrTextReader {
 class FakeMatcher implements OcrMatchingRepository {
   int calls = 0;
   bool fail = false;
+  OcrFailureKind? failureKind;
   String? token;
   Completer<OcrMatchResult>? pending;
   OcrMatchResult result = OcrMatchResult(
@@ -47,6 +50,7 @@ class FakeMatcher implements OcrMatchingRepository {
       {required String sessionToken, int limit = 5}) async {
     calls++;
     token = sessionToken;
+    if (failureKind != null) throw OcrFailure(failureKind!);
     if (fail) throw const OcrFailure(OcrFailureKind.network);
     return pending == null ? result : await pending!.future;
   }
@@ -205,5 +209,72 @@ void main() {
     expect(services.cleanupError, isNull);
     c.dispose();
     services.dispose();
+  });
+
+  test('canRetry is true for retryable failures while lease is valid (AC8)',
+      () async {
+    for (final kind in const [
+      OcrFailureKind.network,
+      OcrFailureKind.server,
+      OcrFailureKind.unavailable,
+    ]) {
+      final matcher = FakeMatcher()..failureKind = kind;
+      final services = testServices(matcher: matcher);
+      await services.bindSession('A');
+      final c = OcrController(image: testLease(), services: services);
+      await c.start();
+      expect(c.failure?.kind, kind);
+      expect(c.canRetry, isTrue, reason: kind.name);
+      await c.close();
+      expect(c.canRetry, isFalse, reason: '${kind.name} after close');
+      c.dispose();
+      services.dispose();
+    }
+
+    final reader = FakeReader()..failureKind = OcrFailureKind.recognition;
+    final services = testServices(reader: reader);
+    await services.bindSession('A');
+    final c = OcrController(image: testLease(), services: services);
+    await c.start();
+    expect(c.failure?.kind, OcrFailureKind.recognition);
+    expect(c.canRetry, isTrue);
+    reader.failureKind = null;
+    await c.start();
+    expect(reader.calls, 2);
+    expect(c.stage, OcrStage.result);
+    expect(c.canRetry, isFalse);
+    await c.close();
+    c.dispose();
+    services.dispose();
+  });
+
+  test('canRetry is false when expired or on non-retryable failure (AC8, AC9)',
+      () async {
+    var now = DateTime(2026, 11, 26, 14, 0);
+    final matcher = FakeMatcher()..failureKind = OcrFailureKind.network;
+    final services = testServices(matcher: matcher);
+    await services.bindSession('A');
+    final c = OcrController(
+        image: testLease(expires: now.add(const Duration(hours: 24))),
+        services: services,
+        clock: () => now);
+    await c.start();
+    expect(c.canRetry, isTrue);
+    now = now.add(const Duration(hours: 24, seconds: 1));
+    expect(c.canRetry, isFalse);
+    await c.close();
+    c.dispose();
+    services.dispose();
+
+    final reader = FakeReader()..text = '  ';
+    final services2 = testServices(reader: reader);
+    await services2.bindSession('A');
+    final c2 = OcrController(image: testLease(), services: services2);
+    await c2.start();
+    expect(c2.failure?.kind, OcrFailureKind.noText);
+    expect(c2.canRetry, isFalse);
+    await c2.close();
+    c2.dispose();
+    services2.dispose();
   });
 }
