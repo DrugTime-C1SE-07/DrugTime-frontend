@@ -409,11 +409,7 @@ class _AccountDeletionScreenState extends State<AccountDeletionScreen> {
     super.initState();
     _mascot.play(_returning ? MascotMood.thumbsUp : MascotMood.farewell);
     _timer = Timer.periodic(const Duration(seconds: 1), (_) {
-      // Chỉ bước otp/locked có đồng hồ đếm ngược; bước khác không cần rebuild mỗi giây.
-      if (!mounted ||
-          (_step != DeletionStep.otp && _step != DeletionStep.locked)) {
-        return;
-      }
+      if (!mounted) return;
       setState(() {
         if (_step == DeletionStep.otp &&
             _challenge != null &&

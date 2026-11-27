@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../features/family_link/presentation/screens/enter_link_code_screen.dart';
 import '../features/adherence_history/presentation/screens/adherence_history_screen.dart';
@@ -16,7 +17,6 @@ import '../features/profile/presentation/state/health_setup_status_controller.da
 import '../features/home/presentation/home_screen.dart';
 import '../features/home/presentation/screens/home_screen.dart' as empty;
 import '../features/auth/presentation/widgets/welcome_onboarding_sheet.dart';
-import 'app_nav_bar.dart';
 import 'router.dart';
 import '../core/preview/app_preview_scope.dart';
 import 'theme/app_theme.dart';
@@ -49,30 +49,6 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   InviteLinkController? _invites;
   IncomingRequestsController? _incomingRequests;
   final ChangeNotifier _emptyNotifier = ChangeNotifier();
-  // Tiến độ vuốt nội dung (đơn vị tab); viên navbar đọc chung giá trị này để đi theo trang.
-  final _swipe = ValueNotifier<double>(0);
-
-  // Thứ tự tab trên thanh điều hướng; tab gia đình đứng chung vị trí với Trang chủ.
-  static const _navTabs = [
-    AppTab.home,
-    AppTab.medications,
-    AppTab.reminders,
-    AppTab.profile
-  ];
-
-  static int _navIndex(AppTab tab) => switch (tab) {
-        AppTab.home || AppTab.family => 0,
-        AppTab.medications => 1,
-        AppTab.reminders => 2,
-        AppTab.profile => 3,
-      };
-
-  /// Vuốt chỉ sang tab liền kề theo thứ tự trên thanh.
-  static int? _swipeTarget(int child, int dir) {
-    final nav = _navIndex(AppTab.values[child]) + dir;
-    if (nav < 0 || nav >= _navTabs.length) return null;
-    return _navTabs[nav].index;
-  }
 
   @override
   void initState() {
@@ -171,7 +147,6 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     WidgetsBinding.instance.removeObserver(this);
     _invites?.removeListener(_openPendingInvite);
     _emptyNotifier.dispose();
-    _swipe.dispose();
     super.dispose();
   }
 
@@ -203,9 +178,6 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
               : null,
       body: SharedAxisTabSwitcher(
         index: _tab.index,
-        swipeTarget: _swipeTarget,
-        onSwiped: (child) => _select(AppTab.values[child]),
-        swipe: _swipe,
         children: [
           if (useExistingHome)
             HomeScreen(
@@ -247,9 +219,13 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
                 data: NavigationBarThemeData(
                   backgroundColor: Colors.white,
                   indicatorColor: Colors.transparent,
-                  // Viên chỉ báo do AppNavBar tự vẽ; ripple mặc định lệch khỏi viên nên tắt.
-                  overlayColor:
-                      const WidgetStatePropertyAll(Colors.transparent),
+                  iconTheme:
+                      WidgetStateProperty.resolveWith((states) => IconThemeData(
+                            color: states.contains(WidgetState.selected)
+                                ? const Color(0xFF0B5A8A)
+                                : AppColors.inkMuted,
+                            size: 25,
+                          )),
                   labelTextStyle:
                       WidgetStateProperty.resolveWith((states) => TextStyle(
                             color: states.contains(WidgetState.selected)
@@ -267,10 +243,53 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
                 child: MediaQuery.removePadding(
                   context: context,
                   removeBottom: true,
-                  child: AppNavBar(
-                    selectedIndex: _navIndex(_tab),
-                    onSelected: (i) => _select(_navTabs[i]),
-                    swipe: _swipe,
+                  child: NavigationBar(
+                    height: 68,
+                    labelBehavior:
+                        NavigationDestinationLabelBehavior.alwaysHide,
+                    selectedIndex: switch (_tab) {
+                      AppTab.home || AppTab.family => 0,
+                      AppTab.medications => 1,
+                      AppTab.reminders => 2,
+                      AppTab.profile => 3,
+                    },
+                    onDestinationSelected: (i) => _select([
+                      AppTab.home,
+                      AppTab.medications,
+                      AppTab.reminders,
+                      AppTab.profile
+                    ][i]),
+                    destinations: const [
+                      NavigationDestination(
+                        icon: Icon(LucideIcons.house),
+                        selectedIcon: _SelectedNavigationIcon(
+                            icon: LucideIcons.house,
+                            label: 'Trang chủ',
+                            align: Alignment.centerLeft),
+                        label: 'Trang chủ',
+                      ),
+                      NavigationDestination(
+                        icon: Icon(LucideIcons.pill),
+                        selectedIcon: _SelectedNavigationIcon(
+                            icon: LucideIcons.pill, label: 'Thuốc'),
+                        label: 'Thuốc',
+                      ),
+                      NavigationDestination(
+                        icon: Icon(LucideIcons.calendarClock),
+                        selectedIcon: _SelectedNavigationIcon(
+                            icon: LucideIcons.calendarClock,
+                            label: 'Lịch nhắc'),
+                        label: 'Lịch nhắc',
+                      ),
+                      NavigationDestination(
+                        icon: Icon(LucideIcons.userRound),
+                        selectedIcon: _SelectedNavigationIcon(
+                            icon: LucideIcons.userRound,
+                            label: 'Hồ sơ',
+                            align: Alignment.centerRight),
+                        label: 'Hồ sơ',
+                      ),
+                    ],
                   ),
                 ),
               ),
@@ -285,4 +304,48 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       ),
     );
   }
+}
+
+/// Viên chọn của tab đang mở: co theo nội dung (icon + nhãn), không cắt chữ.
+///
+/// [align] giữ viên trong thanh ở hai đầu: tab đầu căn trái, tab cuối căn phải
+/// so với ô icon, để phần tràn của viên đi vào trong thay vì ra ngoài thanh.
+class _SelectedNavigationIcon extends StatelessWidget {
+  const _SelectedNavigationIcon(
+      {required this.icon, required this.label, this.align = Alignment.center});
+  final IconData icon;
+  final String label;
+  final Alignment align;
+
+  @override
+  Widget build(BuildContext context) => OverflowBox(
+        alignment: align,
+        maxWidth: 150,
+        maxHeight: 52,
+        child: Container(
+          key: ValueKey('selected-nav-$label'),
+          height: 52,
+          padding: const EdgeInsets.symmetric(horizontal: 14),
+          decoration: BoxDecoration(
+            color: const Color(0xFFD9EEFC),
+            borderRadius: BorderRadius.circular(26),
+          ),
+          // vừa chỗ thì giữ nguyên cỡ; thiếu chỗ (chữ hệ thống to) thì thu nhỏ cả cụm, không cắt chữ
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              Icon(icon, color: const Color(0xFF0B5A8A), size: 24),
+              const SizedBox(width: 8),
+              Text(label,
+                  key: ValueKey('selected-nav-label-$label'),
+                  maxLines: 1,
+                  softWrap: false,
+                  style: const TextStyle(
+                      color: Color(0xFF0B5A8A),
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700)),
+            ]),
+          ),
+        ),
+      );
 }
