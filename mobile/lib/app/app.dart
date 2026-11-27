@@ -708,7 +708,22 @@ class _DrugTimeAppState extends State<DrugTimeApp> with WidgetsBindingObserver {
     });
   }
 
+  /// Mốc giờ của màn nhắc đang mở (hoặc đang chuẩn bị mở).
+  DateTime? _openReminderAt;
+
+  /// Full-screen intent và lần chạm thông báo cùng giờ chỉ mở một màn nhắc.
   Future<void> _handleNotificationPayload(NotificationPayload payload) async {
+    final at = payload.scheduledAt;
+    if (_openReminderAt?.isAtSameMomentAs(at) ?? false) return;
+    _openReminderAt = at;
+    try {
+      await _openDoseReminder(payload);
+    } finally {
+      if (identical(_openReminderAt, at)) _openReminderAt = null;
+    }
+  }
+
+  Future<void> _openDoseReminder(NotificationPayload payload) async {
     final store = widget.localMedicationStore;
     if (store == null) return;
 
@@ -798,7 +813,7 @@ class _DrugTimeAppState extends State<DrugTimeApp> with WidgetsBindingObserver {
       keyguardPlatform: widget.keyguardPlatform,
     );
 
-    _navigatorKey.currentState?.pushNamed(
+    await _navigatorKey.currentState?.pushNamed(
       AppRoutes.doseReminder,
       arguments: args,
     );

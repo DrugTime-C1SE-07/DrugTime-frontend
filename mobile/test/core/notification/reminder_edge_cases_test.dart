@@ -177,8 +177,7 @@ void main() {
         expect(scheduler.cancelledOccurrences.first['scheduleId'], 101);
       });
 
-      test('Khi uống đúng giờ hoặc sau giờ cữ, vẫn hủy để bỏ lượt nhắc lại còn chờ',
-          () async {
+      test('Uống đúng giờ hoặc sau giờ cữ, đủ cả nhóm: gỡ thông báo đang hiện', () async {
         // Clock lúc 12:05 UTC (> 12:00 UTC)
         final lateTime = DateTime.utc(2026, 10, 29, 12, 5, 0);
         final controller = DoseReminderController(
@@ -192,7 +191,8 @@ void main() {
 
         expect(result, isTrue);
         expect(outbox.enqueued.length, 1);
-        expect(scheduler.cancelledOccurrences.single['scheduleId'], 101);
+        expect(scheduler.cancelledOccurrences.length, 1);
+        expect(scheduler.cancelledOccurrences.first['scheduleId'], 101);
       });
     });
 

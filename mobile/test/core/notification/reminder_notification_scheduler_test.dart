@@ -321,6 +321,57 @@ void main() {
     });
   });
 
+  group('Khử trùng thông báo cùng giờ', () {
+    final nowUtc = DateTime.utc(2026, 10, 8, 7, 0, 0);
+    final at = DateTime.utc(2026, 10, 9, 1, 0, 0);
+
+    ReminderNotificationScheduler build() => ReminderNotificationScheduler(
+          platform: mockPlatform,
+          location: vnLocation,
+          clockProvider: () => nowUtc,
+        );
+
+    test('nhiều thuốc cùng mốc giờ chỉ lên lịch một thông báo đại diện',
+        () async {
+      await build().scheduleOccurrences([
+        ReminderOccurrence(medicationScheduleId: 30, scheduledAt: at),
+        ReminderOccurrence(medicationScheduleId: 10, scheduledAt: at),
+        ReminderOccurrence(medicationScheduleId: 20, scheduledAt: at),
+      ]);
+
+      expect(mockPlatform.zonedScheduleCalls, hasLength(1));
+      // Thuốc ID nhỏ nhất làm đại diện.
+      expect(mockPlatform.zonedScheduleCalls.single.id, notificationIdFor(10, at));
+    });
+
+    test('hủy thuốc đại diện lên lịch lại cho thuốc còn lại cùng giờ', () async {
+      final scheduler = build();
+      await scheduler.scheduleOccurrences([
+        ReminderOccurrence(medicationScheduleId: 10, scheduledAt: at),
+        ReminderOccurrence(medicationScheduleId: 20, scheduledAt: at),
+      ]);
+      mockPlatform.zonedScheduleCalls.clear();
+
+      await scheduler.cancelOccurrence(scheduleId: 10, scheduledAt: at);
+
+      expect(mockPlatform.cancelCalls, [notificationIdFor(10, at)]);
+      expect(mockPlatform.zonedScheduleCalls, hasLength(1));
+      expect(mockPlatform.zonedScheduleCalls.single.id, notificationIdFor(20, at));
+    });
+
+    test('hủy thuốc cuối cùng của mốc giờ không lên lịch lại', () async {
+      final scheduler = build();
+      await scheduler.scheduleOccurrences([
+        ReminderOccurrence(medicationScheduleId: 10, scheduledAt: at),
+      ]);
+      mockPlatform.zonedScheduleCalls.clear();
+
+      await scheduler.cancelOccurrence(scheduleId: 10, scheduledAt: at);
+
+      expect(mockPlatform.zonedScheduleCalls, isEmpty);
+    });
+  });
+
   group('ReminderNotificationScheduler.cancelOccurrence (AC4)', () {
     test('AC4: cancels exact notification ID idempotently', () async {
       final scheduler = ReminderNotificationScheduler(

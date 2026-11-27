@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 
 import '../../../../core/contracts/dose_outbox.dart';
@@ -101,15 +103,12 @@ class DoseReminderController extends ChangeNotifier {
       _records[item.occurrenceKey] = record;
       _statuses[item.occurrenceKey] = DoseReminderItemStatus.confirmed;
 
-      // Hủy thông báo của liều đã xác nhận: lượt gốc khi uống sớm (Subtask 65 / Task 2.08)
-      // và lượt "nhắc lại nếu bỏ lỡ" còn chờ khi uống đúng/sau giờ.
-      try {
-        await _scheduler.cancelOccurrence(
-          scheduleId: item.medicationScheduleId,
-          scheduledAt: item.scheduledAt,
-        );
-      } catch (_) {
-        // Lỗi hủy không ngăn cản việc ghi nhận liều thành công
+      // Hủy thông báo khi uống sớm trước giờ cữ (Subtask 65 / Task 2.08).
+      // Uống đủ cả nhóm: gỡ luôn thông báo đang nằm trên thanh thông báo.
+      if (now.isBefore(item.scheduledAt)) {
+        await _cancel([item]);
+      } else if (allConfirmed) {
+        await _cancel(group.items);
       }
 
       _notify();
@@ -154,13 +153,18 @@ class DoseReminderController extends ChangeNotifier {
 
     final remindAt = _clock().toUtc().add(const Duration(minutes: 10));
     try {
-      for (final item in group.items) {
-        await _scheduler.snooze(
-          medicationScheduleId: item.medicationScheduleId,
-          scheduledAt: item.scheduledAt,
-          remindAt: remindAt,
-        );
-      }
+      // Một thông báo nhắc lại cho cả nhóm: mở ra màn nhắc tự gom lại các thuốc
+      // chưa ghi nhận cùng giờ. Gỡ thông báo cũ để không nằm lại trên thanh thông báo.
+      final pending = group.items
+          .where((i) => statusOf(i) != DoseReminderItemStatus.confirmed)
+          .toList();
+      await _cancel(group.items);
+      if (pending.isEmpty) return true;
+      await _scheduler.snooze(
+        medicationScheduleId: pending.first.medicationScheduleId,
+        scheduledAt: pending.first.scheduledAt,
+        remindAt: remindAt,
+      );
       return true;
     } catch (_) {
       _message = 'Không thể đặt nhắc lại. Vui lòng thử lại.';
@@ -172,7 +176,23 @@ class DoseReminderController extends ChangeNotifier {
   }
 
   /// Closes the reminder without writing a taken or missed dose.
-  DoseReminderResult? skip() => isBusy ? null : DoseReminderResult.skipped;
+  DoseReminderResult? skip() {
+    if (isBusy) return null;
+    unawaited(_cancel(group.items));
+    return DoseReminderResult.skipped;
+  }
+
+  /// Gỡ thông báo của [items]; lỗi hủy không chặn ghi nhận liều hay đóng màn.
+  Future<void> _cancel(Iterable<DoseReminderItem> items) async {
+    for (final item in items) {
+      try {
+        await _scheduler.cancelOccurrence(
+          scheduleId: item.medicationScheduleId,
+          scheduledAt: item.scheduledAt,
+        );
+      } catch (_) {}
+    }
+  }
 
   void _notify() {
     if (!_disposed) notifyListeners();
