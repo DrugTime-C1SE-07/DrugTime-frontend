@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:drugtime_mobile/features/interaction_check/domain/entities/interaction_check_result.dart';
 import 'package:drugtime_mobile/features/interaction_check/presentation/screens/interaction_history_screen.dart';
 
 void main() {
