@@ -73,8 +73,10 @@ class ReminderNotificationScheduler implements ReminderScheduler {
   /// Quy trình:
   /// 1. Lọc bỏ các lượt quá khứ hoặc trùng thời điểm hiện tại (`scheduledAt <= now`).
   /// 2. Khử trùng lặp ID thông báo bằng [detectIdCollisions].
-  /// 3. Lên lịch từng lượt với chế độ ưu tiên [AndroidScheduleMode.exactAllowWhileIdle].
-  /// 4. Nếu thiếu quyền exact alarm (ném ngoại lệ), tự động fallback sang
+  /// 3. Gộp các thuốc cùng giờ thành một thông báo (thuốc có ID nhỏ nhất làm đại diện):
+  ///    màn nhắc tự gom mọi thuốc cùng giờ, nên nhiều thông báo giống hệt chỉ là trùng.
+  /// 4. Lên lịch từng mốc với chế độ ưu tiên [AndroidScheduleMode.exactAllowWhileIdle].
+  /// 5. Nếu thiếu quyền exact alarm (ném ngoại lệ), tự động fallback sang
   ///    [AndroidScheduleMode.inexactAllowWhileIdle] và ghi log (lưu ý: không đạt NFR04).
   Future<void> scheduleOccurrences(
     Iterable<ReminderOccurrence> occurrences,
@@ -86,56 +88,68 @@ class ReminderNotificationScheduler implements ReminderScheduler {
         occurrences.where((occ) => occ.scheduledAt.isAfter(now));
 
     // Khử trùng lặp va chạm ID
-    var deduplicated = detectIdCollisions(
+    final deduplicated = detectIdCollisions(
       futureOccurrences,
       onCollision: onLog,
     );
 
-    final isIos = (targetPlatform ?? defaultTargetPlatform) == TargetPlatform.iOS;
-    if (isIos && deduplicated.length > maxIosScheduledNotifications) {
-      final sorted = List<ReminderOccurrence>.from(deduplicated)..sort();
-      deduplicated = sorted.take(maxIosScheduledNotifications).toList(growable: false);
+    final slots = <DateTime, List<int>>{};
+    for (final occ in deduplicated) {
+      slots
+          .putIfAbsent(occ.scheduledAt, () => [])
+          .add(occ.medicationScheduleId);
+    }
+    var times = slots.keys.toList()..sort();
+
+    final isIos =
+        (targetPlatform ?? defaultTargetPlatform) == TargetPlatform.iOS;
+    if (isIos && times.length > maxIosScheduledNotifications) {
+      times = times.take(maxIosScheduledNotifications).toList();
     }
 
-    for (final occ in deduplicated) {
-      final id = notificationIdFor(occ.medicationScheduleId, occ.scheduledAt);
-      final payload = NotificationPayload(
-        medicationScheduleId: occ.medicationScheduleId,
-        scheduledAt: occ.scheduledAt,
-      ).serialize();
+    _slots.clear();
+    for (final at in times) {
+      final ids = slots[at]!..sort();
+      _slots[at] = List.unmodifiable(ids);
+      await _schedule(ids.first, at, fireAt: at);
+    }
+  }
 
-      final scheduledDate = tz.TZDateTime.from(occ.scheduledAt, location);
+  /// Thuốc theo từng mốc giờ đã lên lịch; phần tử đầu là thuốc đại diện của thông báo.
+  final Map<DateTime, List<int>> _slots = {};
 
-      try {
-        await platform.zonedSchedule(
+  Future<void> _schedule(
+    int medicationScheduleId,
+    DateTime scheduledAt, {
+    required DateTime fireAt,
+  }) async {
+    final id = notificationIdFor(medicationScheduleId, scheduledAt);
+    final payload = NotificationPayload(
+      medicationScheduleId: medicationScheduleId,
+      scheduledAt: scheduledAt,
+    ).serialize();
+    final scheduledDate = tz.TZDateTime.from(fireAt, location);
+
+    Future<void> schedule(AndroidScheduleMode mode) => platform.zonedSchedule(
           id,
           defaultTitle,
           defaultBody,
           scheduledDate,
           _notificationDetails,
-          androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+          androidScheduleMode: mode,
           uiLocalNotificationDateInterpretation:
               UILocalNotificationDateInterpretation.absoluteTime,
           payload: payload,
-        );
-      } catch (e) {
-        onLog?.call(
-          'Lỗi lên lịch exact alarm cho thông báo $id: $e. '
-          'Fallback sang inexactAllowWhileIdle (lưu ý: không thỏa mãn NFR04 về độ trễ).',
         );
 
-        await platform.zonedSchedule(
-          id,
-          defaultTitle,
-          defaultBody,
-          scheduledDate,
-          _notificationDetails,
-          androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
-          uiLocalNotificationDateInterpretation:
-              UILocalNotificationDateInterpretation.absoluteTime,
-          payload: payload,
-        );
-      }
+    try {
+      await schedule(AndroidScheduleMode.exactAllowWhileIdle);
+    } catch (e) {
+      onLog?.call(
+        'Lỗi lên lịch exact alarm cho thông báo $id: $e. '
+        'Fallback sang inexactAllowWhileIdle (lưu ý: không thỏa mãn NFR04 về độ trễ).',
+      );
+      await schedule(AndroidScheduleMode.inexactAllowWhileIdle);
     }
   }
 
@@ -149,50 +163,17 @@ class ReminderNotificationScheduler implements ReminderScheduler {
     required int medicationScheduleId,
     required DateTime scheduledAt,
     required DateTime remindAt,
-  }) async {
-    final utcRemindAt = remindAt.toUtc();
-    final utcScheduledAt = scheduledAt.toUtc();
-    final id = notificationIdFor(medicationScheduleId, utcScheduledAt);
-    final payload = NotificationPayload(
-      medicationScheduleId: medicationScheduleId,
-      scheduledAt: utcScheduledAt,
-    ).serialize();
-
-    final scheduledDate = tz.TZDateTime.from(utcRemindAt, location);
-
-    try {
-      await platform.zonedSchedule(
-        id,
-        defaultTitle,
-        defaultBody,
-        scheduledDate,
-        _notificationDetails,
-        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
-        uiLocalNotificationDateInterpretation:
-            UILocalNotificationDateInterpretation.absoluteTime,
-        payload: payload,
-      );
-    } catch (e) {
-      onLog?.call(
-        'Lỗi lên lịch exact alarm cho snooze $id: $e. '
-        'Fallback sang inexactAllowWhileIdle (lưu ý: không thỏa mãn NFR04 về độ trễ).',
+  }) =>
+      _schedule(
+        medicationScheduleId,
+        scheduledAt.toUtc(),
+        fireAt: remindAt.toUtc(),
       );
 
-      await platform.zonedSchedule(
-        id,
-        defaultTitle,
-        defaultBody,
-        scheduledDate,
-        _notificationDetails,
-        androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
-        uiLocalNotificationDateInterpretation:
-            UILocalNotificationDateInterpretation.absoluteTime,
-        payload: payload,
-      );
-    }
-  }
-
-  /// Hủy một lượt thông báo cụ thể (idempotent).
+  /// Hủy một lượt thông báo cụ thể (idempotent), gỡ cả thông báo đang hiện.
+  ///
+  /// Nếu lượt đó là đại diện của mốc giờ chưa tới mà còn thuốc khác cùng giờ,
+  /// lên lịch lại thông báo cho thuốc kế tiếp để các thuốc còn lại vẫn được nhắc.
   @override
   Future<void> cancelOccurrence({
     int? scheduleId,
@@ -205,8 +186,20 @@ class ReminderNotificationScheduler implements ReminderScheduler {
         'Either scheduleId or medicationScheduleId must be provided',
       );
     }
-    final id = notificationIdFor(targetId, scheduledAt.toUtc());
-    await platform.cancel(id);
+    final at = scheduledAt.toUtc();
+    await platform.cancel(notificationIdFor(targetId, at));
+
+    final slot = _slots[at];
+    if (slot == null || !slot.contains(targetId)) return;
+    final rest = List<int>.unmodifiable(slot.where((id) => id != targetId));
+    if (rest.isEmpty) {
+      _slots.remove(at);
+      return;
+    }
+    _slots[at] = rest;
+    if (slot.first == targetId && at.isAfter(_clock().toUtc())) {
+      await _schedule(rest.first, at, fireAt: at);
+    }
   }
 
   /// Hủy toàn bộ các thông báo đang chờ thuộc về [scheduleId].
@@ -215,12 +208,19 @@ class ReminderNotificationScheduler implements ReminderScheduler {
   /// chỉ hủy các thông báo có đúng ID lịch tương ứng.
   @override
   Future<void> cancelAllForSchedule(int scheduleId) async {
+    final shared = _slots.entries
+        .where((e) => e.value.contains(scheduleId))
+        .map((e) => e.key)
+        .toList();
+    for (final at in shared) {
+      await cancelOccurrence(scheduleId: scheduleId, scheduledAt: at);
+    }
+
     final pendingRequests = await platform.pendingNotificationRequests();
 
     for (final request in pendingRequests) {
       final payload = NotificationPayload.tryParse(request.payload);
-      if (payload != null &&
-          payload.medicationScheduleId == scheduleId) {
+      if (payload != null && payload.medicationScheduleId == scheduleId) {
         await platform.cancel(request.id);
       }
     }
