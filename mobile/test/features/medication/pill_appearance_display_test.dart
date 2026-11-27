@@ -1,3 +1,4 @@
+import 'package:drugtime_mobile/app/theme/app_theme.dart';
 import 'package:drugtime_mobile/features/medication/data/repositories/in_memory_medication_repository.dart';
 import 'package:drugtime_mobile/features/medication/domain/entities/medication.dart';
 import 'package:drugtime_mobile/features/medication/presentation/screens/medication_detail_screen.dart';
@@ -33,6 +34,26 @@ void main() {
     final tile = tester
         .widget<PillAppearanceTile>(find.byKey(const Key('medication-card-appearance')));
     expect((tile.shape, tile.color), (PillShape.capsule, PillColor.orange));
+  });
+
+  testWidgets('thẻ sắp hết có chip, thẻ còn nhiều thì không (S06 AC4)', (tester) async {
+    await pumpCard(tester, _plain.copyWith(stockRemaining: 3));
+    expect(find.text('Sắp hết · còn 3 viên'), findsOneWidget);
+
+    await pumpCard(tester, _plain.copyWith(stockRemaining: 30));
+    expect(find.textContaining('Sắp hết'), findsNothing);
+  });
+
+  testWidgets('thẻ đã ngừng: tên inkMuted, ô viên thuốc mờ 0.45 (S06 AC5)', (tester) async {
+    await pumpCard(tester, _plain.copyWith(status: MedicationStatus.stopped));
+    final name = tester.widget<Text>(find.text('Amlodipin 5mg'));
+    expect(name.style?.color, AppColors.inkMuted);
+    final tile =
+        tester.widget<Opacity>(find.byKey(const Key('medication-card-stopped-tile')));
+    expect(tile.opacity, 0.45);
+
+    await pumpCard(tester, _plain);
+    expect(find.byKey(const Key('medication-card-stopped-tile')), findsNothing);
   });
 
   testWidgets('thẻ thuốc chưa chọn giữ icon cũ (AC23)', (tester) async {

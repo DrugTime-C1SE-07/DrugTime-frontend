@@ -6,20 +6,40 @@ import '../../domain/entities/medication.dart';
 import 'medication_labels.dart';
 import 'pill_appearance_icon.dart';
 
-/// Thẻ một thuốc trong danh sách "Thuốc của tôi".
+/// Thẻ một thuốc trong danh sách "Thuốc của tôi" (Figma S06).
 ///
-/// Thứ tự thông tin theo mức quan trọng: tên → liều & tần suất → giờ uống →
-/// tồn kho. Thuốc đã ngừng được làm nhạt nhưng vẫn đọc được (không dưới AA).
+/// Tên → liều & tần suất → chip sắp hết (nếu có). Giờ uống và tồn kho không hiện
+/// trên thẻ nhưng vẫn có trong nhãn đọc màn hình. Thuốc đã ngừng làm nhạt ô viên
+/// thuốc; chữ vẫn giữ `inkMuted` để không dưới AA.
 class MedicationCard extends StatelessWidget {
   const MedicationCard({super.key, required this.medication, required this.onTap});
 
   final Medication medication;
   final VoidCallback onTap;
 
+  static const _radius = 12.0;
+  static const _stoppedTileOpacity = 0.45;
+
+  static const _nameStyle = TextStyle(
+    fontSize: 17,
+    fontWeight: FontWeight.w600,
+    height: 24 / 17,
+    color: AppColors.ink,
+  );
+
   @override
   Widget build(BuildContext context) {
     final med = medication;
     final active = med.isActive;
+
+    // Hình/màu người bệnh chọn (S07-M2b); chưa chọn thì như cũ.
+    final Widget tile = med.pillShape == null && med.pillColor == null
+        ? const PillTile()
+        : PillAppearanceTile(
+            key: const Key('medication-card-appearance'),
+            shape: med.pillShape,
+            color: med.pillColor,
+            dosageForm: med.dosageForm);
 
     return Semantics(
       button: true,
@@ -27,27 +47,20 @@ class MedicationCard extends StatelessWidget {
       excludeSemantics: true,
       child: Material(
         color: AppColors.surface,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(AppRadius.card),
-          side: const BorderSide(color: AppColors.border),
-        ),
+        borderRadius: BorderRadius.circular(_radius),
         child: InkWell(
-          borderRadius: BorderRadius.circular(AppRadius.card),
+          borderRadius: BorderRadius.circular(_radius),
           onTap: onTap,
           child: Padding(
-            padding: const EdgeInsets.all(AppSpacing.lg),
+            padding: const EdgeInsets.fromLTRB(16, 16, 12, 16),
             child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Hình/màu người bệnh chọn (S07-M2b); chưa chọn thì như cũ.
-                med.pillShape == null && med.pillColor == null
-                    ? PillTile(muted: !active)
-                    : PillAppearanceTile(
-                        key: const Key('medication-card-appearance'),
-                        shape: med.pillShape,
-                        color: med.pillColor,
-                        dosageForm: med.dosageForm,
-                        muted: !active),
+                active
+                    ? tile
+                    : Opacity(
+                        key: const Key('medication-card-stopped-tile'),
+                        opacity: _stoppedTileOpacity,
+                        child: tile),
                 const SizedBox(width: AppSpacing.md),
                 Expanded(
                   child: Column(
@@ -55,33 +68,25 @@ class MedicationCard extends StatelessWidget {
                     children: [
                       Text(
                         med.name,
-                        style: AppTextStyles.heading.copyWith(
-                          color: active ? AppColors.ink : AppColors.inkMuted,
-                        ),
+                        style: active
+                            ? _nameStyle
+                            : _nameStyle.copyWith(color: AppColors.inkMuted),
                       ),
                       const SizedBox(height: AppSpacing.xs),
                       Text(
                         active ? med.scheduleSummary : _stoppedLabel(med),
                         style: AppTextStyles.caption,
                       ),
-                      if (active && med.times.isNotEmpty) ...[
-                        const SizedBox(height: AppSpacing.sm),
-                        _TimesRow(label: med.timesLabel),
-                      ],
-                      if (active && med.stockLabel != null) ...[
-                        const SizedBox(height: AppSpacing.sm),
-                        med.isLowStock
-                            ? _LowStockBadge(label: 'Sắp hết · ${med.stockLabel!.toLowerCase()}')
-                            : Text(med.stockLabel!, style: AppTextStyles.caption),
+                      if (active && med.isLowStock && med.stockLabel != null) ...[
+                        const SizedBox(height: AppSpacing.xs),
+                        _LowStockChip(
+                            label: 'Sắp hết · ${med.stockLabel!.toLowerCase()}'),
                       ],
                     ],
                   ),
                 ),
-                const SizedBox(width: AppSpacing.sm),
-                const Padding(
-                  padding: EdgeInsets.only(top: AppSpacing.md),
-                  child: Icon(Icons.chevron_right, color: AppColors.inkMuted),
-                ),
+                const SizedBox(width: AppSpacing.md),
+                const Icon(Icons.chevron_right, color: AppColors.inkFaint),
               ],
             ),
           ),
@@ -109,49 +114,25 @@ class MedicationCard extends StatelessWidget {
   }
 }
 
-class _TimesRow extends StatelessWidget {
-  const _TimesRow({required this.label});
-
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        const Icon(Icons.schedule, size: 18, color: AppColors.brand),
-        const SizedBox(width: AppSpacing.xs),
-        Flexible(
-          child: Text(
-            label,
-            style: AppTextStyles.figureSmall.copyWith(color: AppColors.brand),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _LowStockBadge extends StatelessWidget {
-  const _LowStockBadge({required this.label});
+class _LowStockChip extends StatelessWidget {
+  const _LowStockChip({required this.label});
 
   final String label;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.sm,
-        vertical: AppSpacing.xs,
-      ),
+      constraints: const BoxConstraints(minHeight: 36),
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
       decoration: BoxDecoration(
         color: AppColors.cautionBg,
-        borderRadius: BorderRadius.circular(AppSpacing.sm),
+        borderRadius: BorderRadius.circular(8),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(Icons.warning_amber_rounded, size: 18, color: AppColors.cautionText),
-          const SizedBox(width: AppSpacing.xs),
+          const Icon(Icons.warning_amber_rounded, size: 16, color: AppColors.cautionText),
+          const SizedBox(width: 6),
           Flexible(
             child: Text(
               label,

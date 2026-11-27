@@ -7,7 +7,6 @@ import '../../domain/entities/medication_failure.dart';
 import '../state/medication_controller.dart';
 import '../widgets/medication_card.dart';
 import '../widgets/medication_error_messages.dart';
-import '../widgets/medication_filter_bar.dart';
 import '../widgets/medication_notices.dart';
 
 /// S06 · Thuốc của tôi (Figma node 32:4235).
@@ -20,7 +19,6 @@ class MyMedicationsScreen extends StatefulWidget {
 
 class _MyMedicationsScreenState extends State<MyMedicationsScreen> {
   final _searchController = TextEditingController();
-  MedicationFilter _filter = MedicationFilter.all;
   String _query = '';
 
   @override
@@ -67,63 +65,25 @@ class _MyMedicationsScreenState extends State<MyMedicationsScreen> {
     final matches = all.where(_matchesQuery).toList();
     final active = matches.where((m) => m.isActive).toList();
     final stopped = matches.where((m) => !m.isActive).toList();
-    final lowStock = all.where((m) => m.isLowStock).toList();
     final loadError = controller.loadError;
 
     // Tải xong, không lỗi, chưa có thuốc: chỉ còn lời mời "Thêm thuốc mới" ở giữa, không cần
-    // ô tìm kiếm, link tra cứu hay bộ lọc.
+    // ô tìm kiếm hay link tra cứu.
     final emptyList = all.isEmpty && loadError == null && !controller.isLoading;
     // Nút "Thêm" ở header trùng với nút của empty-state (chưa có thuốc, hoặc tìm không khớp).
     final showsEmptyState = emptyList || (all.isNotEmpty && matches.isEmpty);
 
     final children = <Widget>[
       _Header(showAdd: !showsEmptyState, onAdd: _openAddMedication),
-      if (lowStock.isNotEmpty) ...[
-        const SizedBox(height: AppSpacing.lg),
-        LowStockBanner(medications: lowStock),
-      ],
       if (!emptyList) ...[
-        const SizedBox(height: AppSpacing.lg),
+        const SizedBox(height: AppSpacing.sm),
         _SearchField(
           controller: _searchController,
           onChanged: (v) => setState(() => _query = v),
           onClear: _clearSearch,
         ),
-        // Wrap (not Row): on narrow screens or large text the two links go to two lines
-        // instead of overflowing.
-        Wrap(
-          alignment: WrapAlignment.spaceBetween,
-          children: [
-            TextButton.icon(
-              onPressed: () => _showNotBuilt('Danh mục thuốc'),
-              style: TextButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xs)),
-              icon: const Icon(Icons.menu_book_outlined, size: 20),
-              label: const Text('Tra cứu danh mục thuốc'),
-            ),
-            TextButton.icon(
-              key: const Key('medication-interaction-history-button'),
-              onPressed: () =>
-                  Navigator.pushNamed(context, AppRoutes.interactionHistory),
-              style: TextButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xs)),
-              icon: const Icon(Icons.shield_outlined,
-                  size: 18, color: AppColors.brand),
-              label: const Text('Lịch sử tương tác',
-                  style: TextStyle(color: AppColors.brand)),
-            ),
-          ],
-        ),
         const SizedBox(height: AppSpacing.sm),
-        MedicationFilterBar(
-          selected: _filter,
-          counts: {
-            MedicationFilter.all: matches.length,
-            MedicationFilter.active: active.length,
-            MedicationFilter.stopped: stopped.length,
-          },
-          onChanged: (f) => setState(() => _filter = f),
-        ),
+        _CatalogLink(onTap: () => _showNotBuilt('Danh mục thuốc')),
       ],
     ];
 
@@ -159,24 +119,22 @@ class _MyMedicationsScreenState extends State<MyMedicationsScreen> {
         onAdd: _openAddMedication,
       ));
     } else {
-      if (_filter != MedicationFilter.stopped) {
-        children.addAll(_section('Đang dùng', active));
-      }
-      if (_filter != MedicationFilter.active) {
-        children.addAll(_section('Đã ngừng', stopped));
-      }
+      children
+        ..addAll(_section('Đang dùng', active, gapBefore: AppSpacing.md))
+        ..addAll(_section('Đã ngừng', stopped, gapBefore: AppSpacing.lg));
     }
 
     return Scaffold(
+      backgroundColor: AppColors.canvasCool,
       body: SafeArea(
         bottom: false,
         child: RefreshIndicator(
           onRefresh: controller.load,
           child: ListView(
             padding: const EdgeInsets.fromLTRB(
-              AppSpacing.page,
-              AppSpacing.lg,
-              AppSpacing.page,
+              _pagePadding,
+              AppSpacing.sm,
+              _pagePadding,
               AppSpacing.xl,
             ),
             children: children,
@@ -186,21 +144,24 @@ class _MyMedicationsScreenState extends State<MyMedicationsScreen> {
     );
   }
 
-  List<Widget> _section(String title, List<Medication> meds) {
+  /// Lề ngang 20 theo Figma S06 (rộng hơn `AppSpacing.page` của các màn khác).
+  static const _pagePadding = 20.0;
+
+  List<Widget> _section(String title, List<Medication> meds, {required double gapBefore}) {
     if (meds.isEmpty) return const [];
     return [
-      const SizedBox(height: AppSpacing.xl),
+      SizedBox(height: gapBefore),
       Semantics(
         header: true,
         child: Text('$title · ${meds.length}', style: AppTextStyles.captionStrong),
       ),
-      const SizedBox(height: AppSpacing.md),
-      for (final m in meds) ...[
+      const SizedBox(height: AppSpacing.sm),
+      for (final (i, m) in meds.indexed) ...[
+        if (i > 0) const SizedBox(height: AppSpacing.md),
         MedicationCard(
           medication: m,
           onTap: () => _openMedicationDetail(m),
         ),
-        const SizedBox(height: AppSpacing.md),
       ],
     ];
   }
@@ -215,37 +176,107 @@ class _Header extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+    return SizedBox(
+      height: 64,
+      child: Row(
+        children: [
+          Expanded(
+            child: Semantics(
+              header: true,
+              child: const Text('Thuốc của tôi', style: AppTextStyles.display),
+            ),
+          ),
+          _RoundAction(
+            key: const Key('medication-interaction-history-icon-button'),
+            tooltip: 'Lịch sử kiểm tra tương tác',
+            icon: Icons.shield_outlined,
+            background: AppColors.historyTint,
+            foreground: AppColors.historyIcon,
+            onTap: () => Navigator.pushNamed(context, AppRoutes.interactionHistory),
+          ),
+          if (showAdd) ...[
+            const SizedBox(width: AppSpacing.md),
+            _RoundAction(
+              key: const Key('medication-add-button'),
+              tooltip: 'Thêm thuốc',
+              icon: Icons.add,
+              background: AppColors.brandTint,
+              foreground: AppColors.brand,
+              onTap: onAdd,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// Nút tròn 48×48 ở header S06.
+class _RoundAction extends StatelessWidget {
+  const _RoundAction({
+    super.key,
+    required this.tooltip,
+    required this.icon,
+    required this.background,
+    required this.foreground,
+    required this.onTap,
+  });
+
+  final String tooltip;
+  final IconData icon;
+  final Color background;
+  final Color foreground;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: Material(
+        color: background,
+        shape: const CircleBorder(),
+        child: InkWell(
+          customBorder: const CircleBorder(),
+          onTap: onTap,
+          child: SizedBox.square(
+            dimension: AppSizes.tapTarget,
+            child: Icon(icon, color: foreground),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CatalogLink extends StatelessWidget {
+  const _CatalogLink({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(AppSpacing.sm),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: 44),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              Semantics(
-                header: true,
-                child: const Text('Thuốc của tôi', style: AppTextStyles.title),
+              Flexible(
+                child: Text(
+                  'Tra cứu danh mục thuốc',
+                  style: AppTextStyles.captionStrong.copyWith(color: AppColors.brand),
+                ),
               ),
-              const SizedBox(height: AppSpacing.xs),
+              const SizedBox(width: AppSpacing.xs),
+              const Icon(Icons.chevron_right, size: 16, color: AppColors.brand),
             ],
           ),
         ),
-        IconButton(
-          key: const Key('medication-interaction-history-icon-button'),
-          tooltip: 'Lịch sử kiểm tra tương tác',
-          onPressed: () =>
-              Navigator.pushNamed(context, AppRoutes.interactionHistory),
-          icon: const Icon(Icons.history_outlined, color: AppColors.brand),
-        ),
-        if (showAdd) ...[
-          const SizedBox(width: AppSpacing.xs),
-          // Nút có chữ thay cho dấu "+" trơn: người lớn tuổi hiểu ngay.
-          FilledButton.icon(
-            onPressed: onAdd,
-            icon: const Icon(Icons.add),
-            label: const Text('Thêm'),
-          ),
-        ],
-      ],
+      ),
     );
   }
 }
@@ -261,15 +292,30 @@ class _SearchField extends StatelessWidget {
   final ValueChanged<String> onChanged;
   final VoidCallback onClear;
 
+  static const _radius = BorderRadius.all(Radius.circular(8));
+
   @override
   Widget build(BuildContext context) {
     return TextField(
       controller: controller,
       onChanged: onChanged,
       textInputAction: TextInputAction.search,
-      style: AppTextStyles.body,
+      style: AppTextStyles.body.copyWith(fontSize: 17),
       decoration: InputDecoration(
+        filled: true,
+        fillColor: AppColors.surface,
+        constraints: const BoxConstraints(minHeight: AppSizes.field),
+        contentPadding: const EdgeInsets.symmetric(vertical: 16),
         hintText: 'Tìm theo tên thuốc, hoạt chất…',
+        hintStyle: const TextStyle(fontSize: 17, color: AppColors.inkFaint),
+        enabledBorder: const OutlineInputBorder(
+          borderRadius: _radius,
+          borderSide: BorderSide(color: AppColors.border),
+        ),
+        focusedBorder: const OutlineInputBorder(
+          borderRadius: _radius,
+          borderSide: BorderSide(color: AppColors.brand, width: 2),
+        ),
         prefixIcon: const Icon(Icons.search, color: AppColors.inkMuted),
         suffixIcon: ListenableBuilder(
           listenable: controller,

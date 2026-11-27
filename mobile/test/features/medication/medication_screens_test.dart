@@ -3,12 +3,12 @@ import 'package:drugtime_mobile/app/app_shell.dart';
 import 'package:drugtime_mobile/features/auth/data/repositories/in_memory_auth_repository.dart';
 import 'package:drugtime_mobile/features/auth/domain/entities/auth_session.dart';
 import 'package:drugtime_mobile/features/auth/presentation/state/auth_controller.dart';
+import 'package:drugtime_mobile/features/interaction_check/presentation/screens/interaction_history_screen.dart';
 import 'package:drugtime_mobile/features/medication/data/repositories/in_memory_medication_repository.dart';
 import 'package:drugtime_mobile/features/medication/domain/entities/medication.dart';
 import 'package:drugtime_mobile/features/medication/domain/entities/medication_failure.dart';
 import 'package:drugtime_mobile/features/medication/presentation/screens/add_medication_screen.dart';
 import 'package:drugtime_mobile/features/medication/presentation/widgets/medication_confirm_view.dart';
-import 'package:drugtime_mobile/features/medication/presentation/widgets/medication_filter_bar.dart';
 import 'package:drugtime_mobile/features/medication/presentation/widgets/medication_form_fields.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -132,7 +132,7 @@ Future<void> pumpApp(
 }
 
 Future<void> openAddScreen(WidgetTester tester) async {
-  await tester.tap(find.widgetWithText(FilledButton, 'Thêm'));
+  await tester.tap(find.byKey(const Key('medication-add-button')));
   await tester.pumpAndSettle();
   expect(find.text('Thêm thuốc mới'), findsOneWidget);
 }
@@ -165,30 +165,42 @@ Future<void> tapVisible(WidgetTester tester, Finder finder) async {
 
 void main() {
   group('S06 · Thuốc của tôi', () {
-    testWidgets('hiện danh sách, cảnh báo sắp hết và lọc theo trạng thái',
+    testWidgets(
+        'AC1: hiện tiêu đề, tìm kiếm, link tra cứu, hai nhóm và chip sắp hết trong thẻ',
         (tester) async {
       await pumpApp(tester);
 
       expect(find.text('Thuốc của tôi'), findsOneWidget);
-      // Header không nhắc lại số thuốc đang dùng: thanh lọc đã hiện số đếm.
-      expect(find.text('4 thuốc đang dùng'), findsNothing);
-      expect(find.bySemanticsLabel('Đang dùng, 4 thuốc'), findsOneWidget);
-      expect(find.text('1 thuốc sắp hết'), findsOneWidget);
+      expect(find.byType(TextField), findsOneWidget);
+      expect(find.text('Tra cứu danh mục thuốc'), findsOneWidget);
+      expect(find.text('Đang dùng · 4'), findsOneWidget);
+      // Banner tổng "N thuốc sắp hết" đã bỏ; cảnh báo nằm trong thẻ (AC4).
+      expect(find.text('1 thuốc sắp hết'), findsNothing);
       await tester.scrollUntilVisible(find.text('Sắp hết · còn 3 viên'), 200,
           scrollable: find.byType(Scrollable).first);
       expect(find.text('Sắp hết · còn 3 viên'), findsOneWidget);
-
-      await tester.tap(find.text('Đã ngừng · 1'));
-      await tester.pumpAndSettle();
-      expect(find.text('Metformin 500mg'), findsNothing);
-      expect(find.text('Amoxicillin 500mg'), findsOneWidget);
+      await tester.scrollUntilVisible(find.text('Amoxicillin 500mg'), 200,
+          scrollable: find.byType(Scrollable).first);
+      expect(find.text('Đã ngừng · 1'), findsOneWidget);
     });
 
-    final headerAdd = find.widgetWithText(FilledButton, 'Thêm');
+    testWidgets('AC3: nút khiên ở header mở lịch sử kiểm tra tương tác',
+        (tester) async {
+      await pumpApp(tester);
+
+      final history =
+          find.byKey(const Key('medication-interaction-history-icon-button'));
+      expect(find.byTooltip('Lịch sử kiểm tra tương tác'), findsOneWidget);
+      await tester.tap(history);
+      await tester.pumpAndSettle();
+      expect(find.byType(InteractionHistoryScreen), findsOneWidget);
+    });
+
+    final headerAdd = find.byKey(const Key('medication-add-button'));
     final emptyAdd = find.widgetWithText(FilledButton, 'Thêm thuốc mới');
 
     testWidgets(
-        'AC11, AC15: chưa có thuốc → chỉ nút giữa, không có tìm kiếm/tra cứu/bộ lọc',
+        'AC11, AC15: chưa có thuốc → chỉ nút giữa, không có tìm kiếm/tra cứu',
         (tester) async {
       await pumpApp(tester,
           repository: InMemoryMedicationRepository(seed: const []));
@@ -198,7 +210,6 @@ void main() {
       expect(headerAdd, findsNothing);
       expect(find.byType(TextField), findsNothing);
       expect(find.text('Tra cứu danh mục thuốc'), findsNothing);
-      expect(find.byType(MedicationFilterBar), findsNothing);
 
       await tester.tap(emptyAdd);
       await tester.pumpAndSettle();
@@ -212,7 +223,10 @@ void main() {
       expect(headerAdd, findsOneWidget);
       expect(emptyAdd, findsNothing);
       expect(find.text('Chưa có thuốc nào'), findsNothing);
-      expect(find.byType(MedicationFilterBar), findsOneWidget);
+
+      await tester.tap(headerAdd);
+      await tester.pumpAndSettle();
+      expect(find.byType(AddMedicationScreen), findsOneWidget);
     });
 
     testWidgets('AC13: tìm không khớp → chỉ nút "Thêm thuốc mới" ở giữa',
@@ -592,7 +606,7 @@ void main() {
       await tester.tap(find.text('Thử lại'));
       await tester.pumpAndSettle();
       expect(find.text('Thử lại'), findsNothing);
-      expect(find.bySemanticsLabel('Đang dùng, 4 thuốc'), findsOneWidget);
+      expect(find.text('Đang dùng · 4'), findsOneWidget);
     });
 
     testWidgets('sheet danh mục: chưa gõ thì gợi ý, không tìm', (tester) async {
@@ -607,20 +621,13 @@ void main() {
     });
   });
 
-  testWidgets('hàng chip S06 không rớt dòng khi phóng chữ 1.5x',
+  testWidgets('AC7: S06 không tràn khi phóng chữ 1.5x trên màn 375×812',
       (tester) async {
     await pumpApp(tester, textScale: 1.5);
 
-    final tops = [
-      for (final label in ['Tất cả · 5', 'Đang dùng · 4', 'Đã ngừng · 1'])
-        tester
-            .getRect(find
-                .ancestor(of: find.text(label), matching: find.byType(InkWell))
-                .first)
-            .top,
-    ];
-    expect(tops.toSet(), hasLength(1),
-        reason: 'chip rớt xuống dòng khác: $tops');
+    expect(find.byKey(const Key('medication-add-button')), findsOneWidget);
+    await tester.drag(find.byType(ListView).first, const Offset(0, -2000));
+    await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
   });
 
