@@ -10,8 +10,10 @@ import '../../../../shared/widgets/mascot/mascot_view.dart';
 import '../../../auth/presentation/state/auth_controller.dart';
 import '../../../consent/domain/entities/consent.dart';
 import '../../../consent/presentation/state/consent_controller.dart';
+import '../../../patient_monitor/presentation/widgets/lost_access_view.dart';
 import '../../../profile/presentation/state/profile_controller.dart';
 import '../../data/meal_choice_store.dart';
+import '../../data/repositories/family_meal_suggestion_repository.dart';
 import '../../domain/entities/meal_suggestion.dart';
 import '../analyzing/analyzing_view.dart';
 import '../state/meal_choice_controller.dart';
@@ -42,6 +44,11 @@ class MealSuggestionScreen extends StatefulWidget {
     required this.onDeclareAllergy,
     this.initialMeal,
     this.patientId,
+    this.patientName,
+    this.caregiverMode = false,
+    this.accessRevokedListenable,
+    this.isAccessRevoked,
+    this.onAccessDenied,
   });
 
   /// Mở màn khai dị ứng (router truyền vào).
@@ -51,6 +58,21 @@ class MealSuggestionScreen extends StatefulWidget {
 
   /// Mặc định là người dùng đang đăng nhập (gợi ý chỉ cho chính chủ).
   final String? patientId;
+
+  /// Tên người bệnh hiển thị khi xem từ phía người thân (`caregiverMode: true`).
+  final String? patientName;
+
+  /// `true`: chế độ người thân chỉ xem (PB39, QD-27), cô lập khỏi consent/hồ sơ chính chủ.
+  final bool caregiverMode;
+
+  /// Theo dõi thay đổi quyền từ màn theo dõi người thân trong lúc màn gợi ý đang mở.
+  final Listenable? accessRevokedListenable;
+
+  /// Trả `true` nếu quyền xem của người thân vừa bị thu hồi.
+  final bool Function()? isAccessRevoked;
+
+  /// Thông báo khi API trả 403 (`khong_co_quyen` / `consent_revoked`).
+  final ValueChanged<MealSuggestionFailure>? onAccessDenied;
 
   @override
   State<MealSuggestionScreen> createState() => _MealSuggestionScreenState();
@@ -69,12 +91,17 @@ class _MealSuggestionScreenState extends State<MealSuggestionScreen> {
   bool _opening = false;
   bool _reloadingConsent = false;
   bool _consentSyncedForCurrentFailure = false;
+  MealSuggestionFailure? _deniedFailure;
+  bool _unreportedAllergyReadOnly = false;
+  bool _notifiedDenied = false;
+  ModalRoute<dynamic>? _ownRoute;
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     if (_booted) return;
     _booted = true;
+    _ownRoute = ModalRoute.of(context);
     final scope = MealPlanScope.of(context);
     plan = scope.plan;
     choices = scope.choices;
@@ -83,11 +110,19 @@ class _MealSuggestionScreenState extends State<MealSuggestionScreen> {
     plan.bind(user);
     unawaited(choices.bind(user));
     plan.addListener(_onPlan);
+    widget.accessRevokedListenable?.addListener(_onExternalAccessChanged);
+    if (widget.caregiverMode && (widget.isAccessRevoked?.call() ?? false)) {
+      _deniedFailure = const MealSuggestionFailure(MealFailureKind.forbidden);
+      plan.reset();
+      plan.session.clear();
+      unawaited(choices.clear());
+    }
     WidgetsBinding.instance.addPostFrameCallback((_) => _boot());
   }
 
   @override
   void dispose() {
+    widget.accessRevokedListenable?.removeListener(_onExternalAccessChanged);
     plan.removeListener(_onPlan);
     _autoNext?.cancel();
     _celebrateTimer?.cancel();
@@ -103,10 +138,66 @@ class _MealSuggestionScreenState extends State<MealSuggestionScreen> {
       kind == MealFailureKind.consentRevoked ||
       kind == MealFailureKind.forbidden;
 
+  MealSuggestionFailure? _firstAuthOrConsentFailure() {
+    final all = <MealSuggestionFailure?>[
+      plan.allergyFailure,
+      plan.lastRefreshFailure,
+      for (final t in MealType.values) plan.stateOf(t).failure,
+    ];
+    for (final f in all) {
+      if (f != null && _isAuthOrConsentFailure(f.kind)) return f;
+    }
+    return null;
+  }
+
+  void _onExternalAccessChanged() {
+    if (!mounted || !widget.caregiverMode) return;
+    if (!(widget.isAccessRevoked?.call() ?? false)) return;
+    _clearCaregiverState(
+      const MealSuggestionFailure(MealFailureKind.forbidden),
+      notifyExternal: false,
+    );
+    final route = _ownRoute;
+    final nav = route?.navigator ?? Navigator.maybeOf(context);
+    if (nav != null && route != null && !route.isFirst) {
+      nav.popUntil((r) => r == route);
+      if (nav.canPop()) nav.pop();
+    }
+  }
+
+  void _clearCaregiverState(
+    MealSuggestionFailure failure, {
+    bool notifyExternal = true,
+  }) {
+    if (!mounted) return;
+    _autoNext?.cancel();
+    _celebrateTimer?.cancel();
+    _lookTimer?.cancel();
+    setState(() {
+      _deniedFailure ??= failure;
+      _opening = false;
+    });
+    plan.reset();
+    plan.session.clear();
+    unawaited(choices.clear());
+    if (notifyExternal && !_notifiedDenied) {
+      _notifiedDenied = true;
+      widget.onAccessDenied?.call(failure);
+    }
+  }
+
   /// Server trả 403 dù app thấy đã đồng ý: chờ lượt phân tích kết thúc rồi tải lại consent;
   /// nếu `ai_meal` đã tắt thì xóa ngay thực đơn và món đã chọn trong phiên (AC2, AC6).
+  /// Ở chế độ người thân (`caregiverMode`), xóa ngay bộ nhớ và chuyển sang trạng thái mất quyền (CD4).
   void _onPlan() {
     if (!mounted) return;
+    if (widget.caregiverMode) {
+      final failure = _firstAuthOrConsentFailure();
+      if (failure != null) {
+        _clearCaregiverState(failure);
+      }
+      return;
+    }
     if (plan.isAnalyzing) {
       _consentSyncedForCurrentFailure = false;
       return;
@@ -140,6 +231,10 @@ class _MealSuggestionScreenState extends State<MealSuggestionScreen> {
 
   Future<void> _boot() async {
     if (!mounted) return;
+    if (widget.caregiverMode) {
+      await _bootCaregiver();
+      return;
+    }
     final consent = ConsentScope.read(context);
     if (!consent.isLoaded) await consent.load();
     if (!mounted) return;
@@ -192,6 +287,58 @@ class _MealSuggestionScreenState extends State<MealSuggestionScreen> {
     }
   }
 
+  Future<void> _bootCaregiver() async {
+    if (!mounted) return;
+    if (_deniedFailure != null || (widget.isAccessRevoked?.call() ?? false)) {
+      _clearCaregiverState(
+        _deniedFailure ?? const MealSuggestionFailure(MealFailureKind.forbidden),
+        notifyExternal: _deniedFailure != null,
+      );
+      return;
+    }
+    if (plan.hasMenu) {
+      _show(widget.initialMeal ?? plan.tab);
+      return;
+    }
+    if (plan.allergy == null && !plan.allergyLoading) {
+      await plan.loadAllergy();
+      if (!mounted) return;
+    }
+    if (_deniedFailure != null) return;
+    final allergyFailure = plan.allergyFailure;
+    if (allergyFailure != null && _isAuthOrConsentFailure(allergyFailure.kind)) {
+      _clearCaregiverState(allergyFailure);
+      return;
+    }
+    if (!plan.allergyReported) {
+      // QD-27 / QD-40: người thân chỉ xem, không khai báo dị ứng thay người bệnh.
+      setState(() => _unreportedAllergyReadOnly = true);
+      return;
+    }
+    if (!plan.dietaryDeclared) {
+      plan.saveDietary(
+          restrictions: const DietaryDeclaration.none(), preferences: const []);
+    }
+    final ok = await Navigator.of(context).push<bool>(AnalyzingView.route(
+      plan,
+      caregiverMode: true,
+      patientName: _who(context),
+      isAccessDenied: () =>
+          _deniedFailure != null || (widget.isAccessRevoked?.call() ?? false),
+    ));
+    if (!mounted) return;
+    if (_deniedFailure != null) return;
+    if (ok == true && plan.hasMenu) {
+      if (widget.initialMeal case final m?
+          when plan.stateOf(m).status == MealTabStatus.data) {
+        plan.selectTab(m);
+      }
+      _greet();
+    } else if (!plan.hasMenu) {
+      Navigator.of(context).maybePop();
+    }
+  }
+
   void _show(MealType meal) {
     plan.selectTab(meal);
     _greet();
@@ -216,6 +363,7 @@ class _MealSuggestionScreenState extends State<MealSuggestionScreen> {
   }
 
   Future<void> _choose(MealType m, MealSuggestionResult r, int index) async {
+    if (widget.caregiverMode) return;
     if (choices.isChosen(m, r.suggestionId, index)) {
       await choices.unchoose(m); // bấm lại "Đã chọn" = bỏ chọn
       return;
@@ -288,9 +436,12 @@ class _MealSuggestionScreenState extends State<MealSuggestionScreen> {
       meal: m,
       result: r,
       index: index,
-      chosen: choices.isChosen(m, r.suggestionId, index),
+      chosen: !widget.caregiverMode && choices.isChosen(m, r.suggestionId, index),
+      readOnly: widget.caregiverMode,
     ));
-    if (toggled == true && mounted) await _choose(m, r, index);
+    if (toggled == true && mounted && !widget.caregiverMode) {
+      await _choose(m, r, index);
+    }
   }
 
   Future<void> _refresh() async {
@@ -303,10 +454,20 @@ class _MealSuggestionScreenState extends State<MealSuggestionScreen> {
     setState(() => _opening = true);
     final meal = plan.tab;
     // "Gợi ý khác" chạy lại màn chờ cho riêng bữa đang xem (AC9).
-    await Navigator.of(context)
-        .push<bool>(AnalyzingView.route(plan, refreshMeal: meal));
+    await Navigator.of(context).push<bool>(AnalyzingView.route(
+      plan,
+      refreshMeal: meal,
+      caregiverMode: widget.caregiverMode,
+      patientName: widget.caregiverMode ? _who(context) : null,
+      isAccessDenied: widget.caregiverMode
+          ? () =>
+              _deniedFailure != null ||
+              (widget.isAccessRevoked?.call() ?? false)
+          : null,
+    ));
     if (!mounted) return;
     setState(() => _opening = false);
+    if (widget.caregiverMode && _deniedFailure != null) return;
     if (!plan.hasMenu) {
       Navigator.of(context).pop();
       return;
@@ -317,6 +478,10 @@ class _MealSuggestionScreenState extends State<MealSuggestionScreen> {
   }
 
   String _who(BuildContext context) {
+    if (widget.caregiverMode) {
+      final name = widget.patientName?.trim();
+      return (name == null || name.isEmpty) ? 'người thân' : name;
+    }
     final scope = context.dependOnInheritedWidgetOfExactType<ProfileScope>();
     final name = scope?.notifier?.profile?.fullName?.trim();
     return (name == null || name.isEmpty) ? 'bạn' : name;
@@ -325,6 +490,69 @@ class _MealSuggestionScreenState extends State<MealSuggestionScreen> {
   @override
   Widget build(BuildContext context) {
     final mq = MediaQuery.of(context);
+    if (widget.caregiverMode && _deniedFailure != null) {
+      return MealTypography(
+        child: Scaffold(
+          backgroundColor: MealColors.canvas,
+          body: SafeArea(
+            child: _deniedBody(context),
+          ),
+        ),
+      );
+    }
+    if (widget.caregiverMode && _unreportedAllergyReadOnly) {
+      final who = _who(context);
+      return MealTypography(
+        child: Scaffold(
+          backgroundColor: MealColors.canvas,
+          body: SafeArea(
+            child: Padding(
+              key: const ValueKey('fm-meal-unreported-allergy'),
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: RoundIconButton(
+                      icon: Icons.arrow_back_ios_new_rounded,
+                      onTap: () => Navigator.of(context).maybePop(),
+                    ),
+                  ),
+                  const Spacer(),
+                  const Icon(Icons.info_outline_rounded,
+                      size: 48, color: MealColors.brand),
+                  const SizedBox(height: 16),
+                  Text(
+                    '$who chưa khai báo dị ứng thực phẩm',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w700,
+                        color: MealColors.ink),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Người thân chỉ xem nên không thể khai báo dị ứng hoặc bật gợi ý thay người bệnh.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 15, color: MealColors.ink2),
+                  ),
+                  const Spacer(),
+                  FilledButton(
+                    onPressed: () => Navigator.of(context).maybePop(),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: MealColors.brand,
+                      minimumSize: const Size.fromHeight(52),
+                    ),
+                    child: const Text('Quay lại'),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    }
     return MealTypography(
       child: Scaffold(
         backgroundColor: MealColors.canvas,
@@ -364,11 +592,111 @@ class _MealSuggestionScreenState extends State<MealSuggestionScreen> {
     );
   }
 
+  Widget _deniedBody(BuildContext context) {
+    final who = _who(context);
+    if (_deniedFailure?.kind == MealFailureKind.consentRevoked) {
+      return ListView(
+        key: const ValueKey('meal-denied-view'),
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+        children: [
+          const SizedBox(height: 24),
+          Center(
+            child: Container(
+              width: 72,
+              height: 72,
+              decoration: BoxDecoration(
+                color: const Color(0xFFEDE7FB),
+                borderRadius: BorderRadius.circular(24),
+              ),
+              child: const Icon(Icons.shield_outlined,
+                  size: 36, color: Color(0xFF5B3FA8)),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            '$who chưa bật gợi ý bữa ăn',
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+                fontSize: 22, fontWeight: FontWeight.w700, color: MealColors.ink),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            '$who đã tắt hoặc chưa bật chia sẻ gợi ý bữa ăn.',
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontSize: 16, color: MealColors.ink2),
+          ),
+          const SizedBox(height: 16),
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF5F7F6),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: const Text(
+              'Dữ liệu đã xem trước đó đã được xóa khỏi bộ nhớ phiên.',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 15, color: MealColors.ink2),
+            ),
+          ),
+          const SizedBox(height: 24),
+          FilledButton(
+            key: const Key('lost-back'),
+            onPressed: () => Navigator.of(context).maybePop(),
+            style: FilledButton.styleFrom(
+              backgroundColor: const Color(0xFF01554F),
+              minimumSize: const Size.fromHeight(52),
+            ),
+            child: const Text('Quay lại'),
+          ),
+        ],
+      );
+    }
+    return LostAccessView(
+      key: const ValueKey('meal-denied-view'),
+      name: who,
+      signedIn: true,
+      onBack: () => Navigator.of(context).maybePop(),
+    );
+  }
+
   List<Widget> _results(
       BuildContext context, MealType meal, MealTabState state) {
     final remaining = plan.refreshesRemaining ?? 0;
     final result = state.result;
+    final patientLabel = widget.caregiverMode ? _who(context) : null;
+    final effectiveDisclaimer = result == null
+        ? kDefaultMealDisclaimer
+        : (result.disclaimer.trim().isEmpty
+            ? kDefaultMealDisclaimer
+            : result.disclaimer);
     return [
+      if (widget.caregiverMode) ...[
+        const SizedBox(height: 10),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: Container(
+              key: const ValueKey('fm-meal-readonly-chip'),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                  // Token R4 Figma (845:16996): pill chỉ xem #EDE7FB / #5B3FA8
+                  color: const Color(0xFFEDE7FB),
+                  borderRadius: BorderRadius.circular(14)),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                const Icon(Icons.people_outline,
+                    size: 16, color: Color(0xFF5B3FA8)),
+                const SizedBox(width: 6),
+                Text('$patientLabel · chỉ xem',
+                    style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF5B3FA8))),
+              ]),
+            ),
+          ),
+        ),
+      ],
       const SizedBox(height: 10),
       Padding(
         padding: const EdgeInsets.symmetric(horizontal: 14),
@@ -384,7 +712,12 @@ class _MealSuggestionScreenState extends State<MealSuggestionScreen> {
           ),
           const SizedBox(width: 4),
           Expanded(
-            child: MealGreeting(meal: meal, dir: _dir, who: _who(context)),
+            child: MealGreeting(
+              meal: meal,
+              dir: _dir,
+              who: _who(context),
+              caregiverMode: widget.caregiverMode,
+            ),
           ),
         ]),
       ),
@@ -444,7 +777,7 @@ class _MealSuggestionScreenState extends State<MealSuggestionScreen> {
         child:
             Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           if (result != null && state.status == MealTabStatus.data) ...[
-            _AvoidPanel(result.foodCheck),
+            _AvoidPanel(result.foodCheck, patientName: patientLabel),
             const SizedBox(height: 14),
             MealRefreshButton(
               busy: _opening,
@@ -456,12 +789,14 @@ class _MealSuggestionScreenState extends State<MealSuggestionScreen> {
             Text(
               remaining > 0
                   ? 'Còn $remaining lần gợi ý khác hôm nay'
-                  : 'Hôm nay bạn đã dùng hết lượt gợi ý khác',
+                  : (widget.caregiverMode
+                      ? 'Hôm nay đã dùng hết lượt gợi ý khác'
+                      : 'Hôm nay bạn đã dùng hết lượt gợi ý khác'),
               key: const ValueKey('refresh-remaining'),
               textAlign: TextAlign.center,
               style: const TextStyle(fontSize: 14, color: MealColors.ink2),
             ),
-            if (_offerWidget) ...[
+            if (_offerWidget && !widget.caregiverMode) ...[
               const SizedBox(height: 16),
               _WidgetHint(
                 onAdd: () => _closeWidgetHint(add: true),
@@ -469,7 +804,7 @@ class _MealSuggestionScreenState extends State<MealSuggestionScreen> {
               ),
             ],
             const SizedBox(height: 16),
-            MealDisclaimer(result.disclaimer),
+            MealDisclaimer(effectiveDisclaimer),
           ],
         ]),
       ),
@@ -501,20 +836,25 @@ class _MealSuggestionScreenState extends State<MealSuggestionScreen> {
       meal: m,
       result: result,
       plan: plan,
-      chosenIndex: chosen != null && chosen.suggestionId == result.suggestionId
+      chosenIndex: !widget.caregiverMode &&
+              chosen != null &&
+              chosen.suggestionId == result.suggestionId
           ? chosen.dishIndex
           : null,
-      celebratingIndex: _celebrating,
+      celebratingIndex: widget.caregiverMode ? null : _celebrating,
       onChoose: (i) => _choose(m, result, i),
       onDetail: (i) => _openDetail(m, result, i),
+      readOnly: widget.caregiverMode,
+      patientName: widget.caregiverMode ? _who(context) : null,
     );
   }
 }
 
 /// "Nên tránh" thu gọn: kết quả 3 trạng thái của engine, bấm để mở (AC10).
 class _AvoidPanel extends StatefulWidget {
-  const _AvoidPanel(this.check);
+  const _AvoidPanel(this.check, {this.patientName});
   final MealFoodCheck check;
+  final String? patientName;
   @override
   State<_AvoidPanel> createState() => _AvoidPanelState();
 }
@@ -524,7 +864,7 @@ class _AvoidPanelState extends State<_AvoidPanel> {
 
   String get _summary => switch (widget.check.status) {
         FoodCheckStatus.coTuongTac =>
-          '${widget.check.warnings.length} thực phẩm cần tránh với thuốc của bạn',
+          '${widget.check.warnings.length} thực phẩm cần tránh với thuốc của ${widget.patientName ?? 'bạn'}',
         FoodCheckStatus.daKiemTraKhongThay =>
           'Chưa thấy tương tác trong dữ liệu hiện có',
         FoodCheckStatus.khongDuDuLieu => 'Chưa xác minh được, hãy hỏi dược sĩ',
@@ -533,6 +873,12 @@ class _AvoidPanelState extends State<_AvoidPanel> {
   @override
   Widget build(BuildContext context) {
     final warn = widget.check.status != FoodCheckStatus.daKiemTraKhongThay;
+    final fg = widget.patientName != null
+        ? (warn ? const Color(0xFF8A4B0F) : const Color(0xFF1E7A45))
+        : (warn ? MealColors.caution : MealColors.teal);
+    final badgeBg = widget.patientName != null
+        ? (warn ? const Color(0xFFFFF4E5) : const Color(0xFFE3F4EA))
+        : Colors.transparent;
     return Container(
       key: const ValueKey('avoid-panel'),
       decoration: BoxDecoration(
@@ -544,25 +890,42 @@ class _AvoidPanelState extends State<_AvoidPanel> {
           child: Padding(
             padding: const EdgeInsets.fromLTRB(16, 14, 12, 14),
             child: Row(children: [
-              Icon(
-                  warn
-                      ? Icons.error_outline_rounded
-                      : Icons.verified_user_rounded,
-                  color: warn ? MealColors.caution : MealColors.teal,
-                  size: 22),
+              Container(
+                padding: widget.patientName != null
+                    ? const EdgeInsets.all(6)
+                    : EdgeInsets.zero,
+                decoration: BoxDecoration(
+                  color: badgeBg,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(
+                    warn
+                        ? Icons.error_outline_rounded
+                        : Icons.verified_user_rounded,
+                    color: fg,
+                    size: 22),
+              ),
               const SizedBox(width: 10),
               Expanded(
                 child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('Nên tránh',
+                      Text(
+                          widget.patientName != null
+                              ? '${widget.patientName} nên hạn chế'
+                              : 'Nên tránh',
                           style: TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.w700,
-                              color: MealColors.ink)),
+                              color: widget.patientName != null && warn
+                                  ? fg
+                                  : MealColors.ink)),
                       Text(_summary,
-                          style: const TextStyle(
-                              fontSize: 14, color: MealColors.ink2)),
+                          style: TextStyle(
+                              fontSize: 14,
+                              color: widget.patientName != null && !warn
+                                  ? fg
+                                  : MealColors.ink2)),
                     ]),
               ),
               AnimatedRotation(

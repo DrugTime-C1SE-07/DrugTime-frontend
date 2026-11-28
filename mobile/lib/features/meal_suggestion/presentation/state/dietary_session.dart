@@ -7,6 +7,9 @@ import '../../domain/entities/meal_suggestion.dart';
 class DietarySession {
   DietarySession._();
 
+  /// Phiên ăn uống cô lập (ví dụ cho từng người bệnh phía người thân — QD-29).
+  DietarySession.isolated();
+
   static final DietarySession instance = DietarySession._();
 
   DietaryDeclaration? restrictions;

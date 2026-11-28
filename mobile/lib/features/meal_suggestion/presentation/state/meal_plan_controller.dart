@@ -84,6 +84,7 @@ class MealPlanController extends ChangeNotifier {
   AllergyProfile? allergy;
   bool allergyLoading = false;
   bool allergyFailed = false;
+  MealSuggestionFailure? allergyFailure;
 
   final Map<MealType, MealTabState> _tabs = {
     for (final t in MealType.values) t: const MealTabState(),
@@ -128,6 +129,7 @@ class MealPlanController extends ChangeNotifier {
   void bind(String? userId) {
     final day = vietnamDay(_now());
     if (userId == _userId && day == _day) return;
+    final previousUser = _userId;
     final userChanged = userId != _userId;
     _userId = userId;
     _day = day;
@@ -135,6 +137,11 @@ class MealPlanController extends ChangeNotifier {
     if (userChanged) {
       allergy = null;
       allergyFailed = false;
+      allergyFailure = null;
+      // Đổi sang tài khoản khác không giữ hạn chế ăn uống của tài khoản trước.
+      if (previousUser != null) {
+        _session.clear();
+      }
     }
     tab = MealType.forVietnamTime(_now());
     _notify();
@@ -152,6 +159,8 @@ class MealPlanController extends ChangeNotifier {
     _day = null;
     allergy = null;
     allergyFailed = false;
+    allergyFailure = null;
+    _session.clear();
     reset();
   }
 
@@ -223,6 +232,7 @@ class MealPlanController extends ChangeNotifier {
   Future<void> loadAllergy() async {
     allergyLoading = true;
     allergyFailed = false;
+    allergyFailure = null;
     _notify();
     try {
       final loaded = await _allergyRepository.load();
@@ -233,6 +243,9 @@ class MealPlanController extends ChangeNotifier {
           before != loaded.toDeclaration()?.toJson().toString()) {
         _clearMenu();
       }
+    } on MealSuggestionFailure catch (failure) {
+      allergyFailure = failure;
+      allergyFailed = true;
     } on Exception {
       allergyFailed = true;
     } finally {

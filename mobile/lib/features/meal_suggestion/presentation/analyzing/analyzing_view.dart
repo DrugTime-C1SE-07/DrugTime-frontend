@@ -20,16 +20,38 @@ import '../../../../core/motion/shared_axis.dart';
 /// Pop với `true` khi có kết quả để hiện (bữa mở sẵn đã đặt vào `plan.tab`); `false`/`null` khi
 /// người dùng quay lại hoặc "Giữ món cũ".
 class AnalyzingView extends StatefulWidget {
-  const AnalyzingView({super.key, required this.plan, this.refreshMeal});
+  const AnalyzingView({
+    super.key,
+    required this.plan,
+    this.refreshMeal,
+    this.caregiverMode = false,
+    this.patientName,
+    this.isAccessDenied,
+  });
 
   final MealPlanController plan;
 
   /// Khác `null`: "Gợi ý khác" cho riêng bữa này (AC9).
   final MealType? refreshMeal;
+  final bool caregiverMode;
+  final String? patientName;
+  final bool Function()? isAccessDenied;
 
-  static Route<bool> route(MealPlanController plan, {MealType? refreshMeal}) =>
+  static Route<bool> route(
+    MealPlanController plan, {
+    MealType? refreshMeal,
+    bool caregiverMode = false,
+    String? patientName,
+    bool Function()? isAccessDenied,
+  }) =>
       sharedAxisRoute<bool>(
-          builder: (_) => AnalyzingView(plan: plan, refreshMeal: refreshMeal));
+          builder: (_) => AnalyzingView(
+                plan: plan,
+                refreshMeal: refreshMeal,
+                caregiverMode: caregiverMode,
+                patientName: patientName,
+                isAccessDenied: isAccessDenied,
+              ));
 
   @override
   State<AnalyzingView> createState() => _AnalyzingViewState();
@@ -108,6 +130,10 @@ class _AnalyzingViewState extends State<AnalyzingView>
     if (r != null) {
       plan.refresh(r).then((ok) {
         if (!mounted) return;
+        if (widget.caregiverMode && (widget.isAccessDenied?.call() ?? false)) {
+          _leave();
+          return;
+        }
         setState(() {
           if (!ok) _latchedFailure ??= plan.lastRefreshFailure;
           _refreshStatus = ok ? MealTabStatus.data : MealTabStatus.error;
@@ -122,17 +148,35 @@ class _AnalyzingViewState extends State<AnalyzingView>
     unawaited(anyData ? plan.retryFailed() : plan.analyze());
   }
 
+  bool _isAuthOrConsentFailure(MealFailureKind? kind) =>
+      kind == MealFailureKind.forbidden ||
+      kind == MealFailureKind.consentRevoked;
+
   void _check() {
     if (!mounted || _stage != _Stage.running) return;
+    if (widget.caregiverMode && (widget.isAccessDenied?.call() ?? false)) {
+      _leave();
+      return;
+    }
     if (widget.refreshMeal != null) {
       if (plan.lastRefreshFailure != null) {
         _latchedFailure ??= plan.lastRefreshFailure;
+      }
+      if (widget.caregiverMode &&
+          _isAuthOrConsentFailure(_latchedFailure?.kind)) {
+        _leave();
+        return;
       }
     } else if (!_allFailed) {
       final currentFailures = [
         for (final t in MealType.values)
           if (plan.stateOf(t).failure case final f?) f,
       ];
+      if (widget.caregiverMode &&
+          currentFailures.any((f) => _isAuthOrConsentFailure(f.kind))) {
+        _leave();
+        return;
+      }
       if (currentFailures.isNotEmpty) {
         _lastSeenFailure = MealSuggestionFailure.pickPrimary(currentFailures);
       }
@@ -351,6 +395,7 @@ class _AnalyzingViewState extends State<AnalyzingView>
             statuses: {for (final m in _meals) m: _statuses[m]!},
             refreshMeal: widget.refreshMeal,
             preparingImages: _preparingImages,
+            patientName: widget.caregiverMode ? widget.patientName : null,
             onRetry: _start,
             onKeep: _leave,
           ),
@@ -509,6 +554,7 @@ class _Status extends StatelessWidget {
     required this.preparingImages,
     required this.onRetry,
     required this.onKeep,
+    this.patientName,
   });
   final bool failed;
   final MealSuggestionFailure? failure;
@@ -516,6 +562,7 @@ class _Status extends StatelessWidget {
   final Map<MealType, MealTabStatus> statuses;
   final MealType? refreshMeal;
   final VoidCallback onRetry, onKeep;
+  final String? patientName;
 
   @override
   Widget build(BuildContext context) {
@@ -609,9 +656,9 @@ class _Status extends StatelessWidget {
               letterSpacing: -.3)),
       const SizedBox(height: 6),
       // Không hiện tên thuốc, bệnh nền, dị ứng cụ thể (AC3).
-      const Text('Dựa trên thuốc, bệnh nền và dị ứng của bạn',
+      Text('Dựa trên thuốc, bệnh nền và dị ứng của ${patientName ?? 'bạn'}',
           textAlign: TextAlign.center,
-          style: TextStyle(fontSize: 15, color: MealColors.ink2)),
+          style: const TextStyle(fontSize: 15, color: MealColors.ink2)),
       const SizedBox(height: 22),
       Row(mainAxisAlignment: MainAxisAlignment.center, children: [
         for (final m in statuses.keys) ...[
