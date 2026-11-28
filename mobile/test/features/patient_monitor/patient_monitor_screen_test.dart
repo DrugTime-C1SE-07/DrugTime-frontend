@@ -1,7 +1,9 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:drugtime_mobile/app/theme/app_theme.dart';
 import 'package:drugtime_mobile/core/api/api_client.dart';
+import 'package:drugtime_mobile/core/api/api_exception.dart';
 import 'package:drugtime_mobile/features/adherence/domain/entities/adherence_history.dart';
 import 'package:drugtime_mobile/features/consent/data/repositories/in_memory_consent_repository.dart';
 import 'package:drugtime_mobile/features/consent/presentation/state/consent_controller.dart';
@@ -69,15 +71,28 @@ List<AdherenceDose> todayDoses(Day day) => [
 
 /// Repository giả: dữ liệu trong bộ nhớ + HTTP giả cho endpoint nhắc liều.
 class ScreenRepo extends PatientMonitorRepository {
-  ScreenRepo(
-      {this.day = Day.missed, this.reminded = false, this.sendStatus = 201})
-      : super(ApiClient(
+  ScreenRepo({
+    this.day = Day.missed,
+    this.reminded = false,
+    this.sendStatus = 201,
+    this.drugResult,
+    this.foodResult,
+    this.drugError,
+    this.foodError,
+    this.interactionsGate,
+  }) : super(ApiClient(
             baseUrl: Uri.parse('https://test.invalid'),
             httpClient: MockClient((r) async => _respond(r))));
 
   Day day;
   bool reminded;
   int sendStatus;
+  InteractionCheckResult? drugResult;
+  Map<String, dynamic>? foodResult;
+  Object? drugError;
+  Object? foodError;
+  Completer<void>? interactionsGate;
+  int interactionCalls = 0;
   int sends = 0, statusCalls = 0;
   static ScreenRepo? _active;
   DateTime? historyFrom, historyTo;
@@ -235,43 +250,53 @@ class ScreenRepo extends PatientMonitorRepository {
   }
 
   @override
-  Future<InteractionCheckResult> interactions(String patientId) async =>
-      const InteractionCheckResult(
-          status: InteractionCheckStatus.found,
-          interactions: [
-            InteractionFinding(
-                ingredientAId: 1,
-                ingredientAName: 'Warfarin',
-                ingredientBId: 2,
-                ingredientBName: 'Aspirin',
-                severityLevel: 3,
-                interactionType: 'duoc_dong_hoc',
-                handlingType: 'can_theo_doi',
-                description: 'Tăng nguy cơ chảy máu.',
-                warningMessage: 'Theo dõi dấu hiệu chảy máu.',
-                source: 'Dược thư'),
-          ]);
+  Future<InteractionCheckResult> interactions(String patientId) async {
+    interactionCalls++;
+    if (interactionsGate != null) await interactionsGate!.future;
+    if (drugError != null) throw drugError!;
+    return drugResult ??
+        const InteractionCheckResult(
+            status: InteractionCheckStatus.found,
+            interactions: [
+              InteractionFinding(
+                  ingredientAId: 1,
+                  ingredientAName: 'Warfarin',
+                  ingredientBId: 2,
+                  ingredientBName: 'Aspirin',
+                  severityLevel: 3,
+                  interactionType: 'duoc_dong_hoc',
+                  handlingType: 'can_theo_doi',
+                  description: 'Tăng nguy cơ chảy máu.',
+                  warningMessage: 'Theo dõi dấu hiệu chảy máu.',
+                  source: 'Dược thư'),
+            ]);
+  }
 
   @override
-  Future<Map<String, dynamic>> foodInteractions(String patientId) async => {
-        'patient_id': patientId,
-        'status': 'co_tuong_tac',
-        'disclaimer': 'Thông tin tham khảo — hỏi bác sĩ hoặc dược sĩ khi cần.',
-        'medications': [
-          {
-            'medication': {'name': 'Warfarin'},
-            'status': 'co_tuong_tac',
-            'warnings': [
-              {
-                'food_to_avoid': 'Rau nhiều vitamin K',
-                'severity_level': 3,
-                'reason': 'Làm giảm tác dụng chống đông.',
-                'source': 'Dược thư'
-              }
-            ]
-          }
-        ],
-      };
+  Future<Map<String, dynamic>> foodInteractions(String patientId) async {
+    if (foodError != null) throw foodError!;
+    return foodResult ??
+        {
+          'patient_id': patientId,
+          'status': 'co_tuong_tac',
+          'disclaimer':
+              'Thông tin tham khảo — hỏi bác sĩ hoặc dược sĩ khi cần.',
+          'medications': [
+            {
+              'medication': {'name': 'Warfarin'},
+              'status': 'co_tuong_tac',
+              'warnings': [
+                {
+                  'food_to_avoid': 'Rau nhiều vitamin K',
+                  'severity_level': 3,
+                  'reason': 'Làm giảm tác dụng chống đông.',
+                  'source': 'Dược thư'
+                }
+              ]
+            }
+          ],
+        };
+  }
 }
 
 Future<PatientMonitorController> pumpMonitor(
@@ -469,6 +494,146 @@ void main() {
     expect(find.text('Tăng nguy cơ chảy máu.'), findsOneWidget);
     expect(find.text('Warfarin ⇄ Rau nhiều vitamin K'), findsOneWidget);
     expect(find.textContaining('Thông tin tham khảo'), findsOneWidget);
+  });
+
+  testWidgets(
+      'R5 + R5a: trạng thái không thấy tương tác hiện banner xanh và disclaimer (TC-FE-02)',
+      (tester) async {
+    final repo = ScreenRepo(
+      day: Day.ok,
+      drugResult: const InteractionCheckResult(
+        status: InteractionCheckStatus.noneFound,
+        interactions: [],
+      ),
+      foodResult: {
+        'patient_id': 'mother',
+        'status': 'da_kiem_tra_khong_thay',
+        'disclaimer': 'Thông tin chỉ mang tính tham khảo.',
+        'medications': const <Map<String, dynamic>>[],
+      },
+    );
+    await pumpMonitor(tester, repo);
+    await tester.tap(find.byKey(const Key('quick-cabinet')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('cabinet-interaction-banner')), findsOneWidget);
+    expect(find.byIcon(Icons.verified_outlined), findsOneWidget);
+    expect(find.text('Đã kiểm tra, không thấy tương tác'), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('cabinet-interaction-banner')));
+    await tester.pumpAndSettle();
+    expect(find.text('Cảnh báo tương tác'), findsOneWidget);
+    expect(find.text('Đã kiểm tra, không thấy tương tác'), findsNWidgets(2));
+    expect(find.byIcon(Icons.shield_outlined), findsOneWidget);
+    expect(find.textContaining(nfr03Disclaimer), findsOneWidget);
+    expect(find.textContaining('Thông tin chỉ mang tính tham khảo.'),
+        findsOneWidget);
+  });
+
+  testWidgets(
+      'R5a: hiển thị đủ chỉ xem, cách giờ, thiếu dữ liệu và disclaimer bắt buộc (TC-FE-03, TC-FE-04)',
+      (tester) async {
+    final repo = ScreenRepo(
+      day: Day.ok,
+      drugResult: const InteractionCheckResult(
+        status: InteractionCheckStatus.found,
+        interactions: [
+          InteractionFinding(
+            ingredientAId: 10,
+            ingredientAName: 'Ciprofloxacin',
+            ingredientBId: 11,
+            ingredientBName: 'Canxi',
+            severityLevel: 2,
+            interactionType: 'hap_thu',
+            handlingType: 'cach_gio',
+            minIntervalHours: 2,
+            description: 'Giảm hấp thu kháng sinh.',
+            warningMessage: 'Uống cách nhau tối thiểu 2 giờ.',
+            source: 'Dược thư',
+          ),
+        ],
+        insufficientDataMedications: [
+          InsufficientDataMedication(
+            medicationId: 99,
+            medicationName: 'Thảo dược X',
+            reason: 'Chưa có dữ liệu hoạt chất chuẩn',
+          ),
+        ],
+      ),
+      foodResult: {
+        'patient_id': 'mother',
+        'status': 'khong_du_du_lieu',
+        'disclaimer': 'Thông tin tham khảo — hỏi bác sĩ hoặc dược sĩ khi cần.',
+        'medications': [
+          {
+            'medication': {'name': 'Thảo dược X'},
+            'status': 'khong_du_du_lieu',
+            'warnings': const <Map<String, dynamic>>[],
+          },
+        ],
+      },
+    );
+    await pumpMonitor(tester, repo);
+    await tester.tap(find.text('Tương tác thuốc và thực phẩm'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Cảnh báo tương tác'), findsOneWidget);
+    expect(find.textContaining('Mẹ Hoa · chỉ xem'), findsOneWidget);
+    expect(find.text('MỨC 2'), findsOneWidget);
+    expect(find.text('Dùng cách giờ theo hướng dẫn chuyên môn'), findsOneWidget);
+    expect(find.text('Ciprofloxacin ⇄ Canxi'), findsOneWidget);
+    expect(find.text('Cách nhau ít nhất 2 giờ'), findsOneWidget);
+    expect(find.text('Thảo dược X: Chưa có dữ liệu hoạt chất chuẩn'),
+        findsOneWidget);
+    expect(find.text('Thảo dược X: Chưa đủ dữ liệu'), findsOneWidget);
+    expect(find.byIcon(Icons.shield_outlined), findsOneWidget);
+    expect(find.textContaining('Thông tin tham khảo'), findsOneWidget);
+  });
+
+  testWidgets(
+      'R5/R5a: 403 từ drug-drug hoặc food-warning chuyển ngay sang LostAccessView (TC-FE-05)',
+      (tester) async {
+    for (final failFood in [false, true]) {
+      final repo = ScreenRepo(
+        day: Day.ok,
+        drugError:
+            failFood ? null : const ApiException('khong_co_quyen', statusCode: 403),
+        foodError:
+            failFood ? const ApiException('khong_co_quyen', statusCode: 403) : null,
+      );
+      await pumpMonitor(tester, repo);
+      await tester.tap(find.byKey(const Key('quick-cabinet')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('monitor-lost')), findsOneWidget);
+      await tester.pumpWidget(const SizedBox());
+    }
+  });
+
+  testWidgets(
+      'R5a: trạng thái đang tải, lỗi 500 và nút Thử lại phục hồi dữ liệu (TC-FE-06)',
+      (tester) async {
+    final gate = Completer<void>();
+    final repo = ScreenRepo(
+      day: Day.ok,
+      interactionsGate: gate,
+      drugError: const ApiException('server_error', statusCode: 500),
+    );
+    await pumpMonitor(tester, repo);
+    await tester.tap(find.text('Tương tác thuốc và thực phẩm'));
+    await tester.pump();
+    expect(find.byType(LinearProgressIndicator), findsOneWidget);
+
+    gate.complete();
+    await tester.pumpAndSettle();
+    expect(find.text('Chưa tải đủ kết quả tương tác.'), findsOneWidget);
+    expect(find.text('Thử lại'), findsOneWidget);
+
+    repo.drugError = null;
+    repo.interactionsGate = null;
+    await tester.tap(find.text('Thử lại'));
+    await tester.pumpAndSettle();
+    expect(repo.interactionCalls, 2);
+    expect(find.text('Warfarin ⇄ Aspirin'), findsOneWidget);
+    expect(find.byIcon(Icons.shield_outlined), findsOneWidget);
   });
 
   testWidgets('R6: Tuần này ↔ Tháng 11 gọi đúng khoảng và hiện số (AC14)',

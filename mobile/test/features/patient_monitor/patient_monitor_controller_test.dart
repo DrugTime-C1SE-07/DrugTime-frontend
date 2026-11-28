@@ -8,6 +8,7 @@ import 'package:drugtime_mobile/core/api/api_client.dart';
 import 'package:drugtime_mobile/core/api/api_exception.dart';
 import 'package:drugtime_mobile/features/adherence/domain/entities/adherence_history.dart';
 import 'package:drugtime_mobile/features/family_link/presentation/state/linked_patients_controller.dart';
+import 'package:drugtime_mobile/features/interaction_check/domain/entities/interaction_check_result.dart';
 import 'package:drugtime_mobile/features/patient_monitor/data/patient_monitor_repository.dart';
 import 'package:drugtime_mobile/features/patient_monitor/domain/monitor_models.dart';
 import 'package:drugtime_mobile/features/patient_monitor/presentation/patient_monitor_controller.dart';
@@ -38,6 +39,10 @@ class MonitorRepo extends PatientMonitorRepository {
   final pending = <String, Completer<MonitorSnapshot>>{};
   bool unavailable = false;
   DateTime? requestedFrom, requestedTo;
+  InteractionCheckResult? interactionResponse;
+  Map<String, dynamic>? foodResponse;
+  Object? interactionError;
+  Object? foodError;
   @override
   Future<List<LinkedPatient>> patients() async {
     if (unavailable) throw const ApiException('Unavailable', statusCode: 503);
@@ -54,6 +59,26 @@ class MonitorRepo extends PatientMonitorRepository {
     requestedFrom = from;
     requestedTo = to;
     return snapshot(patientId).report;
+  }
+
+  @override
+  Future<InteractionCheckResult> interactions(String patientId) async {
+    if (interactionError != null) throw interactionError!;
+    return interactionResponse ??
+        const InteractionCheckResult(
+            status: InteractionCheckStatus.noneFound, interactions: []);
+  }
+
+  @override
+  Future<Map<String, dynamic>> foodInteractions(String patientId) async {
+    if (foodError != null) throw foodError!;
+    return foodResponse ??
+        {
+          'patient_id': patientId,
+          'status': 'da_kiem_tra_khong_thay',
+          'disclaimer': 'Thông tin tham khảo',
+          'medications': const <Map<String, dynamic>>[],
+        };
   }
 }
 
@@ -291,5 +316,111 @@ void main() {
     expect(
         repo.requestedFrom, monitorDay(now).subtract(const Duration(days: 89)));
     controller.dispose();
+  });
+
+  group('loadInteractions (PB27 5.22 & PB28 5.25)', () {
+    test('TC-FE-03: tải thành công drug-drug và food-warning điền đủ dữ liệu',
+        () async {
+      final repo = MonitorRepo()
+        ..interactionResponse = const InteractionCheckResult(
+          status: InteractionCheckStatus.found,
+          interactions: [
+            InteractionFinding(
+              ingredientAId: 1,
+              ingredientAName: 'Warfarin',
+              ingredientBId: 2,
+              ingredientBName: 'Aspirin',
+              severityLevel: 4,
+              interactionType: 'chong_chi_dinh',
+              handlingType: 'tranh_phoi_hop',
+              description: 'Nguy cơ chảy máu nặng.',
+              warningMessage: 'Tránh phối hợp.',
+              source: 'Dược thư',
+            ),
+          ],
+        )
+        ..foodResponse = {
+          'patient_id': 'mother',
+          'status': 'co_tuong_tac',
+          'disclaimer': 'Thông tin tham khảo',
+          'medications': const [],
+        };
+      final c = PatientMonitorController(repo, clock: () => now);
+      c.setSession('Nam', available: true);
+      await c.loadHub();
+      await c.select('mother');
+      await c.loadInteractions();
+      expect(c.denied, isFalse);
+      expect(c.interactionError, isNull);
+      expect(c.interactions?.status, InteractionCheckStatus.found);
+      expect(c.interactions?.interactions.length, 1);
+      expect(c.food?['status'], 'co_tuong_tac');
+      c.dispose();
+    });
+
+    test('TC-FE-05a: 403 từ drug-drug interaction gọi revoke ngay lập tức',
+        () async {
+      final repo = MonitorRepo()
+        ..interactionError = const ApiException('khong_co_quyen', statusCode: 403);
+      final c = PatientMonitorController(repo, clock: () => now);
+      c.setSession('Nam', available: true);
+      await c.loadHub();
+      await c.select('mother');
+      await c.loadInteractions();
+      expect(c.denied, isTrue);
+      expect(c.interactions, isNull);
+      expect(c.food, isNull);
+      expect(c.snapshot, isNull);
+      expect(c.linked.hasPatient('mother'), isFalse);
+      c.dispose();
+    });
+
+    test('TC-FE-05b: 403 từ food-warning sau khi drug-drug 200 vẫn revoke ngay',
+        () async {
+      final repo = MonitorRepo()
+        ..foodError = const ApiException('khong_co_quyen', statusCode: 403);
+      final c = PatientMonitorController(repo, clock: () => now);
+      c.setSession('Nam', available: true);
+      await c.loadHub();
+      await c.select('mother');
+      await c.loadInteractions();
+      expect(c.denied, isTrue);
+      expect(c.interactions, isNull);
+      expect(c.food, isNull);
+      expect(c.snapshot, isNull);
+      expect(c.linked.hasPatient('mother'), isFalse);
+      c.dispose();
+    });
+
+    test('TC-FE-06a: lỗi 500 gán interactionError và giữ nguyên phiên', () async {
+      final repo = MonitorRepo()
+        ..interactionError = const ApiException('server_error', statusCode: 500);
+      final c = PatientMonitorController(repo, clock: () => now);
+      c.setSession('Nam', available: true);
+      await c.loadHub();
+      await c.select('mother');
+      await c.loadInteractions();
+      expect(c.denied, isFalse);
+      expect(c.interactions, isNull);
+      expect(c.food, isNull);
+      expect(c.interactionError, 'Chưa tải đủ kết quả tương tác.');
+      c.dispose();
+    });
+
+    test('TC-FE-06b: FormatException từ food-warning gán thông báo dữ liệu lỗi',
+        () async {
+      final repo = MonitorRepo()
+        ..foodError = const FormatException('Unexpected food report');
+      final c = PatientMonitorController(repo, clock: () => now);
+      c.setSession('Nam', available: true);
+      await c.loadHub();
+      await c.select('mother');
+      await c.loadInteractions();
+      expect(c.denied, isFalse);
+      expect(c.interactions, isNull);
+      expect(c.food, isNull);
+      expect(c.interactionError, 'Kết quả không hợp lệ.');
+      c.dispose();
+    });
   });
 }
