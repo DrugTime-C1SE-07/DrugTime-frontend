@@ -30,9 +30,16 @@ class EditMedicationController {
     final result = await medicationRepository.update(medication, toSave);
 
     if (!effectiveReminderEnabled) {
-      final scheduleId = int.tryParse(medication.id);
-      if (scheduleId != null) {
-        await reminderScheduler?.cancelAllForSchedule(scheduleId);
+      final scheduleIds = <int>{
+        for (final s in medication.schedules) s.id,
+        for (final s in result.schedules) s.id,
+      };
+      if (scheduleIds.isEmpty) {
+        final fallbackId = int.tryParse(medication.id);
+        if (fallbackId != null) scheduleIds.add(fallbackId);
+      }
+      for (final id in scheduleIds) {
+        await reminderScheduler?.cancelAllForSchedule(id);
       }
     }
 

@@ -6,6 +6,7 @@ import '../features/patient_monitor/presentation/patient_monitor_screen.dart';
 import '../features/patient_dose_reminders/presentation/received_reminders_screen.dart';
 import '../features/medication_capture/presentation/screens/scan_medication_screen.dart';
 
+import '../core/notification/reminder_scheduler.dart';
 import '../features/adherence/domain/repositories/adherence_repository.dart';
 import '../features/adherence/presentation/screens/family_adherence_screen.dart';
 import '../features/consent/presentation/screens/consent_screen.dart';
@@ -154,7 +155,12 @@ Route<dynamic>? onGenerateRoute(
         settings: settings,
         builder: (_) => const NotificationPreferencesScreen()),
     AppRoutes.profileReminderSound => MaterialPageRoute<void>(
-        settings: settings, builder: (_) => const ReminderSoundScreen()),
+        settings: settings,
+        builder: (_) => ReminderSoundScreen(
+              draftVibrationEnabled: settings.arguments is bool
+                  ? settings.arguments! as bool
+                  : null,
+            )),
     AppRoutes.profileHelp => MaterialPageRoute<void>(
         settings: settings, builder: (_) => const HelpScreen()),
     AppRoutes.interactionHistory => MaterialPageRoute<void>(
@@ -272,10 +278,11 @@ Route<dynamic>? onGenerateRoute(
       ),
     AppRoutes.editMedication => MaterialPageRoute<dynamic>(
         settings: settings,
-        builder: (_) {
+        builder: (context) {
           final medication = settings.arguments as Medication?;
           return EditMedicationScreen(
             medication: medication ?? sampleMedications[1],
+            reminderScheduler: ReminderSchedulerScope.maybeOf(context),
           );
         },
       ),

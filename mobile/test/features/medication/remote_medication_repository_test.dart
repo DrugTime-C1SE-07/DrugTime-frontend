@@ -142,6 +142,16 @@ void main() {
     expect(requests.single.json, {'quantity_per_dose': 2.0});
   });
 
+  test('TC-606-15a: updateScheduleReminder gọi PATCH /medications/{id}/schedules/{schedule_id}',
+      () async {
+    replies.add((200, userMedicationJson()));
+    final updated = await repo.updateScheduleReminder('42', 301, false);
+    expect(updated.id, '42');
+    expect(requests.single.method, 'PATCH');
+    expect(requests.single.uri.path, '/medications/42/schedules/301');
+    expect(requests.single.json, {'reminder_enabled': false});
+  });
+
   test(
       'delete: 204 thành công; 404 khi gửi lại cũng coi là đã xoá; 403 ném lỗi (AC14e)',
       () async {
@@ -300,5 +310,19 @@ void main() {
             .having((f) => f.kind, 'kind', MedicationFailureKind.notFound)),
       );
     });
+  });
+
+  test('TC-606-15a: updateScheduleReminder gửi PATCH /medications/{id}/schedules/{schedule_id}',
+      () async {
+    final json = userMedicationJson(times: ['08:00'], dosesPerDay: 1);
+    (json['schedules'] as List).first['reminder_enabled'] = false;
+    replies.add((200, json));
+
+    final updated = await repo.updateScheduleReminder('42', 300, false);
+
+    expect(requests.single.method, 'PATCH');
+    expect(requests.single.uri.path, '/medications/42/schedules/300');
+    expect(requests.single.json, {'reminder_enabled': false});
+    expect(updated.reminderState, MedicationReminderState.allDisabled);
   });
 }

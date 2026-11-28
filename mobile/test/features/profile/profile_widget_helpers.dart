@@ -64,12 +64,14 @@ ReminderSoundController fakeReminderSoundController({
   FakeReminderSoundNative? native,
   FakeChannelPlatform? notifications,
   TargetPlatform? targetPlatform,
+  bool Function()? vibrationEnabled,
 }) =>
     ReminderSoundController(
       store: store ?? FakeReminderSoundStore(),
       native: native ?? FakeReminderSoundNative(),
       notifications: notifications ?? FakeChannelPlatform(),
       targetPlatform: targetPlatform,
+      vibrationEnabled: vibrationEnabled,
       onLog: (_) {},
     );
 

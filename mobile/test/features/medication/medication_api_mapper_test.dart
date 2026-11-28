@@ -1,5 +1,6 @@
 import 'package:drugtime_mobile/core/api/api_exception.dart';
 import 'package:drugtime_mobile/features/medication/data/models/medication_api_mapper.dart';
+import 'package:drugtime_mobile/features/medication/data/repositories/in_memory_medication_repository.dart';
 import 'package:drugtime_mobile/features/medication/domain/entities/medication.dart';
 import 'package:drugtime_mobile/features/medication/domain/entities/medication_failure.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -328,6 +329,43 @@ void main() {
       expect(d.manufacturerName, isNull);
       expect(d.manufacturerCountry, 'Việt Nam');
       expect(d.source, 'qd_5948');
+    });
+
+    test('TC-606-13: InMemoryMedicationRepository.setStopped bảo toàn pillShape, pillColor và reminderEnabled (AC1)',
+        () async {
+      final med = base().withAppearance(PillShape.capsule, PillColor.orange).copyWith(reminderEnabled: false);
+      final repo = InMemoryMedicationRepository(seed: [med]);
+
+      final stopped = await repo.setStopped(med.id, true);
+      expect(stopped.pillShape, PillShape.capsule);
+      expect(stopped.pillColor, PillColor.orange);
+      expect(stopped.reminderEnabled, isFalse);
+
+      final resumed = await repo.setStopped(med.id, false);
+      expect(resumed.pillShape, PillShape.capsule);
+      expect(resumed.pillColor, PillColor.orange);
+      expect(resumed.reminderEnabled, isFalse);
+    });
+
+    test('TC-606-14: medicationFromJson đọc schedules[], days_of_week, reminderState partial và patchBody days_of_week/stock null',
+        () {
+      final raw = userMedicationJson();
+      (raw['schedules'] as List)[0]['days_of_week'] = [1, 3, 5];
+      (raw['schedules'] as List)[1]['days_of_week'] = [1, 3, 5];
+      (raw['schedules'] as List)[1]['reminder_enabled'] = false;
+
+      final med = MedicationApiMapper.medicationFromJson(raw);
+      expect(med.schedules, hasLength(2));
+      expect(med.schedules.first.id, 301);
+      expect(med.daysOfWeek, [1, 3, 5]);
+      expect(med.reminderState, MedicationReminderState.partial);
+      expect(med.enabledScheduleCount, 1);
+
+      final clearedStock = med.copyWith(clearStock: true, daysOfWeek: [2, 4]);
+      expect(MedicationApiMapper.patchBody(med, clearedStock), {
+        'stock_quantity': null,
+        'days_of_week': [2, 4],
+      });
     });
   });
 }

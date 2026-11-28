@@ -16,12 +16,14 @@ class ReminderSoundController extends ChangeNotifier {
     required ReminderSoundNative native,
     required NotificationPlatform notifications,
     TargetPlatform? targetPlatform,
+    bool Function()? vibrationEnabled,
     void Function(String message)? onLog,
     Random? random,
   })  : _store = store,
         _native = native,
         _notifications = notifications,
         _targetPlatform = targetPlatform,
+        _vibrationEnabled = vibrationEnabled,
         _onLog = onLog ?? debugPrint,
         _random = random ?? Random.secure() {
     _native.onPreviewDone = _previewDone;
@@ -37,6 +39,7 @@ class ReminderSoundController extends ChangeNotifier {
   final ReminderSoundNative _native;
   final NotificationPlatform _notifications;
   final TargetPlatform? _targetPlatform;
+  final bool Function()? _vibrationEnabled;
   final void Function(String message) _onLog;
   final Random _random;
 
@@ -268,13 +271,17 @@ class ReminderSoundController extends ChangeNotifier {
 
   Future<void> _createChannel(ReminderSound sound) async {
     if (!_isAndroid) return;
-    await _notifications.createNotificationChannel(sound.channel);
+    final vibrate = _vibrationEnabled?.call() ?? true;
+    await _notifications
+        .createNotificationChannel(sound.channelFor(vibrate: vibrate));
   }
 
   Future<void> _removeFiles(CustomReminderSound custom) async {
     try {
       if (_isAndroid) {
         await _notifications.deleteNotificationChannel(custom.sound.channelId);
+        await _notifications.deleteNotificationChannel(
+            custom.sound.channelIdFor(vibrate: false));
       }
       await _native.delete(path: custom.path, uri: custom.uri);
     } on Exception catch (e) {

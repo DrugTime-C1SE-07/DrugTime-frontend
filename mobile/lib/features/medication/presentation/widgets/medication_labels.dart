@@ -29,6 +29,47 @@ extension MedicationLabels on Medication {
     final stock = stockRemaining;
     return stock == null ? null : 'Còn $stock $unit';
   }
+
+  String get daysLabel => daysOfWeekLabel(daysOfWeek);
+
+  String get reminderLabel => reminderStateLabel(this);
+
+  String get appearanceDisplayLabel => appearanceLabel(pillShape, pillColor);
+}
+
+const _weekdayLabels = {
+  1: 'T2',
+  2: 'T3',
+  3: 'T4',
+  4: 'T5',
+  5: 'T6',
+  6: 'T7',
+  7: 'CN',
+};
+
+/// Hiển thị các ngày uống trong tuần chuẩn ISO 1..7 (`Hằng ngày` hoặc `T2, T4, T6`).
+String daysOfWeekLabel(List<int> days) {
+  final clean = days.where((d) => d >= 1 && d <= 7).toSet().toList()..sort();
+  if (clean.isEmpty || clean.length == 7) return 'Hằng ngày';
+  return [for (final d in clean) _weekdayLabels[d]!].join(', ');
+}
+
+/// Nhãn trạng thái nhắc nhở tổng hợp từ danh sách lịch mở.
+String reminderStateLabel(Medication med) => switch (med.reminderState) {
+      MedicationReminderState.allEnabled => 'Đang bật',
+      MedicationReminderState.allDisabled => 'Đang tắt',
+      MedicationReminderState.partial =>
+        'Bật một phần (${med.enabledScheduleCount}/${med.schedules.length} giờ)',
+      MedicationReminderState.none => 'Không áp dụng',
+    };
+
+/// Nhãn mô tả dạng & màu hiển thị của viên thuốc.
+String appearanceLabel(PillShape? shape, PillColor? color) {
+  final parts = [
+    if (shape != null) shape.label,
+    if (color != null) 'Màu ${color.label}',
+  ];
+  return parts.isEmpty ? 'Theo dạng bào chế (mặc định)' : parts.join(' · ');
 }
 
 String formatDate(DateTime date) =>

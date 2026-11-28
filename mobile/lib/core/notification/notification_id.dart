@@ -29,7 +29,8 @@ int notificationIdFor(int medicationScheduleId, DateTime scheduledAt) {
 /// ID của lượt "nhắc lại nếu bỏ lỡ" cho cùng liều; khác ID lượt gốc để cả hai cùng chờ.
 int repeatNotificationIdFor(int medicationScheduleId, DateTime scheduledAt) {
   final base = notificationIdFor(medicationScheduleId, scheduledAt);
-  return _fnv31('repeat:$base');
+  final candidate = _fnv31('repeat:$base');
+  return candidate == base ? (candidate ^ 1) : candidate;
 }
 
 int _fnv31(String canonical) {
@@ -49,6 +50,7 @@ class NotificationPayload {
   NotificationPayload({
     required this.medicationScheduleId,
     required this.scheduledAt,
+    this.isRepeat = false,
   }) {
     if (!scheduledAt.isUtc) {
       throw ArgumentError.value(
@@ -61,12 +63,14 @@ class NotificationPayload {
 
   final int medicationScheduleId;
   final DateTime scheduledAt;
+  final bool isRepeat;
 
   /// Chuyển đổi payload thành chuỗi JSON.
   String serialize() {
     return jsonEncode({
       'schedule_id': medicationScheduleId,
       'scheduled_at': scheduledAt.toIso8601String(),
+      if (isRepeat) 'is_repeat': true,
     });
   }
 
@@ -90,6 +94,7 @@ class NotificationPayload {
       return NotificationPayload(
         medicationScheduleId: scheduleId,
         scheduledAt: parsedTime,
+        isRepeat: decoded['is_repeat'] == true,
       );
     } catch (_) {
       return null;
@@ -101,18 +106,20 @@ class NotificationPayload {
     if (identical(this, other)) return true;
     return other is NotificationPayload &&
         other.medicationScheduleId == medicationScheduleId &&
-        other.scheduledAt.isAtSameMomentAs(scheduledAt);
+        other.scheduledAt.isAtSameMomentAs(scheduledAt) &&
+        other.isRepeat == isRepeat;
   }
 
   @override
   int get hashCode => Object.hash(
         medicationScheduleId,
         scheduledAt.millisecondsSinceEpoch,
+        isRepeat,
       );
 
   @override
   String toString() =>
-      'NotificationPayload(scheduleId: $medicationScheduleId, scheduledAt: ${scheduledAt.toIso8601String()})';
+      'NotificationPayload(scheduleId: $medicationScheduleId, scheduledAt: ${scheduledAt.toIso8601String()}, isRepeat: $isRepeat)';
 }
 
 /// Phát hiện các lượt nhắc bị trùng ID thông báo trong danh sách [occurrences].

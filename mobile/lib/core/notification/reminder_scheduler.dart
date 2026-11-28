@@ -1,3 +1,5 @@
+import 'package:flutter/widgets.dart';
+
 /// Boundary between the reminder UI and the platform notification adapter.
 ///
 /// Task 2.11 only needs snoozing. Task 2.07 provides the concrete Android/iOS
@@ -16,4 +18,23 @@ abstract interface class ReminderScheduler {
   });
 
   Future<void> cancelAllForSchedule(int scheduleId);
+}
+
+/// Truyền [ReminderScheduler] xuống cây widget để màn chi tiết/sửa thuốc hủy lịch chờ.
+class ReminderSchedulerScope extends InheritedWidget {
+  const ReminderSchedulerScope({
+    super.key,
+    required this.scheduler,
+    required super.child,
+  });
+
+  final ReminderScheduler? scheduler;
+
+  static ReminderScheduler? maybeOf(BuildContext context) => context
+      .dependOnInheritedWidgetOfExactType<ReminderSchedulerScope>()
+      ?.scheduler;
+
+  @override
+  bool updateShouldNotify(ReminderSchedulerScope oldWidget) =>
+      scheduler != oldWidget.scheduler;
 }

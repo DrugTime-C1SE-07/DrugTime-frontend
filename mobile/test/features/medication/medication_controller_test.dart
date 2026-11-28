@@ -128,4 +128,77 @@ void main() {
     expect(controller.medications, isEmpty);
     expect(controller.loadError, isNull);
   });
+
+  test('TC-606-15b: saveEdit 2 bước không gửi PATCH rỗng, reload khi bước 2 lỗi',
+      () async {
+    final repo = _ScheduleTestRepo();
+    var changes = 0;
+    final controller = MedicationController(repo, onChanged: () => changes++);
+    await controller.load();
+    final med = controller.medications.first;
+
+    // Chỉ đổi nhắc -> không gọi update(), chỉ gọi updateScheduleReminder cho lịch khác
+    final toggled = med.copyWith(reminderEnabled: false);
+    await controller.saveEdit(
+      before: med,
+      after: toggled,
+      applyReminderToAllSchedules: true,
+    );
+    expect(repo.updateCalls, 0);
+    expect(repo.scheduleUpdates, hasLength(med.schedules.length));
+    expect(changes, 1);
+
+    // Lỗi ở bước 2 sau khi bước 1 thành công vẫn gọi onChanged + load()
+    final fetchesBefore = repo.fetches;
+    repo.failScheduleUpdate =
+        const MedicationFailure(MedicationFailureKind.forbidden);
+    await expectLater(
+      controller.saveEdit(
+        before: toggled,
+        after: toggled.copyWith(dosePerIntake: 2, reminderEnabled: true),
+        applyReminderToAllSchedules: true,
+      ),
+      throwsA(isA<MedicationFailure>()),
+    );
+    expect(repo.updateCalls, 1);
+    expect(repo.fetches, greaterThan(fetchesBefore));
+  });
+}
+
+class _ScheduleTestRepo extends InMemoryMedicationRepository {
+  int updateCalls = 0;
+  int fetches = 0;
+  final scheduleUpdates = <(String, int, bool)>[];
+  MedicationFailure? failScheduleUpdate;
+
+  @override
+  Future<List<Medication>> fetchAll() {
+    fetches++;
+    return super.fetchAll();
+  }
+
+  @override
+  Future<Medication> update(Medication before, Medication after) {
+    updateCalls++;
+    return super.update(before, after);
+  }
+
+  @override
+  Future<Medication> updateScheduleReminder(
+    String medicationId,
+    int scheduleId,
+    bool reminderEnabled,
+  ) {
+    scheduleUpdates.add((medicationId, scheduleId, reminderEnabled));
+    final fail = failScheduleUpdate;
+    if (fail != null) {
+      failScheduleUpdate = null;
+      throw fail;
+    }
+    return super.updateScheduleReminder(
+      medicationId,
+      scheduleId,
+      reminderEnabled,
+    );
+  }
 }

@@ -89,15 +89,6 @@ Future<void> main() async {
   final localStore = SqliteLocalMedicationStore(localDb);
   final doseOutbox = SqliteDoseOutbox(localDb: localDb);
 
-  // Âm nhắc người dùng chọn ở S08-4a; mỗi âm một Android channel.
-  final reminderSounds = ReminderSoundController(
-    store: SecureReminderSoundStore(),
-    native: MethodChannelReminderSoundNative(),
-    notifications: notificationService.platform,
-    targetPlatform: defaultTargetPlatform,
-    onLog: debugPrint,
-  );
-
   final deletionStatusStore = SecureAccountDeletionStatusStore(secureStorage);
   final accountDeletionRecheck = ValueNotifier<int>(0);
   final apiClient = _buildApiClient(
@@ -109,6 +100,16 @@ Future<void> main() async {
   final notificationPreferences = NotificationPreferencesController(
     store: SecureReminderPreferencesStore(),
     familyAlerts: RemoteFamilyAlertPreferenceRepository(apiClient),
+  );
+
+  // Âm nhắc người dùng chọn ở S08-4a; mỗi âm một Android channel.
+  final reminderSounds = ReminderSoundController(
+    store: SecureReminderSoundStore(),
+    native: MethodChannelReminderSoundNative(),
+    notifications: notificationService.platform,
+    targetPlatform: defaultTargetPlatform,
+    vibrationEnabled: () => notificationPreferences.reminders.vibrate,
+    onLog: debugPrint,
   );
 
   // Khởi tạo dịch vụ lên lịch thông báo nhắc uống thuốc
@@ -204,6 +205,17 @@ Future<void> main() async {
     alerts.clear();
     push.clear();
     await deletionStatusStore.clearAll();
+    await reminderSync.clear();
+    try {
+      await reminderSounds.clearAll();
+    } on Exception catch (e) {
+      debugPrint('Không xóa được âm nhắc tự thêm: $e');
+    }
+    try {
+      await notificationPreferences.clear();
+    } on Exception catch (e) {
+      debugPrint('Không xóa được tùy chọn nhắc: $e');
+    }
     await tokens?.expire();
   };
 

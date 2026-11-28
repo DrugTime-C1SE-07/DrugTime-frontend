@@ -8,10 +8,12 @@ enum ReminderSoundKind { builtin, system, silent, custom }
 /// được âm sau khi tạo.
 class ReminderSound {
   const ReminderSound._(this.id, this.label, this.kind,
-      {this.rawName, this.uri});
+      {this.rawName, this.uri, this.subtitle});
 
-  const ReminderSound.builtin(String id, String label, String rawName)
-      : this._(id, label, ReminderSoundKind.builtin, rawName: rawName);
+  const ReminderSound.builtin(String id, String label, String rawName,
+      {String? subtitle})
+      : this._(id, label, ReminderSoundKind.builtin,
+            rawName: rawName, subtitle: subtitle);
 
   const ReminderSound.custom(String id, String label, String uri)
       : this._(id, label, ReminderSoundKind.custom, uri: uri);
@@ -19,6 +21,7 @@ class ReminderSound {
   final String id;
   final String label;
   final ReminderSoundKind kind;
+  final String? subtitle;
 
   /// Tên file trong `android/app/src/main/res/raw` (âm có sẵn).
   final String? rawName;
@@ -34,9 +37,15 @@ class ReminderSound {
         _ => 'drugtime_reminder_${id}_v1',
       };
 
+  String channelIdFor({bool vibrate = true}) =>
+      vibrate ? channelId : '${channelId}_no_vibration';
+
   String get channelName => kind == ReminderSoundKind.system
       ? NotificationService.reminderChannelName
       : '${NotificationService.reminderChannelName} · $label';
+
+  String channelNameFor({bool vibrate = true}) =>
+      vibrate ? channelName : '$channelName · không rung';
 
   AndroidNotificationSound? get androidSound => switch (kind) {
         ReminderSoundKind.builtin =>
@@ -45,26 +54,45 @@ class ReminderSound {
         _ => null,
       };
 
-  AndroidNotificationChannel get channel => AndroidNotificationChannel(
-        channelId,
-        channelName,
+  AndroidNotificationChannel channelFor({bool vibrate = true}) =>
+      AndroidNotificationChannel(
+        channelIdFor(vibrate: vibrate),
+        channelNameFor(vibrate: vibrate),
         description: NotificationService.reminderChannelDescription,
         importance: Importance.max,
         playSound: playsSound,
         sound: androidSound,
-        enableVibration: true,
+        enableVibration: vibrate,
       );
+
+  AndroidNotificationChannel get channel => channelFor(vibrate: true);
 }
 
 abstract final class ReminderSounds {
-  static const chime =
-      ReminderSound.builtin('chime', 'Chuông mặc định', 'reminder_chime');
-  static const gentle =
-      ReminderSound.builtin('gentle', 'Nhẹ nhàng', 'reminder_gentle');
-  static const friendly =
-      ReminderSound.builtin('friendly', 'Âm cha hữu ơi', 'reminder_friendly');
-  static const urgent =
-      ReminderSound.builtin('urgent', 'Khẩn cấp', 'reminder_urgent');
+  static const chime = ReminderSound.builtin(
+    'chime',
+    'Chuông mặc định',
+    'reminder_chime',
+    subtitle: 'Âm thanh chuẩn của DrugTime',
+  );
+  static const gentle = ReminderSound.builtin(
+    'gentle',
+    'Nhẹ nhàng',
+    'reminder_gentle',
+    subtitle: 'Phù hợp buổi tối',
+  );
+  static const friendly = ReminderSound.builtin(
+    'friendly',
+    'Vui vẻ',
+    'reminder_friendly',
+    subtitle: 'Giai điệu ngắn, năng động',
+  );
+  static const urgent = ReminderSound.builtin(
+    'urgent',
+    'Khẩn cấp',
+    'reminder_urgent',
+    subtitle: 'Rõ ràng, dùng khi liều quan trọng',
+  );
   static const system = ReminderSound._(
       'system', 'Chuông điện thoại mặc định', ReminderSoundKind.system);
   static const silent =

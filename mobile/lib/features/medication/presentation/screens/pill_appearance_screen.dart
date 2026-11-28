@@ -16,12 +16,14 @@ Future<PillAppearanceChoice?> showPillAppearanceScreen(
   String? dosageForm,
   PillShape? shape,
   PillColor? color,
+  bool showStepProgress = true,
 }) =>
     Navigator.of(context).push<PillAppearanceChoice>(MaterialPageRoute(
       builder: (_) => PillAppearanceScreen(
         drugName: drugName,
         initialShape: shape ?? PillShape.suggestFor(dosageForm),
         initialColor: color ?? PillColor.white,
+        showStepProgress: showStepProgress,
       ),
     ));
 
@@ -33,11 +35,13 @@ class PillAppearanceScreen extends StatefulWidget {
     required this.drugName,
     required this.initialShape,
     required this.initialColor,
+    this.showStepProgress = true,
   });
 
   final String drugName;
   final PillShape initialShape;
   final PillColor initialColor;
+  final bool showStepProgress;
 
   @override
   State<PillAppearanceScreen> createState() => _PillAppearanceScreenState();
@@ -55,8 +59,10 @@ class _PillAppearanceScreenState extends State<PillAppearanceScreen> {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(20, 4, 20, 20),
         children: [
-          const AddFlowProgress(step: 3, label: 'Bước 3/3 · Xác nhận'),
-          const SizedBox(height: 20),
+          if (widget.showStepProgress) ...[
+            const AddFlowProgress(step: 3, label: 'Bước 3/3 · Xác nhận'),
+            const SizedBox(height: 20),
+          ],
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(

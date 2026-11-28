@@ -194,6 +194,27 @@ void main() {
         expect(scheduler.cancelledOccurrences.length, 1);
         expect(scheduler.cancelledOccurrences.first['scheduleId'], 101);
       });
+
+      test('TC-606-09: nhóm nhiều thuốc, uống 1 thuốc ở 12:05 vẫn gọi cancelOccurrence cho thuốc đó ngay', () async {
+        final lateTime = DateTime.utc(2026, 10, 29, 12, 5, 0);
+        final item2 = DoseReminderItem(
+          medicationScheduleId: 102,
+          scheduledAt: scheduledAt,
+          medicationName: 'Metformin',
+          dosageText: '1 viên',
+          instruction: 'Sau ăn',
+        );
+        final controller = DoseReminderController(
+          group: DoseReminderGroup([item, item2]),
+          outbox: outbox,
+          scheduler: scheduler,
+          clock: () => lateTime,
+        );
+
+        expect(await controller.confirmItem(item), isTrue);
+        expect(scheduler.cancelledOccurrences, hasLength(1));
+        expect(scheduler.cancelledOccurrences.single['scheduleId'], 101);
+      });
     });
 
     group('Subtask 67: Tắt nhắc nhở (reminder_enabled = false)', () {

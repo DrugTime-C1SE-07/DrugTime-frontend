@@ -110,12 +110,18 @@ class ProfileFlowRow extends StatelessWidget {
   const ProfileFlowRow(this.title,
       {super.key,
       this.icon,
+      this.subtitle,
+      this.subtitleStyle,
+      this.unavailableStyle,
       this.onTap,
       this.trailing,
       this.unavailable = false,
       this.color = AppColors.brand});
   final String title;
   final IconData? icon;
+  final String? subtitle;
+  final TextStyle? subtitleStyle;
+  final TextStyle? unavailableStyle;
   final VoidCallback? onTap;
   final Widget? trailing;
   final bool unavailable;
@@ -142,13 +148,13 @@ class ProfileFlowRow extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                       Text(title,
-                          style: const TextStyle(fontSize: 14, height: 1.45)),
+                          style: const TextStyle(fontSize: 15, height: 1.45)),
+                      if (subtitle != null)
+                        Text(subtitle!,
+                            style: subtitleStyle ?? AppTextStyles.caption),
                       if (unavailable)
-                        const Text('Chưa khả dụng',
-                            style: TextStyle(
-                                fontSize: 12,
-                                height: 1.5,
-                                color: AppColors.inkMuted)),
+                        Text('Chưa khả dụng',
+                            style: unavailableStyle ?? AppTextStyles.caption),
                     ])),
                 if (trailing != null) ...[
                   const SizedBox(width: 8),

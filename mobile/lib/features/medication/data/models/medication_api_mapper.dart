@@ -26,9 +26,26 @@ abstract final class MedicationApiMapper {
     final dosageForm = drug['dosage_form'] as String?;
     final asNeeded = json['dosing_mode'] == 'as_needed';
     final dosesPerDay = json['doses_per_day'] as int;
-    final schedules = (json['schedules'] as List).cast<Map<String, dynamic>>();
+    final rawSchedules = (json['schedules'] as List).cast<Map<String, dynamic>>();
+    final parsedSchedules = <MedicationScheduleEntry>[
+      for (final s in rawSchedules)
+        MedicationScheduleEntry(
+          id: (s['id'] as num).toInt(),
+          intakeTime: _parseTime(s['intake_time'] as String),
+          daysOfWeek: _normalizeDays(
+            (s['days_of_week'] as List?)?.cast<num>().map((e) => e.toInt()).toList(),
+          ),
+          reminderEnabled: s['reminder_enabled'] as bool? ?? true,
+        ),
+    ]..sort((a, b) => a.intakeTime.compareTo(b.intakeTime));
     final endedAt = json['ended_at'] as String?;
     final timing = json['intake_timing'] as String?;
+    final daysOfWeek = parsedSchedules.isEmpty
+        ? allDaysOfWeek
+        : parsedSchedules.first.daysOfWeek;
+    final reminderEnabled = parsedSchedules.isEmpty
+        ? true
+        : parsedSchedules.any((s) => s.reminderEnabled);
 
     return Medication(
       id: '${json['id']}',
@@ -43,12 +60,15 @@ abstract final class MedicationApiMapper {
       // Server cho phép xoá cách uống (null); app không có lựa chọn "chưa đặt" nên hiển thị
       // là "Không liên quan bữa ăn".
       timing: timing == null ? IntakeTiming.anytime : _timingFromApi[timing]!,
-      times: [for (final s in schedules) _parseTime(s['intake_time'] as String)]..sort(),
+      times: [for (final s in parsedSchedules) s.intakeTime],
+      schedules: List.unmodifiable(parsedSchedules),
+      daysOfWeek: daysOfWeek,
       status: json['status'] == 'stopped' ? MedicationStatus.stopped : MedicationStatus.active,
       stockRemaining: json['stock_quantity'] as int?,
       endedOn: endedAt == null ? null : DateTime.parse(endedAt).toLocal(),
       dosageForm: dosageForm,
       maxDosesPerDay: asNeeded ? dosesPerDay : null,
+      reminderEnabled: reminderEnabled,
       pillShape: PillShape.fromApi(json['pill_shape']),
       pillColor: PillColor.fromApi(json['pill_color']),
     );
@@ -134,8 +154,16 @@ abstract final class MedicationApiMapper {
       if (!wasAsNeeded || max != before.maxDosesPerDay) body['max_doses_per_day'] = max;
     } else {
       final times = _times(after.times);
+      final beforeDays = _normalizeDays(before.daysOfWeek);
+      final afterDays = _normalizeDays(after.daysOfWeek);
       if (wasAsNeeded) body['dosing_mode'] = 'scheduled';
-      if (wasAsNeeded || !_sameList(times, _times(before.times))) body['intake_times'] = times;
+      if (wasAsNeeded || !_sameList(times, _times(before.times))) {
+        body['intake_times'] = times;
+      }
+      if (!_sameIntList(beforeDays, afterDays) ||
+          (wasAsNeeded && !_sameIntList(afterDays, allDaysOfWeek))) {
+        body['days_of_week'] = afterDays;
+      }
     }
     return body;
   }
@@ -183,6 +211,20 @@ abstract final class MedicationApiMapper {
       if (a[i] != b[i]) return false;
     }
     return true;
+  }
+
+  static bool _sameIntList(List<int> a, List<int> b) {
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (a[i] != b[i]) return false;
+    }
+    return true;
+  }
+
+  static List<int> _normalizeDays(List<int>? days) {
+    if (days == null || days.isEmpty) return allDaysOfWeek;
+    final clean = days.where((d) => d >= 1 && d <= 7).toSet().toList()..sort();
+    return clean.isEmpty ? allDaysOfWeek : List.unmodifiable(clean);
   }
 
   static DoseTime _parseTime(String hhmm) {

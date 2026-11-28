@@ -1,24 +1,25 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../../../app/theme/app_theme.dart';
 import '../../../../core/notification/reminder_scheduler.dart';
-import '../../../../shared/widgets/pill_icon.dart';
-import '../../domain/entities/medication.dart';
-import '../../domain/entities/medication_failure.dart';
-import '../state/medication_controller.dart';
-import '../widgets/medication_error_messages.dart';
-import '../widgets/medication_form_fields.dart';
-import '../widgets/medication_labels.dart';
 import '../../../auth/presentation/state/auth_controller.dart';
-import '../../../interaction_check/presentation/widgets/interaction_warning_dialog.dart';
 import '../../../drug_food_warning/data/repositories/in_memory_food_interaction_repository.dart';
 import '../../../drug_food_warning/domain/repositories/food_interaction_repository.dart';
 import '../../../drug_food_warning/presentation/widgets/food_warning_dialog.dart';
+import '../../../interaction_check/presentation/widgets/interaction_warning_dialog.dart';
+import '../../data/models/medication_api_mapper.dart';
+import '../../domain/entities/medication.dart';
+import '../../domain/entities/medication_failure.dart';
+import '../state/medication_controller.dart';
+import '../widgets/drug_info_sheet.dart';
+import '../widgets/medication_error_messages.dart';
+import '../widgets/medication_form_fields.dart';
+import '../widgets/medication_labels.dart';
+import '../widgets/pill_appearance_icon.dart';
+import 'pill_appearance_screen.dart';
 
-/// S06b · Sửa thông tin thuốc (Figma prototype).
-///
-/// Cho phép người dùng chỉnh sửa liều lượng, tần suất, giờ uống,
-/// cách uống đối với bữa ăn, hoặc xoá thuốc khỏi danh sách.
+/// S06b · Sửa thông tin thuốc (Figma `144:296`).
 class EditMedicationScreen extends StatefulWidget {
   const EditMedicationScreen({
     super.key,
@@ -42,15 +43,46 @@ class EditMedicationScreen extends StatefulWidget {
 }
 
 class _EditMedicationScreenState extends State<EditMedicationScreen> {
+  static const int _maxIntakeTimes = 6;
+  static const int _maxStock = 9999;
+  static const List<double> _dosePresets = [
+    0.5,
+    1.0,
+    1.5,
+    2.0,
+    2.5,
+    3.0,
+    4.0,
+    5.0,
+    6.0,
+    7.0,
+    8.0,
+    9.0,
+    10.0,
+  ];
+
   late double _dose;
   late int _maxDoses;
   late DoseFrequency _frequency;
   late List<DoseTime> _times;
+  late List<int> _daysOfWeek;
   late IntakeTiming _timing;
   late bool _reminderEnabled;
+  late PillShape? _pillShape;
+  late PillColor? _pillColor;
+  late final TextEditingController _stockController;
 
+  bool _reminderTouched = false;
   bool _dirty = false;
   bool _saving = false;
+  String? _stockError;
+  String? _daysError;
+
+  bool get _isPartialReminder =>
+      widget.medication.reminderState == MedicationReminderState.partial;
+
+  String? get _effectiveDosageForm =>
+      widget.dosageForm ?? widget.medication.dosageForm;
 
   @override
   void initState() {
@@ -59,8 +91,21 @@ class _EditMedicationScreenState extends State<EditMedicationScreen> {
     _maxDoses = widget.medication.maxDosesPerDay ?? defaultMaxDosesPerDay;
     _frequency = widget.medication.frequency;
     _times = List<DoseTime>.from(widget.medication.times);
+    _daysOfWeek = List<int>.from(widget.medication.daysOfWeek);
     _timing = widget.medication.timing;
-    _reminderEnabled = widget.medication.reminderEnabled;
+    _reminderEnabled =
+        _isPartialReminder ? true : widget.medication.reminderEnabled;
+    _pillShape = widget.medication.pillShape;
+    _pillColor = widget.medication.pillColor;
+    _stockController = TextEditingController(
+      text: widget.medication.stockRemaining?.toString() ?? '',
+    );
+  }
+
+  @override
+  void dispose() {
+    _stockController.dispose();
+    super.dispose();
   }
 
   void _markDirty() {
@@ -76,49 +121,104 @@ class _EditMedicationScreenState extends State<EditMedicationScreen> {
   }
 
   Future<void> _pickDose() async {
+    final customController = TextEditingController();
+    String? customError;
     final selected = await showModalBottomSheet<double>(
       context: context,
+      isScrollControlled: true,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadius.card)),
+        borderRadius:
+            BorderRadius.vertical(top: Radius.circular(AppRadius.card)),
       ),
-      builder: (context) {
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.page,
-              vertical: AppSpacing.lg,
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('Chọn số lượng mỗi lần uống', style: AppTextStyles.heading),
-                const SizedBox(height: AppSpacing.md),
-                Wrap(
-                  spacing: AppSpacing.sm,
-                  runSpacing: AppSpacing.sm,
-                  children: List.generate(8, (i) {
-                    final value = (i + 1).toDouble();
-                    final isCurrent = value == _dose;
-                    return ChoiceChip(
-                      label: Text('${formatQuantity(value)} ${widget.medication.unit}'),
-                      selected: isCurrent,
-                      selectedColor: AppColors.brandTint,
-                      labelStyle: TextStyle(
-                        color: isCurrent ? AppColors.brand : AppColors.ink,
-                        fontWeight: isCurrent ? FontWeight.w600 : FontWeight.normal,
-                      ),
-                      onSelected: (_) => Navigator.of(context).pop(value),
-                    );
-                  }),
+      builder: (sheetContext) {
+        return StatefulBuilder(
+          builder: (sheetContext, setSheetState) {
+            return SafeArea(
+              child: Padding(
+                padding: EdgeInsets.fromLTRB(
+                  AppSpacing.page,
+                  AppSpacing.lg,
+                  AppSpacing.page,
+                  MediaQuery.viewInsetsOf(sheetContext).bottom + AppSpacing.lg,
                 ),
-                const SizedBox(height: AppSpacing.md),
-              ],
-            ),
-          ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('Chọn số lượng mỗi lần uống',
+                        style: AppTextStyles.heading),
+                    const SizedBox(height: AppSpacing.md),
+                    Wrap(
+                      spacing: AppSpacing.sm,
+                      runSpacing: AppSpacing.sm,
+                      children: [
+                        for (final value in _dosePresets)
+                          ChoiceChip(
+                            label: Text(
+                              '${formatQuantity(value)} ${widget.medication.unit}',
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: value == _dose
+                                    ? AppColors.brand
+                                    : AppColors.ink,
+                                fontWeight: value == _dose
+                                    ? FontWeight.w600
+                                    : FontWeight.normal,
+                              ),
+                            ),
+                            selected: value == _dose,
+                            selectedColor: AppColors.brandTint,
+                            onSelected: (_) =>
+                                Navigator.of(sheetContext).pop(value),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: AppSpacing.lg),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            key: const Key('edit_dose_custom_input'),
+                            controller: customController,
+                            keyboardType: const TextInputType.numberWithOptions(
+                                decimal: true),
+                            decoration: InputDecoration(
+                              hintText: 'Hoặc nhập (0 < liều ≤ 10)',
+                              errorText: customError,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: AppSpacing.sm),
+                        FilledButton(
+                          onPressed: () {
+                            final raw =
+                                customController.text.trim().replaceAll(',', '.');
+                            final parsed = double.tryParse(raw);
+                            if (parsed == null || parsed <= 0 || parsed > 10) {
+                              setSheetState(() {
+                                customError = 'Nhập số > 0 và ≤ 10';
+                              });
+                              return;
+                            }
+                            Navigator.of(sheetContext).pop(parsed);
+                          },
+                          style: FilledButton.styleFrom(
+                            minimumSize: const Size(88, AppSizes.field),
+                          ),
+                          child: const Text('Áp dụng'),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
         );
       },
     );
+    customController.dispose();
 
     if (selected != null && selected != _dose) {
       setState(() {
@@ -132,7 +232,8 @@ class _EditMedicationScreenState extends State<EditMedicationScreen> {
     final selected = await showModalBottomSheet<DoseFrequency>(
       context: context,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadius.card)),
+        borderRadius:
+            BorderRadius.vertical(top: Radius.circular(AppRadius.card)),
       ),
       builder: (context) {
         return SafeArea(
@@ -145,10 +246,12 @@ class _EditMedicationScreenState extends State<EditMedicationScreen> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('Chọn tần suất uống thuốc', style: AppTextStyles.heading),
+                const Text('Chọn tần suất uống thuốc',
+                    style: AppTextStyles.heading),
                 const SizedBox(height: AppSpacing.md),
                 for (final freq in DoseFrequency.selectable)
                   ListTile(
+                    minTileHeight: AppSizes.tapTarget,
                     title: Text(freq.label, style: AppTextStyles.bodyStrong),
                     trailing: freq == _frequency
                         ? const Icon(Icons.check, color: AppColors.brand)
@@ -167,7 +270,8 @@ class _EditMedicationScreenState extends State<EditMedicationScreen> {
         _frequency = selected;
         if (selected == DoseFrequency.asNeeded) {
           _times = const [];
-        } else if (_times.isEmpty) {
+          _daysError = null;
+        } else {
           _times = List<DoseTime>.from(selected.defaultTimes);
         }
         _markDirty();
@@ -176,6 +280,11 @@ class _EditMedicationScreenState extends State<EditMedicationScreen> {
   }
 
   Future<void> _addTime() async {
+    if (_times.length >= _maxIntakeTimes) {
+      _toast('Tối đa $_maxIntakeTimes lần uống mỗi ngày.');
+      return;
+    }
+
     final picked = await showTimePicker(
       context: context,
       initialTime: const TimeOfDay(hour: 8, minute: 0),
@@ -198,6 +307,7 @@ class _EditMedicationScreenState extends State<EditMedicationScreen> {
 
     setState(() {
       _times = [..._times, next]..sort();
+      _frequency = DoseFrequency.forTimeCount(_times.length);
       _markDirty();
     });
   }
@@ -237,18 +347,140 @@ class _EditMedicationScreenState extends State<EditMedicationScreen> {
     }
     setState(() {
       _times.remove(time);
+      _frequency = DoseFrequency.forTimeCount(_times.length);
       _markDirty();
     });
   }
 
+  Future<void> _pickAppearance() async {
+    final chosen = await showPillAppearanceScreen(
+      context,
+      drugName: widget.medication.name,
+      dosageForm: _effectiveDosageForm,
+      shape: _pillShape,
+      color: _pillColor,
+      showStepProgress: false,
+    );
+    if (chosen == null || !mounted) return;
+    final (shape, color) = chosen;
+    if (shape != _pillShape || color != _pillColor) {
+      setState(() {
+        _pillShape = shape;
+        _pillColor = color;
+        _markDirty();
+      });
+    }
+  }
+
+  void _toggleDay(int isoDay) {
+    setState(() {
+      if (_daysOfWeek.contains(isoDay)) {
+        _daysOfWeek.remove(isoDay);
+      } else {
+        _daysOfWeek = [..._daysOfWeek, isoDay]..sort();
+      }
+      if (_daysOfWeek.isNotEmpty) _daysError = null;
+      _markDirty();
+    });
+  }
+
+  void _selectEveryDay() {
+    setState(() {
+      _daysOfWeek = List<int>.from(allDaysOfWeek);
+      _daysError = null;
+      _markDirty();
+    });
+  }
+
+  (bool valid, int? stock) _validateStock() {
+    final raw = _stockController.text.trim();
+    if (raw.isEmpty) {
+      return (true, null);
+    }
+    final parsed = int.tryParse(raw);
+    if (parsed == null || parsed < 0 || parsed > _maxStock) {
+      return (false, null);
+    }
+    return (true, parsed);
+  }
+
   Future<void> _saveMedication() async {
     if (_saving) return;
+
+    final (stockValid, parsedStock) = _validateStock();
+    final daysValid = _frequency.isAsNeeded || _daysOfWeek.isNotEmpty;
+    if (!stockValid || !daysValid) {
+      setState(() {
+        _stockError =
+            stockValid ? null : 'Nhập số nguyên từ 0 đến $_maxStock.';
+        _daysError = daysValid ? null : 'Chọn ít nhất một ngày uống.';
+      });
+      _toast(
+        !daysValid
+            ? 'Chọn ít nhất một ngày uống.'
+            : 'Số lượng tồn kho không hợp lệ (0–$_maxStock).',
+      );
+      return;
+    }
+
+    setState(() {
+      _stockError = null;
+      _daysError = null;
+    });
+
+    final sortedDays = _frequency.isAsNeeded
+        ? widget.medication.daysOfWeek
+        : (List<int>.from(_daysOfWeek)..sort());
+    final effectiveReminder = _frequency.isAsNeeded
+        ? widget.medication.reminderEnabled
+        : (_isPartialReminder && !_reminderTouched
+            ? widget.medication.reminderEnabled
+            : _reminderEnabled);
+
+    final edited = widget.medication
+        .withAppearance(_pillShape, _pillColor)
+        .copyWith(
+          dosePerIntake: _dose,
+          frequency: _frequency,
+          timing: _timing,
+          times: _frequency.isAsNeeded ? const [] : _times,
+          daysOfWeek: sortedDays,
+          maxDosesPerDay: _frequency.isAsNeeded ? _maxDoses : null,
+          stockRemaining: parsedStock,
+          clearStock: parsedStock == null,
+          reminderEnabled: effectiveReminder,
+        );
+
+    final patch = MedicationApiMapper.patchBody(widget.medication, edited);
+    final reminderChanged = !_frequency.isAsNeeded &&
+        _reminderTouched &&
+        (_isPartialReminder ||
+            _reminderEnabled != widget.medication.reminderEnabled);
+
+    // AC10: Không thay đổi gì thì không gọi interaction check hay PATCH.
+    if (patch.isEmpty && !reminderChanged) {
+      Navigator.of(context).pop();
+      return;
+    }
+
     setState(() => _saving = true);
     final controller = MedicationScope.read(context);
 
+    final clinicalChanged =
+        edited.dosePerIntake != widget.medication.dosePerIntake ||
+            edited.frequency != widget.medication.frequency ||
+            edited.timing != widget.medication.timing ||
+            edited.maxDosesPerDay != widget.medication.maxDosesPerDay ||
+            !_sameTimes(edited.times, widget.medication.times) ||
+            (!edited.frequency.isAsNeeded &&
+                !_sameInts(edited.daysOfWeek, widget.medication.daysOfWeek));
+
+    final scheduler =
+        widget.reminderScheduler ?? ReminderSchedulerScope.maybeOf(context);
     final candidateId = int.tryParse(widget.medication.catalogId);
-    if (candidateId != null) {
-      final patientId = AuthScope.maybeOf(context)?.currentSession?.userId ?? '';
+    if (clinicalChanged && candidateId != null) {
+      final patientId =
+          AuthScope.maybeOf(context)?.currentSession?.userId ?? '';
       try {
         final otherActiveIds = controller.medications
             .where((m) => m.id != widget.medication.id && m.isActive)
@@ -260,38 +492,35 @@ class _EditMedicationScreenState extends State<EditMedicationScreen> {
           patientId: patientId,
           candidateMedicationId: candidateId,
           candidateDoseAmount: _dose,
-          candidateDoseUnit: widget.medication.unit.isEmpty ? null : widget.medication.unit,
+          candidateDoseUnit:
+              widget.medication.unit.isEmpty ? null : widget.medication.unit,
           medicationIds: otherActiveIds,
         );
 
         if (checkResult.hasInteractions) {
           if (!mounted) return;
           setState(() => _saving = false);
-          final proceed = await showInteractionWarningDialog(context, checkResult);
-          if (proceed != true) {
-            return;
-          }
+          final proceed =
+              await showInteractionWarningDialog(context, checkResult);
+          if (proceed != true) return;
           if (mounted) setState(() => _saving = true);
-        } else if (checkResult.isInsufficientData || checkResult.insufficientDataMedications.isNotEmpty) {
+        } else if (checkResult.isInsufficientData ||
+            checkResult.insufficientDataMedications.isNotEmpty) {
           if (!mounted) return;
           setState(() => _saving = false);
-          final proceed = await showInsufficientDataDialog(context, checkResult);
-          if (proceed != true) {
-            return;
-          }
+          final proceed =
+              await showInsufficientDataDialog(context, checkResult);
+          if (proceed != true) return;
           if (mounted) setState(() => _saving = true);
         }
       } catch (_) {
         if (!mounted) return;
         setState(() => _saving = false);
         final proceed = await showInteractionNetworkErrorDialog(context);
-        if (proceed != true) {
-          return;
-        }
+        if (proceed != true) return;
         if (mounted) setState(() => _saving = true);
       }
 
-      // Kiem tra tuong tac thuoc - thuc an / do uong (Task 4.06)
       final foodRepo = widget.foodInteractionRepository ??
           InMemoryFoodInteractionRepository();
       try {
@@ -306,39 +535,38 @@ class _EditMedicationScreenState extends State<EditMedicationScreen> {
           if (!mounted) return;
           setState(() => _saving = false);
           final proceed = await showFoodWarningDialog(context, foodResult);
-          if (proceed != true) {
-            return;
-          }
+          if (proceed != true) return;
           if (mounted) setState(() => _saving = true);
         }
       } catch (_) {
         if (!mounted) return;
         setState(() => _saving = false);
         final proceed = await showFoodNetworkErrorDialog(context);
-        if (proceed != true) {
-          return;
-        }
+        if (proceed != true) return;
         if (mounted) setState(() => _saving = true);
       }
     }
 
-    final edited = widget.medication.copyWith(
-      dosePerIntake: _dose,
-      frequency: _frequency,
-      timing: _timing,
-      times: _frequency.isAsNeeded ? const [] : _times,
-      maxDosesPerDay: _frequency.isAsNeeded ? _maxDoses : null,
-      reminderEnabled: _reminderEnabled,
-    );
-
     final Medication updated;
     try {
-      // Chỉ phần khác bản gốc được gửi lên (PATCH).
-      updated = await controller.update(widget.medication, edited);
-      if (!_reminderEnabled) {
-        final scheduleId = int.tryParse(widget.medication.id);
-        if (scheduleId != null) {
-          await widget.reminderScheduler?.cancelAllForSchedule(scheduleId);
+      updated = await controller.saveEdit(
+        before: widget.medication,
+        after: edited,
+        applyReminderToAllSchedules: reminderChanged,
+      );
+      if (!_frequency.isAsNeeded && reminderChanged && !_reminderEnabled) {
+        if (scheduler != null) {
+          final scheduleIds = <int>{
+            for (final s in widget.medication.schedules) s.id,
+            for (final s in updated.schedules) s.id,
+          };
+          if (scheduleIds.isEmpty) {
+            final fallbackId = int.tryParse(widget.medication.id);
+            if (fallbackId != null) scheduleIds.add(fallbackId);
+          }
+          for (final id in scheduleIds) {
+            await scheduler.cancelAllForSchedule(id);
+          }
         }
       }
     } on MedicationFailure catch (failure) {
@@ -407,11 +635,11 @@ class _EditMedicationScreenState extends State<EditMedicationScreen> {
       ..hideCurrentSnackBar()
       ..showSnackBar(
         SnackBar(
-          content: Text('Đã xoá ${widget.medication.name} khỏi danh sách thuốc'),
+          content:
+              Text('Đã xoá ${widget.medication.name} khỏi danh sách thuốc'),
         ),
       );
 
-    // Pop về danh sách thuốc (nếu màn trước là Detail, pop cả 2 màn hoặc pop kèm tín hiệu deleted)
     Navigator.of(context).pop({'deleted': true, 'id': widget.medication.id});
   }
 
@@ -448,8 +676,11 @@ class _EditMedicationScreenState extends State<EditMedicationScreen> {
   Widget build(BuildContext context) {
     final subtitle = drugSubtitle(
       widget.medication.activeIngredient,
-      widget.dosageForm ?? widget.medication.dosageForm,
+      _effectiveDosageForm,
     );
+    final reminderSubtitle = _isPartialReminder && !_reminderTouched
+        ? 'Đang bật một phần (${widget.medication.enabledScheduleCount}/${widget.medication.schedules.length} giờ) — gạt để áp dụng chung cho mọi giờ'
+        : 'Nhận thông báo khi đến cữ uống thuốc';
 
     return PopScope(
       canPop: !_dirty || _saving,
@@ -457,29 +688,54 @@ class _EditMedicationScreenState extends State<EditMedicationScreen> {
         if (!didPop) _leaveIfConfirmed();
       },
       child: Scaffold(
-        backgroundColor: Colors.white,
+        backgroundColor: AppColors.surface,
         appBar: AppBar(
-          backgroundColor: Colors.white,
+          backgroundColor: AppColors.surface,
           elevation: 0,
           scrolledUnderElevation: 0,
-          leading: IconButton(
-            icon: const Icon(Icons.arrow_back, color: AppColors.ink),
-            onPressed: () {
-              if (_dirty) {
-                _leaveIfConfirmed();
-              } else {
-                Navigator.of(context).maybePop();
-              }
-            },
+          leadingWidth: 64,
+          leading: Padding(
+            padding: const EdgeInsets.only(left: AppSpacing.md),
+            child: Center(
+              child: IconButton(
+                tooltip: 'Quay lại',
+                icon: const Icon(Icons.chevron_left, color: AppColors.brand),
+                style: IconButton.styleFrom(
+                  backgroundColor: AppColors.brandTint,
+                  minimumSize: const Size.square(AppSizes.tapTarget),
+                ),
+                onPressed: () {
+                  if (_dirty) {
+                    _leaveIfConfirmed();
+                  } else {
+                    Navigator.of(context).maybePop();
+                  }
+                },
+              ),
+            ),
           ),
           title: const Text(
             'Sửa thông tin thuốc',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: TextStyle(
               fontSize: 20,
               fontWeight: FontWeight.bold,
               color: AppColors.ink,
             ),
           ),
+          actions: [
+            IconButton(
+              key: const Key('edit-drug-info'),
+              tooltip: 'Xem thông tin thuốc',
+              style: IconButton.styleFrom(
+                minimumSize: const Size.square(AppSizes.tapTarget),
+              ),
+              icon: const Icon(Icons.info_outline, color: AppColors.brand),
+              onPressed: () =>
+                  showMedicationInfoSheet(context, widget.medication),
+            ),
+          ],
           centerTitle: false,
         ),
         body: ListView(
@@ -487,47 +743,67 @@ class _EditMedicationScreenState extends State<EditMedicationScreen> {
           children: [
             const SizedBox(height: AppSpacing.md),
 
-            // 1. Thẻ thông tin thuốc ở trên cùng
+            // 1. Thẻ thông tin thuốc + đổi dạng & màu
             _DrugInfoCard(
               name: widget.medication.name,
               subtitle: subtitle,
+              pillShape: _pillShape,
+              pillColor: _pillColor,
+              dosageForm: _effectiveDosageForm,
+              onChangeAppearance: _pickAppearance,
             ),
             const SizedBox(height: AppSpacing.xl),
 
             // 2. Hai cột: Số lượng/lần & Tần suất
-            Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final textScale =
+                    MediaQuery.textScalerOf(context).scale(14) / 14;
+                final stack = constraints.maxWidth / textScale < 240;
+                final doseField = Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('Số lượng/lần', style: AppTextStyles.bodyStrong),
+                    const SizedBox(height: AppSpacing.sm),
+                    _SelectBox(
+                      label:
+                          '${formatQuantity(_dose)} ${widget.medication.unit}',
+                      onTap: _pickDose,
+                    ),
+                  ],
+                );
+                final freqField = Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('Tần suất', style: AppTextStyles.bodyStrong),
+                    const SizedBox(height: AppSpacing.sm),
+                    _SelectBox(
+                      label: _frequency == DoseFrequency.custom
+                          ? '${_times.length} lần/ngày'
+                          : _frequency.label,
+                      hasDropdownIcon: true,
+                      onTap: _pickFrequency,
+                    ),
+                  ],
+                );
+                if (stack) {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      const Text('Số lượng/lần', style: AppTextStyles.bodyStrong),
-                      const SizedBox(height: AppSpacing.sm),
-                      _SelectBox(
-                        label: '${formatQuantity(_dose)} ${widget.medication.unit}',
-                        onTap: _pickDose,
-                      ),
+                      doseField,
+                      const SizedBox(height: AppSpacing.md),
+                      freqField,
                     ],
-                  ),
-                ),
-                const SizedBox(width: AppSpacing.md),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text('Tần suất', style: AppTextStyles.bodyStrong),
-                      const SizedBox(height: AppSpacing.sm),
-                      _SelectBox(
-                        label: _frequency == DoseFrequency.custom
-                            ? '${_times.length} lần/ngày'
-                            : _frequency.label,
-                        hasDropdownIcon: true,
-                        onTap: _pickFrequency,
-                      ),
-                    ],
-                  ),
-                ),
-              ],
+                  );
+                }
+                return Row(
+                  children: [
+                    Expanded(child: doseField),
+                    const SizedBox(width: AppSpacing.md),
+                    Expanded(child: freqField),
+                  ],
+                );
+              },
             ),
             const SizedBox(height: AppSpacing.xl),
 
@@ -558,7 +834,7 @@ class _EditMedicationScreenState extends State<EditMedicationScreen> {
                   _markDirty();
                 }),
               ),
-            ] else
+            ] else ...[
               Wrap(
                 spacing: AppSpacing.sm,
                 runSpacing: AppSpacing.sm,
@@ -570,9 +846,69 @@ class _EditMedicationScreenState extends State<EditMedicationScreen> {
                       onTap: () => _editTime(t),
                       onDelete: () => _removeTime(t),
                     ),
-                  _AddTimeChip(onTap: _addTime),
+                  if (_times.length < _maxIntakeTimes)
+                    _AddTimeChip(onTap: _addTime),
                 ],
               ),
+              const SizedBox(height: AppSpacing.xl),
+
+              // 3b. Ngày uống trong tuần (ISO 1..7)
+              Row(
+                children: [
+                  const Expanded(
+                    child: Text('Ngày uống', style: AppTextStyles.bodyStrong),
+                  ),
+                  TextButton(
+                    key: const Key('edit-days-everyday'),
+                    onPressed: _selectEveryDay,
+                    child: const Text('Hằng ngày'),
+                  ),
+                ],
+              ),
+              const SizedBox(height: AppSpacing.xs),
+              Wrap(
+                spacing: AppSpacing.sm,
+                runSpacing: AppSpacing.sm,
+                children: [
+                  for (final (day, label) in const [
+                    (1, 'T2'),
+                    (2, 'T3'),
+                    (3, 'T4'),
+                    (4, 'T5'),
+                    (5, 'T6'),
+                    (6, 'T7'),
+                    (7, 'CN'),
+                  ])
+                    FilterChip(
+                      key: Key('edit-day-$day'),
+                      label: Text(
+                        label,
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: _daysOfWeek.contains(day)
+                              ? FontWeight.w600
+                              : FontWeight.normal,
+                          color: _daysOfWeek.contains(day)
+                              ? AppColors.brand
+                              : AppColors.ink,
+                        ),
+                      ),
+                      selected: _daysOfWeek.contains(day),
+                      selectedColor: AppColors.brandTint,
+                      checkmarkColor: AppColors.brand,
+                      onSelected: (_) => _toggleDay(day),
+                    ),
+                ],
+              ),
+              if (_daysError != null) ...[
+                const SizedBox(height: AppSpacing.sm),
+                Text(
+                  _daysError!,
+                  style: AppTextStyles.captionStrong
+                      .copyWith(color: AppColors.danger),
+                ),
+              ],
+            ],
             const SizedBox(height: AppSpacing.xl),
 
             // 4. Uống thế nào
@@ -591,27 +927,53 @@ class _EditMedicationScreenState extends State<EditMedicationScreen> {
             ),
             const SizedBox(height: AppSpacing.xl),
 
-            // 5. Bật / Tắt nhắc nhở (Task 2.08)
-            Card(
-              elevation: 0,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(AppRadius.card),
-                side: const BorderSide(color: AppColors.border),
-              ),
-              child: SwitchListTile(
-                key: const Key('edit_medication_reminder_switch'),
-                title: const Text('Bật nhắc nhở', style: AppTextStyles.bodyStrong),
-                subtitle: const Text('Nhận thông báo khi đến cữ uống thuốc'),
-                value: _reminderEnabled,
-                activeThumbColor: AppColors.brand,
-                onChanged: (val) {
-                  setState(() {
-                    _reminderEnabled = val;
-                    _markDirty();
-                  });
-                },
+            // 5. Số lượng tồn kho
+            const Text('Số lượng tồn kho', style: AppTextStyles.bodyStrong),
+            const SizedBox(height: AppSpacing.sm),
+            TextField(
+              key: const Key('edit-stock-input'),
+              controller: _stockController,
+              keyboardType: TextInputType.number,
+              inputFormatters: [
+                FilteringTextInputFormatter.allow(RegExp(r'^-?\d*')),
+              ],
+              onChanged: (_) {
+                if (_stockError != null) setState(() => _stockError = null);
+                _markDirty();
+              },
+              decoration: InputDecoration(
+                hintText: 'Để trống nếu không theo dõi (0–$_maxStock)',
+                suffixText: widget.medication.unit,
+                errorText: _stockError,
               ),
             ),
+
+            // 6. Bật / Tắt nhắc nhở (chỉ thuốc theo giờ)
+            if (!_frequency.isAsNeeded) ...[
+              const SizedBox(height: AppSpacing.xl),
+              Card(
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(AppRadius.card),
+                  side: const BorderSide(color: AppColors.border),
+                ),
+                child: SwitchListTile(
+                  key: const Key('edit_medication_reminder_switch'),
+                  title: const Text('Bật nhắc nhở',
+                      style: AppTextStyles.bodyStrong),
+                  subtitle: Text(reminderSubtitle, style: AppTextStyles.caption),
+                  value: _reminderEnabled,
+                  activeThumbColor: AppColors.brand,
+                  onChanged: (val) {
+                    setState(() {
+                      _reminderEnabled = val;
+                      _reminderTouched = true;
+                      _markDirty();
+                    });
+                  },
+                ),
+              ),
+            ],
             const SizedBox(height: AppSpacing.xxl),
           ],
         ),
@@ -629,15 +991,14 @@ class _EditMedicationScreenState extends State<EditMedicationScreen> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // Nút Lưu
                 FilledButton(
                   onPressed: _saving ? null : _saveMedication,
                   style: FilledButton.styleFrom(
-                    backgroundColor: const Color(0xFF01554F),
-                    foregroundColor: Colors.white,
+                    backgroundColor: AppColors.brand,
+                    foregroundColor: AppColors.onBrand,
                     minimumSize: const Size.fromHeight(52),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(AppRadius.field),
                     ),
                   ),
                   child: _saving
@@ -645,49 +1006,55 @@ class _EditMedicationScreenState extends State<EditMedicationScreen> {
                           dimension: 20,
                           child: CircularProgressIndicator(
                             strokeWidth: 2,
-                            color: Colors.white,
+                            color: AppColors.onBrand,
                           ),
                         )
                       : const Row(
                           mainAxisAlignment: MainAxisAlignment.center,
+                          mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(Icons.check, size: 20, color: Colors.white),
+                            Icon(Icons.check,
+                                size: 20, color: AppColors.onBrand),
                             SizedBox(width: AppSpacing.sm),
-                            Text(
-                              'Lưu',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.white,
+                            Flexible(
+                              child: Text(
+                                'Lưu',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                  color: AppColors.onBrand,
+                                ),
                               ),
                             ),
                           ],
                         ),
                 ),
                 const SizedBox(height: AppSpacing.md),
-
-                // Nút Xoá thuốc
                 OutlinedButton(
                   onPressed: _saving ? null : _confirmDeleteMedication,
                   style: OutlinedButton.styleFrom(
-                    backgroundColor: Colors.white,
-                    side: const BorderSide(color: Color(0xFFE53935)),
+                    backgroundColor: AppColors.surface,
+                    side: const BorderSide(color: AppColors.danger),
                     minimumSize: const Size.fromHeight(52),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(AppRadius.field),
                     ),
                   ),
                   child: const Row(
                     mainAxisAlignment: MainAxisAlignment.center,
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.delete_outline, size: 20, color: Color(0xFFE53935)),
+                      Icon(Icons.delete_outline,
+                          size: 20, color: AppColors.danger),
                       SizedBox(width: AppSpacing.sm),
-                      Text(
-                        'Xoá thuốc',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFFE53935),
+                      Flexible(
+                        child: Text(
+                          'Xoá thuốc',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.danger,
+                          ),
                         ),
                       ),
                     ],
@@ -702,32 +1069,61 @@ class _EditMedicationScreenState extends State<EditMedicationScreen> {
   }
 }
 
-/// Thẻ thuốc xanh nhạt trên cùng
+bool _sameTimes(List<DoseTime> a, List<DoseTime> b) {
+  final sa = [...a]..sort();
+  final sb = [...b]..sort();
+  if (sa.length != sb.length) return false;
+  for (var i = 0; i < sa.length; i++) {
+    if (sa[i] != sb[i]) return false;
+  }
+  return true;
+}
+
+bool _sameInts(List<int> a, List<int> b) {
+  final sa = [...a]..sort();
+  final sb = [...b]..sort();
+  if (sa.length != sb.length) return false;
+  for (var i = 0; i < sa.length; i++) {
+    if (sa[i] != sb[i]) return false;
+  }
+  return true;
+}
+
+/// Thẻ thuốc xanh nhạt trên cùng kèm nút Đổi dạng & màu.
 class _DrugInfoCard extends StatelessWidget {
-  const _DrugInfoCard({required this.name, required this.subtitle});
+  const _DrugInfoCard({
+    required this.name,
+    required this.subtitle,
+    required this.pillShape,
+    required this.pillColor,
+    required this.dosageForm,
+    required this.onChangeAppearance,
+  });
 
   final String name;
   final String subtitle;
+  final PillShape? pillShape;
+  final PillColor? pillColor;
+  final String? dosageForm;
+  final VoidCallback onChangeAppearance;
 
   @override
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(AppSpacing.lg),
       decoration: BoxDecoration(
-        color: const Color(0xFFE6F3F1),
-        borderRadius: BorderRadius.circular(16),
+        color: AppColors.brandTint,
+        borderRadius: BorderRadius.circular(AppRadius.card),
       ),
       child: Row(
         children: [
-          Container(
-            width: 48,
-            height: 48,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: const PillIcon(size: 24, color: Color(0xFF01554F)),
+          PillAppearanceTile(
+            key: const Key('edit-appearance-preview'),
+            shape: pillShape,
+            color: pillColor,
+            dosageForm: dosageForm,
+            size: 48,
+            background: AppColors.surface,
           ),
           const SizedBox(width: AppSpacing.md),
           Expanded(
@@ -745,13 +1141,16 @@ class _DrugInfoCard extends StatelessWidget {
                 const SizedBox(height: 4),
                 Text(
                   subtitle,
-                  style: const TextStyle(
-                    fontSize: 13,
-                    color: AppColors.inkMuted,
-                  ),
+                  style: AppTextStyles.caption,
                 ),
               ],
             ),
+          ),
+          const SizedBox(width: AppSpacing.sm),
+          TextButton(
+            key: const Key('edit-change-appearance'),
+            onPressed: onChangeAppearance,
+            child: const Text('Đổi'),
           ),
         ],
       ),
@@ -774,17 +1173,18 @@ class _SelectBox extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: Colors.white,
+      color: AppColors.surface,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(AppRadius.field),
         side: const BorderSide(color: AppColors.border),
       ),
       child: InkWell(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(AppRadius.field),
         onTap: onTap,
         child: Container(
-          height: 52,
-          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+          constraints: const BoxConstraints(minHeight: 52),
+          padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.lg, vertical: AppSpacing.sm),
           alignment: Alignment.centerLeft,
           child: Row(
             children: [
@@ -827,21 +1227,23 @@ class _DoseTimeChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
+      constraints: const BoxConstraints(minHeight: AppSizes.tapTarget),
       decoration: BoxDecoration(
-        color: const Color(0xFFE6F3F1),
+        color: AppColors.brandTint,
         borderRadius: BorderRadius.circular(24),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           InkWell(
-            borderRadius: const BorderRadius.horizontal(left: Radius.circular(24)),
+            borderRadius:
+                const BorderRadius.horizontal(left: Radius.circular(24)),
             onTap: onTap,
             child: Padding(
               padding: const EdgeInsets.only(
                 left: 14,
-                top: 8,
-                bottom: 8,
+                top: 12,
+                bottom: 12,
                 right: 4,
               ),
               child: Text(
@@ -849,25 +1251,26 @@ class _DoseTimeChip extends StatelessWidget {
                 style: const TextStyle(
                   fontSize: 15,
                   fontWeight: FontWeight.w600,
-                  color: Color(0xFF01554F),
+                  color: AppColors.brand,
                 ),
               ),
             ),
           ),
           InkWell(
-            borderRadius: const BorderRadius.horizontal(right: Radius.circular(24)),
+            borderRadius:
+                const BorderRadius.horizontal(right: Radius.circular(24)),
             onTap: onDelete,
             child: const Padding(
               padding: EdgeInsets.only(
-                left: 2,
-                top: 8,
-                bottom: 8,
+                left: 4,
+                top: 12,
+                bottom: 12,
                 right: 12,
               ),
               child: Icon(
                 Icons.close,
-                size: 16,
-                color: Color(0xFF01554F),
+                size: 18,
+                color: AppColors.brand,
               ),
             ),
           ),
@@ -886,7 +1289,7 @@ class _AddTimeChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: Colors.white,
+      color: AppColors.surface,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(24),
         side: const BorderSide(color: AppColors.border),
@@ -894,9 +1297,10 @@ class _AddTimeChip extends StatelessWidget {
       child: InkWell(
         borderRadius: BorderRadius.circular(24),
         onTap: onTap,
-        child: const Padding(
-          padding: EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-          child: Row(
+        child: Container(
+          constraints: const BoxConstraints(minHeight: AppSizes.tapTarget),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          child: const Row(
             mainAxisSize: MainAxisSize.min,
             children: [
               Icon(Icons.add, size: 16, color: AppColors.ink),
@@ -935,19 +1339,40 @@ class _TimingSegmentRow extends StatelessWidget {
       (IntakeTiming.anytime, 'Không liên quan'),
     ];
 
-    return Row(
-      children: [
-        for (int i = 0; i < items.length; i++) ...[
-          if (i > 0) const SizedBox(width: AppSpacing.sm),
-          Expanded(
-            child: _TimingButton(
-              label: items[i].$2,
-              selected: currentTiming == items[i].$1,
-              onTap: () => onSelect(items[i].$1),
-            ),
-          ),
-        ],
-      ],
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final textScale = MediaQuery.textScalerOf(context).scale(14) / 14;
+        final stack = constraints.maxWidth / textScale < 240;
+        if (stack) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              for (int i = 0; i < items.length; i++) ...[
+                if (i > 0) const SizedBox(height: AppSpacing.sm),
+                _TimingButton(
+                  label: items[i].$2,
+                  selected: currentTiming == items[i].$1,
+                  onTap: () => onSelect(items[i].$1),
+                ),
+              ],
+            ],
+          );
+        }
+        return Row(
+          children: [
+            for (int i = 0; i < items.length; i++) ...[
+              if (i > 0) const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: _TimingButton(
+                  label: items[i].$2,
+                  selected: currentTiming == items[i].$1,
+                  onTap: () => onSelect(items[i].$1),
+                ),
+              ),
+            ],
+          ],
+        );
+      },
     );
   }
 }
@@ -966,27 +1391,27 @@ class _TimingButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: selected ? const Color(0xFF01554F) : Colors.white,
+      color: selected ? AppColors.brand : AppColors.surface,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(AppRadius.field),
         side: BorderSide(
-          color: selected ? const Color(0xFF01554F) : AppColors.border,
+          color: selected ? AppColors.brand : AppColors.border,
         ),
       ),
       child: InkWell(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(AppRadius.field),
         onTap: onTap,
         child: Container(
-          height: 48,
+          constraints: const BoxConstraints(minHeight: AppSizes.tapTarget),
           alignment: Alignment.center,
-          padding: const EdgeInsets.symmetric(horizontal: 4),
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
           child: Text(
             label,
             textAlign: TextAlign.center,
             style: TextStyle(
-              fontSize: 13,
+              fontSize: 14,
               fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
-              color: selected ? Colors.white : AppColors.inkMuted,
+              color: selected ? AppColors.onBrand : AppColors.inkMuted,
             ),
           ),
         ),
