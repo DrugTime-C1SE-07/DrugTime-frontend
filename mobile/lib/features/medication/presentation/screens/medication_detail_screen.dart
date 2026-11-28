@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 
 import '../../../../app/theme/app_theme.dart';
-import '../../../../shared/widgets/pill_icon.dart';
+import '../../../../core/notification/notification_preferences.dart';
+import '../../../../core/notification/reminder_scheduler.dart';
 import '../../domain/entities/medication.dart';
 import '../../domain/entities/medication_failure.dart';
 import '../state/medication_controller.dart';
-import '../widgets/medication_error_messages.dart';
 import '../widgets/drug_info_sheet.dart';
+import '../widgets/medication_error_messages.dart';
+import '../widgets/medication_form_fields.dart';
 import '../widgets/medication_labels.dart';
 import '../widgets/pill_appearance_icon.dart';
 import 'edit_medication_screen.dart';
@@ -14,7 +16,7 @@ import 'edit_medication_screen.dart';
 /// S06a · Xem chi tiết thuốc.
 ///
 /// Hiển thị toàn bộ thông tin về thuốc, liều dùng, lịch uống trong ngày,
-/// số lượng tồn kho và các lưu ý an toàn.
+/// ngày uống, trạng thái nhắc nhở, dạng & màu viên, tồn kho và lưu ý an toàn.
 class MedicationDetailScreen extends StatefulWidget {
   const MedicationDetailScreen({
     super.key,
@@ -44,11 +46,13 @@ class _MedicationDetailScreenState extends State<MedicationDetailScreen> {
   }
 
   Future<void> _openEditScreen() async {
+    final scheduler = ReminderSchedulerScope.maybeOf(context);
     final result = await Navigator.of(context).push<dynamic>(
       MaterialPageRoute<dynamic>(
         builder: (_) => EditMedicationScreen(
           medication: _medication,
           dosageForm: _dosageForm,
+          reminderScheduler: scheduler,
         ),
       ),
     );
@@ -130,24 +134,89 @@ class _MedicationDetailScreenState extends State<MedicationDetailScreen> {
       );
   }
 
+  Future<void> _confirmDeleteMedication() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Xoá thuốc?'),
+        content: Text(
+          'Bạn có chắc chắn muốn xoá "${_medication.name}" khỏi danh sách thuốc không? '
+          'Hành động này không thể hoàn tác.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Huỷ'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: TextButton.styleFrom(foregroundColor: AppColors.danger),
+            child: const Text('Xoá thuốc'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true || !mounted) return;
+
+    final controller = MedicationScope.read(context);
+    setState(() => _busy = true);
+    try {
+      await controller.delete(_medication.id);
+    } on MedicationFailure catch (failure) {
+      if (!mounted) return;
+      setState(() => _busy = false);
+      showMedicationFailure(context, failure);
+      return;
+    }
+
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text('Đã xoá ${_medication.name} khỏi danh sách thuốc'),
+        ),
+      );
+
+    Navigator.of(context).pop();
+  }
+
   @override
   Widget build(BuildContext context) {
     final med = _medication;
     final active = med.isActive;
     final dosageFormText = _dosageForm ?? 'Chưa có thông tin';
+    final showLowStockPrefs =
+        NotificationPreferencesScope.maybeOf(context)?.reminders.lowStockAlerts ??
+            true;
+    final showLowStockWarning = showLowStockPrefs && med.isLowStock;
 
     return Scaffold(
       backgroundColor: AppColors.canvas,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: AppColors.surface,
         elevation: 0,
         scrolledUnderElevation: 0.5,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: AppColors.ink),
-          onPressed: () => Navigator.of(context).maybePop(),
+        leadingWidth: 64,
+        leading: Padding(
+          padding: const EdgeInsets.only(left: AppSpacing.md),
+          child: Center(
+            child: IconButton(
+              tooltip: 'Quay lại',
+              icon: const Icon(Icons.chevron_left, color: AppColors.brand),
+              style: IconButton.styleFrom(
+                backgroundColor: AppColors.brandTint,
+                minimumSize: const Size.square(AppSizes.tapTarget),
+              ),
+              onPressed: () => Navigator.of(context).maybePop(),
+            ),
+          ),
         ),
         title: const Text(
           'Chi tiết thuốc',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
           style: TextStyle(
             fontSize: 20,
             fontWeight: FontWeight.bold,
@@ -158,14 +227,21 @@ class _MedicationDetailScreenState extends State<MedicationDetailScreen> {
           IconButton(
             key: const Key('detail-drug-info'),
             tooltip: 'Xem thông tin thuốc',
+            style: IconButton.styleFrom(
+              minimumSize: const Size.square(AppSizes.tapTarget),
+            ),
             icon: const Icon(Icons.info_outline, color: AppColors.brand),
             onPressed: () => showMedicationInfoSheet(context, med),
           ),
-          IconButton(
-            tooltip: 'Sửa thông tin thuốc',
-            icon: const Icon(Icons.edit_outlined, color: AppColors.brand),
-            onPressed: _openEditScreen,
-          ),
+          if (active)
+            IconButton(
+              tooltip: 'Sửa thông tin thuốc',
+              style: IconButton.styleFrom(
+                minimumSize: const Size.square(AppSizes.tapTarget),
+              ),
+              icon: const Icon(Icons.edit_outlined, color: AppColors.brand),
+              onPressed: _openEditScreen,
+            ),
         ],
       ),
       body: ListView(
@@ -180,35 +256,20 @@ class _MedicationDetailScreenState extends State<MedicationDetailScreen> {
           Container(
             padding: const EdgeInsets.all(AppSpacing.lg),
             decoration: BoxDecoration(
-              color: const Color(0xFFE6F3F1),
-              borderRadius: BorderRadius.circular(16),
+              color: AppColors.brandTint,
+              borderRadius: BorderRadius.circular(AppRadius.card),
             ),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Container(
-                  width: 52,
-                  height: 52,
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: med.pillShape == null && med.pillColor == null
-                      ? PillIcon(
-                          size: 26,
-                          color: active ? const Color(0xFF01554F) : AppColors.inkDisabled,
-                        )
-                      : Opacity(
-                          opacity: active ? 1 : 0.5,
-                          child: PillAppearanceIcon(
-                            key: const Key('detail-appearance'),
-                            shape: med.pillShape,
-                            color: med.pillColor,
-                            dosageForm: med.dosageForm,
-                            size: 30,
-                          ),
-                        ),
+                PillAppearanceTile(
+                  key: const Key('detail-appearance'),
+                  shape: med.pillShape,
+                  color: med.pillColor,
+                  dosageForm: _dosageForm,
+                  size: 52,
+                  muted: !active,
+                  background: AppColors.surface,
                 ),
                 const SizedBox(width: AppSpacing.md),
                 Expanded(
@@ -233,26 +294,36 @@ class _MedicationDetailScreenState extends State<MedicationDetailScreen> {
                       ),
                       const SizedBox(height: AppSpacing.sm),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 4),
                         decoration: BoxDecoration(
-                          color: active ? AppColors.safeBg : AppColors.surfaceMuted,
+                          color: active
+                              ? AppColors.safeBg
+                              : AppColors.surfaceMuted,
                           borderRadius: BorderRadius.circular(20),
                         ),
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             Icon(
-                              active ? Icons.check_circle : Icons.pause_circle_outline,
-                              size: 14,
-                              color: active ? AppColors.safe : AppColors.inkMuted,
+                              active
+                                  ? Icons.check_circle
+                                  : Icons.pause_circle_outline,
+                              size: 16,
+                              color:
+                                  active ? AppColors.safe : AppColors.inkMuted,
                             ),
                             const SizedBox(width: 4),
-                            Text(
-                              active ? 'Đang dùng' : 'Đã ngừng',
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                                color: active ? AppColors.safe : AppColors.inkMuted,
+                            Flexible(
+                              child: Text(
+                                active ? 'Đang dùng' : 'Đã ngừng',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                  color: active
+                                      ? AppColors.safe
+                                      : AppColors.inkMuted,
+                                ),
                               ),
                             ),
                           ],
@@ -267,32 +338,50 @@ class _MedicationDetailScreenState extends State<MedicationDetailScreen> {
           const SizedBox(height: AppSpacing.lg),
 
           // 2. Tóm tắt chỉ định liều lượng
-          Row(
-            children: [
-              Expanded(
-                child: _MetricCard(
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final textScale = MediaQuery.textScalerOf(context).scale(14) / 14;
+              final stackCards = constraints.maxWidth / textScale < 240;
+              final cards = [
+                _MetricCard(
                   title: 'Số lượng/lần',
                   value: med.doseLabel,
                   icon: Icons.medication,
                 ),
-              ),
-              const SizedBox(width: AppSpacing.sm),
-              Expanded(
-                child: _MetricCard(
+                _MetricCard(
                   title: 'Tần suất',
                   value: med.maxDosesLabel ?? med.frequencyLabel,
                   icon: Icons.repeat,
                 ),
-              ),
-              const SizedBox(width: AppSpacing.sm),
-              Expanded(
-                child: _MetricCard(
+                _MetricCard(
                   title: 'Cách uống',
                   value: med.timing.label,
                   icon: Icons.restaurant,
                 ),
-              ),
-            ],
+              ];
+              if (stackCards) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    for (var i = 0; i < cards.length; i++) ...[
+                      if (i > 0) const SizedBox(height: AppSpacing.sm),
+                      cards[i],
+                    ],
+                  ],
+                );
+              }
+              return IntrinsicHeight(
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    for (var i = 0; i < cards.length; i++) ...[
+                      if (i > 0) const SizedBox(width: AppSpacing.sm),
+                      Expanded(child: cards[i]),
+                    ],
+                  ],
+                ),
+              );
+            },
           ),
           const SizedBox(height: AppSpacing.xl),
 
@@ -303,7 +392,7 @@ class _MedicationDetailScreenState extends State<MedicationDetailScreen> {
             Container(
               padding: const EdgeInsets.all(AppSpacing.md),
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: AppColors.surface,
                 borderRadius: BorderRadius.circular(AppRadius.field),
                 border: Border.all(color: AppColors.border),
               ),
@@ -323,7 +412,7 @@ class _MedicationDetailScreenState extends State<MedicationDetailScreen> {
           else ...[
             Container(
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: AppColors.surface,
                 borderRadius: BorderRadius.circular(AppRadius.field),
                 border: Border.all(color: AppColors.border),
               ),
@@ -342,14 +431,14 @@ class _MedicationDetailScreenState extends State<MedicationDetailScreen> {
                             width: 36,
                             height: 36,
                             decoration: BoxDecoration(
-                              color: const Color(0xFFE6F3F1),
+                              color: AppColors.brandTint,
                               borderRadius: BorderRadius.circular(8),
                             ),
                             alignment: Alignment.center,
                             child: const Icon(
                               Icons.schedule,
                               size: 20,
-                              color: Color(0xFF01554F),
+                              color: AppColors.brand,
                             ),
                           ),
                           const SizedBox(width: AppSpacing.md),
@@ -357,7 +446,8 @@ class _MedicationDetailScreenState extends State<MedicationDetailScreen> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text('Lần ${i + 1}', style: AppTextStyles.caption),
+                                Text('Lần ${i + 1}',
+                                    style: AppTextStyles.caption),
                                 Text(
                                   'Nhắc uống lúc ${t.format()}',
                                   style: AppTextStyles.bodyStrong,
@@ -365,13 +455,14 @@ class _MedicationDetailScreenState extends State<MedicationDetailScreen> {
                               ],
                             ),
                           ),
+                          const SizedBox(width: AppSpacing.sm),
                           Container(
                             padding: const EdgeInsets.symmetric(
                               horizontal: 10,
                               vertical: 4,
                             ),
                             decoration: BoxDecoration(
-                              color: const Color(0xFFE6F3F1),
+                              color: AppColors.brandTint,
                               borderRadius: BorderRadius.circular(12),
                             ),
                             child: Text(
@@ -379,7 +470,7 @@ class _MedicationDetailScreenState extends State<MedicationDetailScreen> {
                               style: const TextStyle(
                                 fontSize: 14,
                                 fontWeight: FontWeight.bold,
-                                color: Color(0xFF01554F),
+                                color: AppColors.brand,
                               ),
                             ),
                           ),
@@ -398,7 +489,7 @@ class _MedicationDetailScreenState extends State<MedicationDetailScreen> {
           const SizedBox(height: AppSpacing.sm),
           Container(
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: AppColors.surface,
               borderRadius: BorderRadius.circular(AppRadius.field),
               border: Border.all(color: AppColors.border),
             ),
@@ -418,14 +509,25 @@ class _MedicationDetailScreenState extends State<MedicationDetailScreen> {
                 _DetailRow(label: 'Dạng bào chế', value: dosageFormText),
                 const Divider(height: 1),
                 _DetailRow(label: 'Đơn vị tính', value: med.unit),
+                if (!med.frequency.isAsNeeded) ...[
+                  const Divider(height: 1),
+                  _DetailRow(label: 'Ngày uống', value: med.daysLabel),
+                  const Divider(height: 1),
+                  _DetailRow(label: 'Nhắc nhở', value: med.reminderLabel),
+                ],
+                const Divider(height: 1),
+                _DetailRow(
+                  label: 'Dạng & màu hiển thị',
+                  value: med.appearanceDisplayLabel,
+                ),
                 const Divider(height: 1),
                 _DetailRow(
                   label: 'Số lượng tồn kho',
                   value: med.stockRemaining != null
                       ? 'Còn ${med.stockRemaining} ${med.unit}'
                       : 'Chưa theo dõi',
-                  isWarning: med.isLowStock,
-                  warningText: med.isLowStock ? 'Sắp hết thuốc' : null,
+                  isWarning: showLowStockWarning,
+                  warningText: showLowStockWarning ? 'Sắp hết thuốc' : null,
                 ),
               ],
             ),
@@ -436,18 +538,19 @@ class _MedicationDetailScreenState extends State<MedicationDetailScreen> {
           Container(
             padding: const EdgeInsets.all(AppSpacing.md),
             decoration: BoxDecoration(
-              color: const Color(0xFFEAF1FD),
+              color: AppColors.infoBg,
               borderRadius: BorderRadius.circular(AppRadius.field),
             ),
-            child: const Row(
+            child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(Icons.shield_outlined, size: 20, color: AppColors.info),
-                SizedBox(width: AppSpacing.sm),
+                const Icon(Icons.shield_outlined,
+                    size: 20, color: AppColors.info),
+                const SizedBox(width: AppSpacing.sm),
                 Expanded(
                   child: Text(
                     'Luôn uống thuốc đúng giờ và theo đúng liều lượng chỉ định của bác sĩ. Không tự ý ngưng hoặc thay đổi liều.',
-                    style: TextStyle(fontSize: 13, height: 1.4, color: AppColors.ink),
+                    style: AppTextStyles.caption.copyWith(color: AppColors.ink),
                   ),
                 ),
               ],
@@ -466,46 +569,92 @@ class _MedicationDetailScreenState extends State<MedicationDetailScreen> {
             AppSpacing.page,
             AppSpacing.lg,
           ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              FilledButton.icon(
-                onPressed: _openEditScreen,
-                style: FilledButton.styleFrom(
-                  backgroundColor: const Color(0xFF01554F),
-                  foregroundColor: Colors.white,
-                  minimumSize: const Size.fromHeight(52),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
+          child: active
+              ? Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    FilledButton.icon(
+                      onPressed: _busy ? null : _openEditScreen,
+                      style: FilledButton.styleFrom(
+                        backgroundColor: AppColors.brand,
+                        foregroundColor: AppColors.onBrand,
+                        minimumSize: const Size.fromHeight(52),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(AppRadius.field),
+                        ),
+                      ),
+                      icon: const Icon(Icons.edit_outlined, size: 20),
+                      label: const Text(
+                        'Sửa thông tin thuốc',
+                        style: TextStyle(
+                            fontSize: 16, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.sm),
+                    OutlinedButton(
+                      onPressed: _busy ? null : _toggleStatus,
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppColors.cautionText,
+                        side: const BorderSide(color: AppColors.caution),
+                        minimumSize: const Size.fromHeight(48),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(AppRadius.field),
+                        ),
+                      ),
+                      child: const Text(
+                        'Tạm ngừng thuốc này',
+                        style: TextStyle(
+                            fontSize: 15, fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                  ],
+                )
+              : Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const InfoNote(
+                      text:
+                          'Thuốc đang tạm ngừng. Hãy tiếp tục dùng thuốc này nếu muốn chỉnh sửa thông tin.',
+                    ),
+                    const SizedBox(height: AppSpacing.sm),
+                    FilledButton(
+                      onPressed: _busy ? null : _toggleStatus,
+                      style: FilledButton.styleFrom(
+                        backgroundColor: AppColors.brand,
+                        foregroundColor: AppColors.onBrand,
+                        minimumSize: const Size.fromHeight(52),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(AppRadius.field),
+                        ),
+                      ),
+                      child: const Text(
+                        'Tiếp tục dùng thuốc này',
+                        style: TextStyle(
+                            fontSize: 16, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.sm),
+                    OutlinedButton.icon(
+                      onPressed: _busy ? null : _confirmDeleteMedication,
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppColors.danger,
+                        side: const BorderSide(color: AppColors.danger),
+                        minimumSize: const Size.fromHeight(48),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(AppRadius.field),
+                        ),
+                      ),
+                      icon: const Icon(Icons.delete_outline, size: 20),
+                      label: const Text(
+                        'Xoá thuốc',
+                        style: TextStyle(
+                            fontSize: 15, fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                  ],
                 ),
-                icon: const Icon(Icons.edit_outlined, size: 20),
-                label: const Text(
-                  'Sửa thông tin thuốc',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                ),
-              ),
-              const SizedBox(height: AppSpacing.sm),
-              OutlinedButton(
-                onPressed: _busy ? null : _toggleStatus,
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: active ? AppColors.cautionText : AppColors.brand,
-                  side: BorderSide(
-                    color: active ? AppColors.caution : AppColors.brand,
-                  ),
-                  minimumSize: const Size.fromHeight(48),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-                child: Text(
-                  active ? 'Tạm ngừng thuốc này' : 'Tiếp tục dùng thuốc này',
-                  style: const TextStyle(fontWeight: FontWeight.w600),
-                ),
-              ),
-            ],
-          ),
         ),
       ),
     );
@@ -528,7 +677,7 @@ class _MetricCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(AppRadius.field),
         border: Border.all(color: AppColors.border),
       ),
@@ -546,7 +695,7 @@ class _MetricCard extends StatelessWidget {
               fontWeight: FontWeight.bold,
               color: AppColors.ink,
             ),
-            maxLines: 1,
+            maxLines: 2,
             overflow: TextOverflow.ellipsis,
           ),
         ],
@@ -602,11 +751,8 @@ class _DetailRow extends StatelessWidget {
                   Text(
                     warningText!,
                     textAlign: TextAlign.right,
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: AppColors.cautionText,
-                      fontWeight: FontWeight.bold,
-                    ),
+                    style: AppTextStyles.captionStrong
+                        .copyWith(color: AppColors.cautionText),
                   ),
                 ],
               ],

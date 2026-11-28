@@ -1,6 +1,7 @@
 import '../storage/local_db/local_medication_store.dart';
 import '../sync/schedule_sync_service.dart';
 import 'notification_id.dart';
+import 'notification_preferences.dart';
 import 'reminder_notification_scheduler.dart';
 import 'reminder_occurrence_generator.dart';
 
@@ -46,15 +47,21 @@ class ReminderSyncCoordinator {
           onLog?.call('Không đồng bộ được lịch uống, dùng lịch cục bộ: $e');
         }
         try {
+          final prefs = _scheduler.preferences;
+          if (!prefs.enabled) {
+            await _cancelPendingReminders();
+            return;
+          }
           final schedules =
               await _localStore.getActiveSchedules(patientId: patientId);
           final now = _clock().toUtc();
-          // Tắt nhắc thì hủy cả nhắc hoãn cữ/nhắc lại của liều đã qua giờ.
-          await _cancelPendingReminders(
-              onlyFrom: _scheduler.preferences.enabled ? now : null);
+          await _cancelPendingReminders(onlyFrom: now);
+          final occFrom = prefs.repeatIfMissed
+              ? now.subtract(ReminderPreferences.repeatDelay)
+              : now;
           final occurrences = generateOccurrences(
             schedules: schedules,
-            from: now,
+            from: occFrom,
             to: now.add(horizon),
           );
           // QD-21: liều đã ghi nhận (kể cả xác nhận sớm) không nhắc lại.
@@ -84,14 +91,22 @@ class ReminderSyncCoordinator {
 
   Future<void> clear() => _queue(_cancelPendingReminders);
 
-  /// Hủy nhắc thuốc đang chờ. Có [onlyFrom] thì chỉ hủy lượt có giờ dự kiến từ mốc
-  /// đó trở đi (sẽ được lập lại); nhắc hoãn cữ giữ giờ gốc đã qua nên được giữ.
+  /// Hủy nhắc thuốc đang chờ. Có [onlyFrom] thì vẫn hủy mọi lượt nhắc lại +10 phút
+  /// (kể cả khi giờ gốc đã qua) để đồng bộ lại theo trạng thái hiện tại, trong khi giữ snooze.
   Future<void> _cancelPendingReminders({DateTime? onlyFrom}) async {
     final pending = await _scheduler.platform.pendingNotificationRequests();
     for (final request in pending) {
       final payload = NotificationPayload.tryParse(request.payload);
       if (payload == null) continue;
-      if (onlyFrom != null && payload.scheduledAt.isBefore(onlyFrom)) continue;
+      final isRepeat = payload.isRepeat ||
+          request.id ==
+              repeatNotificationIdFor(
+                  payload.medicationScheduleId, payload.scheduledAt);
+      if (onlyFrom != null &&
+          !isRepeat &&
+          payload.scheduledAt.isBefore(onlyFrom)) {
+        continue;
+      }
       await _scheduler.platform.cancel(request.id);
     }
   }

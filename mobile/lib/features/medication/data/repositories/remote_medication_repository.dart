@@ -7,7 +7,8 @@ import '../models/medication_api_mapper.dart';
 
 /// Thuốc của người dùng qua Backend API (`/medications`, `/catalog/medications`).
 /// Quyền được server kiểm ở mỗi request; app không giữ quyết định phân quyền.
-class RemoteMedicationRepository implements MedicationRepository, CatalogDetailSource {
+class RemoteMedicationRepository
+    implements MedicationRepository, CatalogDetailSource, ScheduleReminderUpdater {
   RemoteMedicationRepository(this._api);
 
   final ApiClient _api;
@@ -33,6 +34,20 @@ class RemoteMedicationRepository implements MedicationRepository, CatalogDetailS
         // Server trả 422 với body rỗng; không có gì đổi thì không gọi.
         if (body.isEmpty) return before;
         final json = await _api.patchJson('/medications/${before.id}', body: body);
+        return MedicationApiMapper.medicationFromJson(json as Map<String, dynamic>);
+      });
+
+  @override
+  Future<Medication> updateScheduleReminder(
+    String medicationId,
+    int scheduleId,
+    bool reminderEnabled,
+  ) =>
+      _guard(() async {
+        final json = await _api.patchJson(
+          '/medications/$medicationId/schedules/$scheduleId',
+          body: {'reminder_enabled': reminderEnabled},
+        );
         return MedicationApiMapper.medicationFromJson(json as Map<String, dynamic>);
       });
 

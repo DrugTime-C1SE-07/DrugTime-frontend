@@ -175,6 +175,16 @@ void main() {
       );
       await tester.pumpAndSettle();
 
+      // Modify a clinical field (timing) before tapping "Lưu" (AC9/AC10)
+      await tester.scrollUntilVisible(
+        find.text('Trước ăn'),
+        200,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Trước ăn'));
+      await tester.pumpAndSettle();
+
       // Tap "Lưu" button in EditMedicationScreen
       await tester.tap(find.widgetWithText(FilledButton, 'Lưu'));
       await tester.pumpAndSettle();

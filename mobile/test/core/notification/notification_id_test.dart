@@ -97,7 +97,36 @@ void main() {
       expect(parsed!.medicationScheduleId, 42);
       expect(parsed.scheduledAt, scheduledAt);
       expect(parsed.scheduledAt.isUtc, isTrue);
+      expect(parsed.isRepeat, isFalse);
       expect(parsed, equals(payload));
+    });
+
+    test('TC-606-05: isRepeat serializes only when true and parses legacy JSON safely', () {
+      final scheduledAt = DateTime.utc(2026, 10, 7, 1, 0, 0);
+      final base = NotificationPayload(
+        medicationScheduleId: 42,
+        scheduledAt: scheduledAt,
+      );
+      expect(base.serialize(), isNot(contains('is_repeat')));
+
+      final repeat = NotificationPayload(
+        medicationScheduleId: 42,
+        scheduledAt: scheduledAt,
+        isRepeat: true,
+      );
+      expect(repeat.serialize(), contains('"is_repeat":true'));
+      final parsedRepeat = NotificationPayload.tryParse(repeat.serialize());
+      expect(parsedRepeat?.isRepeat, isTrue);
+      expect(parsedRepeat, equals(repeat));
+      expect(parsedRepeat.hashCode, equals(repeat.hashCode));
+      expect(parsedRepeat.toString(), contains('isRepeat: true'));
+      expect(parsedRepeat, isNot(equals(base)));
+      expect(parsedRepeat.hashCode, isNot(equals(base.hashCode)));
+
+      final legacy = NotificationPayload.tryParse(
+        '{"schedule_id":42,"scheduled_at":"${scheduledAt.toIso8601String()}"}',
+      );
+      expect(legacy?.isRepeat, isFalse);
     });
 
     test('throws ArgumentError if constructed with non-UTC scheduledAt', () {

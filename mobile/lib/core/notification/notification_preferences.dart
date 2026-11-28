@@ -11,34 +11,48 @@ class ReminderPreferences {
   const ReminderPreferences({
     this.enabled = true,
     this.vibrate = true,
-    this.repeatIfMissed = false,
+    this.repeatIfMissed = true,
+    this.lowStockAlerts = true,
   });
 
   /// Tắt thì không lập nhắc cục bộ nào; lịch uống trên server giữ nguyên.
   final bool enabled;
   final bool vibrate;
 
-  /// Nhắc thêm một lần sau [repeatDelay] nếu liều chưa được xác nhận.
+  /// Nhắc thêm một lần sau [repeatDelay] nếu liều chưa được xác nhận (QD-20).
   final bool repeatIfMissed;
 
-  static const repeatDelay = Duration(minutes: 15);
+  /// Hiện cảnh báo sắp hết thuốc ở danh sách & chi tiết thuốc.
+  final bool lowStockAlerts;
 
-  ReminderPreferences copyWith(
-          {bool? enabled, bool? vibrate, bool? repeatIfMissed}) =>
+  static const repeatDelay = Duration(minutes: 10);
+
+  ReminderPreferences copyWith({
+    bool? enabled,
+    bool? vibrate,
+    bool? repeatIfMissed,
+    bool? lowStockAlerts,
+  }) =>
       ReminderPreferences(
         enabled: enabled ?? this.enabled,
         vibrate: vibrate ?? this.vibrate,
         repeatIfMissed: repeatIfMissed ?? this.repeatIfMissed,
+        lowStockAlerts: lowStockAlerts ?? this.lowStockAlerts,
       );
 
-  Map<String, Object> toJson() =>
-      {'enabled': enabled, 'vibrate': vibrate, 'repeat': repeatIfMissed};
+  Map<String, Object> toJson() => {
+        'enabled': enabled,
+        'vibrate': vibrate,
+        'repeat': repeatIfMissed,
+        'low_stock': lowStockAlerts,
+      };
 
   static ReminderPreferences fromJson(Map<String, dynamic> json) =>
       ReminderPreferences(
         enabled: json['enabled'] as bool? ?? true,
         vibrate: json['vibrate'] as bool? ?? true,
-        repeatIfMissed: json['repeat'] as bool? ?? false,
+        repeatIfMissed: json['repeat'] as bool? ?? true,
+        lowStockAlerts: json['low_stock'] as bool? ?? true,
       );
 
   @override
@@ -46,10 +60,12 @@ class ReminderPreferences {
       other is ReminderPreferences &&
       other.enabled == enabled &&
       other.vibrate == vibrate &&
-      other.repeatIfMissed == repeatIfMissed;
+      other.repeatIfMissed == repeatIfMissed &&
+      other.lowStockAlerts == lowStockAlerts;
 
   @override
-  int get hashCode => Object.hash(enabled, vibrate, repeatIfMissed);
+  int get hashCode =>
+      Object.hash(enabled, vibrate, repeatIfMissed, lowStockAlerts);
 
   @override
   String toString() => 'ReminderPreferences${toJson()}';

@@ -133,6 +133,40 @@ class DrugCatalogDetail {
   final String? source;
 }
 
+/// Các ngày trong tuần chuẩn ISO-8601 (`1` = Thứ Hai .. `7` = Chủ Nhật).
+const List<int> allDaysOfWeek = [1, 2, 3, 4, 5, 6, 7];
+
+/// Trạng thái tổng hợp của nhắc nhở trên các lịch đang mở của thuốc.
+enum MedicationReminderState { allEnabled, allDisabled, partial, none }
+
+/// Một dòng lịch uống đang mở của thuốc (`schedules[]` từ API).
+class MedicationScheduleEntry {
+  const MedicationScheduleEntry({
+    required this.id,
+    required this.intakeTime,
+    this.daysOfWeek = allDaysOfWeek,
+    this.reminderEnabled = true,
+  });
+
+  final int id;
+  final DoseTime intakeTime;
+  final List<int> daysOfWeek;
+  final bool reminderEnabled;
+
+  MedicationScheduleEntry copyWith({
+    int? id,
+    DoseTime? intakeTime,
+    List<int>? daysOfWeek,
+    bool? reminderEnabled,
+  }) =>
+      MedicationScheduleEntry(
+        id: id ?? this.id,
+        intakeTime: intakeTime ?? this.intakeTime,
+        daysOfWeek: daysOfWeek ?? this.daysOfWeek,
+        reminderEnabled: reminderEnabled ?? this.reminderEnabled,
+      );
+}
+
 class Medication {
   const Medication({
     required this.id,
@@ -145,6 +179,8 @@ class Medication {
     required this.frequency,
     required this.timing,
     this.times = const [],
+    this.schedules = const [],
+    this.daysOfWeek = allDaysOfWeek,
     this.status = MedicationStatus.active,
     this.stockRemaining,
     this.endedOn,
@@ -172,6 +208,8 @@ class Medication {
   final DoseFrequency frequency;
   final IntakeTiming timing;
   final List<DoseTime> times;
+  final List<MedicationScheduleEntry> schedules;
+  final List<int> daysOfWeek;
   final MedicationStatus status;
   final int? stockRemaining;
   final DateTime? endedOn;
@@ -189,6 +227,22 @@ class Medication {
 
   bool get isActive => status == MedicationStatus.active;
 
+  int get enabledScheduleCount =>
+      schedules.where((s) => s.reminderEnabled).length;
+
+  MedicationReminderState get reminderState {
+    if (frequency.isAsNeeded) return MedicationReminderState.none;
+    if (schedules.isEmpty) {
+      return reminderEnabled
+          ? MedicationReminderState.allEnabled
+          : MedicationReminderState.allDisabled;
+    }
+    final enabled = enabledScheduleCount;
+    if (enabled == 0) return MedicationReminderState.allDisabled;
+    if (enabled == schedules.length) return MedicationReminderState.allEnabled;
+    return MedicationReminderState.partial;
+  }
+
   bool get isLowStock {
     final stock = stockRemaining;
     return isActive && stock != null && stock <= lowStockThreshold;
@@ -205,8 +259,11 @@ class Medication {
     DoseFrequency? frequency,
     IntakeTiming? timing,
     List<DoseTime>? times,
+    List<MedicationScheduleEntry>? schedules,
+    List<int>? daysOfWeek,
     MedicationStatus? status,
     int? stockRemaining,
+    bool clearStock = false,
     DateTime? endedOn,
     String? dosageForm,
     int? maxDosesPerDay,
@@ -223,8 +280,11 @@ class Medication {
       frequency: frequency ?? this.frequency,
       timing: timing ?? this.timing,
       times: times ?? this.times,
+      schedules: schedules ?? this.schedules,
+      daysOfWeek: daysOfWeek ?? this.daysOfWeek,
       status: status ?? this.status,
-      stockRemaining: stockRemaining ?? this.stockRemaining,
+      stockRemaining:
+          clearStock ? null : (stockRemaining ?? this.stockRemaining),
       endedOn: endedOn ?? this.endedOn,
       dosageForm: dosageForm ?? this.dosageForm,
       maxDosesPerDay: maxDosesPerDay ?? this.maxDosesPerDay,
@@ -246,6 +306,8 @@ class Medication {
         frequency: frequency,
         timing: timing,
         times: times,
+        schedules: schedules,
+        daysOfWeek: daysOfWeek,
         status: status,
         stockRemaining: stockRemaining,
         endedOn: endedOn,

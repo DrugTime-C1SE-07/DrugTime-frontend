@@ -6,6 +6,7 @@ import '../../../interaction_check/domain/repositories/interaction_check_reposit
 import '../../domain/entities/medication.dart';
 import '../../domain/entities/medication_failure.dart';
 import '../../domain/repositories/medication_repository.dart';
+import '../../data/models/medication_api_mapper.dart';
 
 class MedicationController extends ChangeNotifier {
   MedicationController(
@@ -63,6 +64,68 @@ class MedicationController extends ChangeNotifier {
 
   Future<Medication> update(Medication before, Medication after) =>
       _mutate(() => _repository.update(before, after));
+
+  /// Lưu sửa thuốc theo đúng hợp đồng 2 bước:
+  /// 1. Chỉ gọi `PATCH /medications/{id}` khi có trường thuốc/lịch thay đổi.
+  /// 2. Nếu người dùng chạm công tắc nhắc nhở, gọi `PATCH /medications/{id}/schedules/{schedule_id}`
+  ///    cho các lịch mở có `reminderEnabled` khác lựa chọn mới. Khi lỗi bước 2 vẫn đồng bộ lại danh sách.
+  Future<Medication> saveEdit({
+    required Medication before,
+    required Medication after,
+    bool applyReminderToAllSchedules = false,
+  }) async {
+    var current = before;
+    var mutated = false;
+    final patch = MedicationApiMapper.patchBody(before, after);
+    if (patch.isNotEmpty) {
+      current = await _repository.update(before, after);
+      mutated = true;
+    }
+
+    if (applyReminderToAllSchedules && !after.frequency.isAsNeeded) {
+      final repository = _repository;
+      if (repository is ScheduleReminderUpdater) {
+        final updater = repository as ScheduleReminderUpdater;
+        final target = after.reminderEnabled;
+        final toUpdate = [
+          for (final s in current.schedules)
+            if (s.reminderEnabled != target) s,
+        ];
+        if (toUpdate.isNotEmpty) {
+          try {
+            for (final s in toUpdate) {
+              current = await updater.updateScheduleReminder(
+                current.id,
+                s.id,
+                target,
+              );
+              mutated = true;
+            }
+          } catch (_) {
+            if (mutated) {
+              onChanged?.call();
+              await load();
+            }
+            rethrow;
+          }
+        } else if (current.schedules.isEmpty &&
+            after.reminderEnabled != before.reminderEnabled) {
+          current = await _repository.update(current, after);
+          mutated = true;
+        }
+      } else if (patch.isEmpty &&
+          after.reminderEnabled != before.reminderEnabled) {
+        current = await _repository.update(before, after);
+        mutated = true;
+      }
+    }
+
+    if (mutated) {
+      onChanged?.call();
+      await load();
+    }
+    return current;
+  }
 
   Future<Medication> setStopped(String id, bool stopped) =>
       _mutate(() => _repository.setStopped(id, stopped));

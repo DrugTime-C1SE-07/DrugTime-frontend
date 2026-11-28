@@ -252,6 +252,10 @@ class _DrugTimeAppState extends State<DrugTimeApp> with WidgetsBindingObserver {
               clock: widget.clock);
   String? _tokenSession;
   String? _reminderUser;
+  Future<void>? _clearingPreferences;
+  late final NotificationPreferencesController _fallbackPreferences =
+      NotificationPreferencesController(store: _MemoryReminderPreferencesStore())
+        ..onRemindersChanged = _refreshReminders;
   bool _foreground = true, _online = true, _openingFamily = false;
   Timer? _expiryTimer;
   // Chỉ cho đọc cảnh báo khi phiên, hồ sơ, consent, mạng và foreground đều sẵn sàng.
@@ -332,13 +336,19 @@ class _DrugTimeAppState extends State<DrugTimeApp> with WidgetsBindingObserver {
   Future<void> _activateReminders(String userId) async {
     if (await _shouldAskPermissions()) await _askReminderPermissions();
     try {
+      await _clearingPreferences;
+    } on Exception catch (e) {
+      debugPrint('Không dọn được tùy chọn nhắc cũ: $e');
+    }
+    try {
       // AC7: âm đã chọn bị xóa từ ngoài app thì về chuông mặc định khi mở app.
       await widget.reminderSoundController?.load();
     } on Exception catch (e) {
       debugPrint('Không đọc được âm nhắc đã chọn: $e');
     }
     try {
-      await widget.notificationPreferencesController?.load();
+      await (widget.notificationPreferencesController ?? _fallbackPreferences)
+          .load();
     } on Exception catch (e) {
       debugPrint('Không đọc được tùy chọn nhắc: $e');
     }
@@ -370,10 +380,16 @@ class _DrugTimeAppState extends State<DrugTimeApp> with WidgetsBindingObserver {
 
   Widget _withReminderSound(Widget child) {
     final sounds = widget.reminderSoundController;
-    final prefs = widget.notificationPreferencesController;
-    final withPrefs = prefs == null
-        ? child
-        : NotificationPreferencesScope(controller: prefs, child: child);
+    final prefs =
+        widget.notificationPreferencesController ?? _fallbackPreferences;
+    final withScheduler = ReminderSchedulerScope(
+      scheduler: widget.reminderScheduler,
+      child: child,
+    );
+    final withPrefs = NotificationPreferencesScope(
+      controller: prefs,
+      child: withScheduler,
+    );
     return sounds == null
         ? withPrefs
         : ReminderSoundScope(controller: sounds, child: withPrefs);
@@ -849,10 +865,15 @@ class _DrugTimeAppState extends State<DrugTimeApp> with WidgetsBindingObserver {
     _updateHomeAccess();
     unawaited(_captures.bindSession(
         _auth.isAuthenticated ? _auth.currentSession?.accessToken : null));
-    _familyChanged();
     final authenticated = _auth.isAuthenticated;
     final user = authenticated ? _auth.currentSession?.userId : null;
     final switchedUser = user != _profileUser;
+    if (switchedUser && _profileUser != null) {
+      final prefs =
+          widget.notificationPreferencesController ?? _fallbackPreferences;
+      _clearingPreferences = prefs.clear();
+    }
+    _familyChanged();
     if (switchedUser) {
       _history.setPatient(user);
       unawaited(_profiles.setAccount(user));
@@ -924,6 +945,7 @@ class _DrugTimeAppState extends State<DrugTimeApp> with WidgetsBindingObserver {
     _healthSetup.dispose();
     _homeSchedule.dispose();
     _history.dispose();
+    _fallbackPreferences.dispose();
     final syncEngine = widget.doseOutboxSyncEngine;
     if (syncEngine != null) unawaited(syncEngine.dispose());
     _medications.dispose();
@@ -1179,4 +1201,18 @@ class _PreviewScheduleSource implements ScheduleRemoteDataSource {
             ),
     ];
   }
+}
+
+class _MemoryReminderPreferencesStore implements ReminderPreferencesStore {
+  ReminderPreferences _value = const ReminderPreferences();
+
+  @override
+  Future<ReminderPreferences> read() async => _value;
+
+  @override
+  Future<void> write(ReminderPreferences preferences) async =>
+      _value = preferences;
+
+  @override
+  Future<void> clear() async => _value = const ReminderPreferences();
 }

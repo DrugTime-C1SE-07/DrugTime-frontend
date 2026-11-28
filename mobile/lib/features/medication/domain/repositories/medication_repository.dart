@@ -31,3 +31,12 @@ abstract interface class CatalogDetailSource {
   /// Ném `MedicationFailure` (`notFound` khi không có thuốc).
   Future<DrugCatalogDetail> fetchCatalogDetail(String catalogId);
 }
+
+/// Bật/tắt nhắc của một lịch đang mở (`PATCH /medications/{id}/schedules/{schedule_id}`).
+abstract interface class ScheduleReminderUpdater {
+  Future<Medication> updateScheduleReminder(
+    String medicationId,
+    int scheduleId,
+    bool reminderEnabled,
+  );
+}

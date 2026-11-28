@@ -6,13 +6,65 @@ import '../../domain/repositories/medication_repository.dart';
 /// Dữ liệu mẫu trong bộ nhớ: dùng cho bản web (xem giao diện, không có `dart:io`) và test.
 /// Mô phỏng hành vi của server ở những điểm app dựa vào: gửi lại cùng `clientUuid` không tạo
 /// trùng, ngừng/dùng lại, thuốc đã xoá không còn tìm thấy.
-class InMemoryMedicationRepository implements MedicationRepository, CatalogDetailSource {
+class InMemoryMedicationRepository
+    implements MedicationRepository, CatalogDetailSource, ScheduleReminderUpdater {
   InMemoryMedicationRepository({List<Medication>? seed})
-      : _medications = [...(seed ?? sampleMedications)];
+      : _medications = [
+          for (final m in (seed ?? sampleMedications))
+            _hydrateSchedulesStatic(m),
+        ];
 
   final List<Medication> _medications;
   final Map<String, String> _idByClientUuid = {};
   var _nextId = 1;
+  var _nextScheduleId = 1000;
+
+  static Medication _hydrateSchedulesStatic(Medication m) {
+    if (m.frequency.isAsNeeded || m.schedules.isNotEmpty || m.times.isEmpty) {
+      return m;
+    }
+    final seedBase = m.id.codeUnits.fold<int>(0, (a, c) => (a * 31 + c) & 0x7fff);
+    return m.copyWith(
+      schedules: [
+        for (final (i, t) in m.times.indexed)
+          MedicationScheduleEntry(
+            id: seedBase * 10 + i + 1,
+            intakeTime: t,
+            daysOfWeek: m.daysOfWeek,
+            reminderEnabled: m.reminderEnabled,
+          ),
+      ],
+    );
+  }
+
+  Medication _syncSchedules(
+    Medication med, {
+    List<MedicationScheduleEntry>? existingSchedules,
+  }) {
+    if (med.frequency.isAsNeeded) {
+      return med.copyWith(schedules: const []);
+    }
+    final existingByTime = {
+      for (final s in (existingSchedules ?? med.schedules)) s.intakeTime: s,
+    };
+    final sortedTimes = [...med.times]..sort();
+    final nextSchedules = <MedicationScheduleEntry>[
+      for (final t in sortedTimes)
+        MedicationScheduleEntry(
+          id: existingByTime[t]?.id ?? (_nextScheduleId++),
+          intakeTime: t,
+          daysOfWeek: med.daysOfWeek,
+          reminderEnabled: existingByTime[t]?.reminderEnabled ?? med.reminderEnabled,
+        ),
+    ];
+    final anyEnabled =
+        nextSchedules.isEmpty ? med.reminderEnabled : nextSchedules.any((s) => s.reminderEnabled);
+    return med.copyWith(
+      times: sortedTimes,
+      schedules: List.unmodifiable(nextSchedules),
+      reminderEnabled: anyEnabled,
+    );
+  }
 
   @override
   Future<List<Medication>> fetchAll() async => List.unmodifiable(_medications);
@@ -21,7 +73,9 @@ class InMemoryMedicationRepository implements MedicationRepository, CatalogDetai
   Future<Medication> add(Medication draft, {required String clientUuid}) async {
     final existingId = _idByClientUuid[clientUuid];
     if (existingId != null) return _find(existingId);
-    final created = draft.copyWith(id: 'local-${_nextId++}', status: MedicationStatus.active);
+    final created = _syncSchedules(
+      draft.copyWith(id: 'local-${_nextId++}', status: MedicationStatus.active),
+    );
     _idByClientUuid[clientUuid] = created.id;
     _medications.insert(0, created);
     return created;
@@ -31,8 +85,33 @@ class InMemoryMedicationRepository implements MedicationRepository, CatalogDetai
   Future<Medication> update(Medication before, Medication after) async {
     final current = _find(before.id);
     if (!current.isActive) throw const MedicationFailure(MedicationFailureKind.stopped);
-    _replace(after);
-    return after;
+    final synced = _syncSchedules(after, existingSchedules: current.schedules);
+    _replace(synced);
+    return synced;
+  }
+
+  @override
+  Future<Medication> updateScheduleReminder(
+    String medicationId,
+    int scheduleId,
+    bool reminderEnabled,
+  ) async {
+    final current = _find(medicationId);
+    if (!current.isActive) throw const MedicationFailure(MedicationFailureKind.stopped);
+    final idx = current.schedules.indexWhere((s) => s.id == scheduleId);
+    if (idx < 0) throw const MedicationFailure(MedicationFailureKind.notFound);
+    final nextSchedules = [
+      for (var i = 0; i < current.schedules.length; i++)
+        i == idx
+            ? current.schedules[i].copyWith(reminderEnabled: reminderEnabled)
+            : current.schedules[i],
+    ];
+    final next = current.copyWith(
+      schedules: List.unmodifiable(nextSchedules),
+      reminderEnabled: nextSchedules.any((s) => s.reminderEnabled),
+    );
+    _replace(next);
+    return next;
   }
 
   @override
@@ -50,11 +129,16 @@ class InMemoryMedicationRepository implements MedicationRepository, CatalogDetai
       frequency: current.frequency,
       timing: current.timing,
       times: current.times,
+      schedules: current.schedules,
+      daysOfWeek: current.daysOfWeek,
       status: stopped ? MedicationStatus.stopped : MedicationStatus.active,
       stockRemaining: current.stockRemaining,
       endedOn: stopped ? DateTime.now() : null,
       dosageForm: current.dosageForm,
       maxDosesPerDay: current.maxDosesPerDay,
+      reminderEnabled: current.reminderEnabled,
+      pillShape: current.pillShape,
+      pillColor: current.pillColor,
     );
     _replace(next);
     return next;

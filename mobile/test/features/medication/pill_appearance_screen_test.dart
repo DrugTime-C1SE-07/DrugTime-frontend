@@ -65,4 +65,24 @@ void main() {
     await tester.pumpAndSettle();
     expect(result, isNull);
   });
+
+  testWidgets('showStepProgress=false ẩn thanh Bước 3/3 khi mở từ Sửa thuốc (AC6)',
+      (tester) async {
+    await tester.pumpWidget(MaterialApp(
+      home: Builder(
+        builder: (context) => TextButton(
+          onPressed: () => showPillAppearanceScreen(
+            context,
+            drugName: 'Losartan 50mg',
+            showStepProgress: false,
+          ),
+          child: const Text('open'),
+        ),
+      ),
+    ));
+    await tester.tap(find.text('open'));
+    await tester.pumpAndSettle();
+    expect(find.text('Bước 3/3 · Xác nhận'), findsNothing);
+    expect(find.text('Dạng & màu thuốc'), findsOneWidget);
+  });
 }

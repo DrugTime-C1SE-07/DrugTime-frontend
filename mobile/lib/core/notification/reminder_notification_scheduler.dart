@@ -29,7 +29,8 @@ class ReminderNotificationScheduler implements ReminderScheduler {
     ReminderPreferences Function()? preferences,
   })  : _clock = clockProvider ?? DateTime.timestamp,
         _soundChannel = soundChannel ?? (() => ReminderSounds.system),
-        _preferences = preferences ?? (() => const ReminderPreferences());
+        _preferences =
+            preferences ?? (() => const ReminderPreferences(repeatIfMissed: false));
 
   static const int maxIosScheduledNotifications = 64;
 
@@ -63,8 +64,8 @@ class ReminderNotificationScheduler implements ReminderScheduler {
     // Channel Android không đổi được rung sau khi tạo: tắt rung dùng channel riêng.
     return NotificationDetails(
       android: AndroidNotificationDetails(
-        vibrate ? sound.channelId : '${sound.channelId}_no_vibration',
-        vibrate ? sound.channelName : '${sound.channelName} · không rung',
+        sound.channelIdFor(vibrate: vibrate),
+        sound.channelNameFor(vibrate: vibrate),
         channelDescription: NotificationService.reminderChannelDescription,
         importance: Importance.max,
         priority: Priority.high,
@@ -133,14 +134,16 @@ class ReminderNotificationScheduler implements ReminderScheduler {
     final prefs = _preferences();
     if (!prefs.enabled) return;
     final now = _clock().toUtc();
+    const repeatDelay = ReminderPreferences.repeatDelay;
 
-    // Lọc bỏ lượt trong quá khứ hoặc hiện tại
-    final futureOccurrences =
-        occurrences.where((occ) => occ.scheduledAt.isAfter(now));
+    // Lọc giữ các lượt có mốc gốc hoặc lượt nhắc lại +10 phút còn ở tương lai.
+    final activeOccurrences = occurrences.where((occ) =>
+        occ.scheduledAt.isAfter(now) ||
+        (prefs.repeatIfMissed && occ.scheduledAt.add(repeatDelay).isAfter(now)));
 
     // Khử trùng lặp va chạm ID
     final deduplicated = detectIdCollisions(
-      futureOccurrences,
+      activeOccurrences,
       onCollision: onLog,
     );
 
@@ -150,52 +153,85 @@ class ReminderNotificationScheduler implements ReminderScheduler {
           .putIfAbsent(occ.scheduledAt, () => [])
           .add(occ.medicationScheduleId);
     }
-    var times = slots.keys.toList()..sort();
+
+    final events = <({
+      DateTime fireAt,
+      DateTime scheduledAt,
+      bool isRepeat,
+      int representativeId,
+    })>[];
+    final sortedTimes = slots.keys.toList()..sort();
+    for (final at in sortedTimes) {
+      final ids = slots[at]!..sort();
+      slots[at] = List.unmodifiable(ids);
+      if (at.isAfter(now)) {
+        events.add((
+          fireAt: at,
+          scheduledAt: at,
+          isRepeat: false,
+          representativeId: ids.first,
+        ));
+      }
+      final repeatAt = at.add(repeatDelay);
+      if (prefs.repeatIfMissed && repeatAt.isAfter(now)) {
+        events.add((
+          fireAt: repeatAt,
+          scheduledAt: at,
+          isRepeat: true,
+          representativeId: ids.first,
+        ));
+      }
+    }
+
+    events.sort((a, b) {
+      final cmp = a.fireAt.compareTo(b.fireAt);
+      if (cmp != 0) return cmp;
+      if (a.isRepeat != b.isRepeat) return a.isRepeat ? 1 : -1;
+      return a.scheduledAt.compareTo(b.scheduledAt);
+    });
 
     final isIos =
         (targetPlatform ?? defaultTargetPlatform) == TargetPlatform.iOS;
-    // Nhắc lại chiếm thêm một chỗ mỗi mốc trong giới hạn 64 thông báo chờ của iOS.
-    final iosLimit = prefs.repeatIfMissed
-        ? maxIosScheduledNotifications ~/ 2
-        : maxIosScheduledNotifications;
-    if (isIos && times.length > iosLimit) {
-      times = times.take(iosLimit).toList();
-    }
+    final cappedEvents = isIos && events.length > maxIosScheduledNotifications
+        ? events.take(maxIosScheduledNotifications).toList()
+        : events;
 
     _slots.clear();
-    for (final at in times) {
-      final ids = slots[at]!..sort();
-      _slots[at] = List.unmodifiable(ids);
-      await _schedule(ids.first, at, fireAt: at, repeat: prefs.repeatIfMissed);
+    for (final e in cappedEvents) {
+      _slots.putIfAbsent(e.scheduledAt, () => slots[e.scheduledAt]!);
+      await _scheduleOne(
+        e.representativeId,
+        e.scheduledAt,
+        fireAt: e.fireAt,
+        isRepeat: e.isRepeat,
+      );
     }
   }
 
   /// Thuốc theo từng mốc giờ đã lên lịch; phần tử đầu là thuốc đại diện của thông báo.
   final Map<DateTime, List<int>> _slots = {};
 
-  /// Lập thông báo của một mốc cho thuốc đại diện; [repeat] thêm lượt "nhắc lại nếu bỏ lỡ"
-  /// sau [ReminderPreferences.repeatDelay], cùng payload.
-  Future<void> _schedule(
+  /// Lập một thông báo (gốc hoặc nhắc lại +10 phút) cho thuốc đại diện.
+  Future<void> _scheduleOne(
     int medicationScheduleId,
     DateTime scheduledAt, {
     required DateTime fireAt,
-    bool repeat = false,
+    required bool isRepeat,
   }) async {
     final payload = NotificationPayload(
       medicationScheduleId: medicationScheduleId,
       scheduledAt: scheduledAt,
+      isRepeat: isRepeat,
     ).serialize();
-    await _zonedSchedule(notificationIdFor(medicationScheduleId, scheduledAt),
-        defaultBody, fireAt, payload, 'thông báo');
-    if (repeat) {
-      await _zonedSchedule(
-        repeatNotificationIdFor(medicationScheduleId, scheduledAt),
-        repeatBody,
-        scheduledAt.add(ReminderPreferences.repeatDelay),
-        payload,
-        'nhắc lại',
-      );
-    }
+    await _zonedSchedule(
+      isRepeat
+          ? repeatNotificationIdFor(medicationScheduleId, scheduledAt)
+          : notificationIdFor(medicationScheduleId, scheduledAt),
+      isRepeat ? repeatBody : defaultBody,
+      fireAt,
+      payload,
+      isRepeat ? 'nhắc lại' : 'thông báo',
+    );
   }
 
   /// Lên lịch hoãn cữ thuốc (snooze) đến [remindAt].
@@ -212,13 +248,18 @@ class ReminderNotificationScheduler implements ReminderScheduler {
   }) async {
     final at = scheduledAt.toUtc();
     await platform.cancel(repeatNotificationIdFor(medicationScheduleId, at));
-    await _schedule(medicationScheduleId, at, fireAt: remindAt.toUtc());
+    await _scheduleOne(
+      medicationScheduleId,
+      at,
+      fireAt: remindAt.toUtc(),
+      isRepeat: false,
+    );
   }
 
   /// Hủy một lượt thông báo cụ thể, kể cả lượt nhắc lại của nó (idempotent).
   ///
-  /// Nếu lượt đó là đại diện của mốc giờ chưa tới mà còn thuốc khác cùng giờ,
-  /// lên lịch lại thông báo cho thuốc kế tiếp để các thuốc còn lại vẫn được nhắc.
+  /// Nếu lượt đó là đại diện của mốc giờ chưa tới (hoặc còn lượt nhắc lại +10 phút
+  /// chưa tới) mà vẫn còn thuốc khác cùng giờ, lên lịch lại cho thuốc kế tiếp.
   @override
   Future<void> cancelOccurrence({
     int? scheduleId,
@@ -243,9 +284,16 @@ class ReminderNotificationScheduler implements ReminderScheduler {
       return;
     }
     _slots[at] = rest;
-    if (slot.first == targetId && at.isAfter(_clock().toUtc())) {
-      await _schedule(rest.first, at,
-          fireAt: at, repeat: _preferences().repeatIfMissed);
+    if (slot.first == targetId) {
+      final now = _clock().toUtc();
+      final prefs = _preferences();
+      if (at.isAfter(now)) {
+        await _scheduleOne(rest.first, at, fireAt: at, isRepeat: false);
+      }
+      final repeatAt = at.add(ReminderPreferences.repeatDelay);
+      if (prefs.repeatIfMissed && repeatAt.isAfter(now)) {
+        await _scheduleOne(rest.first, at, fireAt: repeatAt, isRepeat: true);
+      }
     }
   }
 
@@ -281,6 +329,13 @@ class ReminderNotificationScheduler implements ReminderScheduler {
       final payload = NotificationPayload.tryParse(response.payload);
       if (payload != null) {
         await onTakeDose?.call(payload);
+        await platform.cancel(
+          notificationIdFor(payload.medicationScheduleId, payload.scheduledAt),
+        );
+        await platform.cancel(
+          repeatNotificationIdFor(
+              payload.medicationScheduleId, payload.scheduledAt),
+        );
         if (response.id != null) {
           await platform.cancel(response.id!);
         }

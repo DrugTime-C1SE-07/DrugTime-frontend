@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../app/theme/app_theme.dart';
+import '../../../../core/notification/notification_preferences.dart';
 import '../../domain/entities/medication.dart';
 import 'medication_labels.dart';
 import 'pill_appearance_icon.dart';
@@ -43,11 +44,15 @@ class MedicationCard extends StatelessWidget {
         dosageForm: med.dosageForm,
         background:
             Color.alphaBlend(color.color.withAlpha(56), AppColors.surface));
-    final lowStock = active && med.isLowStock && med.stockLabel != null;
+    final showLowStock =
+        NotificationPreferencesScope.maybeOf(context)?.reminders.lowStockAlerts ??
+            true;
+    final lowStock =
+        showLowStock && active && med.isLowStock && med.stockLabel != null;
 
     return Semantics(
       button: true,
-      label: _semanticLabel(med),
+      label: _semanticLabel(med, showLowStock: showLowStock),
       excludeSemantics: true,
       child: DecoratedBox(
         decoration: BoxDecoration(
@@ -140,14 +145,14 @@ class MedicationCard extends StatelessWidget {
         : 'Đã ngừng · kết thúc ${formatDate(ended)}';
   }
 
-  static String _semanticLabel(Medication med) {
+  static String _semanticLabel(Medication med, {bool showLowStock = true}) {
     final parts = <String>[med.name];
     if (!med.isActive) {
       parts.add(_stoppedLabel(med));
     } else {
       parts.add(med.scheduleSummary);
       if (med.times.isNotEmpty) parts.add('Giờ uống ${med.timesLabel}');
-      if (med.isLowStock) parts.add('Sắp hết thuốc');
+      if (showLowStock && med.isLowStock) parts.add('Sắp hết thuốc');
       if (med.stockLabel != null) parts.add(med.stockLabel!);
     }
     return parts.join('. ');

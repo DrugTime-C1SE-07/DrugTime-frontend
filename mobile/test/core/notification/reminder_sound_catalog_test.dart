@@ -12,7 +12,7 @@ void main() {
     ], [
       'Chuông mặc định',
       'Nhẹ nhàng',
-      'Âm cha hữu ơi',
+      'Vui vẻ',
       'Khẩn cấp',
       'Chuông điện thoại mặc định',
       'Im lặng (chỉ rung)',
@@ -65,5 +65,17 @@ void main() {
     expect((channel.sound! as UriAndroidNotificationSound).sound,
         'content://media/1');
     expect(channel.importance, Importance.max);
+  });
+
+  test('TC-606-12: first 4 built-in sounds have subtitles and channelFor(vibrate: false) uses _no_vibration',
+      () {
+    for (final s in ReminderSounds.all.take(4)) {
+      expect(s.subtitle, isNotNull);
+      expect(s.subtitle, isNotEmpty);
+    }
+    final ch = ReminderSounds.chime.channelFor(vibrate: false);
+    expect(ch.id, 'drugtime_reminder_chime_v1_no_vibration');
+    expect(ch.enableVibration, isFalse);
+    expect(ch.playSound, isTrue);
   });
 }

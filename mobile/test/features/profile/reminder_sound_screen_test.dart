@@ -28,7 +28,8 @@ void main() {
   Future<void> pumpScreen(WidgetTester t,
       {ReminderSoundSettings settings = const ReminderSoundSettings(),
       Size size = const Size(375, 812),
-      double textScale = 1}) async {
+      double textScale = 1,
+      bool? draftVibrationEnabled}) async {
     await t.binding.setSurfaceSize(size);
     addTearDown(() => t.binding.setSurfaceSize(null));
     store = FakeReminderSoundStore(settings);
@@ -42,7 +43,9 @@ void main() {
             data: MediaQuery.of(context)
                 .copyWith(textScaler: TextScaler.linear(textScale)),
             child: child!),
-        home: const ReminderSoundScreen(),
+        home: ReminderSoundScreen(
+          draftVibrationEnabled: draftVibrationEnabled,
+        ),
       ),
     ));
     await t.pumpAndSettle();
@@ -73,7 +76,7 @@ void main() {
     expect(
         find.descendant(
             of: gentleRow.first,
-            matching: find.byIcon(Icons.radio_button_checked)),
+            matching: find.byIcon(Icons.check_circle)),
         findsOneWidget);
   });
 
@@ -202,16 +205,67 @@ void main() {
     expect(find.text('Âm thanh của bạn'), findsNothing);
   });
 
-  for (final width in [320.0, 375.0]) {
-    for (final scale in [1.0, 2.0]) {
-      testWidgets('no overflow at ${width.toInt()} px, text scale $scale',
+  testWidgets(
+      'displays Vui vẻ, 4 built-in subtitles, check_circle and >=14px text__TC-606-26',
+      (t) async {
+    await pumpScreen(t);
+    expect(find.text('Vui vẻ'), findsOneWidget);
+    for (final subtitle in const [
+      'Âm thanh chuẩn của DrugTime',
+      'Phù hợp buổi tối',
+      'Giai điệu ngắn, năng động',
+      'Rõ ràng, dùng khi liều quan trọng',
+    ]) {
+      expect(find.text(subtitle), findsOneWidget);
+    }
+    expect(find.byIcon(Icons.check_circle), findsOneWidget);
+    for (final text in t.widgetList<Text>(find.byType(Text))) {
+      final size = text.style?.fontSize;
+      if (size != null) {
+        expect(size, greaterThanOrEqualTo(14.0),
+            reason: 'Text "${text.data}" has fontSize $size < 14');
+      }
+    }
+  });
+
+  testWidgets('iOS shows Chưa khả dụng message with font >=14px__TC-606-26b',
+      (t) async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+    try {
+      await pumpScreen(t);
+      final unavailable = find.text('Chưa khả dụng');
+      expect(unavailable, findsAtLeastNWidgets(1));
+      for (final widget in t.widgetList<Text>(unavailable)) {
+        expect(widget.style?.fontSize ?? 14.0, greaterThanOrEqualTo(14.0));
+      }
+    } finally {
+      debugDefaultTargetPlatformOverride = null;
+    }
+  });
+
+  testWidgets(
+      'silent + draftVibrationEnabled=false shows no-sound no-vibration CautionNote__TC-606-26c',
+      (t) async {
+    await pumpScreen(
+      t,
+      settings: const ReminderSoundSettings(selectedId: 'silent'),
+      draftVibrationEnabled: false,
+    );
+    expect(find.textContaining('không kêu và không rung'), findsOneWidget);
+  });
+
+  for (final size in const [Size(320, 640), Size(375, 812)]) {
+    for (final scale in const [1.0, 1.3, 2.0]) {
+      testWidgets(
+          'no overflow at ${size.width.toInt()}x${size.height.toInt()}, text scale ${scale}__TC-606-28',
           (t) async {
         native.missing.add('/files/reminder_sounds/custom_1.mp3');
         await pumpScreen(t,
-            size: Size(width, 812),
+            size: size,
             textScale: scale,
+            draftVibrationEnabled: false,
             settings: ReminderSoundSettings(
-                selectedId: 'custom_1',
+                selectedId: 'silent',
                 customs: [for (var i = 1; i <= 10; i++) _custom(i)]));
         controller.togglePreview(ReminderSounds.chime);
         await t.pumpAndSettle();

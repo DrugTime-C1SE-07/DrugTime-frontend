@@ -28,13 +28,15 @@ void main() {
 
   Future<void> build(
       [ReminderSoundSettings settings = const ReminderSoundSettings(),
-      TargetPlatform? platform]) async {
+      TargetPlatform? platform,
+      bool Function()? vibrationEnabled]) async {
     store = FakeReminderSoundStore(settings);
     controller = fakeReminderSoundController(
         store: store,
         native: native,
         notifications: channels,
-        targetPlatform: platform);
+        targetPlatform: platform,
+        vibrationEnabled: vibrationEnabled);
     changes = 0;
     controller.onSoundChanged = () => changes++;
     await controller.load();
@@ -168,7 +170,10 @@ void main() {
     await controller.delete('custom_2');
     expect(store.settings.selectedId, 'chime');
     expect(store.settings.customs, isEmpty);
-    expect(channels.deleted, ['drugtime_reminder_custom_2']);
+    expect(channels.deleted, [
+      'drugtime_reminder_custom_2',
+      'drugtime_reminder_custom_2_no_vibration',
+    ]);
     expect(
         native.calls, contains('delete /files/reminder_sounds/custom_2.mp3'));
     expect(changes, 1);
@@ -230,8 +235,12 @@ void main() {
     expect(controller.selectedId, 'chime');
     expect(controller.customSounds, isEmpty);
     expect(controller.playingId, isNull);
-    expect(channels.deleted,
-        ['drugtime_reminder_custom_1', 'drugtime_reminder_custom_2']);
+    expect(channels.deleted, [
+      'drugtime_reminder_custom_1',
+      'drugtime_reminder_custom_1_no_vibration',
+      'drugtime_reminder_custom_2',
+      'drugtime_reminder_custom_2_no_vibration',
+    ]);
     expect(native.calls.where((c) => c.startsWith('delete')), hasLength(2));
   });
 
@@ -259,6 +268,16 @@ void main() {
     await build();
     await controller.openSoundSettings();
     expect(native.calls, ['openSoundSettings']);
+  });
+
+  test('TC-606-12b: vibrationEnabled=false creates _no_vibration channel',
+      () async {
+    await build(
+      const ReminderSoundSettings(),
+      TargetPlatform.android,
+      () => false,
+    );
+    expect(channels.created.last, 'drugtime_reminder_chime_v1_no_vibration');
   });
 }
 

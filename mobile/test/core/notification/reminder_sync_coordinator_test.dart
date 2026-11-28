@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:timezone/data/latest_all.dart' as tz_data;
 import 'package:timezone/timezone.dart' as tz;
 import 'package:drugtime_mobile/core/notification/notification_id.dart';
+import 'package:drugtime_mobile/core/notification/notification_preferences.dart';
 import 'package:drugtime_mobile/core/notification/notification_service.dart';
 import 'package:drugtime_mobile/core/notification/reminder_notification_scheduler.dart';
 import 'package:drugtime_mobile/core/notification/reminder_sync_coordinator.dart';
@@ -219,6 +220,108 @@ void main() {
     await coordinator.clear();
 
     expect(platform.cancelCalls, [11]);
+  });
+
+  test('TC-606-10: refresh với enabled=false hủy sạch gốc/repeat/snooze, giữ family, không chạy beforeSchedule',
+      () async {
+    remote.schedules = [_schedule(1)];
+    var hookCalls = 0;
+    final disabledCoordinator = ReminderSyncCoordinator(
+      syncService:
+          ScheduleSyncService(remoteDataSource: remote, localStore: store),
+      localStore: store,
+      scheduler: ReminderNotificationScheduler(
+        platform: platform,
+        location: vn,
+        clockProvider: () => _now,
+        targetPlatform: TargetPlatform.android,
+        preferences: () => const ReminderPreferences(enabled: false),
+      ),
+      clock: () => _now,
+      onLog: logs.add,
+      beforeSchedule: () async => hookCalls++,
+    );
+    final snoozed = NotificationPayload(
+      medicationScheduleId: 1,
+      scheduledAt: DateTime.utc(2026, 11, 11, 23, 30),
+    ).serialize();
+    final future = NotificationPayload(
+      medicationScheduleId: 1,
+      scheduledAt: DateTime.utc(2026, 11, 12, 1, 0),
+    ).serialize();
+    platform.pendingRequests = [
+      PendingNotificationRequest(101, 't', 'b', snoozed),
+      PendingNotificationRequest(102, 't', 'b', future),
+      const PendingNotificationRequest(202, 't', 'b', 'family:5'),
+    ];
+
+    await disabledCoordinator.refresh('patient-1');
+
+    expect(platform.cancelCalls, [101, 102]);
+    expect(platform.zonedScheduleCalls, isEmpty);
+    expect(hookCalls, 0);
+  });
+
+  test('TC-606-11: refresh lúc 08:05 hủy repeat 08:10 khi tắt repeat hoặc đã uống, giữ snooze; lập lại 08:10 khi bật repeat',
+      () async {
+    // 08:05 VN = 01:05 UTC; liều 08:00 VN = 01:00 UTC.
+    final now0805 = DateTime.utc(2026, 11, 12, 1, 5);
+    final at0800 = DateTime.utc(2026, 11, 12, 1, 0);
+    final repeatId = repeatNotificationIdFor(1, at0800);
+    final snoozedPayload = NotificationPayload(
+      medicationScheduleId: 1,
+      scheduledAt: DateTime.utc(2026, 11, 11, 23, 30),
+    );
+    final snoozedId =
+        notificationIdFor(snoozedPayload.medicationScheduleId, snoozedPayload.scheduledAt);
+    final repeatPayloadJson = '{"schedule_id":1,"scheduled_at":"${at0800.toIso8601String()}","is_repeat":true}';
+
+    remote.schedules = [_schedule(1)];
+    var repeatEnabled = false;
+    final c = ReminderSyncCoordinator(
+      syncService:
+          ScheduleSyncService(remoteDataSource: remote, localStore: store),
+      localStore: store,
+      scheduler: ReminderNotificationScheduler(
+        platform: platform,
+        location: vn,
+        clockProvider: () => now0805,
+        targetPlatform: TargetPlatform.android,
+        preferences: () => ReminderPreferences(repeatIfMissed: repeatEnabled),
+      ),
+      clock: () => now0805,
+      onLog: logs.add,
+    );
+
+    platform.pendingRequests = [
+      PendingNotificationRequest(snoozedId, 't', 'b', snoozedPayload.serialize()),
+      PendingNotificationRequest(repeatId, 't', 'b', repeatPayloadJson),
+    ];
+    await c.refresh('patient-1');
+    expect(platform.cancelCalls, contains(repeatId));
+    expect(platform.cancelCalls, isNot(contains(snoozedId)));
+    expect(platform.zonedScheduleCalls.any((call) => call.id == repeatId), isFalse);
+
+    // Bật repeat và chưa có dose_log -> lập lại 08:10 VN.
+    platform.cancelCalls.clear();
+    platform.zonedScheduleCalls.clear();
+    repeatEnabled = true;
+    await c.refresh('patient-1');
+    final expectedAt = at0800.add(const Duration(minutes: 10));
+    expect(
+      platform.zonedScheduleCalls.any((call) =>
+          call.id == repeatId &&
+          call.scheduledDate.toUtc().isAtSameMomentAs(expectedAt)),
+      isTrue,
+      reason:
+          'repeatId=$repeatId expected=$expectedAt calls=${platform.zonedScheduleCalls.map((e) => '${e.id}@${e.scheduledDate.toUtc().toIso8601String()}').take(5).toList()}',
+    );
+
+    // Đã uống -> không lập lại 08:10 VN.
+    platform.zonedScheduleCalls.clear();
+    store.recorded.add('1@${at0800.toIso8601String()}');
+    await c.refresh('patient-1');
+    expect(platform.zonedScheduleCalls.any((call) => call.id == repeatId), isFalse);
   });
 }
 
