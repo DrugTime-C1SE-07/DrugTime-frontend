@@ -4,6 +4,16 @@ import 'package:flutter/material.dart';
 import '../../../app/theme/app_theme.dart';
 import '../../adherence/domain/entities/adherence_history.dart';
 import '../../family_link/presentation/state/family_link_scope.dart';
+import '../../meal_suggestion/data/meal_choice_store.dart';
+import '../../meal_suggestion/data/repositories/family_meal_suggestion_repository.dart';
+import '../../meal_suggestion/domain/entities/meal_suggestion.dart';
+import '../../meal_suggestion/domain/repositories/allergy_profile_repository.dart';
+import '../../meal_suggestion/domain/repositories/meal_suggestion_repository.dart';
+import '../../meal_suggestion/presentation/screens/meal_suggestion_screen.dart';
+import '../../meal_suggestion/presentation/state/dietary_session.dart';
+import '../../meal_suggestion/presentation/state/meal_choice_controller.dart';
+import '../../meal_suggestion/presentation/state/meal_plan_controller.dart';
+import '../../meal_suggestion/presentation/state/meal_plan_scope.dart';
 import '../../patient_dose_reminders/data/patient_dose_reminder_repository.dart';
 import '../domain/monitor_digest.dart';
 import '../domain/monitor_models.dart';
@@ -24,10 +34,45 @@ import 'widgets/today_header.dart';
 /// (R5a), lịch sử (R6), không còn xem được (R8). Mọi dữ liệu đi qua
 /// [PatientMonitorController]; 403 ở bất kỳ request nào chuyển sang R8.
 class PatientMonitorScreen extends StatefulWidget {
-  const PatientMonitorScreen({super.key, required this.patientId});
+  const PatientMonitorScreen({
+    super.key,
+    required this.patientId,
+    this.mealRepositoryBuilder,
+    this.mealAllergyRepositoryBuilder,
+  });
   final String patientId;
+
+  /// Cho phép test/tầng ngoài thay thế kho `MOCK(6.11)`.
+  final MealSuggestionRepository Function(PatientMonitorController controller)?
+      mealRepositoryBuilder;
+  final AllergyProfileRepository Function(PatientMonitorController controller)?
+      mealAllergyRepositoryBuilder;
   @override
   State<PatientMonitorScreen> createState() => _PatientMonitorScreenState();
+}
+
+class _PatientMealHost {
+  _PatientMealHost({
+    required this.patientId,
+    required this.sessionRevision,
+    required this.plan,
+    required this.choices,
+    required this.dietarySession,
+  });
+
+  final String patientId;
+  final int sessionRevision;
+  final MealPlanController plan;
+  final MealChoiceController choices;
+  final DietarySession dietarySession;
+
+  void dispose() {
+    plan.reset();
+    dietarySession.clear();
+    unawaited(choices.clear());
+    plan.dispose();
+    choices.dispose();
+  }
 }
 
 class _PatientMonitorScreenState extends State<PatientMonitorScreen> {
@@ -36,6 +81,8 @@ class _PatientMonitorScreenState extends State<PatientMonitorScreen> {
   int _monthOffset = 0;
   bool _monthly = false;
   Timer? _ticker;
+  _PatientMealHost? _mealHost;
+  PatientMonitorController? _observedController;
 
   /// Tên cuối cùng đã biết, để màn R8 vẫn gọi đúng tên sau khi danh sách bị thu hồi.
   String _lastName = '';
@@ -52,12 +99,133 @@ class _PatientMonitorScreenState extends State<PatientMonitorScreen> {
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final next = _controller;
+    if (!identical(_observedController, next)) {
+      _observedController?.removeListener(_syncMealHostAccess);
+      _observedController = next;
+      _observedController?.addListener(_syncMealHostAccess);
+      _syncMealHostAccess();
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant PatientMonitorScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.patientId != widget.patientId) {
+      _clearMealHost();
+    }
+  }
+
+  @override
   void dispose() {
+    _observedController?.removeListener(_syncMealHostAccess);
+    _clearMealHost();
     _ticker?.cancel();
     super.dispose();
   }
 
+  void _syncMealHostAccess() {
+    final host = _mealHost;
+    if (host == null) return;
+    final c = _observedController;
+    final valid = c != null &&
+        c.ready &&
+        !c.denied &&
+        c.patientId == widget.patientId &&
+        host.patientId == widget.patientId &&
+        host.sessionRevision == c.sessionRevision;
+    if (!valid) {
+      _clearMealHost();
+    }
+  }
+
+  void _clearMealHost() {
+    _mealHost?.dispose();
+    _mealHost = null;
+  }
+
+  _PatientMealHost _ensureMealHost(PatientMonitorController controller) {
+    final existing = _mealHost;
+    if (existing != null &&
+        existing.patientId == widget.patientId &&
+        existing.sessionRevision == controller.sessionRevision) {
+      return existing;
+    }
+    _clearMealHost();
+    final id = widget.patientId;
+    MealFailureKind? checkAccess(String targetId) =>
+        (!controller.ready || controller.denied || controller.patientId != targetId)
+            ? MealFailureKind.forbidden
+            : null;
+    final session = DietarySession.isolated();
+    final repo = widget.mealRepositoryBuilder?.call(controller) ??
+        FamilyMealSuggestionRepository(accessCheck: checkAccess, now: controller.clock);
+    final allergyRepo = widget.mealAllergyRepositoryBuilder?.call(controller) ??
+        FamilyAllergyProfileRepository(patientId: id, accessCheck: checkAccess);
+    final plan = MealPlanController(
+      repository: repo,
+      allergyRepository: allergyRepo,
+      session: session,
+      now: controller.clock,
+    )..bind(id);
+    final choices = MealChoiceController(
+      store: MemoryMealChoiceStore(),
+      readOnly: true,
+      now: controller.clock,
+    )..bind(id);
+    final created = _PatientMealHost(
+      patientId: id,
+      sessionRevision: controller.sessionRevision,
+      plan: plan,
+      choices: choices,
+      dietarySession: session,
+    );
+    _mealHost = created;
+    return created;
+  }
+
+  void _openMealSuggestion(PatientMonitorController controller) {
+    if (!controller.ready ||
+        controller.denied ||
+        controller.patientId != widget.patientId) {
+      return;
+    }
+    final host = _ensureMealHost(controller);
+    unawaited(Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => MealPlanScope(
+          plan: host.plan,
+          choices: host.choices,
+          child: MealSuggestionScreen(
+            patientId: widget.patientId,
+            patientName: controller.patientName,
+            caregiverMode: true,
+            accessRevokedListenable: controller,
+            isAccessRevoked: () =>
+                !controller.ready ||
+                controller.denied ||
+                controller.patientId != widget.patientId,
+            onAccessDenied: (failure) {
+              if (identical(_mealHost, host)) {
+                _clearMealHost();
+              } else {
+                host.dispose();
+              }
+              if (failure.kind == MealFailureKind.forbidden) {
+                controller.revoke(widget.patientId);
+              }
+            },
+            onDeclareAllergy: (_) async => false,
+          ),
+        ),
+      ),
+    ));
+  }
+
   void _backToHub() {
+    _clearMealHost();
     _controller?.leave();
     Navigator.of(context).pop();
   }
@@ -352,6 +520,17 @@ class _PatientMonitorScreenState extends State<PatientMonitorScreen> {
         title: const Text('Tương tác thuốc và thực phẩm'),
         trailing: const Icon(Icons.chevron_right),
         onTap: () => _open('interactions'),
+      ),
+      const SizedBox(height: 10),
+      ListTile(
+        key: const Key('open-meal-suggestion'),
+        tileColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        leading: const Icon(Icons.restaurant_menu_rounded),
+        title: const Text('Gợi ý bữa ăn'),
+        subtitle: Text('Thực đơn theo thuốc của ${controller.patientName}'),
+        trailing: const Icon(Icons.chevron_right),
+        onTap: () => _openMealSuggestion(controller),
       ),
       const SizedBox(height: 8),
       Text(

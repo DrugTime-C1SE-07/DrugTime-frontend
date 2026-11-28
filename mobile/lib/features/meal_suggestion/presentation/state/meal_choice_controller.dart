@@ -13,6 +13,7 @@ class MealChoiceController extends ChangeNotifier {
     required MealChoiceStore store,
     MealWidgetBridge bridge = const NoopMealWidgetBridge(),
     DateTime Function()? now,
+    this.readOnly = false,
   })  : _store = store,
         _bridge = bridge,
         _now = now ?? DateTime.now;
@@ -20,6 +21,9 @@ class MealChoiceController extends ChangeNotifier {
   final MealChoiceStore _store;
   final MealWidgetBridge _bridge;
   final DateTime Function() _now;
+
+  /// Phía người thân chỉ xem (QD-27): không chọn món và không ghi widget chính chủ.
+  final bool readOnly;
 
   String? _userId;
   String _day = '';
@@ -55,6 +59,10 @@ class MealChoiceController extends ChangeNotifier {
     _userId = userId;
     _meals = const {};
     _day = vietnamDay(_now());
+    if (readOnly) {
+      _notify();
+      return;
+    }
     if (userId == null) {
       _notify();
       await _bridge.publish(const TodayMenuSnapshot.signedOut());
@@ -74,6 +82,7 @@ class MealChoiceController extends ChangeNotifier {
   /// [thumbnail]: ảnh nhỏ PNG của món cho widget màn hình chính (nếu có).
   Future<void> choose(MealType type, MealChoice choice,
       {Uint8List? thumbnail}) async {
+    if (readOnly) return;
     _rollDay();
     _meals = {..._meals, type: choice};
     await _bridge.saveThumbnail(type, thumbnail);
@@ -83,6 +92,7 @@ class MealChoiceController extends ChangeNotifier {
   /// Gắn ảnh nhỏ cho món đã chọn của [type] (tải ảnh xong sau khi chọn), rồi vẽ lại widget.
   Future<void> attachThumbnail(
       MealType type, MealChoice choice, Uint8List png) async {
+    if (readOnly) return;
     final current = _meals[type];
     if (current == null ||
         current.suggestionId != choice.suggestionId ||
@@ -94,6 +104,7 @@ class MealChoiceController extends ChangeNotifier {
   }
 
   Future<void> unchoose(MealType type) async {
+    if (readOnly) return;
     _rollDay();
     if (!_meals.containsKey(type)) return;
     _meals = {..._meals}..remove(type);
@@ -106,6 +117,7 @@ class MealChoiceController extends ChangeNotifier {
     _meals = const {};
     final user = _userId;
     _notify();
+    if (readOnly) return;
     if (user != null) await _store.clear(user);
     await _clearThumbnails();
     await _publish();
@@ -118,6 +130,7 @@ class MealChoiceController extends ChangeNotifier {
     _userId = null;
     _meals = const {};
     _notify();
+    if (readOnly) return;
     if (user != null) await _store.clear(user);
     await _clearThumbnails();
     await _bridge.publish(const TodayMenuSnapshot.signedOut());

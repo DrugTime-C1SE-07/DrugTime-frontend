@@ -23,6 +23,8 @@ class DishDeck extends StatefulWidget {
     required this.celebratingIndex,
     required this.onChoose,
     required this.onDetail,
+    this.readOnly = false,
+    this.patientName,
   });
 
   final MealType meal;
@@ -30,6 +32,8 @@ class DishDeck extends StatefulWidget {
   final MealPlanController plan;
   final int? chosenIndex, celebratingIndex;
   final ValueChanged<int> onChoose, onDetail;
+  final bool readOnly;
+  final String? patientName;
 
   @override
   State<DishDeck> createState() => _DishDeckState();
@@ -118,6 +122,8 @@ class _DishDeckState extends State<DishDeck>
                   celebrating: widget.celebratingIndex == i,
                   onChoose: () => widget.onChoose(i),
                   onDetail: () => widget.onDetail(i),
+                  readOnly: widget.readOnly,
+                  patientName: widget.patientName,
                 ),
               ),
             ),
@@ -168,6 +174,8 @@ class DishCard extends StatelessWidget {
     required this.celebrating,
     required this.onChoose,
     required this.onDetail,
+    this.readOnly = false,
+    this.patientName,
   });
 
   final MealType meal;
@@ -177,6 +185,8 @@ class DishCard extends StatelessWidget {
   final PageController pages;
   final bool chosen, celebrating;
   final VoidCallback onChoose, onDetail;
+  final bool readOnly;
+  final String? patientName;
 
   @override
   Widget build(BuildContext context) {
@@ -285,12 +295,14 @@ class DishCard extends StatelessWidget {
                     TagRow([...dish.tags, kcalLabel(dish.kcalEstimate)],
                         key: ValueKey('dish-tags-$index')),
                     const SizedBox(height: 10),
-                    const Text('Gợi ý dựa trên danh sách thuốc của bạn',
-                        style: TextStyle(fontSize: 14, color: MealColors.ink2)),
+                    Text(
+                        'Gợi ý dựa trên danh sách thuốc của ${patientName ?? 'bạn'}',
+                        style: const TextStyle(
+                            fontSize: 14, color: MealColors.ink2)),
                     const SizedBox(height: 14),
                     Row(children: [
                       Expanded(
-                        flex: 4,
+                        flex: readOnly ? 1 : 4,
                         child: Pressable(
                           key: ValueKey('detail-$index'),
                           onTap: onDetail,
@@ -313,52 +325,55 @@ class DishCard extends StatelessWidget {
                           ),
                         ),
                       ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        flex: 6,
-                        child: Semantics(
-                          button: true,
-                          selected: chosen,
-                          child: Pressable(
-                            key: ValueKey('choose-$index'),
-                            onTap: onChoose,
-                            child: AnimatedContainer(
-                              duration: const Duration(milliseconds: 280),
-                              height: 50,
-                              alignment: Alignment.center,
-                              padding:
-                                  const EdgeInsets.symmetric(horizontal: 8),
-                              decoration: BoxDecoration(
-                                color:
-                                    chosen ? MealColors.mint : MealColors.brand,
-                                borderRadius: BorderRadius.circular(16),
-                              ),
-                              child: FittedBox(
-                                fit: BoxFit.scaleDown,
-                                child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Icon(Icons.check_rounded,
-                                          color: chosen
-                                              ? MealColors.brand
-                                              : Colors.white,
-                                          size: 20),
-                                      const SizedBox(width: 6),
-                                      Text(
-                                        chosen ? 'Đã chọn' : 'Chọn món này',
-                                        style: TextStyle(
-                                            fontSize: 16,
-                                            fontWeight: FontWeight.w700,
+                      if (!readOnly) ...[
+                        const SizedBox(width: 10),
+                        Expanded(
+                          flex: 6,
+                          child: Semantics(
+                            button: true,
+                            selected: chosen,
+                            child: Pressable(
+                              key: ValueKey('choose-$index'),
+                              onTap: onChoose,
+                              child: AnimatedContainer(
+                                duration: const Duration(milliseconds: 280),
+                                height: 50,
+                                alignment: Alignment.center,
+                                padding:
+                                    const EdgeInsets.symmetric(horizontal: 8),
+                                decoration: BoxDecoration(
+                                  color: chosen
+                                      ? MealColors.mint
+                                      : MealColors.brand,
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                                child: FittedBox(
+                                  fit: BoxFit.scaleDown,
+                                  child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(Icons.check_rounded,
                                             color: chosen
                                                 ? MealColors.brand
-                                                : Colors.white),
-                                      ),
-                                    ]),
+                                                : Colors.white,
+                                            size: 20),
+                                        const SizedBox(width: 6),
+                                        Text(
+                                          chosen ? 'Đã chọn' : 'Chọn món này',
+                                          style: TextStyle(
+                                              fontSize: 16,
+                                              fontWeight: FontWeight.w700,
+                                              color: chosen
+                                                  ? MealColors.brand
+                                                  : Colors.white),
+                                        ),
+                                      ]),
+                                ),
                               ),
                             ),
                           ),
                         ),
-                      ),
+                      ],
                     ]),
                   ]),
             ),

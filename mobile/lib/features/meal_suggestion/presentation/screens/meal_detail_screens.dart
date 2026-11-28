@@ -22,6 +22,7 @@ class MealDetailScreen extends StatefulWidget {
     required this.result,
     required this.index,
     required this.chosen,
+    this.readOnly = false,
   });
 
   final MealPlanController plan;
@@ -29,6 +30,7 @@ class MealDetailScreen extends StatefulWidget {
   final MealSuggestionResult result;
   final int index;
   final bool chosen;
+  final bool readOnly;
 
   static Route<bool> route({
     required MealPlanController plan,
@@ -36,6 +38,7 @@ class MealDetailScreen extends StatefulWidget {
     required MealSuggestionResult result,
     required int index,
     required bool chosen,
+    bool readOnly = false,
   }) =>
       sharedAxisRoute<bool>(
           builder: (_) => MealDetailScreen(
@@ -43,7 +46,8 @@ class MealDetailScreen extends StatefulWidget {
               meal: meal,
               result: result,
               index: index,
-              chosen: chosen));
+              chosen: chosen,
+              readOnly: readOnly));
 
   @override
   State<MealDetailScreen> createState() => _MealDetailScreenState();
@@ -190,90 +194,95 @@ class _MealDetailScreenState extends State<MealDetailScreen> {
               onTap: () => Navigator.of(context).pop(false),
             ),
           ),
-          Positioned(
-            left: 0,
-            right: 0,
-            bottom: 0,
-            child: Container(
-              padding: EdgeInsets.fromLTRB(20, 12, 20, 12 + mq.padding.bottom),
-              decoration: const BoxDecoration(
-                color: Colors.white,
-                border: Border(top: BorderSide(color: MealColors.line)),
-              ),
-              child: Row(children: [
-                if (hasRecipe) ...[
-                  Expanded(
-                    flex: 4,
-                    child: Pressable(
-                      key: const ValueKey('open-ingredients'),
-                      onTap: () => showIngredientsSheet(context,
-                          plan: widget.plan,
-                          dish: d,
-                          disclaimer: widget.result.disclaimer),
-                      child: Container(
-                        height: 52,
-                        alignment: Alignment.center,
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(
-                              color: const Color(0xFFCFE3DD), width: 1.6),
-                        ),
-                        child: const FittedBox(
-                          fit: BoxFit.scaleDown,
-                          child: Text('Nguyên liệu',
-                              style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w700,
-                                  color: MealColors.brand)),
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                ],
-                Expanded(
-                  flex: 6,
-                  child: Pressable(
-                    key: const ValueKey('detail-choose'),
-                    onTap: () => Navigator.of(context).pop(true),
-                    child: Container(
-                      height: 52,
-                      alignment: Alignment.center,
-                      padding: const EdgeInsets.symmetric(horizontal: 8),
-                      decoration: BoxDecoration(
-                        color: chosen ? MealColors.mint : MealColors.brand,
-                        borderRadius: BorderRadius.circular(16),
-                        boxShadow: chosen
-                            ? null
-                            : [
-                                BoxShadow(
-                                    color:
-                                        MealColors.brand.withValues(alpha: .3),
-                                    blurRadius: 14,
-                                    offset: const Offset(0, 6))
-                              ],
-                      ),
-                      child: FittedBox(
-                        fit: BoxFit.scaleDown,
-                        child: Row(mainAxisSize: MainAxisSize.min, children: [
-                          Icon(Icons.check_rounded,
-                              color: chosen ? MealColors.brand : Colors.white),
-                          const SizedBox(width: 6),
-                          Text(chosen ? 'Đã chọn' : 'Chọn món này',
-                              style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w700,
-                                  color: chosen
-                                      ? MealColors.brand
-                                      : Colors.white)),
-                        ]),
-                      ),
-                    ),
-                  ),
+          if (hasRecipe || !widget.readOnly)
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: Container(
+                padding:
+                    EdgeInsets.fromLTRB(20, 12, 20, 12 + mq.padding.bottom),
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  border: Border(top: BorderSide(color: MealColors.line)),
                 ),
-              ]),
+                child: Row(children: [
+                  if (hasRecipe) ...[
+                    Expanded(
+                      flex: widget.readOnly ? 1 : 4,
+                      child: Pressable(
+                        key: const ValueKey('open-ingredients'),
+                        onTap: () => showIngredientsSheet(context,
+                            plan: widget.plan,
+                            dish: d,
+                            disclaimer: widget.result.disclaimer),
+                        child: Container(
+                          height: 52,
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(
+                                color: const Color(0xFFCFE3DD), width: 1.6),
+                          ),
+                          child: const FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: Text('Nguyên liệu',
+                                style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w700,
+                                    color: MealColors.brand)),
+                          ),
+                        ),
+                      ),
+                    ),
+                    if (!widget.readOnly) const SizedBox(width: 10),
+                  ],
+                  if (!widget.readOnly)
+                    Expanded(
+                      flex: 6,
+                      child: Pressable(
+                        key: const ValueKey('detail-choose'),
+                        onTap: () => Navigator.of(context).pop(true),
+                        child: Container(
+                          height: 52,
+                          alignment: Alignment.center,
+                          padding: const EdgeInsets.symmetric(horizontal: 8),
+                          decoration: BoxDecoration(
+                            color: chosen ? MealColors.mint : MealColors.brand,
+                            borderRadius: BorderRadius.circular(16),
+                            boxShadow: chosen
+                                ? null
+                                : [
+                                    BoxShadow(
+                                        color: MealColors.brand
+                                            .withValues(alpha: .3),
+                                        blurRadius: 14,
+                                        offset: const Offset(0, 6))
+                                  ],
+                          ),
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child:
+                                Row(mainAxisSize: MainAxisSize.min, children: [
+                              Icon(Icons.check_rounded,
+                                  color:
+                                      chosen ? MealColors.brand : Colors.white),
+                              const SizedBox(width: 6),
+                              Text(chosen ? 'Đã chọn' : 'Chọn món này',
+                                  style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w700,
+                                      color: chosen
+                                          ? MealColors.brand
+                                          : Colors.white)),
+                            ]),
+                          ),
+                        ),
+                      ),
+                    ),
+                ]),
+              ),
             ),
-          ),
         ]),
       ),
     );

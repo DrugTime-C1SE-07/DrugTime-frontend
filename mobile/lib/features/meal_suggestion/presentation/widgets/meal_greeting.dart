@@ -8,14 +8,20 @@ import 'meal_ui.dart';
 /// Chỉ chữ bữa (kèm icon buổi) đổi, trượt ngang cùng chiều thanh tab; phần chữ cố định đứng yên,
 /// chỉ dịch ngang mượt theo bề rộng chữ bữa; dòng phụ mờ chéo tại chỗ.
 class MealGreeting extends StatelessWidget {
-  const MealGreeting(
-      {super.key, required this.meal, required this.dir, required this.who});
+  const MealGreeting({
+    super.key,
+    required this.meal,
+    required this.dir,
+    required this.who,
+    this.caregiverMode = false,
+  });
 
   final MealType meal;
 
   /// 1: sang phải (bữa sau), -1: sang trái.
   final int dir;
   final String who;
+  final bool caregiverMode;
 
   static const _dur = Duration(milliseconds: 280);
   static const _title = TextStyle(
@@ -92,8 +98,10 @@ class MealGreeting extends StatelessWidget {
                   child: word,
                 ),
               ),
-            Text(' nay ăn gì, $who?',
-                key: const ValueKey('greeting-fixed'), style: _title),
+            Text(
+                caregiverMode ? ' nay ăn gì cho $who?' : ' nay ăn gì, $who?',
+                key: const ValueKey('greeting-fixed'),
+                style: _title),
           ],
         ),
         const SizedBox(height: 2),
